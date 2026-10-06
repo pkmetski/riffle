@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.highlights
 
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.feature.reader.highlights.ChapterElision
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

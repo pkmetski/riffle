@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.app.feature.reader.highlights.ChapterElision
-import com.riffle.app.feature.reader.highlights.FALLBACK_ORIGIN_FONT_FAMILY
+import com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
+import com.riffle.feature.reader.highlights.ChapterElision
 import com.riffle.core.database.AnnotationEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

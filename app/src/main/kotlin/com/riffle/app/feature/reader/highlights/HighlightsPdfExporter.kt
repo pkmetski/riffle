@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.highlights
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.riffle.feature.reader.highlights.ChapterElision
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -174,95 +175,24 @@ class HighlightsPdfExporter constructor(
     }
 }
 
-// ─── Filename helpers ─────────────────────────────────────────────────────────
+// ─── Filename + HTML helpers — thin forwarders to feature:reader commonMain ───
+
+/** Derives a filesystem-safe PDF filename. Delegates to the shared implementation. */
+internal fun buildPdfFileName(bookTitle: String?, itemId: String): String =
+    com.riffle.feature.reader.highlights.buildPdfFileName(bookTitle, itemId)
 
 /**
- * Derives a filesystem-safe PDF filename from [bookTitle], falling back to [itemId] when the
- * title is null or blank. Characters illegal on FAT/NTFS/ext4 (`\ / : * ? " < > |`) are replaced
- * with underscores; the base name is capped at 180 characters so the full filename stays well
- * below the 255-byte ext4 limit.
- */
-internal fun buildPdfFileName(bookTitle: String?, itemId: String): String {
-    val illegal = Regex("[\\\\/:*?\"<>|]")
-    val safeName = bookTitle
-        ?.replace(illegal, "_")
-        ?.trim()
-        ?.take(180)
-        ?.ifBlank { null }
-        ?: itemId.replace(illegal, "_").trim().take(64)
-    return "$safeName Annotations.pdf"
-}
-
-// ─── PDF base styles ─────────────────────────────────────────────────────────
-
-private const val PDF_BASE_CSS =
-    "body{font-size:14pt;line-height:1.6;margin:0;padding:16pt;}" +
-        "h1{font-size:16pt;border-bottom:1px solid #cccccc;padding-bottom:4pt;" +
-        "margin:24pt 0 12pt;page-break-after:avoid;}" +
-        "h1:first-child{margin-top:0;}" +
-        "p{margin:0.75em 0;}" +
-        "aside{margin:0.5em 0;}"
-
-// ─── HTML assembly ────────────────────────────────────────────────────────────
-
-/**
- * Assembles a single self-contained `<html>` document from [chapters] for PDF export.
- *
- * Each chapter is rendered via [HighlightsPublicationFactory.renderChapterHtml]; only the
- * `<body>` content is extracted and concatenated. The combined `<head>` substitutes
- * [PDF_BASE_CSS] for the `READIUM_DEFAULT_CSS_LINK` (which is served by Readium's
- * `WebViewServer` and is not resolvable outside the live reader WebView). Tap-dispatch spans
- * ([ACCENT_BAR_TAP_CLASS]) are hidden via CSS — they have no meaning in a static PDF.
- *
- * All images are already base64 data URIs inside the chapter HTML; the result is fully
- * self-contained with no external resource references.
+ * Assembles a combined HTML document from [chapters] for PDF export. The [factory] parameter is
+ * retained for API compatibility with existing tests but is not used — rendering delegates to the
+ * shared `buildCombinedHtml` in `feature:reader` commonMain.
  */
 internal fun buildCombinedHtml(
-    factory: HighlightsPublicationFactory,
+    @Suppress("UNUSED_PARAMETER") factory: HighlightsPublicationFactory,
     chapters: List<ChapterElision>,
     bookTitle: String?,
     figureBytesByHref: Map<String, String>,
     publisherFontFaceCss: String,
     bookBodyFontFamily: String?,
-): String {
-    val safeTitle = bookTitle
-        ?.replace("&", "&amp;")?.replace("<", "&lt;")?.replace("\"", "&quot;")
-        ?: "Annotations"
-
-    val bodyParts = chapters
-        .filter { it.highlights.isNotEmpty() }
-        .joinToString("\n") { chapter ->
-            val chapterXhtml = factory.renderChapterHtml(
-                chapter, bookBodyFontFamily, figureBytesByHref, publisherFontFaceCss,
-            )
-            // Extract content between <body> and </body>; the chapter XHTML is authored by
-            // renderChapterHtml and always contains exactly one <body> block.
-            val bodyStart = chapterXhtml.indexOf("<body>").takeIf { it >= 0 } ?: return@joinToString ""
-            val bodyEnd = chapterXhtml.lastIndexOf("</body>").takeIf { it >= 0 } ?: return@joinToString ""
-            chapterXhtml.substring(bodyStart + "<body>".length, bodyEnd).trim()
-        }
-
-    val bodyFontRule = run {
-        val safe = sanitizeCssFontFamily(
-            realCapturedFontOrNull(bookBodyFontFamily),
-        ) ?: return@run ""
-        "body,h1,h2,h3,h4,h5,h6{font-family:$safe;}"
-    }
-
-    return buildString {
-        append("<!DOCTYPE html><html><head>")
-        append("<meta charset=\"utf-8\"/>")
-        append("<title>$safeTitle</title>")
-        append("<style>")
-        append(PDF_BASE_CSS)
-        append(ACCENT_BAR_TAP_CSS)
-        append(FIGURE_CENTERING_CSS)
-        // Hide tap-dispatch spans — they serve no purpose in a static PDF.
-        append(".$ACCENT_BAR_TAP_CLASS{display:none}")
-        if (publisherFontFaceCss.isNotBlank()) append(publisherFontFaceCss)
-        if (bodyFontRule.isNotBlank()) append(bodyFontRule)
-        append("</style></head><body>")
-        append(bodyParts)
-        append("</body></html>")
-    }
-}
+): String = com.riffle.feature.reader.highlights.buildCombinedHtml(
+    chapters, bookTitle, figureBytesByHref, publisherFontFaceCss, bookBodyFontFamily,
+)

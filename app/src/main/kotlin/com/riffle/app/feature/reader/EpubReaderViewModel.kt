@@ -74,12 +74,12 @@ import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.app.feature.reader.highlights.ChapterElision
-import com.riffle.app.feature.reader.highlights.GENERIC_CSS_FONT_KEYWORDS
 import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
-import com.riffle.app.feature.reader.highlights.realCapturedFontOrNull
+import com.riffle.feature.reader.highlights.ChapterElision
+import com.riffle.feature.reader.highlights.GENERIC_CSS_FONT_KEYWORDS
+import com.riffle.feature.reader.highlights.realCapturedFontOrNull
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.Job
@@ -163,10 +163,10 @@ private const val SPEED_SAVE_DEBOUNCE_MS = 400L
 // prior selection, TYPE_IMAGE caption highlights). The store contract requires a non-blank
 // string, so we keep the sentinel; render-time callers (plurality + per-<p> emitter) treat this
 // exact value as "no captured font" and fall back to the book-body probe / ReadiumCSS default.
-// Aliased to [com.riffle.app.feature.reader.highlights.FALLBACK_ORIGIN_FONT_FAMILY] so tests and
+// Aliased to [com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY] so tests and
 // factory logic reference a single source of truth. Issue #484.
 private const val FALLBACK_ORIGIN_FONT_FAMILY =
-    com.riffle.app.feature.reader.highlights.FALLBACK_ORIGIN_FONT_FAMILY
+    com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
 
 /** Convenience for the merge-inherit path: returns [Annotation.originFontFamily] on the
  *  domain projection, or null when the annotation predates issue #484 and hasn't been touched
@@ -553,10 +553,10 @@ class EpubReaderViewModel constructor(
     // The extra buffer keeps rapid bursts (e.g. sync inserts N highlights) from suspending the
     // observer coroutine before the screen collector runs its first tick.
     private val _highlightDomPatches =
-        MutableSharedFlow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>(
+        MutableSharedFlow<com.riffle.feature.reader.highlights.HighlightsDomPatch>(
             extraBufferCapacity = 32,
         )
-    val highlightDomPatches: SharedFlow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch> =
+    val highlightDomPatches: SharedFlow<com.riffle.feature.reader.highlights.HighlightsDomPatch> =
         _highlightDomPatches.asSharedFlow()
 
     // Nav events the screen can't service itself — e.g. leaving the elided Highlights-mode reader
@@ -3246,7 +3246,7 @@ class EpubReaderViewModel constructor(
                 val touchedChapters = mutableSetOf<String>()
                 for (id in removedIds) {
                     _highlightDomPatches.tryEmit(
-                        com.riffle.app.feature.reader.highlights.HighlightsDomPatch.Remove(id),
+                        com.riffle.feature.reader.highlights.HighlightsDomPatch.Remove(id),
                     )
                     previous[id]?.chapterHref?.let(touchedChapters::add)
                 }
@@ -3257,12 +3257,12 @@ class EpubReaderViewModel constructor(
                     val barPx = if (next.color.isBlank()) "1.5px" else "4px"
                     if (previousRow.color != next.color) {
                         _highlightDomPatches.tryEmit(
-                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch.Recolor(id, accent, barPx),
+                            com.riffle.feature.reader.highlights.HighlightsDomPatch.Recolor(id, accent, barPx),
                         )
                     }
                     if (previousRow.note != next.note) {
                         _highlightDomPatches.tryEmit(
-                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch
+                            com.riffle.feature.reader.highlights.HighlightsDomPatch
                                 .SetNote(id, accent, next.note),
                         )
                     }
@@ -3270,9 +3270,9 @@ class EpubReaderViewModel constructor(
                     val nextEmphasis = incomingEmphasisById[id] ?: emptySet()
                     if (prevEmphasis != nextEmphasis) {
                         _highlightDomPatches.tryEmit(
-                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch.SetEmphasis(
+                            com.riffle.feature.reader.highlights.HighlightsDomPatch.SetEmphasis(
                                 id,
-                                com.riffle.app.feature.reader.highlights.buildEmphasisInlineCss(nextEmphasis),
+                                com.riffle.feature.reader.highlights.buildEmphasisInlineCss(nextEmphasis),
                             ),
                         )
                     }
@@ -3348,7 +3348,7 @@ class EpubReaderViewModel constructor(
     // Theme-derived CSS for the ∅-colour bar — set from Compose via setEmphasisBarCss() so the
     // elided bar and the annotation-list hollow circle use the exact same onSurfaceVariant colour.
     @Volatile private var emphasisBarCss: String =
-        com.riffle.app.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
+        com.riffle.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
 
     /** Called from EpubReaderScreen via SideEffect with MaterialTheme.colorScheme.onSurfaceVariant. */
     fun setEmphasisBarCss(css: String) { emphasisBarCss = css }
