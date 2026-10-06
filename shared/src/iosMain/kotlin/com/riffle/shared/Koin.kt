@@ -52,7 +52,7 @@ import com.riffle.core.data.PlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
-import com.riffle.core.data.IosToReadRepositoryImpl
+import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
@@ -723,7 +723,7 @@ private fun iosLibraryModule(
     // supplied (see the factory above and #1072).
     single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<LocalToReadStore> { IosLocalToReadStore() }
-    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get(), get()) }
+    single<ToReadRepository> { ToReadRepositoryImpl(get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
     // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles
