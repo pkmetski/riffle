@@ -13,11 +13,9 @@ import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.reader.VolumeNavEvent
-import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
  * Shared tests for [CbzPanelViewer] — runs on `iosSimulatorArm64` and the Android JVM test host.

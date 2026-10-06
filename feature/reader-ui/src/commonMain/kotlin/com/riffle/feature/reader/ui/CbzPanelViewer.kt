@@ -31,11 +31,11 @@ import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelFitTransform
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.VolumeNavEvent
+import com.riffle.feature.reader.ui.generated.resources.Res
+import com.riffle.feature.reader.ui.generated.resources.ui_skip_guided_panels_on_this_page
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_skip_guided_panels_on_this_page
 
 /**
  * Shared Panel View compositor (ADR 0055). Handles touch, panel-to-panel animation, and the
@@ -129,7 +129,10 @@ fun CbzPanelViewer(
             if (viewportW <= 0 || viewportH <= 0) return@LaunchedEffect
             if (transform.scale == scaleAnim.targetValue &&
                 transform.translationX == txAnim.targetValue &&
-                transform.translationY == tyAnim.targetValue) return@LaunchedEffect
+                transform.translationY == tyAnim.targetValue
+            ) {
+                return@LaunchedEffect
+            }
             if (panelAnimationSpeedMs == 0) {
                 scaleAnim.snapTo(transform.scale)
                 txAnim.snapTo(transform.translationX)
