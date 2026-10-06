@@ -16,34 +16,36 @@ final class ElidedAnnotationsViewTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func fakeItem(id: String = "book1", title: String = "My Book") -> RiffleLibraryItem {
-        RiffleLibraryItem(
-            id: id,
-            libraryId: "lib1",
-            title: title,
-            author: "Author",
-            coverUrl: nil,
-            readingProgress: 0,
-            isCached: false,
-            isDownloaded: false,
-            ebookFormat: .epub,
-            ebookFileIno: nil,
-            hasAudio: false,
-            audioDurationSec: 0,
-            description: nil,
-            seriesName: nil,
-            publishedYear: nil,
-            genres: [],
-            publisher: nil,
-            language: nil,
-            lastOpenedAt: nil,
-            addedAt: nil,
-            isbn: nil,
-            asin: nil,
-            sourceId: "src",
-            pageCount: nil
-        )
-    }
+    // Type inferred from constructor argument labels — same pattern as OfflineAvailabilityTests.
+    // Avoid annotating the return type explicitly: bare 'LibraryItem' is ambiguous between
+    // Riffle and DeveloperToolsSupport, 'Riffle.LibraryItem' is non-deterministic when a class
+    // named 'Riffle' exists in scope, and 'RiffleLibraryItem' is the deprecated ObjC alias.
+    private let item = LibraryItem(
+        id: "book1",
+        libraryId: "lib1",
+        title: "My Book",
+        author: "Author",
+        coverUrl: nil,
+        readingProgress: 0,
+        isCached: false,
+        isDownloaded: false,
+        ebookFormat: .epub,
+        ebookFileIno: nil,
+        hasAudio: false,
+        audioDurationSec: 0,
+        description: nil,
+        seriesName: nil,
+        publishedYear: nil,
+        genres: [],
+        publisher: nil,
+        language: nil,
+        lastOpenedAt: nil,
+        addedAt: nil,
+        isbn: nil,
+        asin: nil,
+        sourceId: "src",
+        pageCount: nil
+    )
 
     /// Returns a minimal AnnotationEntity for a highlight, providing all Kotlin constructor
     /// parameters (Kotlin/Native does not expose default values to Swift).
@@ -83,19 +85,19 @@ final class ElidedAnnotationsViewTests: XCTestCase {
     // MARK: - IosElidedEpubAssembler
 
     func testAssemblerReturnsNilForEmptyChapters() {
-        let result = IosElidedEpubAssembler.shared.assemble(item: fakeItem(), chapters: [])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [])
         XCTAssertNil(result, "assemble should return nil when no chapters provided")
     }
 
     func testAssemblerReturnsNilForChaptersWithNoHighlights() {
         let emptyChapter = ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [])
-        let result = IosElidedEpubAssembler.shared.assemble(item: fakeItem(), chapters: [emptyChapter])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [emptyChapter])
         XCTAssertNil(result, "assemble should return nil when all chapters have empty highlights")
     }
 
     func testAssemblerCreatesDirectoryWithRequiredFiles() {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: fakeItem(), chapters: chapters) else {
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters) else {
             XCTFail("assemble returned nil for non-empty chapters")
             return
         }
@@ -114,7 +116,7 @@ final class ElidedAnnotationsViewTests: XCTestCase {
 
     func testAssemblerMimetypeContent() throws {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: fakeItem(), chapters: chapters) else {
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters) else {
             XCTFail("assemble returned nil")
             return
         }
