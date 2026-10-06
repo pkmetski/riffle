@@ -31,4 +31,5 @@
     <string name="ui_options">Options</string>
     <string name="ui_no_annotations_yet">No annotations yet.</string>
     <string name="ui_close_footnote">Close footnote</string>
+    <string name="ui_skip_guided_panels_on_this_page">Skip guided panels on this page</string>
 </resources>

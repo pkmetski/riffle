@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +31,7 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.argbPalette
+import com.riffle.feature.reader.ui.CbzPanelViewer
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -62,10 +64,13 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 
     val state by vm.state.collectAsState()
-    // The VM already resolves ComicFormattingPreferences.backgroundTheme == Auto against
-    // AppearanceCoordinator; iOS just never read the result, so the comic backdrop was whatever
-    // the parent Surface happened to be (#1071 §15.1).
     val comicBackgroundTheme by vm.comicBackgroundTheme.collectAsState()
+    val panelViewOn by vm.panelViewOn.collectAsState()
+    val effectivePanels by vm.effectivePanels.collectAsState()
+    val currentPanelIndex by vm.currentPanelIndex.collectAsState()
+    val currentPage by vm.currentPage.collectAsState()
+    val effectiveComicFormatting by vm.effectiveComicFormatting.collectAsState()
+    var isImmersive by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().background(Color(comicBackgroundTheme.argbPalette.background.toInt()))) {
         when (val s = state) {
@@ -78,22 +83,43 @@ actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             CbzReaderState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BasicText("Opening…")
             }
-            is CbzReaderState.Ready -> CbzPager(vm = vm, imageSource = s.imageSource, pageCount = s.pageCount)
+            is CbzReaderState.Ready -> {
+                if (panelViewOn) {
+                    CbzPanelViewer(
+                        currentPage = currentPage,
+                        pagePanels = effectivePanels,
+                        panelIndex = currentPanelIndex,
+                        panelAnimationSpeedMs = effectiveComicFormatting.panelAnimationSpeedMs,
+                        onNextPanel = vm::nextPanel,
+                        onPrevPanel = vm::previousPanel,
+                        onSkipGuidedPage = vm::skipGuidedPanelsOnPage,
+                        onToggleImmersive = { isImmersive = !isImmersive },
+                        volumeNavEvents = vm.volumeNavEvents,
+                        onViewportSizeChanged = vm::setViewportSize,
+                    ) { modifier, page ->
+                        ComicPageView(imageSource = s.imageSource, pageIndex = page, modifier = modifier)
+                    }
+                } else {
+                    CbzPager(vm = vm, imageSource = s.imageSource, pageCount = s.pageCount)
+                }
+            }
         }
 
-        Box(
-            modifier = Modifier
-                .systemBarsPadding()
-                .padding(12.dp)
-                .align(Alignment.TopStart),
-        ) {
-            BasicText(
-                text = "← Back",
+        if (!isImmersive) {
+            Box(
                 modifier = Modifier
-                    .padding(8.dp)
-                    .testTag(TestTags.IOS_CBZ_READER_BACK)
-                    .clickable(onClick = onBack),
-            )
+                    .systemBarsPadding()
+                    .padding(12.dp)
+                    .align(Alignment.TopStart),
+            ) {
+                BasicText(
+                    text = "← Back",
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .testTag(TestTags.IOS_CBZ_READER_BACK)
+                        .clickable(onClick = onBack),
+                )
+            }
         }
     }
 }
@@ -118,7 +144,11 @@ private fun CbzPager(vm: CbzReaderViewModel, imageSource: ComicImageSource, page
 @Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 @Composable
-private fun ComicPageView(imageSource: ComicImageSource, pageIndex: Int) {
+private fun ComicPageView(
+    imageSource: ComicImageSource,
+    pageIndex: Int,
+    modifier: Modifier = Modifier,
+) {
     var bytes by remember(pageIndex) { mutableStateOf<ByteArray?>(null) }
 
     LaunchedEffect(pageIndex) {
@@ -144,11 +174,11 @@ private fun ComicPageView(imageSource: ComicImageSource, pageIndex: Int) {
                     view.image = UIImage.imageWithData(nsData)
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
         )
     } else {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            BasicText("Loading…")
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
         }
     }
 }

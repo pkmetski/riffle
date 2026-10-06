@@ -79,6 +79,11 @@ class IosAudioPlayerControllerTest {
 
         override fun setSpeed(speed: Float) = Unit
 
+        val volumeHistory = mutableListOf<Float>()
+        override fun setVolume(volume: Float) {
+            volumeHistory += volume
+        }
+
         val skipIntervals = mutableListOf<SkipIntervals>()
         override fun setSkipIntervals(intervals: SkipIntervals) {
             skipIntervals += intervals
@@ -557,9 +562,9 @@ class IosAudioPlayerControllerTest {
         val fired = mutableListOf<Unit>()
         val job = launch { controller.sleepTimerFired.collect { fired.add(it) } }
 
-        // The countdown loop ticks every 1000ms; set a short timer and advance past one tick.
+        // Countdown ticks every 1000ms, then fade takes 50 × 100ms = 5000ms.
         controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 500L))
-        advanceTimeBy(1001L)
+        advanceTimeBy(7000L)
 
         assertEquals(1, fired.size)
         job.cancel()
@@ -573,6 +578,7 @@ class IosAudioPlayerControllerTest {
         val job = launch { controller.sleepTimerFired.collect { fired.add(it) } }
 
         controller.triggerSleepNow()
+        advanceTimeBy(6000L)
 
         assertEquals(1, fired.size)
         job.cancel()
@@ -590,5 +596,31 @@ class IosAudioPlayerControllerTest {
 
         assertEquals(0, fired.size)
         job.cancel()
+    }
+
+    @Test
+    fun `sleep timer fade ramps volume down then resets to 1`() = runTest(UnconfinedTestDispatcher()) {
+        val bridge = FakeBridge()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(testScheduler))
+
+        controller.triggerSleepNow()
+        advanceTimeBy(6000L)
+
+        // 50 fade steps, then a reset to 1f.
+        assertEquals(51, bridge.volumeHistory.size, "expected 50 fade steps + 1 reset")
+        assertTrue(bridge.volumeHistory.first() < 1f, "first fade step must be below 1")
+        assertTrue(bridge.volumeHistory.dropLast(1).last() <= 0.05f, "last fade step must be near 0")
+        assertEquals(1f, bridge.volumeHistory.last(), "volume must be reset to 1 after pause")
+    }
+
+    @Test
+    fun `sleep timer fade pauses after ramping down`() = runTest(UnconfinedTestDispatcher()) {
+        val bridge = FakeBridge()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(testScheduler))
+
+        controller.triggerSleepNow()
+        advanceTimeBy(6000L)
+
+        assertEquals(1, bridge.pauseCalls, "exactly one pause call expected after fade")
     }
 }

@@ -23,6 +23,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.reader.PdfLocatorCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -54,7 +55,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
         localPath = path
         val savedLocator = positionStore.load(item.sourceId, item.id)
-        val savedPage = savedLocator?.let { decodePdfPage(it) } ?: 0
+        val savedPage = savedLocator?.let { PdfLocatorCodec.decode0Based(it) } ?: 0
         lastTrackedPage = savedPage
         bridge.setPageChangeCallback(object : IosPdfPageChangeCallback {
             override fun onPageChanged(page: Int) {
@@ -72,7 +73,7 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             if (page > 0 || pageCount > 0) {
                 CoroutineScope(SupervisorJob()).launch {
                     runCatching {
-                        val locatorJson = encodePdfLocator(page, pageCount)
+                        val locatorJson = PdfLocatorCodec.encode(page, pageCount)
                         val progress = if (pageCount > 0) page.toFloat() / pageCount else 0f
                         positionStore.save(item.sourceId, item.id, locatorJson)
                         val payload = SessionPayload(
@@ -116,13 +117,3 @@ actual fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 }
 
-/** JSON locator compatible with the position store: {"href":"/page-N","locations":{"position":N,"progression":P}} */
-private fun encodePdfLocator(page: Int, pageCount: Int): String {
-    val progression = if (pageCount > 0) page.toDouble() / pageCount else 0.0
-    return """{"href":"/page-$page","type":"application/pdf","locations":{"position":$page,"progression":$progression}}"""
-}
-
-private fun decodePdfPage(locatorJson: String): Int? {
-    val positionMatch = Regex(""""position"\s*:\s*(\d+)""").find(locatorJson)
-    return positionMatch?.groupValues?.getOrNull(1)?.toIntOrNull()
-}
