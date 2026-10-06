@@ -493,20 +493,25 @@ internal fun ElidedReaderLoader(
 ) {
     val libraryObserver = koinInject<LibraryObserver>()
     var item by remember { mutableStateOf<LibraryItem?>(null) }
+    var loaded by remember { mutableStateOf(false) }
     LaunchedEffect(itemId, sourceId) {
-        item = if (sourceId != null) {
-            libraryObserver.getItem(sourceId, itemId)
-        } else {
-            libraryObserver.getItem(itemId)
-        }
+        item =
+            if (sourceId != null) {
+                libraryObserver.getItem(sourceId, itemId)
+            } else {
+                libraryObserver.getItem(itemId)
+            }
+        loaded = true
     }
     val loadedItem = item
-    if (loadedItem == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    when {
+        loadedItem != null -> EpubReaderScreen(item = loadedItem, onBack = onBack, source = ReaderSource.Highlights)
+        loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Text("Book not found")
+        }
+        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-    } else {
-        EpubReaderScreen(item = loadedItem, onBack = onBack, source = ReaderSource.Highlights)
     }
 }
 

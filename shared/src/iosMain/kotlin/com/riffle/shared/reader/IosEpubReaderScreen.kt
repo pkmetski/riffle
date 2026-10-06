@@ -570,6 +570,7 @@ actual fun EpubReaderScreen(
     }
 
     LaunchedEffect(item.id) {
+        if (source == ReaderSource.Highlights) return@LaunchedEffect
         observeReaderPositions(
             positions = navigator.positionFlow,
             positionSaver = positionSaver,
@@ -827,7 +828,7 @@ actual fun EpubReaderScreen(
         onDispose {
             coordinator.stop()
             val position = navigator.snapshotPosition()
-            if (position != null) {
+            if (position != null && source != ReaderSource.Highlights) {
                 // rememberCoroutineScope is cancelled during composition teardown; use an
                 // independent scope so the DB write and sync survive past onDispose.
                 CoroutineScope(SupervisorJob()).launch {
