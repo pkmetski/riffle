@@ -60,7 +60,7 @@ class RiffleScreenReadRouteTest {
         readingProgress = 0.3f,
         isCached = false,
         isDownloaded = false,
-        ebookFormat = EbookFormat.Unsupported,
+        ebookFormat = EbookFormat.Epub,
         sourceId = "source1",
     )
 
