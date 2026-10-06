@@ -65,7 +65,7 @@
 		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B1051010 /* NavDrawerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1051020 /* NavDrawerTests.swift */; };
 		B1052010 /* LibraryGridAndTabsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1052020 /* LibraryGridAndTabsUITests.swift */; };
-		B1055010 /* LibraryItemDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1055020 /* LibraryItemDetailTests.swift */; };
+		B1056010 /* LibraryItemDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1056020 /* LibraryItemDetailTests.swift */; };
 		B1053010 /* EpubProgressionLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1053020 /* EpubProgressionLocatorTests.swift */; };
 		B1018010 /* StubAbsServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1018020 /* StubAbsServer.swift */; };
 		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
@@ -120,7 +120,7 @@
 		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
 		B1051020 /* NavDrawerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavDrawerTests.swift; sourceTree = "<group>"; };
 		B1052020 /* LibraryGridAndTabsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGridAndTabsUITests.swift; sourceTree = "<group>"; };
-		B1055020 /* LibraryItemDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemDetailTests.swift; sourceTree = "<group>"; };
+		B1056020 /* LibraryItemDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemDetailTests.swift; sourceTree = "<group>"; };
 		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
 		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
@@ -226,7 +226,7 @@
 				B100C020 /* DownloadsTests.swift */,
 				B1051020 /* NavDrawerTests.swift */,
 				B1052020 /* LibraryGridAndTabsUITests.swift */,
-				B1055020 /* LibraryItemDetailTests.swift */,
+				B1056020 /* LibraryItemDetailTests.swift */,
 				B1053020 /* EpubProgressionLocatorTests.swift */,
 				B1054020 /* AudioPlayerBridgeTests.swift */,
 				A1EL1D020001 /* ElidedAnnotationsViewTests.swift */,
@@ -479,7 +479,7 @@
 				B1015010 /* ProgressPipelineTests.swift in Sources */,
 				B1051010 /* NavDrawerTests.swift in Sources */,
 				B1052010 /* LibraryGridAndTabsUITests.swift in Sources */,
-				B1055010 /* LibraryItemDetailTests.swift in Sources */,
+				B1056010 /* LibraryItemDetailTests.swift in Sources */,
 				B100F010 /* OnboardingNavIconTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
