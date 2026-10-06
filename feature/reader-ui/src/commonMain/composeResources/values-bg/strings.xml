@@ -29,4 +29,5 @@
     <string name="ui_options">Опции</string>
     <string name="ui_no_annotations_yet">Все още няма анотации.</string>
     <string name="ui_close_footnote">Затворете бележката под линия</string>
+    <string name="ui_skip_guided_panels_on_this_page">Пропуснете управляваните панели на тази страница</string>
 </resources>

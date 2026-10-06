@@ -189,9 +189,7 @@ class IosAudioPlayerController(
                         delay(SLEEP_TICK_MS)
                         remaining -= SLEEP_TICK_MS
                         if (remaining <= 0) {
-                            bridge.pause()
-                            _sleepTimer.value = SleepTimerMode.None
-                            _sleepTimerFired.tryEmit(Unit)
+                            fadeAndStop()
                         } else {
                             _sleepTimer.value = SleepTimerMode.CountDown(remaining.coerceAtLeast(0))
                         }
@@ -209,8 +207,17 @@ class IosAudioPlayerController(
 
     override fun triggerSleepNow() {
         sleepJob?.cancel()
-        _sleepTimer.value = SleepTimerMode.None
+        sleepJob = scope.launch { fadeAndStop() }
+    }
+
+    private suspend fun fadeAndStop() {
+        repeat(FADE_STEPS) { i ->
+            bridge.setVolume((1f - (i + 1f) / FADE_STEPS).coerceAtLeast(0f))
+            delay(FADE_STEP_MS)
+        }
         bridge.pause()
+        bridge.setVolume(1f)
+        _sleepTimer.value = SleepTimerMode.None
         _sleepTimerFired.tryEmit(Unit)
     }
 
@@ -295,5 +302,7 @@ class IosAudioPlayerController(
     companion object {
         private const val SLEEP_TICK_MS = 1_000L
         private const val MS_PER_SEC = 1000.0
+        private const val FADE_STEPS = 50
+        private const val FADE_STEP_MS = 100L
     }
 }

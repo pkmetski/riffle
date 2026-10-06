@@ -135,6 +135,10 @@ import UIKit
         }
     }
 
+    func setVolume(volume: Float) {
+        player?.volume = max(0, min(1, volume))
+    }
+
     func currentTrackIndex() -> Int32 {
         Int32(currentTrackIndexInt())
     }
@@ -260,6 +264,8 @@ import UIKit
         statusObservations.removeAll()
 
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
         removeRemoteCommands()
 
         player?.pause()
@@ -380,6 +386,7 @@ import UIKit
         // Registered regardless of whether the session activated — the lock-screen transport
         // controls are useful even when AVAudioSession configuration failed.
         setupRemoteCommands()
+        setupAudioSessionObservers()
     }
 
     private func setupRemoteCommands() {
@@ -445,6 +452,62 @@ import UIKit
         center.skipBackwardCommand.removeTarget(nil)
         center.nextTrackCommand.removeTarget(nil)
         center.previousTrackCommand.removeTarget(nil)
+    }
+}
+
+// MARK: - AVAudioSession observers
+
+private extension IosAudioPlayerBridgeImpl {
+
+    func setupAudioSessionObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc func handleInterruption(_ notification: Notification) {
+        guard !isDisposed,
+              let info = notification.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+        switch type {
+        case .began:
+            // Phone call, Siri, or alarm started — pause immediately.
+            player?.pause()
+        case .ended:
+            // Resume only when the system says it is safe (e.g. not after a Siri invocation that
+            // the user deliberately ended by saying "stop").
+            let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            if options.contains(.shouldResume) {
+                player?.play()
+                if pendingRate != 1.0 { player?.rate = pendingRate }
+            }
+        @unknown default:
+            break
+        }
+    }
+
+    @objc func handleRouteChange(_ notification: Notification) {
+        guard !isDisposed,
+              let info = notification.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+
+        // Pause when the user unplugs headphones, matching Android's headphone-unplug behaviour.
+        if reason == .oldDeviceUnavailable {
+            player?.pause()
+        }
     }
 }
 

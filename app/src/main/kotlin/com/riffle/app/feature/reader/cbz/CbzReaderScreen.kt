@@ -18,7 +18,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -82,16 +81,14 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
-import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
-import com.riffle.core.domain.comic.panel.PanelFitTransform
 import com.riffle.core.domain.comic.panel.PanelSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import com.riffle.app.feature.reader.chapterMapProgressLabelTemplates
+import com.riffle.feature.reader.ui.CbzPanelViewer
 import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.readerThemeLabelColor
 
@@ -165,19 +162,26 @@ fun CbzReaderScreen(
             }
             is CbzReaderState.Ready -> {
                 if (panelViewOn) {
+                    val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
+                    val effectivePanelAnimMs = if (reduceMotion) 0 else effectiveComicFormatting.panelAnimationSpeedMs
                     CbzPanelViewer(
-                        state = s,
                         currentPage = currentPage,
                         pagePanels = effectivePanels,
                         panelIndex = currentPanelIndex,
-                        panelAnimationSpeedMs = effectiveComicFormatting.panelAnimationSpeedMs,
+                        panelAnimationSpeedMs = effectivePanelAnimMs,
                         onNextPanel = viewModel::nextPanel,
                         onPrevPanel = viewModel::previousPanel,
                         onSkipGuidedPage = viewModel::skipGuidedPanelsOnPage,
                         onToggleImmersive = immersiveState::toggle,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onViewportSizeChanged = viewModel::setViewportSize,
-                    )
+                    ) { modifier, page ->
+                        CbzAndroidPanelPageContent(
+                            modifier = modifier,
+                            imageSource = s.imageSource,
+                            page = page,
+                        )
+                    }
                 } else {
                     CbzPager(
                         state = s,
@@ -593,211 +597,44 @@ private fun CbzPage(
     }
 }
 
-// --- Panel View (ADR 0055) ---
+// --- Panel View page content (Android-specific bitmap loading and Coil rendering) ---
 
+/**
+ * Android implementation of the panel page content slot. Decodes the CBZ page bitmap
+ * and renders it with Coil, applying the [modifier] (which carries the panel's graphicsLayer
+ * transform from the shared [CbzPanelViewer]).
+ */
 @Composable
-private fun CbzPanelViewer(
-    state: CbzReaderState.Ready,
-    currentPage: Int,
-    pagePanels: PagePanels?,
-    panelIndex: Int,
-    panelAnimationSpeedMs: Int,
-    onNextPanel: () -> Unit,
-    onPrevPanel: () -> Unit,
-    onSkipGuidedPage: () -> Unit,
-    onToggleImmersive: () -> Unit,
-    volumeNavEvents: kotlinx.coroutines.flow.SharedFlow<VolumeNavEvent>,
-    onViewportSizeChanged: ((Int, Int) -> Unit)? = null,
+private fun CbzAndroidPanelPageContent(
+    modifier: Modifier,
+    imageSource: com.riffle.core.domain.comic.ComicPageSource,
+    page: Int,
 ) {
-    var peeking by remember(currentPage) { mutableStateOf(false) }
-
-    LaunchedEffect(volumeNavEvents) {
-        volumeNavEvents.collect { event ->
-            when (event) {
-                VolumeNavEvent.Forward -> onNextPanel()
-                VolumeNavEvent.Backward -> onPrevPanel()
-            }
-        }
-    }
-
-    val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = currentPage, key2 = state.imageSource) {
-        // Drop the previous page's bitmap immediately — the gate below already hides it, but
-        // clearing the reference frees the native allocation sooner (API-25 bitmaps live
-        // outside the GC heap).
+    val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = page, key2 = imageSource) {
         value = CbzPageDecodeState()
-        val result = decodeWithRetry(attempts = decodeAttemptsFor(state.imageSource)) {
+        val result = decodeWithRetry(attempts = decodeAttemptsFor(imageSource)) {
             withContext(Dispatchers.IO) {
-                runCatching { decodeSampledBitmap(state.imageSource, currentPage, MAX_PAGE_DIMENSION) }.getOrNull()
+                runCatching { decodeSampledBitmap(imageSource, page, MAX_PAGE_DIMENSION) }.getOrNull()
             }
         }
-        value = CbzPageDecodeState(bitmap = result, settled = true, forPage = currentPage)
+        value = CbzPageDecodeState(bitmap = result, settled = true, forPage = page)
     }
-    // Never render another page's bitmap through this page's panel transform (zoom flash).
-    val decode = decodeForPage(rawDecode, currentPage)
+    val decode = decodeForPage(rawDecode, page)
     val bitmap = decode.bitmap
-
-    var viewportW by remember { mutableStateOf(0) }
-    var viewportH by remember { mutableStateOf(0) }
     val context = LocalContext.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onSizeChanged { size ->
-                viewportW = size.width
-                viewportH = size.height
-                onViewportSizeChanged?.invoke(size.width, size.height)
-            }
-            .pointerInput(currentPage, panelIndex, peeking) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    val longPressMs = viewConfiguration.longPressTimeoutMillis
-                    val up = withTimeoutOrNull(longPressMs) { waitForUpOrCancellation() }
-                    if (up == null) {
-                        // Long-press: open the peek overlay (persistent — ADR 0055 §5).
-                        peeking = true
-                        // Wait for the finger to lift so we don't re-trigger.
-                        waitForUpOrCancellation()
-                    } else if (!peeking) {
-                        val third = size.width / 3f
-                        when {
-                            down.position.x < third -> onPrevPanel()
-                            down.position.x > 2 * third -> onNextPanel()
-                            else -> onToggleImmersive()
-                        }
-                    }
-                }
-            }
-            .testTag(TestTags.CBZ_PANEL_VIEWER),
-        contentAlignment = Alignment.Center,
-    ) {
-        val panels = pagePanels?.panels
-        val fitWhole = pagePanels == null || pagePanels.isFallback || panels.isNullOrEmpty() || peeking
-        val panel = if (!fitWhole) panels.getOrNull(panelIndex.coerceIn(0, panels.size - 1)) else null
-
-        val transform = if (panel != null && pagePanels != null) {
-            PanelFitTransform.compute(
-                viewportWidth = viewportW,
-                viewportHeight = viewportH,
-                imageWidth = pagePanels.imageWidth,
-                imageHeight = pagePanels.imageHeight,
-                panel = panel,
-            )
-        } else {
-            PanelFitTransform.Identity
-        }
-        val zoomScale = transform.scale
-        val translationX = transform.translationX
-        val translationY = transform.translationY
-
-        // Animate scale + translation between panels. Reduce Motion collapses to a snap.
-        //
-        // We use Animatable directly (not animateFloatAsState) to avoid the spurious pan on
-        // first load. The problem with animateFloatAsState: it uses rememberUpdatedState for the
-        // animationSpec, so any spec change takes effect only after the next recomposition —
-        // the spec we want (snap) is always overwritten to tween by the time the internal
-        // LaunchedEffect coroutine reads it. Animatable gives explicit snapTo/animateTo control.
-        //
-        // The key insight: remember(currentPage, pagePanels, viewportW, viewportH) re-creates
-        // each Animatable — initialized to the CORRECT target — whenever the page, the resolved
-        // panel set, or the viewport size changes. That means on first viewport measurement
-        // (0→real), on every page turn, AND when detection results arrive (pagePanels null→value
-        // is load-bearing here!), the Animatable already starts at the right value; no animation
-        // runs. Only panel-index navigation on an already-measured page goes through animateTo.
-        val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
-        val tweenSpec = remember(panelAnimationSpeedMs) { tween<Float>(durationMillis = panelAnimationSpeedMs) }
-        val scaleAnim = remember(currentPage, pagePanels, viewportW, viewportH) { Animatable(zoomScale) }
-        val txAnim = remember(currentPage, pagePanels, viewportW, viewportH) { Animatable(translationX) }
-        val tyAnim = remember(currentPage, pagePanels, viewportW, viewportH) { Animatable(translationY) }
-        LaunchedEffect(zoomScale, translationX, translationY) {
-            if (viewportW <= 0 || viewportH <= 0) return@LaunchedEffect
-            // Skip if Animatables were just initialized to this same target (viewport/page change)
-            if (zoomScale == scaleAnim.targetValue &&
-                translationX == txAnim.targetValue &&
-                translationY == tyAnim.targetValue) return@LaunchedEffect
-            if (reduceMotion || panelAnimationSpeedMs == 0) {
-                scaleAnim.snapTo(zoomScale)
-                txAnim.snapTo(translationX)
-                tyAnim.snapTo(translationY)
-            } else {
-                launch { scaleAnim.animateTo(zoomScale, tweenSpec) }
-                launch { txAnim.animateTo(translationX, tweenSpec) }
-                launch { tyAnim.animateTo(translationY, tweenSpec) }
-            }
-        }
-
-        // Same null-bitmap contract as CbzPage: render the spinner ourselves — Coil treats a
-        // null model as an instant (empty) error, not a loading state.
-        //
-        // When pagePanels is null the detector hasn't finished yet.  Showing the image at
-        // Identity (whole-page) and then jumping to the panel-focused transform once panels
-        // arrive is exactly the "spurious pan" the user sees.  Holding on a spinner until
-        // panels are ready avoids that — the image first appears already at the correct position.
-        // Fallback pages (pagePanels.isFallback) mean detection completed and found no panels;
-        // they use the whole-page view and must pass through.
-        val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
-        when (cbzPageContent(bitmap != null, decode.settled, panelsReady = pagePanels != null)) {
-            CbzPageContent.Loading -> CircularProgressIndicator()
-            CbzPageContent.Error -> Text(
-                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            CbzPageContent.Image -> SubcomposeAsyncImage(
-                model = imageRequest,
-                contentDescription = androidx.compose.ui.res.stringResource(
-                    com.riffle.app.R.string.ui_comic_page_panel,
-                    currentPage + 1,
-                    panelIndex + 1,
-                ),
-                loading = { CircularProgressIndicator() },
-                modifier = Modifier
-                    .fillMaxSize()
-                    // Lambda form: reads the Animatable values at draw time, so animation frames
-                    // don't recompose the Coil subcompose tree.
-                    .graphicsLayer {
-                        scaleX = scaleAnim.value
-                        scaleY = scaleAnim.value
-                        this.translationX = txAnim.value
-                        this.translationY = tyAnim.value
-                    },
-            )
-        }
-
-        if (peeking) {
-            CbzPanelPeekOverlay(
-                onDismiss = { peeking = false },
-                onSkip = {
-                    peeking = false
-                    onSkipGuidedPage()
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun CbzPanelPeekOverlay(
-    onDismiss: () -> Unit,
-    onSkip: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.35f))
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { onDismiss() })
-            }
-            .testTag(TestTags.CBZ_PANEL_PEEK),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        Button(
-            onClick = onSkip,
-            modifier = Modifier
-                .padding(24.dp)
-                .testTag(TestTags.CBZ_PANEL_PEEK_SKIP),
-        ) {
-            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_skip_guided_panels_on_this_page))
-        }
+    val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
+    when (cbzPageContent(bitmap != null, decode.settled)) {
+        CbzPageContent.Loading -> CircularProgressIndicator()
+        CbzPageContent.Error -> Text(
+            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        CbzPageContent.Image -> SubcomposeAsyncImage(
+            model = imageRequest,
+            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_panel, page + 1, 1),
+            loading = { CircularProgressIndicator() },
+            modifier = modifier,
+        )
     }
 }
 

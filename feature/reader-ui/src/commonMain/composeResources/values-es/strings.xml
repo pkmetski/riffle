@@ -29,4 +29,5 @@
     <string name="ui_options">Opciones</string>
     <string name="ui_no_annotations_yet">Aún no hay anotaciones.</string>
     <string name="ui_close_footnote">Cerrar nota al pie</string>
+    <string name="ui_skip_guided_panels_on_this_page">Saltar paneles guiados en esta página</string>
 </resources>

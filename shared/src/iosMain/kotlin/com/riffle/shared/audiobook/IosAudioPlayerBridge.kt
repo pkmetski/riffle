@@ -114,6 +114,12 @@ interface IosAudioPlayerBridge {
         coverUrl: String?,
     )
 
+    /**
+     * Set the playback volume in [0, 1]. Used by the sleep-timer fade to ramp down over 5 s before
+     * calling [pause], mirroring Android's `AudiobookController.fadeAndStop()`.
+     */
+    fun setVolume(volume: Float)
+
     /** Release AVPlayer resources. Safe to call multiple times. */
     fun dispose()
 }
