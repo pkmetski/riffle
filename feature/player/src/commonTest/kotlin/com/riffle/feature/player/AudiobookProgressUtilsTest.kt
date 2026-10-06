@@ -1,5 +1,7 @@
 package com.riffle.feature.player
 
+import com.riffle.core.domain.AUDIOBOOK_FINISHED_EPS_SEC
+import com.riffle.core.domain.audiobookProgressFraction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

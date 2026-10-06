@@ -28,6 +28,7 @@ import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.doesDestinationItemExist
+import com.riffle.core.domain.audiobookProgressFraction
 import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookDownloadRepository
@@ -126,9 +127,6 @@ internal fun importAudioProgress(
     ?.takeIf { durationSec > 0.0 }
     ?.let { audiobookProgressFraction(it, durationSec) }
     ?: fallback
-
-private fun audiobookProgressFraction(positionSec: Double, durationSec: Double): Float =
-    (positionSec / durationSec).toFloat().coerceIn(0f, 1f)
 
 internal fun importEbookLocation(format: BookFormat, translatedCfi: String?): String? = when {
     format != BookFormat.Epub -> null
