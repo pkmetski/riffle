@@ -139,4 +139,11 @@ class LibraryItemDetailHelpersTest {
         val result = stripHtmlTagsToText("&#39;quoted&#39;")
         assertEquals("'quoted'", result)
     }
+
+    @Test
+    fun stripHtmlTagsDropsLoneSurrogateEntities() {
+        // &#xD800; is a lone surrogate — must be silently dropped, not passed through
+        val result = stripHtmlTagsToText("before&#xD800;after")
+        assertEquals("beforeafter", result)
+    }
 }

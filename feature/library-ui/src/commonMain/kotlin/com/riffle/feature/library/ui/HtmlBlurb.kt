@@ -41,16 +41,20 @@ internal fun stripHtmlTagsToText(html: String): String {
 private fun decodeHtmlEntity(body: String): String = when (body) {
     "amp" -> "&"; "lt" -> "<"; "gt" -> ">"; "quot" -> "\""; "apos" -> "'"; "nbsp" -> " "
     else -> when {
-        body.startsWith("#x") || body.startsWith("#X") ->
-            body.drop(2).toIntOrNull(16)?.codePointToString() ?: "&$body;"
-        body.startsWith("#") ->
-            body.drop(1).toIntOrNull()?.codePointToString() ?: "&$body;"
+        body.startsWith("#x") || body.startsWith("#X") -> {
+            val cp = body.drop(2).toIntOrNull(16)
+            if (cp == null) "&$body;" else cp.codePointToString() ?: ""
+        }
+        body.startsWith("#") -> {
+            val cp = body.drop(1).toIntOrNull()
+            if (cp == null) "&$body;" else cp.codePointToString() ?: ""
+        }
         else -> "&$body;"
     }
 }
 
 private fun Int.codePointToString(): String? = when {
-    this <= 0 || this > 0x10FFFF -> null
+    this <= 0 || this in 0xD800..0xDFFF || this > 0x10FFFF -> null
     this <= 0xFFFF -> this.toChar().toString()
     else -> {
         val v = this - 0x10000

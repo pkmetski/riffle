@@ -421,6 +421,12 @@ private fun DetailReadyScaffold(
                                     expanded = showOverflowMenu,
                                     onDismissRequest = onDismissOverflowMenu,
                                 ) {
+                                    if (state.capabilities.canEditMetadata) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(Res.string.ui_edit_metadata)) },
+                                            onClick = { /* metadata editing not yet implemented in shared screen */ onDismissOverflowMenu() },
+                                        )
+                                    }
                                     if (state.capabilities.canUploadToConfiguredSource) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(Res.string.ui_upload_to)) },
@@ -445,14 +451,28 @@ private fun DetailReadyScaffold(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailLoadingContent(onBack: () -> Unit, bookImportState: BookImportState) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(stringResource(SourceRes.string.ui_loading), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (bookImportState is BookImportState.InProgress) {
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {},
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag(TestTags.BOOK_DETAIL_BACK)) {
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(stringResource(SourceRes.string.ui_loading), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (bookImportState is BookImportState.InProgress) {
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator()
+                }
             }
         }
     }
@@ -1003,7 +1023,6 @@ private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
 
 @Composable
 private fun SeriesLine(seriesName: String, seriesId: String?, onSeriesClick: (String) -> Unit) {
-    val bareName = seriesName.substringBeforeLast(" #").trim()
     if (seriesId != null) {
         Text(
             text = seriesName,
@@ -1125,8 +1144,10 @@ private fun ItemTocSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
+        val flatEntries = flattenTocEntries(entries)
         LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(flattenTocEntries(entries), key = { "${it.depth}/${it.entry.href}" }) { row ->
+            items(count = flatEntries.size, key = { it }) { index ->
+                val row = flatEntries[index]
                 val isActive = row.entry.href == activeHref
                 ListItem(
                     headlineContent = {
