@@ -29,7 +29,7 @@ final class ElidedAnnotationsViewTests: XCTestCase {
         readingProgress: 0,
         isCached: false,
         isDownloaded: false,
-        ebookFormat: .epub,
+        ebookFormat: EbookFormat.Epub.shared,
         ebookFileIno: nil,
         hasAudio: false,
         audioDurationSec: 0,
