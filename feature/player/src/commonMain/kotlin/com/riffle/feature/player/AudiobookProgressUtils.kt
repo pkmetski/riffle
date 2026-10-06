@@ -36,9 +36,8 @@ fun audiobookResumeSec(
 fun audiobookStartSec(resumeSec: Double, durationSec: Double): Double =
     if (durationSec > 0.0 && resumeSec >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC) 0.0 else resumeSec
 
-// audiobookProgressFraction and AUDIOBOOK_FINISHED_EPS_SEC are imported from core:domain above.
-// They are re-exported here implicitly for any caller within this package; external callers that
-// previously imported from com.riffle.feature.player should migrate to com.riffle.core.domain.
+// audiobookProgressFraction and AUDIOBOOK_FINISHED_EPS_SEC now live in core:domain.
+// Files in this package that use them need their own explicit import from core.domain.
 
 /**
  * The one-line facts shown beneath the cover on the landscape player. Duration is omitted when
