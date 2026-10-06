@@ -65,8 +65,8 @@ import com.riffle.feature.library.ui.generated.resources.ui_drawer_riffle
 import com.riffle.feature.library.ui.generated.resources.ui_drawer_settings
 import com.riffle.feature.library.ui.generated.resources.ui_toggle_source_switcher
 import com.riffle.feature.source.ui.SourceIcon
+import com.riffle.feature.source.ui.localizedSourceDisplayName
 import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.source.ui.localizedSourceDisplayName as localizedDescriptorDisplayName
 import com.riffle.feature.source.ui.localizedSourceSubtitle as localizedDescriptorSubtitle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -434,21 +434,6 @@ internal fun buildSupportingLine(host: String?, version: String?): String? {
         else -> null
     }
 }
-
-fun sourceDisplayName(source: Source): String =
-    if (source.type == SourceType.ABS) {
-        source.serverType.label
-    } else {
-        WebSourceDescriptors.forTypeOrError(source.type).displayName
-    }
-
-@Composable
-private fun localizedSourceDisplayName(source: Source): String =
-    if (source.type == SourceType.ABS) {
-        source.serverType.label
-    } else {
-        localizedDescriptorDisplayName(WebSourceDescriptors.forTypeOrError(source.type))
-    }
 
 internal fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
     val descriptor = WebSourceDescriptors.forType(source.type) ?: return null

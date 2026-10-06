@@ -48,16 +48,15 @@ import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
-import com.riffle.core.data.IosPlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
-import com.riffle.core.data.IosToReadRepositoryImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
 import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
+import com.riffle.core.data.PlaylistsRepositoryImpl
 import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudMatchingService
@@ -66,6 +65,7 @@ import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.StorytellerBundleAudiobookSource
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.ToReadRepository
+import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
 import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
@@ -721,9 +721,9 @@ private fun iosLibraryModule(
     // Read on iOS by LibraryItemsViewModel.playlists, which LibraryItemsScreen renders as the
     // Playlists tab. The AudiobookPlayerViewModel injection stays dead until navPlaylistId can be
     // supplied (see the factory above and #1072).
-    single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
+    single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<LocalToReadStore> { IosLocalToReadStore() }
-    single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get(), get()) }
+    single<ToReadRepository> { ToReadRepositoryImpl(get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
     // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles

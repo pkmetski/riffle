@@ -32,7 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
-import com.riffle.feature.library.ui.sourceDisplayName
+import com.riffle.feature.source.ui.sourceDisplayName
 import com.riffle.app.ui.theme.RiffleAppIcon
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.LibraryItem

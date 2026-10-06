@@ -42,6 +42,7 @@ import com.riffle.feature.designsystem.pinchCoverZoom
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.source.ui.OfflineBanner
+import com.riffle.feature.source.ui.sourceDisplayName
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 

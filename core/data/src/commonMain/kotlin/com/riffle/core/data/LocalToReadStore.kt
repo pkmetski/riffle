@@ -3,7 +3,7 @@ package com.riffle.core.data
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Local-only "To Read" backing used by [ToReadRepositoryImpl] and [IosToReadRepositoryImpl] when
+ * Local-only "To Read" backing used by [ToReadRepositoryImpl] when
  * the active Source's Catalog doesn't implement PlaylistsCapability — i.e. every Source without a
  * server-side playlist API (LocalFiles, Chitanka, Gutenberg, RadioEs, OReilly).
  *
