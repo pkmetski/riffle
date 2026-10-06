@@ -56,7 +56,9 @@ final class LibraryItemDetailTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
 
         let tile = app.buttons[StubAbsServer.testAudioItemTitle].firstMatch
-        XCTAssertTrue(tile.waitForExistence(timeout: 30), "Cover tile for the audiobook test item must appear")
+        // The stub seeds 6 items; the home grid shows only ~3 before the "+N more" fold.
+        // Navigate to All Books so the audiobook tile is guaranteed to be visible.
+        XCTAssertTrue(waitForLibraryTile(tile, in: app, timeout: 15), "Cover tile for the audiobook test item must appear")
         tile.tap()
 
         // The audiobook item has no ebook — it should expose Listen, not Read.

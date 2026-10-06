@@ -161,7 +161,13 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 // shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
 func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 150) -> XCUIElement {
-    let read = app.buttons["Read"].firstMatch
+    // Matches either "Read" (ebooks) or "Listen" (audiobook-only items). The shared
+    // LibraryItemDetailScreen shows "Listen" for audiobook-only ABS items (#1145 gap 4.1);
+    // both labels navigate away from the detail screen so the post-tap nonexistence check applies
+    // to whichever one was found.
+    let openAction = app.buttons.matching(
+        NSPredicate(format: "label == 'Read' OR label == 'Listen'")
+    ).firstMatch
     // Re-reveal the tile before EVERY tap, not just once up front. Two things make a single reveal
     // unreliable: a tap that lands while the LazyRow is still settling is swallowed as a scroll
     // stop, and after re-entering the library (e.g. reopening a book) the target tile is often
@@ -169,19 +175,19 @@ func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeIn
     // spot and never opens the detail screen (the reopen-flake root cause). Stop as soon as the
     // detail screen appears, or once the tap has navigated the tile out of the library.
     for attempt in 0..<3 {
-        if read.exists { break }
+        if openAction.exists { break }
         revealTile(tile, in: app)
         guard tile.exists else { break }
         waitForStableFrame(of: tile)
         tile.tap()
-        if read.waitForExistence(timeout: attempt == 0 ? 5 : 30) { break }
+        if openAction.waitForExistence(timeout: attempt == 0 ? 5 : 30) { break }
     }
     // A final settle wait covers the case where the last tap navigated but the loaded runner is
     // still rendering the item detail. 60 s: on loaded simulator clones item-detail rendering
     // can exceed 30 s; 60 s covers the observed worst-case.
-    XCTAssertTrue(read.waitForExistence(timeout: 60), "Item detail must show the Read action")
-    read.tap()
-    XCTAssertTrue(read.waitForNonExistence(timeout: timeout), "Read must leave the item detail screen")
+    XCTAssertTrue(openAction.waitForExistence(timeout: 60), "Item detail must show the Read or Listen action")
+    openAction.tap()
+    XCTAssertTrue(openAction.waitForNonExistence(timeout: timeout), "Read/Listen must leave the item detail screen")
     let back = app.buttons.matching(
         NSPredicate(format: "label == '← Back' OR label == 'Back'")
     ).firstMatch
