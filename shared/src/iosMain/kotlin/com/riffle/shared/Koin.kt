@@ -48,7 +48,7 @@ import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
 import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
-import com.riffle.core.data.IosPlaylistsRepositoryImpl
+import com.riffle.core.data.PlaylistsRepositoryImpl
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
@@ -721,7 +721,7 @@ private fun iosLibraryModule(
     // Read on iOS by LibraryItemsViewModel.playlists, which LibraryItemsScreen renders as the
     // Playlists tab. The AudiobookPlayerViewModel injection stays dead until navPlaylistId can be
     // supplied (see the factory above and #1072).
-    single<PlaylistsRepository> { IosPlaylistsRepositoryImpl(get(), get(), get(), get()) }
+    single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<LocalToReadStore> { IosLocalToReadStore() }
     single<ToReadRepository> { IosToReadRepositoryImpl(get(), get(), get(), get(), get()) }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
