@@ -1,13 +1,13 @@
 package com.riffle.feature.source.ui.websource
 
 import com.riffle.core.catalog.CatalogFacet
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class GutenbergBrowseScreenFilterTest {
 
     @Test
-    fun `language facets are separated from topic facets for dropdown rendering`() {
+    fun languageFacetsAreSeparatedFromTopicFacetsForDropdownRendering() {
         val facets = listOf(
             CatalogFacet(key = "topic:fiction", label = "Fiction"),
             CatalogFacet(key = "language:en", label = "English"),
