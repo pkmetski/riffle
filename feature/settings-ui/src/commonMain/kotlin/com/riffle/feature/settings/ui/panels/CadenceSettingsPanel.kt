@@ -1,13 +1,9 @@
 package com.riffle.feature.settings.ui.panels
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -15,19 +11,21 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-
-import androidx.compose.ui.unit.dp
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import androidx.compose.ui.platform.testTag
-import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.settings.ui.readersettings.CadenceHeroIcon
-import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
+import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.withResolvedTheme
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.readersettings.CadenceHeroIcon
+import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Cadence drill-in — the sentence-highlight hands-free reading feature. See issue #403 / ADR 0047.
@@ -104,10 +102,13 @@ fun CadenceSettingsPanel(
         selected = prefs.cadenceHighlightColor,
         // Resolve Auto → concrete so the picker previews against the paper Readium is currently
         // painting, not the Light fallback the palette accessor uses when Auto slips through.
-        readerBackground = prefs.withResolvedTheme(run {
-            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            LocalMinuteTime(now.hour, now.minute)
-        }, appTheme, systemInDark).swatchBackdropColor,
+        readerBackground = prefs.withResolvedTheme(
+            run {
+                val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                LocalMinuteTime(now.hour, now.minute)
+            },
+            appTheme, systemInDark
+        ).swatchBackdropColor,
         onSelectedChange = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
     )
 }

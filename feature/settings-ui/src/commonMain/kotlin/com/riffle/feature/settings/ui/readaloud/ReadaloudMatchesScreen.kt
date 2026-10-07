@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.readaloud
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -20,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -65,7 +60,11 @@ import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.UnmatchedReadaloud
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.asAuthHeader
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -414,7 +413,8 @@ private fun FormatSlot(
         )
         Spacer(Modifier.height(3.dp))
         if (isEmpty) {
-            Text(stringResource(Res.string.ui_plus_not_linked),
+            Text(
+                stringResource(Res.string.ui_plus_not_linked),
                 style = MaterialTheme.typography.bodyMedium,
                 color = amber,
             )

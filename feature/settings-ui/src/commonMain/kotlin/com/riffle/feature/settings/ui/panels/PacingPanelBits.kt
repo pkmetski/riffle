@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.panels
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,16 +19,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.core.models.HighlightColor
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.UnifiedSliderRow
 import com.riffle.feature.settings.ui.readersettings.wpmBubble
-import com.riffle.core.models.HighlightColor
-import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Shared WPM slider — Cadence and Auto-Scroll use the same 80–600 wpm, step 10, default 250 range
@@ -142,9 +139,11 @@ internal fun HighlightColorRow(
                             .clip(CircleShape)
                             .clickable { onSelectedChange(color) }
                             .then(
-                                if (isSelected)
+                                if (isSelected) {
                                     Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                else Modifier,
+                                } else {
+                                    Modifier
+                                },
                             )
                             .padding(4.dp)
                             .clip(CircleShape)

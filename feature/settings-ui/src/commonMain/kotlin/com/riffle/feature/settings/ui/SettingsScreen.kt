@@ -1,14 +1,9 @@
 package com.riffle.feature.settings.ui
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,32 +23,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
-import org.koin.compose.viewmodel.koinViewModel
-import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.settings.SettingsNavEvent
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.panels.AutoScrollSettingsPanel
-import com.riffle.feature.settings.ui.panels.BehaviorSettingsPanel
 import com.riffle.feature.settings.ui.panels.CadenceSettingsPanel
+import com.riffle.feature.settings.ui.panels.ComicDisplaySettingsPanel
 import com.riffle.feature.settings.ui.panels.DisplaySettingsPanel
 import com.riffle.feature.settings.ui.panels.FormattingSettingsPanel
 import com.riffle.feature.settings.ui.panels.ListeningPreferencesPanel
-import com.riffle.feature.settings.ui.panels.ComicDisplaySettingsPanel
 import com.riffle.feature.settings.ui.sections.AnnotationsSyncSection
 import com.riffle.feature.settings.ui.sections.AppBehaviorSection
-import com.riffle.feature.settings.ui.sections.DictionaryPacksSection
 import com.riffle.feature.settings.ui.sections.AppVersionSection
 import com.riffle.feature.settings.ui.sections.AppearanceSection
 import com.riffle.feature.settings.ui.sections.ComicsSection
 import com.riffle.feature.settings.ui.sections.DeveloperOptionsSection
+import com.riffle.feature.settings.ui.sections.DictionaryPacksSection
 import com.riffle.feature.settings.ui.sections.ListeningSection
 import com.riffle.feature.settings.ui.sections.ReadaloudSection
 import com.riffle.feature.settings.ui.sections.ReadingSection
+import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.source.ui.settings.SourcesSection
-import com.riffle.feature.settings.ui.i18n.AppLanguage
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
 
 /** Subject line used when sharing a single crash report. Kept here so tests can pin the format. */
 internal fun crashReportShareSubject(timestamp: String): String =

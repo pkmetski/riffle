@@ -1,11 +1,9 @@
 package com.riffle.feature.settings.ui.panels
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.runtime.Composable
-
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.BehaviorSection
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun BehaviorSettingsPanel(

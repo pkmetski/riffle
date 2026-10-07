@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.readersettings
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,10 +13,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
-
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Device-behavior toggles that apply to all books. Global in both hosts (reader sheet Behavior tab

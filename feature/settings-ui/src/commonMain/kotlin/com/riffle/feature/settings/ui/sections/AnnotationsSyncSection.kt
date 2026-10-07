@@ -1,20 +1,18 @@
 package com.riffle.feature.settings.ui.sections
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-
-import com.riffle.feature.settings.ui.AnnotationSyncBadge
-import com.riffle.feature.settings.ui.DrillInChevron
-import com.riffle.feature.settings.ui.resolve
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.AnnotationSyncRowState
+import com.riffle.feature.settings.ui.AnnotationSyncBadge
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.resolve
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * WebDAV annotation-sync section — collapsed to a single drill-in row that leads to the dedicated

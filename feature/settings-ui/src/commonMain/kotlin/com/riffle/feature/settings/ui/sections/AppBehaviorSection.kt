@@ -1,16 +1,14 @@
 package com.riffle.feature.settings.ui.sections
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.settings.ui.readersettings.BehaviorSection
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.readersettings.BehaviorSection
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun AppBehaviorSection(

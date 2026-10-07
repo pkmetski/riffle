@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.annotationsync
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -25,16 +20,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-
-import androidx.compose.ui.unit.dp
-import com.riffle.feature.settings.ui.AnnotationSyncBadge
-import com.riffle.feature.settings.ui.DrillInChevron
-import com.riffle.feature.settings.ui.disabledListItemColors
-import com.riffle.feature.settings.ui.resolve
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.AnnotationSyncRowState
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.AnnotationSyncBadge
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.disabledListItemColors
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.resolve
 import com.riffle.feature.source.ui.AddSourceBackend
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -108,21 +105,28 @@ fun AnnotationsSyncSettingsScreen(
             ListItem(
                 modifier = if (maintenanceEnabled) {
                     Modifier.clickable(onClick = onNavigateToMaintenance)
-                } else Modifier,
+                } else {
+                    Modifier
+                },
                 // TODO: migrate to Res.string.ui_maintenance
                 headlineContent = { Text(stringResource(Res.string.ui_maintenance)) },
                 supportingContent = {
                     Text(
                         // TODO: migrate to Res.string.ui_forget_devices_rename_this_device
-                        if (maintenanceEnabled) stringResource(Res.string.ui_forget_devices_rename_this_device)
-                        // TODO: migrate to Res.string.ui_set_up_webdav_first_to_manage_devices
-                        else stringResource(Res.string.ui_set_up_webdav_first_to_manage_devices),
+                        if (maintenanceEnabled) {
+                            stringResource(Res.string.ui_forget_devices_rename_this_device)
+                        } // TODO: migrate to Res.string.ui_set_up_webdav_first_to_manage_devices
+                        else {
+                            stringResource(Res.string.ui_set_up_webdav_first_to_manage_devices)
+                        },
                     )
                 },
                 colors = if (maintenanceEnabled) ListItemDefaults.colors() else disabledListItemColors(),
                 trailingContent = if (maintenanceEnabled) {
                     { DrillInChevron() }
-                } else null,
+                } else {
+                    null
+                },
             )
             HorizontalDivider()
         }

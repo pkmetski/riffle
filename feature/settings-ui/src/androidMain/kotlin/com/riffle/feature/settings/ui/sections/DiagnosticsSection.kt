@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.sections
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -20,14 +16,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.riffle.feature.settings.ui.DrillInChevron
-import com.riffle.feature.settings.ui.crashReportShareSubject
 import com.riffle.core.models.CrashReport
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.crashReportShareSubject
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -80,12 +78,12 @@ internal fun DiagnosticsSection(
                 Row {
                     TextButton(onClick = {
                         shareCrashReports(context, crashReportFiles(), crashReportsSubjectTemplate, shareCrashReportsTitle)
-                    // TODO: migrate to Res.string.ui_share_all
+                        // TODO: migrate to Res.string.ui_share_all
                     }) { Text(stringResource(Res.string.ui_share_all)) }
                     TextButton(onClick = {
                         onClearCrashReports()
                         expandedCrashes.clear()
-                    // TODO: migrate to Res.string.ui_clear
+                        // TODO: migrate to Res.string.ui_clear
                     }) { Text(stringResource(Res.string.ui_clear)) }
                 }
             },
@@ -106,7 +104,7 @@ internal fun DiagnosticsSection(
                     Row {
                         TextButton(onClick = {
                             shareSingleCrashReport(context, timestamp, item.content, shareCrashReportTitle)
-                        // TODO: migrate to Res.string.ui_share
+                            // TODO: migrate to Res.string.ui_share
                         }) { Text(stringResource(Res.string.ui_share)) }
                         TextButton(onClick = { expandedCrashes[item.id] = !isOpen }) {
                             Text(

@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.readaloud
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,25 +32,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
-import com.riffle.feature.settings.ui.DrillInChevron
-import com.riffle.feature.settings.ui.StorytellerBadge
-import com.riffle.feature.settings.ui.disabledListItemColors
 import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.withResolvedTheme
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.ServerType
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.StorytellerBadge
+import com.riffle.feature.settings.ui.disabledListItemColors
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
 import com.riffle.feature.source.ui.AddSourceBackend
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -89,10 +87,13 @@ fun ReadaloudSettingsScreen(
     // the currently-scheduled concrete theme here — otherwise a night-schedule user opening
     // Settings during the dark arc would still see swatches on the Light fallback.
     val readerBackground = formattingPreferences
-        .withResolvedTheme(run {
-            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            LocalMinuteTime(now.hour, now.minute)
-        }, appTheme, systemInDark)
+        .withResolvedTheme(
+            run {
+                val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                LocalMinuteTime(now.hour, now.minute)
+            },
+            appTheme, systemInDark
+        )
         .swatchBackdropColor
 
     val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }
@@ -158,7 +159,9 @@ fun ReadaloudSettingsScreen(
             ListItem(
                 modifier = if (storyteller != null) {
                     Modifier.clickable { onNavigateToReadaloudMatches(storyteller.id) }
-                } else Modifier,
+                } else {
+                    Modifier
+                },
                 headlineContent = { Text(stringResource(Res.string.ui_review_readaloud_matches)) },
                 supportingContent = {
                     if (summary != null) {
@@ -180,7 +183,9 @@ fun ReadaloudSettingsScreen(
                 // disabled row with a chevron reads as a broken link.
                 trailingContent = if (storyteller != null) {
                     { DrillInChevron() }
-                } else null,
+                } else {
+                    null
+                },
             )
             HorizontalDivider()
 
@@ -205,14 +210,20 @@ fun ReadaloudSettingsScreen(
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .then(
-                                        if (highlightEnabled) Modifier.clickable {
-                                            viewModel.updateHighlightColor(color)
-                                        } else Modifier,
+                                        if (highlightEnabled) {
+                                            Modifier.clickable {
+                                                viewModel.updateHighlightColor(color)
+                                            }
+                                        } else {
+                                            Modifier
+                                        },
                                     )
                                     .then(
-                                        if (isSelected)
+                                        if (isSelected) {
                                             Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                        else Modifier,
+                                        } else {
+                                            Modifier
+                                        },
                                     )
                                     .padding(4.dp)
                                     .clip(CircleShape)

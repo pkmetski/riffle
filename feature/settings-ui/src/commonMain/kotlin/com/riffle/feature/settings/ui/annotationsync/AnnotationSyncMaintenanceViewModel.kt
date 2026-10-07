@@ -3,14 +3,14 @@ package com.riffle.feature.settings.ui.annotationsync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.WebSourceDescriptors
+import com.riffle.core.models.Source
+import com.riffle.core.sync.AnnotationSyncStatusStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -288,9 +288,10 @@ class AnnotationSyncMaintenanceViewModel constructor(
         parts += "$annotationFileCount annotation file" + if (annotationFileCount == 1) "" else "s"
         val lastSynced = when {
             isMe -> statusStore.lastSuccessAtMs.value?.let { humanizeEpochMs(it) }
-            else -> metadata?.lastSyncedAt
-                ?.takeIf { it.isNotBlank() }
-                ?.let { humanizeIso(it) }
+            else ->
+                metadata?.lastSyncedAt
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { humanizeIso(it) }
         }
         lastSynced?.let { parts += "Last synced $it" }
         return MaintenanceDeviceRowUiState(
@@ -307,7 +308,9 @@ class AnnotationSyncMaintenanceViewModel constructor(
         val instant = Instant.parse(iso)
         val ldt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
         formatDateTime(ldt.year, ldt.monthNumber, ldt.dayOfMonth, ldt.hour, ldt.minute)
-    } catch (_: Exception) { iso }
+    } catch (_: Exception) {
+        iso
+    }
 
     /** Epoch millis → "yyyy-MM-dd HH:mm" in the device's timezone. */
     private fun humanizeEpochMs(atMs: Long): String {

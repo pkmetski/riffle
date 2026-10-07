@@ -173,6 +173,9 @@ object TestTags {
     const val SETTINGS_DISPLAY_CURRENT_CHAPTER_LABEL = "settings_display_current_chapter_label"
     const val SETTINGS_DISPLAY_READING_PROGRESS_LABELS = "settings_display_reading_progress_labels"
     const val SETTINGS_DISPLAY_TIME_REMAINING = "settings_display_time_remaining"
+    const val SETTINGS_COMIC_DISPLAY_PANEL_VIEW = "settings_comic_display_panel_view"
+    const val SETTINGS_COMIC_DISPLAY_READING_PROGRESS = "settings_comic_display_reading_progress"
+    const val SETTINGS_COMIC_DISPLAY_PAGE_NUMBERS = "settings_comic_display_page_numbers"
 
     // ── Source management ─────────────────────────────────────────────────────
     const val SOURCE_TYPE_PICKER_CONFIRM = "source_type_picker_confirm"

@@ -2,13 +2,13 @@ package com.riffle.feature.settings.ui.dictionary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.feature.library.DownloadManager
-import com.riffle.feature.library.DownloadState
 import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.core.dictionary.PackStore
+import com.riffle.feature.library.DownloadManager
+import com.riffle.feature.library.DownloadState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,8 +34,11 @@ class DictionaryPacksViewModel constructor(
 
     fun enqueueDownload(entry: LanguageCatalogEntry) {
         downloadManager.start(downloadKey(entry.languageTag)) { onProgress ->
-            if (downloader.download(entry, onProgress)) DownloadState.Downloaded
-            else DownloadState.NotDownloaded
+            if (downloader.download(entry, onProgress)) {
+                DownloadState.Downloaded
+            } else {
+                DownloadState.NotDownloaded
+            }
         }
     }
 

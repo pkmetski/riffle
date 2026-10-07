@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +34,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReleaseInfo
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_no_release_notes

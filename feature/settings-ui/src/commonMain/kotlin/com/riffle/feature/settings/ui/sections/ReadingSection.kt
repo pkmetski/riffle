@@ -1,18 +1,16 @@
 package com.riffle.feature.settings.ui.sections
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.runtime.Composable
-
+import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.ui.SettingsDrillInRow
+import com.riffle.feature.settings.ui.SettingsPanel
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.localizedAutoScrollSummary
 import com.riffle.feature.settings.ui.readersettings.localizedCadenceSummary
 import com.riffle.feature.settings.ui.readersettings.localizedDisplaySummary
 import com.riffle.feature.settings.ui.readersettings.localizedFormattingSummary
-import com.riffle.feature.settings.ui.SettingsDrillInRow
-import com.riffle.feature.settings.ui.SettingsPanel
-import com.riffle.core.domain.FormattingPreferences
-import com.riffle.feature.designsystem.SettingsSectionHeader
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun ReadingSection(

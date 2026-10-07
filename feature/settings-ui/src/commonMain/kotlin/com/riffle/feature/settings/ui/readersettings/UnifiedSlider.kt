@@ -1,10 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.riffle.feature.settings.ui.readersettings
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,11 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -44,6 +40,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.settings.ReaderSettingsSummaries
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -151,7 +150,9 @@ internal fun UnifiedSliderRow(
                                 .clickable(onClickLabel = decreaseContentDescription) { onDecrement() }
                                 .semantics { this.contentDescription = decreaseContentDescription }
                                 .then(if (decrementTestTag != null) Modifier.testTag(decrementTestTag) else Modifier)
-                        } else Modifier,
+                        } else {
+                            Modifier
+                        },
                     ),
                 contentAlignment = Alignment.Center,
             ) { edgeLeft() }
@@ -177,7 +178,9 @@ internal fun UnifiedSliderRow(
                                 .clickable(onClickLabel = increaseContentDescription) { onIncrement() }
                                 .semantics { this.contentDescription = increaseContentDescription }
                                 .then(if (incrementTestTag != null) Modifier.testTag(incrementTestTag) else Modifier)
-                        } else Modifier,
+                        } else {
+                            Modifier
+                        },
                     ),
                 contentAlignment = Alignment.Center,
             ) { edgeRight() }

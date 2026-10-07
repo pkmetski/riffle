@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.developer
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -33,13 +28,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.settings.ui.sections.DiagnosticsSection
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.sections.DiagnosticsSection
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,7 +110,10 @@ private fun GithubPatField(
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         OutlinedTextField(
             value = pat,
-            onValueChange = { pat = it; isSaved = false },
+            onValueChange = {
+                pat = it
+                isSaved = false
+            },
             label = { Text(stringResource(Res.string.ui_github_pat_public_repo_scope)) },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -125,7 +126,10 @@ private fun GithubPatField(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
-                onClick = { onSaveGithubPat(pat); isSaved = true },
+                onClick = {
+                    onSaveGithubPat(pat)
+                    isSaved = true
+                },
                 enabled = pat.isNotBlank() && !isSaved,
             ) { Text(stringResource(Res.string.ui_save)) }
         }
