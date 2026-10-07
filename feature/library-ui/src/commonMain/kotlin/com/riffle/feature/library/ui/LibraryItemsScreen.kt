@@ -272,7 +272,7 @@ fun LibraryTabContent(
         // dead-ending on a non-interactive list.
         tabIndexForPlaylists() -> PlaylistsTabContent(
             playlists = playlists,
-            labels = PlaylistLabels.English,
+            labels = playlistLabels(),
             onPlaylistSelected = onPlaylistSelected,
         )
         else -> HomeTabContent(

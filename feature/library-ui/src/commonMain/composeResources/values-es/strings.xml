@@ -80,4 +80,25 @@
     <string name="ui_connect_to_download_readaloud_audio">Conectar para descargar audio readaloud</string>
     <string name="ui_connect_to_stream_audio">Conectar para reproducir audio</string>
     <string name="ui_read">Leer</string>
+
+    <!-- Playlist surfaces -->
+    <string name="ui_play">Reproducir</string>
+    <string name="ui_loading">Cargando…</string>
+    <string name="ui_this_playlist_is_empty">Esta lista de reproducción está vacía.</string>
+    <string name="ui_remove_from_playlist">Eliminar de la lista de reproducción</string>
+    <string name="ui_no_playlists_yet_create_one_from_any_item">Aún no hay listas de reproducción. Crea una desde cualquier elemento.</string>
+    <string name="ui_new_playlist">Nueva lista de reproducción</string>
+    <string name="ui_no_playlists_yet_create_one_to_get_started">Aún no hay listas de reproducción. Crea una para empezar.</string>
+    <string name="ui_in_this_playlist">En esta lista de reproducción</string>
+    <string name="ui_name">Nombre</string>
+    <string name="ui_create">Crear</string>
+    <string name="ui_playlist_count_one">1 elemento</string>
+    <string name="ui_playlist_count_other">%1$d elementos</string>
+    <!-- Filtered books screen -->
+    <string name="ui_no_books_found">No se encontraron libros</string>
+    <!-- Annotation search screen -->
+    <string name="ui_annotations_query_title">Anotaciones · \'%1$s\'</string>
+    <string name="ui_no_annotations_for_query">No hay anotaciones para "%1$s"</string>
+    <string name="ui_bookmark_fallback_title">Marcador</string>
+    <string name="ui_audiobook_bookmark_fallback_title">Marcador de audiolibro</string>
 </resources>

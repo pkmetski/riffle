@@ -58,6 +58,9 @@ android {
     sourceSets.getByName("main").assets.srcDir(
         rootProject.layout.projectDirectory.dir("feature/reader-ui/build/composeAssetsForApk"),
     )
+    sourceSets.getByName("main").assets.srcDir(
+        rootProject.layout.projectDirectory.dir("feature/player-ui/build/composeAssetsForApk"),
+    )
 
     defaultConfig {
         applicationId = "com.riffle.app"
@@ -264,4 +267,5 @@ tasks.matching {
     dependsOn(":feature:settings-ui:copyComposeResourcesForApk")
     dependsOn(":feature:library-ui:copyComposeResourcesForApk")
     dependsOn(":feature:reader-ui:copyComposeResourcesForApk")
+    dependsOn(":feature:player-ui:copyComposeResourcesForApk")
 }

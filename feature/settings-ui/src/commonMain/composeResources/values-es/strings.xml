@@ -286,4 +286,6 @@
     <string name="ui_smart_split">División inteligente</string>
     <string name="ui_split">Dividir</string>
     <string name="ui_reset_to_global_defaults">Restablecer los valores predeterminados globales</string>
+    <string name="ui_language_change_restart_title">Reinicio necesario</string>
+    <string name="ui_language_change_restart_body">Reinicia la aplicación para aplicar el nuevo idioma.</string>
 </resources>

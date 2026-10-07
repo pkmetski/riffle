@@ -286,4 +286,6 @@
     <string name="ui_smart_split">Интелигентно разделяне</string>
     <string name="ui_split">Разделяне</string>
     <string name="ui_reset_to_global_defaults">Връщане към глобалните настройки по подразбиране</string>
+    <string name="ui_language_change_restart_title">Необходимо рестартиране</string>
+    <string name="ui_language_change_restart_body">Рестартирайте приложението, за да приложите новия език.</string>
 </resources>

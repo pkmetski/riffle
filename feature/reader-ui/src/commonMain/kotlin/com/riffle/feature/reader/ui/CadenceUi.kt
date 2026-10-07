@@ -107,8 +107,7 @@ internal fun DrawScope.drawCadenceGlyph(color: Color) {
  *
  * Visible only while [state] is [CadenceState.Running] or [CadenceState.Paused]; anchored to the
  * bottom-right inset at [HUD_PILL_BOTTOM_DP], the same baseline [AutoScrollHudPill] uses.
- * [labels] carries the host's string catalogue — `:app` fills it from `res/values*`, `:shared`
- * from [SpeedHudLabels.EnglishCadence].
+ * [labels] carries the host's string catalogue, typically constructed via [cadenceHudLabels].
  */
 @Composable
 fun CadenceHudPill(

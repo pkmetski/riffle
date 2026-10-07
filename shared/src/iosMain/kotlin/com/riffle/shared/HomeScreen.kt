@@ -38,28 +38,27 @@ import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
-import com.riffle.feature.library.ui.AnnotationSearchLabels
 import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.CollectionDetailScreen
 import com.riffle.feature.library.ui.DownloadsScreen
-import com.riffle.feature.library.ui.FilteredBooksLabels
 import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.LibraryItemDetailScreen
 import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
-import com.riffle.feature.library.ui.PlaylistLabels
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.library.ui.RiffleScreen
 import com.riffle.feature.library.ui.SeriesDetailScreen
+import com.riffle.feature.library.ui.annotationSearchLabels
+import com.riffle.feature.library.ui.filteredBooksLabels
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
+import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.reader.highlights.ReaderSource
-import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
@@ -67,6 +66,8 @@ import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
 import com.riffle.shared.reader.EpubReaderScreen
+import com.riffle.shared.settings.IosPlatformSettingsHooks
+import com.riffle.shared.settings.LanguageChangeRestartDialog
 import com.riffle.shared.source.SourceOnboardingHost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -113,6 +114,8 @@ fun HomeScreen() {
     LaunchedEffect(refreshKey) {
         destination = viewModel.getStartDestination()
     }
+
+    LanguageChangeRestartDialog(onDismiss = {})
 
     LaunchedEffect(drawerViewModel) {
         drawerViewModel.redirectToLibrary.collect { library ->
@@ -221,7 +224,7 @@ fun HomeScreen() {
                         onNavigateToDictionaryPacks = { /* no-op: dictionary packs is Android-only */ },
                         onNavigateToDebugLogs = { /* no-op: debug logs is Android-only */ },
                         onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
-                        platformHooks = DefaultPlatformSettingsHooks,
+                        platformHooks = IosPlatformSettingsHooks,
                     )
                 }
             }
@@ -553,7 +556,7 @@ internal fun FilteredBooksHost(
     DisposableEffect(key) { onDispose { host.clear() } }
     FilteredBooksScreen(
         viewModel = viewModel,
-        labels = FilteredBooksLabels.English,
+        labels = filteredBooksLabels(),
         minCellSize = coverGridMinCell(),
         onItemSelected = onItemSelected,
         onNavigateBack = onBack,
@@ -584,7 +587,7 @@ internal fun AnnotationSearchHost(
     DisposableEffect(key) { onDispose { host.clear() } }
     AnnotationSearchResultsScreen(
         viewModel = viewModel,
-        labels = AnnotationSearchLabels.English,
+        labels = annotationSearchLabels(),
         onNavigateBack = onBack,
         onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
         onAudiobookBookmarkSelected = { result -> onOpenBook(result.bookmark.sourceId, result.bookmark.itemId) },
@@ -618,7 +621,7 @@ private fun PlaylistDetailHost(
     DisposableEffect(key) { onDispose { host.clear() } }
     PlaylistDetailScreen(
         viewModel = viewModel,
-        labels = PlaylistLabels.English,
+        labels = playlistLabels(),
         onNavigateBack = onBack,
         onItemSelected = onItemSelected,
         onPlayItem = onPlayItem,

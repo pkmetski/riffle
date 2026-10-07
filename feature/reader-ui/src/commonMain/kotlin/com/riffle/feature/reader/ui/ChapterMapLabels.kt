@@ -6,11 +6,11 @@ import kotlin.math.roundToInt
 /**
  * The localised strings the chapter-map labels need, supplied by the host.
  *
- * The host owns the string catalogue: `:app` fills this from its `res/values*` `stringResource`s
- * (so Bulgarian and Spanish keep working exactly as before), and `:shared` fills it from
- * [ChapterMapProgressLabelTemplates.English] because the iOS app has no i18n mechanism wired up
- * yet. Only the *strings* differ per host — every derivation below is shared, so the two
- * platforms cannot drift on how a chapter count, a duration or a remaining-time readout is built.
+ * The localised string catalogue for the chapter map. Hosts construct it via
+ * [chapterMapProgressLabelTemplates], which reads from composeResources and picks up the active
+ * locale automatically. Only the *strings* differ per host — every derivation below is shared, so
+ * the two platforms cannot drift on how a chapter count, a duration or a remaining-time readout
+ * is built.
  *
  * Each field is an Android-style positional template (`%1$d`, `%2$s`, `%%`). [formatTemplate]
  * expands them; it is deliberately not `String.format`, which is JVM-only.

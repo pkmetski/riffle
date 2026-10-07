@@ -80,4 +80,25 @@
     <string name="ui_connect_to_download_readaloud_audio">Свържи се за изтегляне на аудио</string>
     <string name="ui_connect_to_stream_audio">Свържи се за стрийминг на аудио</string>
     <string name="ui_read">Чети</string>
+
+    <!-- Playlist surfaces -->
+    <string name="ui_play">Пускане</string>
+    <string name="ui_loading">Зарежда се...</string>
+    <string name="ui_this_playlist_is_empty">Този плейлист е празен.</string>
+    <string name="ui_remove_from_playlist">Премахване от плейлиста</string>
+    <string name="ui_no_playlists_yet_create_one_from_any_item">Все още няма плейлисти. Създайте плейлист от произволен елемент.</string>
+    <string name="ui_new_playlist">Нов плейлист</string>
+    <string name="ui_no_playlists_yet_create_one_to_get_started">Все още няма плейлисти. Създайте един, за да започнете.</string>
+    <string name="ui_in_this_playlist">В този плейлист</string>
+    <string name="ui_name">Име</string>
+    <string name="ui_create">Създаване</string>
+    <string name="ui_playlist_count_one">1 елемент</string>
+    <string name="ui_playlist_count_other">%1$d елемента</string>
+    <!-- Filtered books screen -->
+    <string name="ui_no_books_found">Няма намерени книги</string>
+    <!-- Annotation search screen -->
+    <string name="ui_annotations_query_title">Анотации · \'%1$s\'</string>
+    <string name="ui_no_annotations_for_query">Няма анотации за "%1$s"</string>
+    <string name="ui_bookmark_fallback_title">Отметка</string>
+    <string name="ui_audiobook_bookmark_fallback_title">Отметка за аудиокнига</string>
 </resources>

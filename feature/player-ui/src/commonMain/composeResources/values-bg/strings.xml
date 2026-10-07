@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_back">Назад</string>
+    <string name="ui_cannot_play">Тази аудиокнига не може да бъде пусната в момента.</string>
+    <string name="ui_play">Пускане</string>
+    <string name="ui_pause">Пауза</string>
+    <string name="ui_previous_chapter">Предишна глава</string>
+    <string name="ui_next_chapter">Следваща глава</string>
+    <string name="ui_chapters">глави</string>
+    <string name="ui_bookmarks">Отметки</string>
+    <string name="ui_bookmark_count_one">1 отметка</string>
+    <string name="ui_bookmark_count_other">%1$d отметки</string>
+    <string name="ui_add_bookmark">Добавяне на отметка</string>
+    <string name="ui_remove_bookmark">Премахване на отметка</string>
+    <string name="ui_new_bookmark">Нова отметка</string>
+    <string name="ui_rename_bookmark">Преименуване на отметката</string>
+    <string name="ui_bookmark_options">Опции за отметки</string>
+    <string name="ui_rename">Преименуване</string>
+    <string name="ui_delete">Изтриване</string>
+    <string name="ui_save">Запазване</string>
+    <string name="ui_cancel">Отказ</string>
+    <string name="ui_no_bookmarks_yet">Все още няма отметки.</string>
+    <string name="ui_offline_bookmarks_will_sync">Офлайн — отметките ще се синхронизират</string>
+    <string name="ui_now_playing">Възпроизвежда се сега</string>
+    <string name="ui_chapter_number">Глава %1$d</string>
+    <string name="ui_playback_speed">Скорост на възпроизвеждане</string>
+    <string name="ui_sleep_timer_title">Таймер за заспиване</string>
+    <string name="ui_sleep_timer">Таймер за заспиване</string>
+    <string name="ui_sleep_pill_idle">Сън</string>
+    <string name="ui_sleep_pill_end_of_chapter">Край на гл.</string>
+    <string name="ui_end_of_chapter">Край на глава</string>
+    <string name="ui_sleeping_in">Заспиване след %1$s</string>
+    <string name="ui_sleeping_at_end_of_chapter">Заспиване в края на главата</string>
+    <string name="ui_cancel_timer">Отмяна на таймера</string>
+    <string name="ui_minutes_short">%1$d мин</string>
+    <string name="ui_audiobook">Аудиокнига</string>
+    <string name="ui_compact_duration_minutes">%1$d мин</string>
+    <string name="ui_compact_duration_hours">%1$d ч</string>
+    <string name="ui_compact_duration_hours_minutes">%1$d ч %2$d мин</string>
+</resources>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_back">Atrás</string>
+    <string name="ui_cannot_play">Este audiolibro no se puede reproducir ahora mismo.</string>
+    <string name="ui_play">Reproducir</string>
+    <string name="ui_pause">Pausar</string>
+    <string name="ui_previous_chapter">Capítulo anterior</string>
+    <string name="ui_next_chapter">Siguiente capítulo</string>
+    <string name="ui_chapters">Capítulos</string>
+    <string name="ui_bookmarks">Marcadores</string>
+    <string name="ui_bookmark_count_one">1 marcador</string>
+    <string name="ui_bookmark_count_other">%1$d marcadores</string>
+    <string name="ui_add_bookmark">Añadir marcador</string>
+    <string name="ui_remove_bookmark">Eliminar marcador</string>
+    <string name="ui_new_bookmark">Nuevo marcador</string>
+    <string name="ui_rename_bookmark">Renombrar marcador</string>
+    <string name="ui_bookmark_options">Opciones de marcador</string>
+    <string name="ui_rename">Renombrar</string>
+    <string name="ui_delete">Eliminar</string>
+    <string name="ui_save">Guardar</string>
+    <string name="ui_cancel">Cancelar</string>
+    <string name="ui_no_bookmarks_yet">Aún no hay marcadores.</string>
+    <string name="ui_offline_bookmarks_will_sync">Sin conexión — los marcadores se sincronizarán</string>
+    <string name="ui_now_playing">Reproduciendo ahora</string>
+    <string name="ui_chapter_number">Capítulo %1$d</string>
+    <string name="ui_playback_speed">Velocidad de reproducción</string>
+    <string name="ui_sleep_timer_title">Temporizador de apagado</string>
+    <string name="ui_sleep_timer">Temporizador de sueño</string>
+    <string name="ui_sleep_pill_idle">Dormir</string>
+    <string name="ui_sleep_pill_end_of_chapter">Fin del cap.</string>
+    <string name="ui_end_of_chapter">Fin del capítulo</string>
+    <string name="ui_sleeping_in">Se detendrá en %1$s</string>
+    <string name="ui_sleeping_at_end_of_chapter">Se detendrá al final del capítulo</string>
+    <string name="ui_cancel_timer">Cancelar temporizador</string>
+    <string name="ui_minutes_short">%1$d min</string>
+    <string name="ui_audiobook">Audiolibro</string>
+    <string name="ui_compact_duration_minutes">%1$d min</string>
+    <string name="ui_compact_duration_hours">%1$dh</string>
+    <string name="ui_compact_duration_hours_minutes">%1$dh %2$d min</string>
+</resources>

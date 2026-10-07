@@ -94,21 +94,22 @@ import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toReadiumTextStyling
 import com.riffle.feature.reader.ui.AnnotationActionsSheet
-import com.riffle.feature.reader.ui.AnnotationSheetLabels
 import com.riffle.feature.reader.ui.AutoScrollHudPill
 import com.riffle.feature.reader.ui.AutoScrollToggleIcon
 import com.riffle.feature.reader.ui.CadenceHudPill
 import com.riffle.feature.reader.ui.CadenceToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
-import com.riffle.feature.reader.ui.ChapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.FootnotePopup
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.ReaderTopBar
 import com.riffle.feature.reader.ui.ReturnToPositionCard
 import com.riffle.feature.reader.ui.SharedAnnotationsPanel
 import com.riffle.feature.reader.ui.SharedSearchTopBar
-import com.riffle.feature.reader.ui.SpeedHudLabels
+import com.riffle.feature.reader.ui.annotationSheetLabels
+import com.riffle.feature.reader.ui.cadenceHudLabels
+import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
+import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
@@ -1018,7 +1019,7 @@ fun EpubReaderScreen(
                 emphasisStyles = editTarget?.let { editor.emphasisStylesFor(it) } ?: pendingStyles,
                 note = editTarget?.note,
                 readerBackground = readerBackground,
-                labels = AnnotationSheetLabels.English,
+                labels = annotationSheetLabels(),
                 onPickColor = { color ->
                     scope.launch {
                         if (editTarget != null) {
@@ -1084,7 +1085,7 @@ fun EpubReaderScreen(
             val existing = annotations.firstOrNull { it.id == target }
             NoteEditorSheet(
                 initialNote = existing?.note.orEmpty(),
-                labels = AnnotationSheetLabels.English,
+                labels = annotationSheetLabels(),
                 onConfirm = { text ->
                     scope.launch {
                         if (existing != null) {
@@ -1154,7 +1155,7 @@ fun EpubReaderScreen(
         // FormattingSession.nudgeAutoScroll.
         AutoScrollHudPill(
             state = autoScrollState,
-            labels = SpeedHudLabels.English,
+            labels = speedHudLabels(),
             onPause = { autoScroll.dispatch(AutoScrollEvent.Pause(PauseCause.UserPausedPill)) },
             onResume = { autoScroll.dispatch(AutoScrollEvent.Resume) },
             onSlower = {
@@ -1178,7 +1179,7 @@ fun EpubReaderScreen(
         // `EpubReaderViewModel.nudgeCadence` (which did not, until this change).
         CadenceHudPill(
             state = cadenceState,
-            labels = SpeedHudLabels.EnglishCadence,
+            labels = cadenceHudLabels(),
             onPause = { cadence.pauseFor(CadencePauseCause.PanelOpen) },
             onResume = { cadence.resumeIfPaused() },
             onSlower = { cadence.nudge(-AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
@@ -1213,9 +1214,7 @@ fun EpubReaderScreen(
                 showCurrentChapterLabel = prefs.showCurrentChapterLabel,
                 showProgressLabels = prefs.showReadingProgressLabels,
                 showReadingTimeEstimate = prefs.showReadingTimeEstimate,
-                // iOS has no string-resource mechanism yet (#1072's i18n item), so the host hands
-                // the shared overlay the English catalogue. Android hands it its own res/values*.
-                templates = ChapterMapProgressLabelTemplates.English,
+                templates = chapterMapProgressLabelTemplates(),
                 bookmarkPositions = bookmarkPositions,
                 chapterTimeRemaining = chapterMap.chapterTimeRemaining,
                 bookTimeRemaining = chapterMap.bookTimeRemaining,
