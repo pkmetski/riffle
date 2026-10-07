@@ -1,17 +1,12 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.riffle.feature.settings.ui.readersettings
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,8 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,22 +44,24 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.testTag
-
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.AutoReaderThemeMode
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import com.riffle.core.domain.LocalMinuteTime
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.label
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 internal enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
@@ -303,7 +300,6 @@ private fun ReaderFontFamily.previewFontFamily(): FontFamily? = when (this) {
     ReaderFontFamily.Merriweather -> rememberAssetFontFamily("Merriweather")
     ReaderFontFamily.OpenDyslexic -> rememberAssetFontFamily("OpenDyslexic")
 }
-
 
 internal fun Float.round1() = (this * 10).roundToInt() / 10f
 
@@ -588,7 +584,7 @@ private fun TimeField(
                 TextButton(onClick = {
                     onTimeChange(LocalMinuteTime.of(state.hour, state.minute))
                     showPicker = false
-                // TODO: migrate to Res.string.ui_ok
+                    // TODO: migrate to Res.string.ui_ok
                 }) { Text(stringResource(Res.string.ui_ok)) }
             },
             dismissButton = {

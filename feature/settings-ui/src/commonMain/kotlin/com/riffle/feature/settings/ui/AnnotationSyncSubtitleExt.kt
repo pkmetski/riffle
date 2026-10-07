@@ -1,13 +1,11 @@
 package com.riffle.feature.settings.ui
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.runtime.Composable
-import kotlinx.datetime.Clock
-
 import com.riffle.feature.settings.AnnotationSyncSubtitle
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.withoutDanglingSeparator
+import kotlinx.datetime.Clock
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun AnnotationSyncSubtitle.resolve(): String = when (this) {

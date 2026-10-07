@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.annotationsync
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -45,6 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,7 +74,8 @@ fun AnnotationSyncMaintenanceScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(Res.string.ui_annotations_webdav_maintenance_description),
+            Text(
+                stringResource(Res.string.ui_annotations_webdav_maintenance_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -212,7 +212,8 @@ private fun ForgetDialog(row: MaintenanceDeviceRowUiState, onCancel: () -> Unit,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(Res.string.ui_forget_device_explanation))
-                Text(stringResource(Res.string.ui_forget_device_warning),
+                Text(
+                    stringResource(Res.string.ui_forget_device_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -231,7 +232,8 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
         title = { Text(stringResource(Res.string.ui_rename_this_device)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(Res.string.ui_shown_on_every_device_in_the_household),
+                Text(
+                    stringResource(Res.string.ui_shown_on_every_device_in_the_household),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -254,11 +256,13 @@ private fun OtherUsersSection(
     groups: List<OtherUserGroupUiState>,
     vm: AnnotationSyncMaintenanceViewModel,
 ) {
-    Text(stringResource(Res.string.ui_other_users_on_this_share),
+    Text(
+        stringResource(Res.string.ui_other_users_on_this_share),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
     )
-    Text(stringResource(Res.string.ui_other_users_description),
+    Text(
+        stringResource(Res.string.ui_other_users_description),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -411,7 +415,8 @@ private fun ForgetUserDialog(
                         group.totalFileCount,
                     ),
                 )
-                Text(stringResource(Res.string.ui_forget_user_warning),
+                Text(
+                    stringResource(Res.string.ui_forget_user_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

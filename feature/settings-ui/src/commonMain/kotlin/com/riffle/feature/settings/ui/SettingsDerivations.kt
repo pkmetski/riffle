@@ -1,7 +1,6 @@
 package com.riffle.feature.settings.ui
 
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.Source
 import com.riffle.feature.settings.ReadaloudMatchSummary
@@ -28,7 +27,7 @@ internal fun highlightColorLabel(color: HighlightColor): String =
  * read "0.7×". Reverting this function makes [SettingsDerivationsTest.listeningSummaryPrintsTheSpeedAtTheDomainsStepGranularity] red.
  */
 internal fun listeningSummary(speed: Float, skipSec: Int, rewindSec: Int): String {
-    val speedStr = if (speed == speed.toLong().toFloat()) "${speed.toLong()}×" else "${speed}×"
+    val speedStr = if (speed == speed.toLong().toFloat()) "${speed.toLong()}×" else "$speed×"
     return "Speed $speedStr · Skip ${skipSec}s · Rewind ${rewindSec}s"
 }
 
@@ -50,7 +49,9 @@ internal fun readaloudSubtitle(
 
     val versionStr = version?.let { " · v$it" } ?: ""
 
-    val summaryStr = if (summary == null) "" else {
+    val summaryStr = if (summary == null) {
+        ""
+    } else {
         val parts = buildList {
             if (summary.matchedCount > 0) add("${summary.matchedCount} matched")
             if (summary.unmatchedCount > 0) add("${summary.unmatchedCount} unmatched")

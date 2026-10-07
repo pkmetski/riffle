@@ -1,19 +1,17 @@
 package com.riffle.feature.settings.ui.readersettings
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.runtime.Composable
-
-import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.AppThemeReaderThemes
 import com.riffle.core.domain.AutoReaderThemeMode
+import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.feature.settings.ReaderSettingsSummaries
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 // Only the `localized*` variants live here: they need a Compose composition to read string

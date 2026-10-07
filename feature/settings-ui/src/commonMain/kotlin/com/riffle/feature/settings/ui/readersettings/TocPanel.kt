@@ -1,6 +1,5 @@
 package com.riffle.feature.settings.ui.readersettings
 
-import com.riffle.core.models.TocEntry
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,11 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.source.ui.fadingScrollbar
+import com.riffle.core.models.TocEntry
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.findActiveEntry
 import com.riffle.feature.reader.findActiveFlatIndex
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.flattenToc
+import com.riffle.feature.source.ui.fadingScrollbar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.panels
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,12 +10,14 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.ui.AutoScrollToggleIcon
-import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Auto-Scroll drill-in — the reader's "creep the page upward at a set pace" feature. Rendered

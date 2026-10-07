@@ -1,15 +1,13 @@
 package com.riffle.feature.settings.ui.sections
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.runtime.Composable
-
-import com.riffle.feature.settings.ui.SettingsDrillInRow
-import com.riffle.feature.settings.ui.SettingsPanel
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.ui.SettingsDrillInRow
+import com.riffle.feature.settings.ui.SettingsPanel
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun localizedComicDisplaySummary(prefs: ComicFormattingPreferences): String {

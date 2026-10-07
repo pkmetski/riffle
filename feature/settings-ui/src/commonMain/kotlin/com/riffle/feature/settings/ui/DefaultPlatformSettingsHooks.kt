@@ -9,5 +9,6 @@ object DefaultPlatformSettingsHooks : PlatformSettingsHooks {
     override fun canInstallUpdate(): Boolean = false
     override fun currentLanguage(): AppLanguage = AppLanguage.System
     override fun onLanguageChanged(language: AppLanguage) = Unit
+
     @Composable override fun OnResumeEffect(block: () -> Unit) = Unit
 }

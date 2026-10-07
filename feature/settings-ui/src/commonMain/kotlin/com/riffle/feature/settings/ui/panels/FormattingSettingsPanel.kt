@@ -1,12 +1,10 @@
 package com.riffle.feature.settings.ui.panels
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.runtime.Composable
-
-import com.riffle.feature.settings.ui.readersettings.FormattingSection
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.readersettings.FormattingSection
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun FormattingSettingsPanel(

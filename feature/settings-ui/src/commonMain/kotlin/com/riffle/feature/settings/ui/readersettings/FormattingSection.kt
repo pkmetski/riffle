@@ -1,8 +1,4 @@
 package com.riffle.feature.settings.ui.readersettings
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,13 +16,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
-
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.core.domain.ReaderFontFamily
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ReaderSettingsSummaries
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Text + page typography controls. Reused by the in-reader settings sheet (Formatting tab)
@@ -92,7 +90,9 @@ fun FormattingSection(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 // TODO: migrate to Res.string.ui_justify_text
                 Text(stringResource(Res.string.ui_justify_text), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Switch(checked = prefs.justifyText, onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) }, modifier = Modifier.testTag(TestTags.READER_SETTINGS_JUSTIFY_TEXT))
+                Switch(checked = prefs.justifyText, onCheckedChange = {
+                    onPrefsChange(prefs.copy(justifyText = it))
+                }, modifier = Modifier.testTag(TestTags.READER_SETTINGS_JUSTIFY_TEXT))
             }
             Spacer(Modifier.height(16.dp))
 

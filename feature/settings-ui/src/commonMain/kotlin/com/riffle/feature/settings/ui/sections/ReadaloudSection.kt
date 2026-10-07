@@ -1,21 +1,19 @@
 package com.riffle.feature.settings.ui.sections
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.*
-
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-
-import com.riffle.feature.settings.ui.DrillInChevron
-import com.riffle.feature.settings.ui.StorytellerBadge
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.feature.settings.displayHost
+import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.StorytellerBadge
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * "Readaloud" section — collapsed to a single drill-in row that leads to the dedicated Readaloud
