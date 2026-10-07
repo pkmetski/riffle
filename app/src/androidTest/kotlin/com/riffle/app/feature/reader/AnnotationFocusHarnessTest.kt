@@ -158,6 +158,10 @@ class AnnotationFocusHarnessTest : KoinTest {
         // Leave the bookmarked page, then return through the actual Annotations panel navigation.
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
+        // Wait for Section 1.1 to be fully rendered before tapping the bookmark. On slow CI
+        // runners, if the chapter is still loading when the bookmark navigation fires, the
+        // multicol layout reflows mid-snap and resets scrollLeft to 0 on every attempt.
+        waitForReaderReady()
 
         // Navigate to the bookmark via the Annotations panel. Retry up to three times: on heavily-loaded
         // CI runners Readium's intra-chapter paginated snap JS can race with multicol layout in a
