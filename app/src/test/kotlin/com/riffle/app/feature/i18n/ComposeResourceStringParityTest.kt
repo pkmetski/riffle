@@ -17,6 +17,10 @@ import org.junit.runners.Parameterized
  *
  * Parameterized over the three modules that gained composeResources as part of #1151: reader-ui,
  * library-ui, and player-ui.
+ *
+ * No iOS/commonTest counterpart: the test reads XML from the build-tree filesystem using Java
+ * `File` APIs that are not available in Kotlin/Native. The composeResources XML files are shared
+ * across both platforms, so a passing JVM run covers the iOS locale files as well.
  */
 @RunWith(Parameterized::class)
 class ComposeResourceStringParityTest(private val modulePath: String) {
