@@ -644,6 +644,7 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
         dependsOn(rootProject.tasks.named("checkTranslations"))
         dependsOn(rootProject.tasks.named("checkTestGuardrails"))
+        dependsOn(rootProject.tasks.named("checkParityMirror"))
         dependsOn(rootProject.tasks.named("checkSharedCommonMainComposables"))
     }
 }

@@ -133,12 +133,21 @@ class AnnotationFocusHarnessTest : KoinTest {
 
         // Create the bookmark through the production path. This is important: toggleBookmark()
         // stores Readium's live page-boundary progression alongside a lossy character-count CFI.
-        navigateWithSearch(targetPhrase)
-        assertTrue(
-            "search did not reach the bookmark target",
-            waitForPhraseOnScreen(orientation, 15_000, targetPhrase).onScreen,
-        )
-        closeSearch()
+        // On slow CI runners, closeSearch() triggers a multicol layout reflow. ColumnSnap can
+        // race this reflow and snap scrollLeft to 0, causing the bookmark to record a page-0
+        // locator. We retry the search-navigate + close cycle until the scroll settles stably
+        // at the target phrase so the bookmark captures the correct page locator.
+        var bookmarkPhraseStable = false
+        for (navAttempt in 0..2) {
+            navigateWithSearch(targetPhrase)
+            if (!waitForPhraseOnScreen(orientation, 15_000, targetPhrase).onScreen) continue
+            closeSearch()
+            // Let ColumnSnap settle after the search-panel-close reflow before reading progress.
+            waitForWebViewScrollQuiet(quietMs = 600, timeoutMs = 8_000)
+            bookmarkPhraseStable = waitForPhraseOnScreen(orientation, 3_000, targetPhrase).onScreen
+            if (bookmarkPhraseStable) break
+        }
+        assertTrue("search did not stably reach the bookmark target", bookmarkPhraseStable)
         // The corner bookmark ribbon sits at TopEnd, UNDER the floating TopAppBar overlay.
         // Closing search restores the visible top bar (pinned behavior), so a tap injected at
         // the ribbon's coordinates lands on the bar surface and toggleBookmark never fires.
@@ -158,8 +167,12 @@ class AnnotationFocusHarnessTest : KoinTest {
         // Leave the bookmarked page, then return through the actual Annotations panel navigation.
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
+        // Wait for Section 1.1 to be fully rendered before tapping the bookmark. On slow CI
+        // runners, if the chapter is still loading when the bookmark navigation fires, the
+        // multicol layout reflows mid-snap and resets scrollLeft to 0 on every attempt.
+        waitForReaderReady()
 
-        // Navigate to the bookmark via the Annotations panel. Retry up to three times: on heavily-loaded
+        // Navigate to the bookmark via the Annotations panel. Retry up to five times: on heavily-loaded
         // CI runners Readium's intra-chapter paginated snap JS can race with multicol layout in a
         // way that leaves scrollLeft at 0. The ColumnSnap rAF loop exits after ≥3 stable frames of
         // scrollWidth; if the layout settles between two loop iterations the snap declares done
@@ -192,6 +205,8 @@ class AnnotationFocusHarnessTest : KoinTest {
         }
 
         var result = tapBookmarkAndWait()
+        if (!result.onScreen) result = tapBookmarkAndWait()
+        if (!result.onScreen) result = tapBookmarkAndWait()
         if (!result.onScreen) result = tapBookmarkAndWait()
         if (!result.onScreen) result = tapBookmarkAndWait()
         if (!result.onScreen) result = tapBookmarkAndWait()

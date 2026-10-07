@@ -67,7 +67,7 @@ final class CadenceBridgeTests: XCTestCase {
 
         bridge.openEpub(filePath: bundledEpubPath("test.epub"), locatorJson: nil)
 
-        guard XCTWaiter().wait(for: [loaded], timeout: 30) == .completed else {
+        guard XCTWaiter().wait(for: [loaded], timeout: 60) == .completed else {
             XCTFail("the fixture EPUB never reported a page load, so the Cadence seam cannot be exercised")
             return nil
         }

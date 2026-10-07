@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -161,25 +160,6 @@ class NavigationSnapHarnessTest : KoinTest {
             "NO-JITTER: page must not move after the cover lifts (post-reveal samples=$samples)",
             samples.all { Math.abs(it - finalLeft) <= 1 },
         )
-    }
-
-    // Page-turn animations stall on the headless emulator (Readium's turn advances ~1 frame then the
-    // Choreographer starves, so goForward never reaches the next column — observed: scrollLeft nudges to
-    // ~2px then reverts). This path therefore can't be exercised on the AVD; run it on a real device,
-    // where turns animate and complete. Kept for that purpose.
-    @Ignore("Page-turn animation stalls on the headless emulator — run on a real device")
-    @Test
-    fun manualPageFlips_eachLandsSnapped_noPostSettleReadjustment() {
-        openStandaloneReader()
-        installFrameRecorder()
-        val iw = innerWidth()
-        assertTrue("need a multi-page chapter to flip through", iw in 1..10_000)
-
-        // Flip FORWARD through the chapter, then BACK (the direction in the reported bug). Each turn:
-        // it must move, settle on the column grid, and not hop again after the turn animation settles.
-        // Repetition also surfaces accumulated column-snap drift (each landing must stay on-grid).
-        repeat(4) { i -> flipAndVerify("forward #$i", iw, forward = true) }
-        repeat(4) { i -> flipAndVerify("back #$i", iw, forward = false) }
     }
 
     private fun flipAndVerify(label: String, iw: Int, forward: Boolean) {

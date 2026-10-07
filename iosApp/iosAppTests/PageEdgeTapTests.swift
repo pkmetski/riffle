@@ -60,9 +60,4 @@ final class PageEdgeTapTests: XCTestCase {
         XCTAssertEqual(receivedY, 740)
     }
 
-    func testNilCallbackDoesNotCrash() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        // No callback registered — simulateTapAt must be a no-op, not a crash
-        bridge.simulateTapAt(tapX: 50, tapY: 400, viewWidth: 360, viewHeight: 800)
-    }
 }

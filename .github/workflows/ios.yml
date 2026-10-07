@@ -81,7 +81,7 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    # This job Kotlin/Native-compiles and runs 30 modules' iosSimulatorArm64Test plus the XCTest
+    # This job Kotlin/Native-compiles and runs 29 modules' iosSimulatorArm64Test plus the XCTest
     # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
     # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 min was too tight
     # after feature:library-ui iosSimulatorArm64Test was added (killed at exactly 50 on a slow

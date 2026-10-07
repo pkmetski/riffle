@@ -44,3 +44,14 @@ kotlin {
         }
     }
 }
+
+// jvmTest already covers commonTest (core:logging has jvm()). Limit testAndroidHostTest to
+// AndroidLoggerBufferTest, the one test that needs the Android runtime, so commonTest does not
+// run twice.
+tasks.withType<Test>().configureEach {
+    if (name.contains("AndroidHostTest", ignoreCase = true)) {
+        filter {
+            includeTestsMatching("com.riffle.core.logging.AndroidLoggerBufferTest")
+        }
+    }
+}

@@ -68,16 +68,16 @@ jobs:
       # KMP modules (core:common/models/domain/sources/net) have no `test` lifecycle
       # task — their JVM tests only run via `jvmTest`. `./gradlew test` alone silently
       # skipped all of them from the KMP conversion (#644) onward.
-      # :feature:source-ui, :feature:reader-ui, :feature:design-system, :feature:library-ui and
-      # :feature:player-ui are android+ios (no jvm target), so neither `test` nor `jvmTest`
-      # matches them — their host suites only run via testAndroidHostTest. Name them explicitly
-      # or they silently never run. Same for :core:logging which has androidHostTest but no
-      # jvm-target (only jvm for its shared logic).
-      # :core:data note: jvmTest runs both its commonTest and its jvmTest-specific suites
-      # (ProgressSyncIntegrationTest, ReadingSessionIntegrationTest, ProgressSyncCycleTest).
-      # The Integration job also runs core:data commonTest via testAndroidHostTest, so those
-      # common tests run twice. This is accepted: the jvmTest-specific suites use JVM-only APIs
-      # (OkHttp, MockWebServer) and cannot run under testAndroidHostTest.
+      # :feature:source-ui, :feature:reader-ui, :feature:design-system, :feature:library-ui,
+      # :feature:player-ui and :feature:settings-ui are android+ios (no jvm target), so neither
+      # `test` nor `jvmTest` matches them — their host suites only run via testAndroidHostTest.
+      # Name them explicitly or they silently never run.
+      # :core:logging has both jvm() and androidHostTest; jvmTest covers its commonTest.
+      # testAndroidHostTest is filtered in the module's build file to only run
+      # AndroidLoggerBufferTest, which needs the Android runtime and cannot run in jvmTest.
+      # :core:data note: jvmTest runs its commonTest. The MockWebServer integration suites
+      # (ProgressSyncIntegrationTest, ReadingSessionIntegrationTest, ProgressSyncCycleTest) are
+      # filtered out of jvmTest via -PintegrationTests and run exclusively in the Integration job.
       - run: >-
           ./gradlew test jvmTest
           :feature:source-ui:testAndroidHostTest
@@ -85,6 +85,7 @@ jobs:
           :feature:design-system:testAndroidHostTest
           :feature:library-ui:testAndroidHostTest
           :feature:player-ui:testAndroidHostTest
+          :feature:settings-ui:testAndroidHostTest
           :core:logging:testAndroidHostTest
           -PversionName=0.0.0-ci
       - name: Upload test reports
@@ -110,7 +111,11 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       - uses: ./.github/actions/setup-fonts
-      - run: ./gradlew :core:data:testAndroidHostTest -PintegrationTests
+      # testAndroidHostTest runs core:data's commonTest suite on Robolectric.
+      # jvmTest -PintegrationTests runs only the MockWebServer suites (ProgressSyncCycleTest,
+      # ProgressSyncIntegrationTest, ReadingSessionIntegrationTest) which use JVM-only APIs
+      # and are filtered OUT of the Unit job's jvmTest run.
+      - run: ./gradlew :core:data:testAndroidHostTest :core:data:jvmTest -PintegrationTests
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7

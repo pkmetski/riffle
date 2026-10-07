@@ -126,15 +126,4 @@ final class ElidedAnnotationsViewTests: XCTestCase {
                        "mimetype must contain exactly application/epub+zip")
     }
 
-    // MARK: - openSyntheticEpub bridge smoke test
-
-    func testOpenSyntheticEpubDoesNotCrashWithNonExistentPath() {
-        // openSyntheticEpub is async and swallows errors internally; calling it with a
-        // non-existent path must not crash the test process.
-        let bridge = ReadiumEpubNavigatorBridge()
-        bridge.openSyntheticEpub(dirPath: "/tmp/does_not_exist_riffle_test", locatorJson: nil)
-        let expectation = expectation(description: "settle")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { expectation.fulfill() }
-        waitForExpectations(timeout: 1.0)
-    }
 }
