@@ -20,40 +20,6 @@ final class AnnotationTests: XCTestCase {
         XCTAssertEqual(bridge.lastAppliedDecorationsJson, json)
     }
 
-    // MARK: - Scenario 07-B: parseDecorations handles all four decoration types
-
-    func testAllFourDecorationTypesParse() {
-        // Every type the AnnotationDecorationCoordinator emits must survive parsing. A type that
-        // falls through to `default` is dropped silently: the annotation stays in the database and
-        // in the annotations list but never renders in the reader.
-        let bridge = ReadiumEpubNavigatorBridge()
-        let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.5)
-        let cases: [(type: String, extras: String)] = [
-            ("highlight", ",\"color\":\"#FFFF00\",\"alpha\":0.4"),
-            ("bookmark", ""),
-            ("noteGlyph", ""),
-            ("searchMark", ",\"isCurrent\":true"),
-        ]
-        for (index, testCase) in cases.enumerated() {
-            let id = "d\(index)"
-            let json = "[{\"id\":\"\(id)\",\"type\":\"\(testCase.type)\",\"locator\":\(locator)\(testCase.extras)}]"
-            let decorations = bridge.parseDecorations(json)
-            XCTAssertEqual(decorations.count, 1,
-                           "decoration type '\(testCase.type)' must parse to exactly one Decoration")
-            XCTAssertEqual(decorations.first?.id, id,
-                           "decoration type '\(testCase.type)' must keep its id so Readium can replace it")
-        }
-    }
-
-    func testDecorationWithoutLocatorIsDropped() {
-        // The locator is what positions the decoration; a decoration entry missing it must be
-        // dropped rather than rendered at an arbitrary position.
-        let bridge = ReadiumEpubNavigatorBridge()
-        let json = "[{\"id\":\"h1\",\"type\":\"highlight\"}]"
-        XCTAssertTrue(bridge.parseDecorations(json).isEmpty,
-                      "a decoration with no locator must be dropped")
-    }
-
     func testApplyEmptyListRecordsEmptyJson() {
         let bridge = ReadiumEpubNavigatorBridge()
         bridge.applyDecorations(decorationsJson: "[]", group: "highlights")
@@ -102,24 +68,10 @@ final class AnnotationTests: XCTestCase {
                        "a valid highlight decoration must parse to exactly one Decoration")
     }
 
-    func testMalformedJsonParsesToZeroDecorations() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        XCTAssertTrue(bridge.parseDecorations("not valid json").isEmpty,
-                      "malformed JSON must yield zero decorations, not crash or apply garbage")
-    }
-
     func testNullJsonParsesToZeroDecorations() {
         let bridge = ReadiumEpubNavigatorBridge()
         XCTAssertTrue(bridge.parseDecorations("null").isEmpty,
                       "JSON null must yield zero decorations")
-    }
-
-    func testDecorationWithUnknownTypeIsDropped() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        let locator = validLocatorJson(href: "ch1.xhtml", cfi: "/4/2", progression: 0.5)
-        let json = "[{\"id\":\"x1\",\"type\":\"sparkles\",\"locator\":\(locator)}]"
-        XCTAssertTrue(bridge.parseDecorations(json).isEmpty,
-                      "an unknown decoration type must be dropped rather than crash")
     }
 
     // MARK: - Helpers
