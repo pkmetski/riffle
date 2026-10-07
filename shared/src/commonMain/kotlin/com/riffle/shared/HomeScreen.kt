@@ -249,6 +249,9 @@ fun HomeScreen() {
                         onRead = { item ->
                             openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
                         },
+                        onListen = { item ->
+                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
+                        },
                         onFacetSelected = { facetLibraryId, facet, value ->
                             riffleNav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
                         },
@@ -405,6 +408,9 @@ private fun LibraryHost(
             onBack = ::pop,
             // Stay on the sheet when the format has no iOS reader rather than dismissing it.
             onRead = { item ->
+                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+            },
+            onListen = { item ->
                 openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
             },
             onFacetSelected = { facetLibraryId, facet, value ->
