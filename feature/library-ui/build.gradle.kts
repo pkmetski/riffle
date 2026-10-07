@@ -105,6 +105,8 @@ tasks.withType<Test>().configureEach {
         excludeTestsMatching("com.riffle.feature.library.ui.AnnotationSearchResultsRenderTest")
         excludeTestsMatching("com.riffle.feature.library.ui.LibraryTabContentTest")
         excludeTestsMatching("com.riffle.feature.library.ui.DownloadsConfirmationTest")
+        excludeTestsMatching("com.riffle.feature.library.ui.LibraryItemDetailParityTest")
+        excludeTestsMatching("com.riffle.feature.library.ui.LibraryItemDetailComponentsTest")
         isFailOnNoMatchingTests = false
     }
 }

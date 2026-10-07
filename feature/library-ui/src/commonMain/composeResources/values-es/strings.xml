@@ -43,4 +43,41 @@
     <string name="ui_no_unstarted_books">No hay libros sin empezar</string>
     <string name="ui_no_results_for">No hay resultados para \'%1$s\'</string>
     <string name="ui_remove_from_library">Eliminar de la biblioteca</string>
+
+    <!-- Item detail screen -->
+    <string name="ui_listen">Escuchar</string>
+    <string name="ui_to_read">Para leer</string>
+    <string name="ui_in_to_read">En Para leer</string>
+    <string name="ui_summary">Resumen</string>
+    <string name="ui_show_more">Mostrar más</string>
+    <string name="ui_show_less">Mostrar menos</string>
+    <string name="ui_mark_as_read">Marcar como leído</string>
+    <string name="ui_mark_as_unread">Marcar como no leído</string>
+    <string name="ui_by">Por</string>
+    <string name="ui_published">Publicado: </string>
+    <string name="ui_genres">Géneros: </string>
+    <string name="ui_language">Idioma: </string>
+    <string name="ui_publisher">Editorial: %1$s</string>
+    <string name="ui_sections_count">%1$d secciones</string>
+    <string name="ui_chapters_count">%1$d capítulos</string>
+    <string name="ui_audiobook_duration_line">Audiolibro · %1$s</string>
+    <string name="ui_duration_total">%1$s total</string>
+    <string name="ui_duration_total_remaining">%1$s total · %2$s restante</string>
+    <string name="ui_reading_time_estimated">%1$s estimado</string>
+    <string name="ui_reading_time_estimated_total">%1$s estimado total</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s estimado total · %2$s restante</string>
+    <string name="ui_pages">%1$d páginas</string>
+    <string name="ui_pages_read">%1$d de %2$d páginas leídas</string>
+    <string name="ui_progress_read">%1$d%% leído</string>
+    <string name="ui_progress_listened">%1$d%% escuchado</string>
+    <string name="ui_nothing_to_read_or_listen">No hay nada para leer o escuchar</string>
+    <string name="ui_edit_metadata">Editar metadatos</string>
+    <string name="ui_upload_to">Subir a</string>
+    <string name="ui_show_all_readalouds">Mostrar todos los readalouds</string>
+    <string name="ui_add_to_playlist">Añadir a lista</string>
+    <string name="ui_connect_to_download_book">Conectar para descargar</string>
+    <string name="ui_connect_to_download_audiobook">Conectar para descargar audiolibro</string>
+    <string name="ui_connect_to_download_readaloud_audio">Conectar para descargar audio readaloud</string>
+    <string name="ui_connect_to_stream_audio">Conectar para reproducir audio</string>
+    <string name="ui_read">Leer</string>
 </resources>

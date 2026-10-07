@@ -43,4 +43,41 @@
     <string name="ui_no_unstarted_books">Няма незапочнати книги</string>
     <string name="ui_no_results_for">Няма резултати за \'%1$s\'</string>
     <string name="ui_remove_from_library">Премахване от библиотеката</string>
+
+    <!-- Item detail screen -->
+    <string name="ui_listen">Слушай</string>
+    <string name="ui_to_read">За четене</string>
+    <string name="ui_in_to_read">В „За четене"</string>
+    <string name="ui_summary">Резюме</string>
+    <string name="ui_show_more">Покажи повече</string>
+    <string name="ui_show_less">Покажи по-малко</string>
+    <string name="ui_mark_as_read">Маркирай като прочетено</string>
+    <string name="ui_mark_as_unread">Маркирай като непрочетено</string>
+    <string name="ui_by">От</string>
+    <string name="ui_published">Публикувано: </string>
+    <string name="ui_genres">Жанрове: </string>
+    <string name="ui_language">Език: </string>
+    <string name="ui_publisher">Издател: %1$s</string>
+    <string name="ui_sections_count">%1$d раздела</string>
+    <string name="ui_chapters_count">%1$d глави</string>
+    <string name="ui_audiobook_duration_line">Аудиокнига · %1$s</string>
+    <string name="ui_duration_total">%1$s общо</string>
+    <string name="ui_duration_total_remaining">%1$s общо · %2$s остават</string>
+    <string name="ui_reading_time_estimated">%1$s прибл.</string>
+    <string name="ui_reading_time_estimated_total">%1$s прибл. общо</string>
+    <string name="ui_reading_time_estimated_total_remaining">%1$s прибл. общо · %2$s остават</string>
+    <string name="ui_pages">%1$d стр.</string>
+    <string name="ui_pages_read">%1$d от %2$d стр. прочетени</string>
+    <string name="ui_progress_read">%1$d%% прочетено</string>
+    <string name="ui_progress_listened">%1$d%% изслушано</string>
+    <string name="ui_nothing_to_read_or_listen">Няма какво да се чете или слуша</string>
+    <string name="ui_edit_metadata">Редактирай метаданни</string>
+    <string name="ui_upload_to">Качи в</string>
+    <string name="ui_show_all_readalouds">Покажи всички readalouds</string>
+    <string name="ui_add_to_playlist">Добави към списък</string>
+    <string name="ui_connect_to_download_book">Свържи се за изтегляне</string>
+    <string name="ui_connect_to_download_audiobook">Свържи се за изтегляне на аудиокнига</string>
+    <string name="ui_connect_to_download_readaloud_audio">Свържи се за изтегляне на аудио</string>
+    <string name="ui_connect_to_stream_audio">Свържи се за стрийминг на аудио</string>
+    <string name="ui_read">Чети</string>
 </resources>

@@ -56,6 +56,7 @@ import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
 import com.riffle.feature.navigation.NavigationDrawerViewModel
+import com.riffle.feature.library.ui.LibraryItemDetailScreen
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
 import com.riffle.feature.settings.ui.SettingsScreen
@@ -63,7 +64,6 @@ import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScre
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
-import com.riffle.shared.library.LibraryItemDetailScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.UnboundedBrowseScreen
@@ -249,6 +249,9 @@ fun HomeScreen() {
                         onRead = { item ->
                             openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
                         },
+                        onListen = { item ->
+                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
+                        },
                         onFacetSelected = { facetLibraryId, facet, value ->
                             riffleNav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
                         },
@@ -405,6 +408,9 @@ private fun LibraryHost(
             onBack = ::pop,
             // Stay on the sheet when the format has no iOS reader rather than dismissing it.
             onRead = { item ->
+                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+            },
+            onListen = { item ->
                 openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
             },
             onFacetSelected = { facetLibraryId, facet, value ->

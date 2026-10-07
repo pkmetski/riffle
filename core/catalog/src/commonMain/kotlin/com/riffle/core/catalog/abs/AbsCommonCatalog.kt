@@ -1,8 +1,13 @@
 package com.riffle.core.catalog.abs
 
+import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogAudioFingerprint
+import com.riffle.core.catalog.CatalogAudioTrack
+import com.riffle.core.catalog.CatalogAudiobookChapter
+import com.riffle.core.catalog.CatalogAudiobookStream
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
@@ -15,7 +20,9 @@ import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.Clock
 import com.riffle.core.models.SourceType
+import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
@@ -53,7 +60,7 @@ class AbsCommonCatalog(
     private val serverInfoApi: AbsServerInfoApi,
     private val clock: Clock,
     private val httpClient: HttpClient,
-) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability {
+) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability, AudiobookMediaCapability {
 
     override val sourceType: SourceType = SourceType.ABS
 
@@ -230,6 +237,67 @@ class AbsCommonCatalog(
                     lastUpdate = p.lastUpdate ?: 0L,
                 )
             }
+
+    // endregion
+
+    // region AudiobookMediaCapability
+    //
+    // `AbsCommonCatalog` implements `AudiobookMediaCapability` so that iOS surfaces the "Listen"
+    // button for ABS audiobook items. iOS audio playback goes through `IosAbsAudiobookRepository`
+    // (its own path) rather than `openAudiobook`, so `openAudiobook` correctly returns null here —
+    // the capability signals that the source *has* audio media, not that audio plays via this path.
+
+    override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
+        val tracks = libraryApi.getAudiobookTracks(
+            config.baseUrl, itemId, config.token, config.insecureAllowed,
+        ).unwrap()
+        var running = 0.0
+        return tracks.map { t ->
+            val startOffset = running
+            running += t.durationSec
+            CatalogAudioTrack(
+                ino = t.ino,
+                index = t.index,
+                startOffsetSec = startOffset,
+                durationSec = t.durationSec,
+                contentUrl = AbsAudioUrl.track(config.baseUrl, itemId, t.ino),
+                mimeType = null,
+            )
+        }
+    }
+
+    override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? {
+        val fp = libraryApi.getAudiobookFingerprint(
+            config.baseUrl, itemId, config.token, config.insecureAllowed,
+        ).unwrap() ?: return null
+        return CatalogAudioFingerprint(
+            itemId = itemId,
+            fileSizeBytes = fp.fileSizeBytes,
+            totalDurationSec = fp.durationSec,
+            trackDurations = fp.trackDurationsSec,
+        )
+    }
+
+    override fun buildStreamUrl(itemId: String, trackIno: String): String {
+        val base = AbsAudioUrl.track(config.baseUrl, itemId, trackIno)
+        val sep = if (base.contains("?")) "&" else "?"
+        return "$base${sep}token=${config.token}"
+    }
+
+    override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
+        val detail = when (
+            val r = libraryApi.getItemDetail(config.baseUrl, itemId, config.token, config.insecureAllowed)
+        ) {
+            is NetworkResult.Success -> r.value
+            else -> return emptyList()
+        }
+        return detail.media.chapters.mapIndexed { i, c ->
+            CatalogAudiobookChapter(index = i, startSec = c.startSec, endSec = c.endSec, title = c.title)
+        }
+    }
+
+    // iOS audiobook playback goes through IosAbsAudiobookRepository, not via this method.
+    override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? = null
 
     // endregion
 
