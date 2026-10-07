@@ -23,6 +23,7 @@ import com.riffle.feature.source.ui.SelectLibrariesScreen
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SingletonSourceConfirmScreen
 import com.riffle.feature.source.ui.SourceTypePickerScreen
+import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -143,11 +144,12 @@ private sealed interface OnboardingStep {
  *
  * The unbounded catalogues (Chitanka, Gutenberg, radio.es) are here because iOS now has the
  * surface they need: `CatalogFactory` entries in `Koin.kt`'s `catalogFactoriesBySourceType`, and
- * [com.riffle.shared.source.UnboundedBrowseScreen], which `HomeScreen`'s `LibraryHost` renders
- * instead of `LibraryItemsScreen` for any `SourceType.isUnboundedCatalog` library. They were
- * briefly excluded while that surface did not exist and installing one produced a permanently
- * empty library with no error (#1071 §17); the set is derived from
- * [com.riffle.shared.source.unboundedBrowseSourceTypes] rather than re-listed so the two cannot
+ * [com.riffle.feature.source.ui.websource.UnboundedBrowseScreen], which `HomeScreen`'s
+ * `LibraryHost` renders instead of `LibraryItemsScreen` for any `SourceType.isUnboundedCatalog`
+ * library. They were briefly excluded while that surface did not exist and installing one produced
+ * a permanently empty library with no error (#1071 §17); the set is derived from
+ * [com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes] rather than re-listed so
+ * the two cannot
  * drift — offering a type the browse screen has no ViewModel for would crash it.
  *
  * O'Reilly is the one unbounded catalogue still absent, even though it is a credential-less
