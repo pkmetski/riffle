@@ -6,11 +6,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
-import com.riffle.feature.settings.ui.i18n.AppLanguage
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_body
 import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_title
 import com.riffle.feature.settings.ui.generated.resources.ui_ok
+import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSUserDefaults
 
