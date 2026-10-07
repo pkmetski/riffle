@@ -328,14 +328,14 @@ Production log tags are typed in `core/logging/src/main/kotlin/com/riffle/core/l
 
 The taxonomy is Source/Service (ADR 0049). The `checkNoServerReferences` gradle task (wired into `check`) fails CI if a Kotlin file outside the grandfathered allowlist introduces a `\bServer[A-Z]` identifier (e.g. `ServerType`, `ServerRepository`) or the bare literal `serverId`. New sites must use `SourceFoo` / `ServiceFoo` and `sourceId`; if a file legitimately belongs to Storyteller-adjacent internals or historical Room migration SQL, add it to `ServerReferenceLint.ALLOWLIST` in `buildSrc/` with a one-line justification. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/ServerReferenceLint.kt`.
 
-### No new Composables in :shared commonMain
+### No Composables in :shared commonMain
 
-`:shared/src/commonMain` compiles for iOS targets only — there is no `androidTarget` in that module. Any `@Composable` added there is forever iOS-only and creates a parity gap. The `checkSharedCommonMainComposables` Gradle task (wired into `riffleChecks` and `check`) fails the build if a `@Composable` annotation appears in `shared/src/commonMain` outside a fixed allowlist:
+`:shared/src/commonMain` must contain **zero** `@Composable` annotations. The `checkSharedCommonMainComposables` Gradle task (wired into `riffleChecks` and `check`) fails the build on any violation — there is no allowlist.
 
-- `com/riffle/shared/RiffleAppRoot.kt` — iOS Compose tree root, structurally equivalent to an Android Activity's `setContent`; iOS-only by nature.
-- `com/riffle/shared/reader/EpubReaderScreen.kt`, `PdfReaderScreen.kt`, `CbzReaderScreen.kt`, `com/riffle/shared/audiobook/AudiobookPlayerScreen.kt` — `expect fun` declarations whose `actual` implementations are in this module; moving them breaks the expect/actual pairing without a large compiler workaround.
+- **iOS-only screens** (readers, audiobook player, app root): belong in `shared/src/iosMain`. All callers are in `iosMain`; there is no reason to use `expect/actual` or to put the declaration in `commonMain`.
+- **Shared Composables rendered by both platforms**: belong in a module with an `androidTarget + iosArm64 + iosSimulatorArm64` topology — typically `feature:library-ui` or `feature:source-ui`. See `AGENTS.md §Where shared UI goes — the module topology matters`.
 
-**If you need a shared Composable that both Android and iOS render, it belongs in a module with an `androidTarget + iosArm64 + iosSimulatorArm64` topology** — typically `feature:library-ui` or `feature:source-ui`. See `AGENTS.md §Where shared UI goes — the module topology matters`. Do not add the file to the allowlist unless it falls into one of the two exceptional categories above; expand the allowlist only with a one-line justification. Detection logic lives inline in the root `build.gradle.kts` task `checkSharedCommonMainComposables`.
+Detection logic lives inline in the root `build.gradle.kts` task `checkSharedCommonMainComposables`.
 
 ### Platform-agnostic core (no Android imports)
 

@@ -54,7 +54,7 @@ import platform.UIKit.UIViewContentMode
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
-actual fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
+fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     KeepReaderScreenOn()
     val vm = koinInject<CbzReaderViewModel> { parametersOf(item.id, item.sourceId) }
 

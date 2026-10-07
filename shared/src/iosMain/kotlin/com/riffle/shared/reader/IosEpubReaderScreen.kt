@@ -132,10 +132,10 @@ import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
-actual fun EpubReaderScreen(
+fun EpubReaderScreen(
     item: LibraryItem,
     onBack: () -> Unit,
-    source: ReaderSource,
+    source: ReaderSource = ReaderSource.FullBook,
 ) {
     KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()

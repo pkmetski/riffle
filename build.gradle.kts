@@ -584,37 +584,26 @@ tasks.register("checkParityMirror") {
 // shared/src/commonMain. It is a compile-time gate, not a runtime one, so it runs fast.
 tasks.register("checkSharedCommonMainComposables") {
     group = "verification"
-    description = "Fails if @Composable is added to shared/src/commonMain outside the iOS host-glue allowlist."
+    description = "Fails if @Composable appears anywhere in shared/src/commonMain."
     notCompatibleWithConfigurationCache("reading the file system at execution time")
 
     doLast {
         val sharedCommonMain = layout.projectDirectory.dir("shared/src/commonMain/kotlin").asFile
         if (!sharedCommonMain.exists()) return@doLast
 
-        // Repo-relative paths (relative to shared/src/commonMain/kotlin) that may contain
-        // @Composable. Everything else in commonMain must remain annotation-free so it compiles
-        // for the Android (JVM) target without pulling in the Compose runtime.
-        val allowlist = setOf(
-            "com/riffle/shared/RiffleAppRoot.kt",
-            "com/riffle/shared/reader/EpubReaderScreen.kt",
-            "com/riffle/shared/reader/PdfReaderScreen.kt",
-            "com/riffle/shared/reader/CbzReaderScreen.kt",
-            "com/riffle/shared/audiobook/AudiobookPlayerScreen.kt",
-        )
-
         val composableRegex = Regex("""@Composable""")
         val offenders = sharedCommonMain.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .filter { composableRegex.containsMatchIn(it.readText()) }
             .map { it.relativeTo(sharedCommonMain).path.replace('\\', '/') }
-            .filter { it !in allowlist }
             .toList()
 
         if (offenders.isNotEmpty()) {
             throw GradleException(
-                "shared/src/commonMain may only contain @Composable in the iOS host-glue allowlist (#1150).\n" +
-                    "Move the composable to a module with an androidTarget (feature:library-ui, feature:source-ui,\n" +
-                    "feature:reader-ui, …) and update the call sites in :app and :shared.\n" +
+                "shared/src/commonMain must contain zero @Composable annotations (#1150).\n" +
+                    "Move the composable to iosMain (iOS-only screens) or to a module with an\n" +
+                    "androidTarget (feature:library-ui, feature:source-ui, feature:reader-ui, …)\n" +
+                    "for screens that both platforms render.\n" +
                     "Offending files:\n" +
                     offenders.joinToString("\n") { "  shared/src/commonMain/kotlin/$it" },
             )
