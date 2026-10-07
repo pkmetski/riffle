@@ -27,7 +27,9 @@
     <string name="ui_auto_theme_mode">Modo de tema automático</string>
     <string name="ui_auto_theme_summary">Automático · %1$s</string>
     <string name="ui_available">Disponibles</string>
+    <string name="ui_animation_speed">Velocidad de animación</string>
     <string name="ui_back">Atrás</string>
+    <string name="ui_background">Fondo</string>
     <string name="ui_libraries_with_arrow">← Bibliotecas</string>
     <string name="ui_backward_rewind">Retroceder</string>
     <string name="ui_behavior">Comportamiento</string>
@@ -45,6 +47,7 @@
     <string name="ui_checking_for_updates">Buscando actualizaciones…</string>
     <string name="ui_clear">Borrar</string>
     <string name="ui_collapse">Contraer</string>
+    <string name="ui_cuts_oversized_panels_in_half">Divide los paneles demasiado grandes por la mitad y muestra cada mitad como una página propia</string>
     <string name="ui_colored_chapter_map">Mapa de capítulos en color</string>
     <string name="ui_comfortable">Cómodo</string>
     <string name="ui_comics">Cómics</string>
@@ -167,6 +170,7 @@
     <string name="ui_no_log_entries_yet">Aún no hay entradas de registro</string>
     <string name="ui_no_match_don_t_ask_again">Sin coincidencia — no volver a preguntar</string>
     <string name="ui_no_readalouds_yet">aún no hay readalouds</string>
+    <string name="ui_no_split">Sin dividir</string>
     <string name="ui_no_suggested_matches_right_now">Ahora mismo no hay emparejamientos sugeridos.</string>
     <string name="ui_normal">Normal</string>
     <string name="ui_not_configured">No configurado</string>
@@ -224,6 +228,7 @@
     <string name="ui_share_crash_reports">Compartir informes de fallo</string>
     <string name="ui_share_debug_log">Compartir registro de depuración</string>
     <string name="ui_show">Mostrar</string>
+    <string name="ui_show_oversized_panels_as_is_without_splitting">Mostrar los paneles demasiado grandes tal cual, sin dividirlos</string>
     <string name="ui_show_auto_scroll">Mostrar desplazamiento automático</string>
     <string name="ui_show_cadence">Mostrar Cadencia</string>
     <string name="ui_showing_abs_items_with_audiobook">Mostrando elementos de ABS que tienen audiolibro.</string>
@@ -284,6 +289,7 @@
     <string name="ui_panel_view">Vista de paneles</string>
     <string name="ui_progress_bar_at_the_bottom_of_the_page">Barra de progreso en la parte inferior de la página</string>
     <string name="ui_smart_split">División inteligente</string>
+    <string name="ui_smart_split_description">Como Dividir, pero busca una separación natural (canal o espacio en blanco) para un corte más limpio</string>
     <string name="ui_split">Dividir</string>
     <string name="ui_reset_to_global_defaults">Restablecer los valores predeterminados globales</string>
     <string name="ui_language_change_restart_title">Reinicio necesario</string>

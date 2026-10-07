@@ -27,7 +27,9 @@
     <string name="ui_auto_theme_mode">Автоматичен режим на темата</string>
     <string name="ui_auto_theme_summary">Автоматично · %1$s</string>
     <string name="ui_available">Налични</string>
+    <string name="ui_animation_speed">Скорост на анимацията</string>
     <string name="ui_back">Назад</string>
+    <string name="ui_background">Фон</string>
     <string name="ui_libraries_with_arrow">← Библиотеки</string>
     <string name="ui_backward_rewind">Превъртане назад</string>
     <string name="ui_behavior">Поведение</string>
@@ -45,6 +47,7 @@
     <string name="ui_checking_for_updates">Проверка за обновления…</string>
     <string name="ui_clear">Изчистване</string>
     <string name="ui_collapse">Свиване</string>
+    <string name="ui_cuts_oversized_panels_in_half">Разделя твърде големите панели на две и показва всяка половина като отделна страница</string>
     <string name="ui_colored_chapter_map">Цветна карта на главите</string>
     <string name="ui_comfortable">Удобно</string>
     <string name="ui_comics">Комикси</string>
@@ -167,6 +170,7 @@
     <string name="ui_no_log_entries_yet">Още няма записи в лога</string>
     <string name="ui_no_match_don_t_ask_again">Няма съвпадение — не питай отново</string>
     <string name="ui_no_readalouds_yet">още няма readaloud записи</string>
+    <string name="ui_no_split">Без разделяне</string>
     <string name="ui_no_suggested_matches_right_now">В момента няма предложени съвпадения.</string>
     <string name="ui_normal">Нормално</string>
     <string name="ui_not_configured">Не е настроено</string>
@@ -224,6 +228,7 @@
     <string name="ui_share_crash_reports">Споделяне на доклади за сривове</string>
     <string name="ui_share_debug_log">Споделяне на debug log</string>
     <string name="ui_show">Показване</string>
+    <string name="ui_show_oversized_panels_as_is_without_splitting">Показване на твърде големи панели без разделяне</string>
     <string name="ui_show_auto_scroll">Показване на автоматично превъртане</string>
     <string name="ui_show_cadence">Показване на ритъма</string>
     <string name="ui_showing_abs_items_with_audiobook">Показват се ABS елементи, които имат аудиокнига.</string>
@@ -284,6 +289,7 @@
     <string name="ui_panel_view">Изглед на панели</string>
     <string name="ui_progress_bar_at_the_bottom_of_the_page">Лента за напредък в долната част на страницата</string>
     <string name="ui_smart_split">Интелигентно разделяне</string>
+    <string name="ui_smart_split_description">Като Разделяне, но намира естествена граница (канал или празно пространство) за по-чисто срязване</string>
     <string name="ui_split">Разделяне</string>
     <string name="ui_reset_to_global_defaults">Връщане към глобалните настройки по подразбиране</string>
     <string name="ui_language_change_restart_title">Необходимо рестартиране</string>

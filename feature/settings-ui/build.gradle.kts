@@ -75,6 +75,8 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
         }
         getByName("androidHostTest").dependencies {
             implementation(kotlin("test"))
@@ -90,6 +92,17 @@ compose.resources {
     // publicResClass = true so :shared and :app can call stringResource(Res.string.*) without
     // re-declaring this module's generated resources on their own classpath.
     publicResClass = true
+}
+
+// The `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task: Compose's
+// UI-test harness needs a real Android runtime (it dereferences `android.os.Build.FINGERPRINT`,
+// which is null on a bare JVM) and the repo has no Robolectric. They run for real on
+// `:feature:settings-ui:iosSimulatorArm64Test`, which CI executes. Same arrangement as
+// :feature:library-ui and :feature:reader-ui.
+tasks.withType<Test>().configureEach {
+    filter {
+        excludeTestsMatching("com.riffle.feature.settings.ui.ComicDisplaySettingsPanelTest")
+    }
 }
 
 // Same asset-bridging workaround as :feature:source-ui — AGP 9's KMP library plugin does not wire
