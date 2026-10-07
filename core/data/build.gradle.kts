@@ -131,3 +131,24 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     add("androidMainImplementation", platform(libs.koin.bom))
 }
+
+// When -PintegrationTests is set (Integration CI job), run only the MockWebServer suites.
+// When absent (Unit CI job), exclude them so they don't run in both jobs.
+tasks.withType<Test>().configureEach {
+    if (name.contains("jvmTest", ignoreCase = true)) {
+        if (project.hasProperty("integrationTests")) {
+            filter {
+                includeTestsMatching("com.riffle.core.data.ProgressSyncCycleTest")
+                includeTestsMatching("com.riffle.core.data.ProgressSyncIntegrationTest")
+                includeTestsMatching("com.riffle.core.data.ReadingSessionIntegrationTest")
+                isFailOnNoMatchingTests = false
+            }
+        } else {
+            filter {
+                excludeTestsMatching("com.riffle.core.data.ProgressSyncCycleTest")
+                excludeTestsMatching("com.riffle.core.data.ProgressSyncIntegrationTest")
+                excludeTestsMatching("com.riffle.core.data.ReadingSessionIntegrationTest")
+            }
+        }
+    }
+}
