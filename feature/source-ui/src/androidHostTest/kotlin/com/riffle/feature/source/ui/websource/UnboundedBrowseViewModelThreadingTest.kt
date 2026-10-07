@@ -1,6 +1,7 @@
 package com.riffle.feature.source.ui.websource
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogItem
@@ -22,6 +23,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -184,6 +186,10 @@ class UnboundedBrowseViewModelThreadingTest {
             "ownedItemIndex map ran on collector (Main) thread $collectorThread — got $buildThreads",
             buildThreads.any { it == collectorThread },
         )
+        // Cancel viewModelScope to prevent UncompletedCoroutinesError: the ViewModel's
+        // SharingStarted.Eagerly stateIn flows keep coroutines active in viewModelScope
+        // indefinitely, which runTest detects as uncompleted after the test body finishes.
+        vm.viewModelScope.cancel()
     }
 
     @Test
