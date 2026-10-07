@@ -1,4 +1,4 @@
-package com.riffle.feature.source.ui.websource
+package com.riffle.feature.library.ui.websource
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore

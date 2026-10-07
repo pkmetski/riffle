@@ -29,7 +29,7 @@ import com.riffle.feature.source.ui.SelectLibrariesScreen
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SingletonSourceConfirmScreen
 import com.riffle.feature.source.ui.SourceTypePickerScreen
-import com.riffle.feature.source.ui.websource.UnboundedBrowseScreen
+import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
