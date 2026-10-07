@@ -48,6 +48,7 @@
 		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
 		B1054010 /* AudioPlayerBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1054020 /* AudioPlayerBridgeTests.swift */; };
 		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
+		B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1057020 /* IosPlatformSettingsHooksTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
 		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
@@ -124,6 +125,7 @@
 		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
 		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
+		B1057020 /* IosPlatformSettingsHooksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPlatformSettingsHooksTests.swift; sourceTree = "<group>"; };
 		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B100F020 /* OnboardingNavIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNavIconTests.swift; sourceTree = "<group>"; };
 		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
@@ -255,6 +257,7 @@
 				A1C0DE030002 /* AnnotationBridgeTests.swift */,
 				A1C0DE050002 /* AnnotationWireFormatTests.swift */,
 				A1C0DE060002 /* ScrollProbeBridgeTests.swift */,
+				B1057020 /* IosPlatformSettingsHooksTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -520,6 +523,7 @@
 				B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */,
 				B1054010 /* AudioPlayerBridgeTests.swift in Sources */,
 				A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */,
+				B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Audiobook player UI strings, shared by Android (:app) and iOS (:shared) via Compose Multiplatform
+  resources. Values are copied verbatim from app/src/main/res/values/strings.xml.
+  Every key here MUST also exist in values-es/ and values-bg/.
+-->
+<resources>
+    <string name="ui_back">Back</string>
+    <string name="ui_cannot_play">This audiobook can\'t be played right now.</string>
+    <string name="ui_play">Play</string>
+    <string name="ui_pause">Pause</string>
+    <string name="ui_previous_chapter">Previous chapter</string>
+    <string name="ui_next_chapter">Next chapter</string>
+    <string name="ui_chapters">Chapters</string>
+    <string name="ui_bookmarks">Bookmarks</string>
+    <string name="ui_bookmark_count_one">1 bookmark</string>
+    <string name="ui_bookmark_count_other">%1$d bookmarks</string>
+    <string name="ui_add_bookmark">Add bookmark</string>
+    <string name="ui_remove_bookmark">Remove bookmark</string>
+    <string name="ui_new_bookmark">New bookmark</string>
+    <string name="ui_rename_bookmark">Rename bookmark</string>
+    <string name="ui_bookmark_options">Bookmark options</string>
+    <string name="ui_rename">Rename</string>
+    <string name="ui_delete">Delete</string>
+    <string name="ui_save">Save</string>
+    <string name="ui_cancel">Cancel</string>
+    <string name="ui_no_bookmarks_yet">No bookmarks yet.</string>
+    <string name="ui_offline_bookmarks_will_sync">Offline — bookmarks will sync</string>
+    <string name="ui_now_playing">Now playing</string>
+    <string name="ui_chapter_number">Chapter %1$d</string>
+    <string name="ui_playback_speed">Playback Speed</string>
+    <string name="ui_sleep_timer_title">Sleep Timer</string>
+    <string name="ui_sleep_timer">Sleep timer</string>
+    <string name="ui_sleep_pill_idle">Sleep</string>
+    <string name="ui_sleep_pill_end_of_chapter">End of ch.</string>
+    <string name="ui_end_of_chapter">End of chapter</string>
+    <string name="ui_sleeping_in">Sleeping in %1$s</string>
+    <string name="ui_sleeping_at_end_of_chapter">Sleeping at end of chapter</string>
+    <string name="ui_cancel_timer">Cancel timer</string>
+    <string name="ui_minutes_short">%1$d min</string>
+    <string name="ui_audiobook">Audiobook</string>
+    <string name="ui_compact_duration_minutes">%1$dmin</string>
+    <string name="ui_compact_duration_hours">%1$dh</string>
+    <string name="ui_compact_duration_hours_minutes">%1$dh %2$dmin</string>
+</resources>

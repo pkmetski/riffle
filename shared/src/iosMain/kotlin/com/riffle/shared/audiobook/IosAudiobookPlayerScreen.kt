@@ -13,7 +13,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.player.AudiobookPlayerEvent
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ui.AudiobookPlayerBody
-import com.riffle.feature.player.ui.PlayerChromeLabels
+import com.riffle.feature.player.ui.playerChromeLabels
 import com.riffle.feature.player.ui.isCompactPlayerHeight
 import com.riffle.shared.ScreenScopedViewModelHost
 import org.koin.compose.getKoin
@@ -87,7 +87,7 @@ fun AudiobookPlayerScreen(
     AudiobookPlayerBody(
         viewModel = vm,
         state = state,
-        labels = PlayerChromeLabels.English,
+        labels = playerChromeLabels(),
         onNavigateBack = onBack,
         twoColumn = twoColumn,
     )

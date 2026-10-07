@@ -101,4 +101,25 @@
     <string name="ui_connect_to_download_readaloud_audio">Connect to download readaloud audio</string>
     <string name="ui_connect_to_stream_audio">Connect to stream audio</string>
     <string name="ui_read">Read</string>
+
+    <!-- Playlist surfaces -->
+    <string name="ui_play">Play</string>
+    <string name="ui_loading">Loading…</string>
+    <string name="ui_this_playlist_is_empty">This playlist is empty.</string>
+    <string name="ui_remove_from_playlist">Remove from playlist</string>
+    <string name="ui_no_playlists_yet_create_one_from_any_item">No playlists yet. Create one from any item.</string>
+    <string name="ui_new_playlist">New playlist</string>
+    <string name="ui_no_playlists_yet_create_one_to_get_started">No playlists yet. Create one to get started.</string>
+    <string name="ui_in_this_playlist">In this playlist</string>
+    <string name="ui_name">Name</string>
+    <string name="ui_create">Create</string>
+    <string name="ui_playlist_count_one">1 item</string>
+    <string name="ui_playlist_count_other">%1$d items</string>
+    <!-- Filtered books screen -->
+    <string name="ui_no_books_found">No books found</string>
+    <!-- Annotation search screen -->
+    <string name="ui_annotations_query_title">Annotations · \'%1$s\'</string>
+    <string name="ui_no_annotations_for_query">No annotations for "%1$s"</string>
+    <string name="ui_bookmark_fallback_title">Bookmark</string>
+    <string name="ui_audiobook_bookmark_fallback_title">Audiobook Bookmark</string>
 </resources>

@@ -207,7 +207,7 @@ fun LibraryItemDetailScreen(
             AddToPlaylistSheet(
                 itemId = readyState.item.id,
                 playlistsFlow = vm.playlistsForCurrentItem,
-                labels = PlaylistLabels.English,
+                labels = playlistLabels(),
                 onToggle = { playlist -> vm.toggleItemInPlaylist(playlist) },
                 onCreate = { name -> vm.createPlaylistWithCurrentItem(name) },
                 onDismiss = { showAddToPlaylistSheet = false },

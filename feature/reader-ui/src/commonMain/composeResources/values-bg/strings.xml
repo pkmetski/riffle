@@ -30,4 +30,42 @@
     <string name="ui_no_annotations_yet">Все още няма анотации.</string>
     <string name="ui_close_footnote">Затворете бележката под линия</string>
     <string name="ui_skip_guided_panels_on_this_page">Пропуснете управляваните панели на тази страница</string>
+
+    <!-- Annotation actions sheet -->
+    <string name="ui_no_highlight_color">Без цвят за подчертаване</string>
+    <string name="ui_selected_suffix">, избрано</string>
+    <string name="ui_highlight_suffix"> подчертаване</string>
+    <string name="ui_emphasis">Акцент</string>
+    <string name="ui_active_suffix">, активно</string>
+    <string name="ui_note">Бележка</string>
+    <string name="ui_add_a_note">Добавяне на бележка…</string>
+    <string name="ui_edit">Редактиране</string>
+    <string name="ui_remove">Премахнете</string>
+    <string name="ui_delete_annotation">Изтриване на анотация</string>
+    <string name="ui_bookmark_this_page">Маркиране на тази страница</string>
+    <string name="ui_remove_bookmark">Премахване на отметка</string>
+
+    <!-- Speed HUD and Cadence HUD -->
+    <string name="ui_slower">По-бавно</string>
+    <string name="ui_faster">По-бързо</string>
+    <string name="ui_words_per_minute">%1$d думи/мин</string>
+    <string name="ui_pause_auto_scroll">Пауза на авто-скрол</string>
+    <string name="ui_resume_auto_scroll">Продължаване на авто-скрол</string>
+    <string name="ui_pause_cadence">Пауза на каденса</string>
+    <string name="ui_resume_cadence">Продължаване на каденса</string>
+
+    <!-- Chapter map overlay -->
+    <string name="ui_chapter_progress_count">Глава %1$d от %2$d</string>
+    <string name="ui_reader_duration_minutes">%1$d мин</string>
+    <string name="ui_reader_duration_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="ui_chapter_time_remaining_exact">%1$s глава</string>
+    <string name="ui_chapter_time_remaining_estimated">~%1$s глава</string>
+    <string name="ui_chapter_time_remaining_less_than_minute">&lt; 1 мин глава</string>
+    <string name="ui_book_time_remaining_exact">%1$s общо</string>
+    <string name="ui_book_time_remaining_estimated">~%1$s общо</string>
+    <string name="ui_book_time_remaining_less_than_minute">&lt; 1 мин общо</string>
+    <string name="ui_reading_progress_value">Напредък при четене: %1$s</string>
+    <string name="ui_current_chapter_value">Текуща глава: %1$s</string>
+    <string name="ui_total_progress_value">Общ напредък: %1$s</string>
+    <string name="ui_active_rail_segment_progress">Активен сегмент: %1$s. Напредък %2$d%%</string>
 </resources>

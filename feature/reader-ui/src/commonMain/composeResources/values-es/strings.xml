@@ -30,4 +30,42 @@
     <string name="ui_no_annotations_yet">Aún no hay anotaciones.</string>
     <string name="ui_close_footnote">Cerrar nota al pie</string>
     <string name="ui_skip_guided_panels_on_this_page">Saltar paneles guiados en esta página</string>
+
+    <!-- Annotation actions sheet -->
+    <string name="ui_no_highlight_color">Sin color de resaltado</string>
+    <string name="ui_selected_suffix">, seleccionado</string>
+    <string name="ui_highlight_suffix"> resaltado</string>
+    <string name="ui_emphasis">Énfasis</string>
+    <string name="ui_active_suffix">, activo</string>
+    <string name="ui_note">Nota</string>
+    <string name="ui_add_a_note">Añade una nota…</string>
+    <string name="ui_edit">Editar</string>
+    <string name="ui_remove">Eliminar</string>
+    <string name="ui_delete_annotation">Eliminar anotación</string>
+    <string name="ui_bookmark_this_page">Marcar esta página</string>
+    <string name="ui_remove_bookmark">Eliminar marcador</string>
+
+    <!-- Speed HUD and Cadence HUD -->
+    <string name="ui_slower">Más lento</string>
+    <string name="ui_faster">Más rápido</string>
+    <string name="ui_words_per_minute">%1$d ppm</string>
+    <string name="ui_pause_auto_scroll">Pausar desplazamiento</string>
+    <string name="ui_resume_auto_scroll">Reanudar desplazamiento</string>
+    <string name="ui_pause_cadence">Pausar cadencia</string>
+    <string name="ui_resume_cadence">Reanudar cadencia</string>
+
+    <!-- Chapter map overlay -->
+    <string name="ui_chapter_progress_count">Capítulo %1$d de %2$d</string>
+    <string name="ui_reader_duration_minutes">%1$d min</string>
+    <string name="ui_reader_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="ui_chapter_time_remaining_exact">%1$s capítulo</string>
+    <string name="ui_chapter_time_remaining_estimated">~%1$s capítulo</string>
+    <string name="ui_chapter_time_remaining_less_than_minute">&lt; 1 min capítulo</string>
+    <string name="ui_book_time_remaining_exact">%1$s total</string>
+    <string name="ui_book_time_remaining_estimated">~%1$s total</string>
+    <string name="ui_book_time_remaining_less_than_minute">&lt; 1 min total</string>
+    <string name="ui_reading_progress_value">Progreso de lectura: %1$s</string>
+    <string name="ui_current_chapter_value">Capítulo actual: %1$s</string>
+    <string name="ui_total_progress_value">Progreso total: %1$s</string>
+    <string name="ui_active_rail_segment_progress">Segmento activo: %1$s. Progreso %2$d%%</string>
 </resources>

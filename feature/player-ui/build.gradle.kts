@@ -13,11 +13,6 @@ plugins {
 // player lives here; the platform-bound playback engines (Media3 in :app, AVQueuePlayer through
 // the Swift bridge in :shared) stay where they are, behind
 // [com.riffle.feature.player.AudioPlayerInterface].
-//
-// Like :feature:reader-ui and unlike :feature:source-ui this module deliberately has no
-// composeResources: every user-visible string is supplied by the host as a
-// [com.riffle.feature.player.ui.PlayerChromeLabels], so Android keeps serving them from its own
-// `res/values*` (bg/es included) with no resource migration and no APK asset bridging.
 kotlin {
     android {
         namespace = "com.riffle.feature.player.ui"
@@ -60,6 +55,7 @@ kotlin {
             implementation(libs.coil.network.core)
             implementation(libs.kotlinx.coroutines.core)
             api(libs.androidx.lifecycle.viewmodel)
+            implementation(compose.components.resources)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -68,6 +64,20 @@ kotlin {
             implementation(compose.uiTest)
         }
     }
+}
+
+// Pin the generated Res class to the module's Kotlin package.
+compose.resources {
+    packageOfResClass = "com.riffle.feature.player.ui.generated.resources"
+    publicResClass = true
+}
+
+// AGP 9's KMP library plugin does not configure the Compose resource task's outputDirectory, so
+// composeResources never reach the consuming APK. Bridge manually: same pattern as :feature:reader-ui.
+val copyComposeResourcesForApk by tasks.registering(Copy::class) {
+    dependsOn(tasks.matching { it.name == "prepareComposeResourcesTaskForCommonMain" })
+    from(layout.buildDirectory.dir("generated/compose/resourceGenerator/preparedResources/commonMain/composeResources"))
+    into(layout.buildDirectory.dir("composeAssetsForApk/composeResources/com.riffle.feature.player.ui.generated.resources"))
 }
 
 // The `runComposeUiTest` suites in commonTest cannot run on the Android HOST test task: Compose's

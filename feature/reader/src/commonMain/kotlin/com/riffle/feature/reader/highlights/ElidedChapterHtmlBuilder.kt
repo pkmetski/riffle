@@ -373,7 +373,7 @@ val GENERIC_CSS_FONT_KEYWORDS: Set<String> = setOf(
 internal fun sanitizeSvgForElidedView(svg: String): String {
     val externalImageOrUse = Regex(
         """<(image|use)\b[^>]*?(?:xlink:)?href\s*=\s*["'](?!data:)[^"']*["'][^>]*/?>""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+        setOf(RegexOption.IGNORE_CASE),
     )
     return externalImageOrUse.replace(svg, "")
 }
