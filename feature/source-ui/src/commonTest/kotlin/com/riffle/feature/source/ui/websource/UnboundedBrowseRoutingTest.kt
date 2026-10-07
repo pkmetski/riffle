@@ -1,4 +1,4 @@
-package com.riffle.shared.source
+package com.riffle.feature.source.ui.websource
 
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.models.SourceType
@@ -84,17 +84,6 @@ class UnboundedBrowseRoutingTest {
             tabIndexForAnnotations(),
             unboundedLocalTabToLibraryTabIndex(TAB_ANNOTATIONS),
             "Annotations tab must map to the shared annotations tab index",
-        )
-    }
-
-    @Test
-    fun everyBrowsableTypeIsAlsoOfferedByThePicker() {
-        // Offering a type the browse screen cannot drive would crash; browsing a type the picker
-        // never installs would be dead code. Pin them equal apart from the credentialed sources.
-        val browsable = unboundedBrowseSourceTypes()
-        assertEquals(
-            browsable,
-            iosSupportedSourceTypes().filter { it.isUnboundedCatalog }.toSet(),
         )
     }
 }

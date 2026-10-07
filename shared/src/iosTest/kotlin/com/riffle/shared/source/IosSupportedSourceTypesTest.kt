@@ -2,6 +2,7 @@ package com.riffle.shared.source
 
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.SourceType
+import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -72,6 +73,17 @@ class IosSupportedSourceTypesTest {
         assertFalse(
             SourceType.OREILLY in iosSupportedSourceTypes(),
             "iOS has no O'Reilly WebView login, so its source must not be installable",
+        )
+    }
+
+    @Test
+    fun everyBrowsableTypeIsAlsoOfferedByThePicker() {
+        // Offering a type the browse screen cannot drive would crash; browsing a type the picker
+        // never installs would be dead code. Pin them equal apart from the credentialed sources.
+        val browsable = unboundedBrowseSourceTypes()
+        assertEquals(
+            browsable,
+            iosSupportedSourceTypes().filter { it.isUnboundedCatalog }.toSet(),
         )
     }
 }

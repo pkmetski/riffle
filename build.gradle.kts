@@ -566,6 +566,51 @@ tasks.register("checkParityMirror") {
     }
 }
 
+// Guards the topology promise established by #1150: every shared @Composable function lives in a
+// module with an androidTarget (e.g. feature:library-ui, feature:source-ui), not in :shared's
+// commonMain which has iOS targets only. New @Composable additions to shared/src/commonMain must
+// go through the allowlist below — which is expected to shrink toward zero as the remaining host-
+// glue functions are relocated, not grow.
+//
+// The allowlist contains only iOS host-glue that genuinely cannot be moved:
+//   - RiffleAppRoot: the Compose tree root that :shared's SwiftUI bridge invokes; it is
+//     structurally identical to an Android Activity's setContent call and is iOS-only by nature.
+//   - reader/*/Screen.kt: `expect fun` declarations that must sit in the module whose
+//     `actual` implementations live; moving them to a feature module would break the expect/actual
+//     pairing without a large Kotlin compiler workaround.
+//   - audiobook/AudiobookPlayerScreen.kt: same expect/actual constraint.
+//
+// Detection is intentionally simple: a regex scan for `@Composable` in .kt files under
+// shared/src/commonMain. It is a compile-time gate, not a runtime one, so it runs fast.
+tasks.register("checkSharedCommonMainComposables") {
+    group = "verification"
+    description = "Fails if @Composable appears anywhere in shared/src/commonMain."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val sharedCommonMain = layout.projectDirectory.dir("shared/src/commonMain/kotlin").asFile
+        if (!sharedCommonMain.exists()) return@doLast
+
+        val composableRegex = Regex("""@Composable""")
+        val offenders = sharedCommonMain.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { composableRegex.containsMatchIn(it.readText()) }
+            .map { it.relativeTo(sharedCommonMain).path.replace('\\', '/') }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "shared/src/commonMain must contain zero @Composable annotations (#1150).\n" +
+                    "Move the composable to iosMain (iOS-only screens) or to a module with an\n" +
+                    "androidTarget (feature:library-ui, feature:source-ui, feature:reader-ui, …)\n" +
+                    "for screens that both platforms render.\n" +
+                    "Offending files:\n" +
+                    offenders.joinToString("\n") { "  shared/src/commonMain/kotlin/$it" },
+            )
+        }
+    }
+}
+
 // Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
@@ -583,6 +628,7 @@ tasks.register("riffleChecks") {
         "checkTranslations",
         "checkTestGuardrails",
         "checkParityMirror",
+        "checkSharedCommonMainComposables",
     )
 }
 
@@ -598,5 +644,6 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
         dependsOn(rootProject.tasks.named("checkTranslations"))
         dependsOn(rootProject.tasks.named("checkTestGuardrails"))
+        dependsOn(rootProject.tasks.named("checkSharedCommonMainComposables"))
     }
 }

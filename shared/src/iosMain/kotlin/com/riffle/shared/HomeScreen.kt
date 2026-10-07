@@ -44,6 +44,7 @@ import com.riffle.feature.library.ui.CollectionDetailScreen
 import com.riffle.feature.library.ui.DownloadsScreen
 import com.riffle.feature.library.ui.FilteredBooksLabels
 import com.riffle.feature.library.ui.FilteredBooksScreen
+import com.riffle.feature.library.ui.LibraryItemDetailScreen
 import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
@@ -55,8 +56,8 @@ import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
+import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
-import com.riffle.feature.library.ui.LibraryItemDetailScreen
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
 import com.riffle.feature.settings.ui.SettingsScreen
@@ -64,10 +65,9 @@ import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScre
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
+import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.source.SourceOnboardingHost
-import com.riffle.shared.source.UnboundedBrowseScreen
-import com.riffle.shared.source.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull

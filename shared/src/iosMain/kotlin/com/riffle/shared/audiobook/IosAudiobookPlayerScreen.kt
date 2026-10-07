@@ -33,7 +33,7 @@ import org.koin.core.parameter.parametersOf
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
-actual fun AudiobookPlayerScreen(
+fun AudiobookPlayerScreen(
     item: LibraryItem,
     playlistId: String?,
     playlistLibraryId: String?,

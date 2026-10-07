@@ -328,6 +328,15 @@ Production log tags are typed in `core/logging/src/main/kotlin/com/riffle/core/l
 
 The taxonomy is Source/Service (ADR 0049). The `checkNoServerReferences` gradle task (wired into `check`) fails CI if a Kotlin file outside the grandfathered allowlist introduces a `\bServer[A-Z]` identifier (e.g. `ServerType`, `ServerRepository`) or the bare literal `serverId`. New sites must use `SourceFoo` / `ServiceFoo` and `sourceId`; if a file legitimately belongs to Storyteller-adjacent internals or historical Room migration SQL, add it to `ServerReferenceLint.ALLOWLIST` in `buildSrc/` with a one-line justification. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/ServerReferenceLint.kt`.
 
+### No Composables in :shared commonMain
+
+`:shared/src/commonMain` must contain **zero** `@Composable` annotations. The `checkSharedCommonMainComposables` Gradle task (wired into `riffleChecks` and `check`) fails the build on any violation — there is no allowlist.
+
+- **iOS-only screens** (readers, audiobook player, app root): belong in `shared/src/iosMain`. All callers are in `iosMain`; there is no reason to use `expect/actual` or to put the declaration in `commonMain`.
+- **Shared Composables rendered by both platforms**: belong in a module with an `androidTarget + iosArm64 + iosSimulatorArm64` topology — typically `feature:library-ui` or `feature:source-ui`. See `AGENTS.md §Where shared UI goes — the module topology matters`.
+
+Detection logic lives inline in the root `build.gradle.kts` task `checkSharedCommonMainComposables`.
+
 ### Platform-agnostic core (no Android imports)
 
 The multi-platform-core modules (`core:common`, `core:models`, `core:domain`, `core:net`, `core:sources`, `core:sync`, `core:annotations`) must keep their `commonMain` production code platform-neutral so a future KMP target can consume it unchanged. The JVM-only `core:network` shim is also scanned to prevent Android API drift while its streaming APIs remain host-specific. The `checkNoAndroidImports` gradle task (wired into `check`) fails CI if shared production code in those modules imports `android.*`, `androidx.*` (except `androidx.annotation`), or `java.util.logging`; platform-specific KMP source sets are excluded. `core:annotations` does not exist yet — the check no-ops for missing directories and activates automatically when the module is created. If a file legitimately needs an Android dependency it belongs in a hosting or platform source set (`core:data`, `core:network`, `core:logging`, `app`, `androidMain`, `jvmMain`, or `iosMain`), not shared core. Only in exceptional cases add its path to `AndroidImportLint.ALLOWLIST` with a one-line justification. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/AndroidImportLint.kt`. See [ADR 0059](docs/adr/0059-platform-agnostic-core-boundary.md) for the full rationale and module map.

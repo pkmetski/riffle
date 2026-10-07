@@ -59,6 +59,7 @@ import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
+import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
 import com.riffle.shared.audiobook.IosAudioPlayerBridge
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.reader.IosEpubNavigatorBridge
@@ -66,7 +67,6 @@ import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfNavigatorBridge
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
-import com.riffle.shared.source.unboundedBrowseSourceTypes
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin

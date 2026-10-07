@@ -18,24 +18,23 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
+import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
 import com.riffle.app.feature.source.oreilly.OReillyBrowseScreen
 import com.riffle.app.feature.source.oreilly.OReillyLoginScreen
+import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.AddSourceScreen
 import com.riffle.feature.source.ui.AddSourceViewModel
 import com.riffle.feature.source.ui.SelectLibrariesScreen
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
+import com.riffle.feature.source.ui.SingletonSourceConfirmScreen
 import com.riffle.feature.source.ui.SourceTypePickerScreen
-import com.riffle.app.feature.source.chitanka.AddChitankaScreen
-import com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen
-import com.riffle.app.feature.source.gutenberg.AddGutenbergScreen
-import com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen
-import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
-import com.riffle.app.feature.source.radioes.AddRadioEsScreen
-import com.riffle.app.feature.source.radioes.RadioEsBrowseScreen
+import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 internal fun NavGraphBuilder.sourceNavGraph(
     navController: NavController,
@@ -86,32 +85,31 @@ internal fun NavGraphBuilder.sourceNavGraph(
         val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
         val libraryName = backStackEntry.arguments?.getString("libraryName")
             ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
-        ChitankaBrowseScreen(
+        UnboundedBrowseScreen(
+            sourceType = SourceType.CHITANKA,
+            libraryId = libraryId,
             libraryName = libraryName,
-            windowSizeClass = windowSizeClass,
             onOpenDrawer = { scope.launch { drawerState.open() } },
-            onSectionSeeMore = { sectionType ->
-                navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-            },
             onOpenDetail = { itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
             },
-            onAnnotatedBookClick = { sourceId, itemId ->
-                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-            },
+            onSearchAnnotations = { _ -> },
         )
     }
     composable(ADD_CHITANKA) { backStackEntry ->
         val cameFromSettings = navController.previousBackStackEntry
             ?.destination?.route == SETTINGS
-        AddChitankaScreen(
-            windowSizeClass = windowSizeClass,
-            onDone = {
+        val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
+        SingletonSourceConfirmScreen(
+            type = SourceType.CHITANKA,
+            isExpandedWidth = isExpandedWidth,
+            onNavigateBack = {
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
-            onNavigateBack = {
+            onInstall = {
+                singletonInstaller.install(SourceType.CHITANKA)
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
@@ -127,32 +125,31 @@ internal fun NavGraphBuilder.sourceNavGraph(
         val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
         val libraryName = backStackEntry.arguments?.getString("libraryName")
             ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
-        GutenbergBrowseScreen(
+        UnboundedBrowseScreen(
+            sourceType = SourceType.GUTENBERG,
+            libraryId = libraryId,
             libraryName = libraryName,
-            windowSizeClass = windowSizeClass,
             onOpenDrawer = { scope.launch { drawerState.open() } },
-            onSectionSeeMore = { sectionType ->
-                navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-            },
             onOpenDetail = { itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
             },
-            onAnnotatedBookClick = { sourceId, itemId ->
-                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-            },
+            onSearchAnnotations = { _ -> },
         )
     }
     composable(ADD_GUTENBERG) { backStackEntry ->
         val cameFromSettings = navController.previousBackStackEntry
             ?.destination?.route == SETTINGS
-        AddGutenbergScreen(
-            windowSizeClass = windowSizeClass,
-            onDone = {
+        val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
+        SingletonSourceConfirmScreen(
+            type = SourceType.GUTENBERG,
+            isExpandedWidth = isExpandedWidth,
+            onNavigateBack = {
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
-            onNavigateBack = {
+            onInstall = {
+                singletonInstaller.install(SourceType.GUTENBERG)
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
@@ -168,20 +165,16 @@ internal fun NavGraphBuilder.sourceNavGraph(
         val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
         val libraryName = backStackEntry.arguments?.getString("libraryName")
             ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
-        RadioEsBrowseScreen(
+        UnboundedBrowseScreen(
+            sourceType = SourceType.RADIO_ES,
+            libraryId = libraryId,
             libraryName = libraryName,
-            windowSizeClass = windowSizeClass,
             onOpenDrawer = { scope.launch { drawerState.open() } },
-            onSectionSeeMore = { sectionType ->
-                navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-            },
             onOpenDetail = { itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
             },
-            onAnnotatedBookClick = { sourceId, itemId ->
-                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-            },
+            onSearchAnnotations = { _ -> },
         )
     }
     composable(
@@ -229,13 +222,16 @@ internal fun NavGraphBuilder.sourceNavGraph(
     composable(ADD_RADIO_ES) { backStackEntry ->
         val cameFromSettings = navController.previousBackStackEntry
             ?.destination?.route == SETTINGS
-        AddRadioEsScreen(
-            windowSizeClass = windowSizeClass,
-            onDone = {
+        val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
+        SingletonSourceConfirmScreen(
+            type = SourceType.RADIO_ES,
+            isExpandedWidth = isExpandedWidth,
+            onNavigateBack = {
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
-            onNavigateBack = {
+            onInstall = {
+                singletonInstaller.install(SourceType.RADIO_ES)
                 if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
                 else navController.navigateAsRootIfTop(backStackEntry, HOME)
             },
