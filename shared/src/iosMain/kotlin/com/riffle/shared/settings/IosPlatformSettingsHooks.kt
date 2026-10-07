@@ -4,12 +4,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
 import com.riffle.feature.settings.ui.i18n.AppLanguage
+import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_body
+import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_title
+import com.riffle.feature.settings.ui.generated.resources.ui_ok
+import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSUserDefaults
 
 /**
@@ -42,7 +44,7 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
             defaults.setObject(listOf(language.tag), "AppleLanguages")
         }
         defaults.synchronize()
-        pendingRestart = true
+        pendingRestart.value = true
     }
 
     @Composable
@@ -51,8 +53,11 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
     }
 }
 
-/** Set to true after a language change is committed, to trigger the restart dialog. */
-private var pendingRestart = false
+/**
+ * Snapshot state flag — writing from [IosPlatformSettingsHooks.onLanguageChanged] triggers
+ * recomposition of any composable that reads it (i.e. [LanguageChangeRestartDialog]).
+ */
+private val pendingRestart = mutableStateOf(false)
 
 /**
  * Dialog shown after the user picks a new language. Must be composed somewhere visible —
@@ -60,24 +65,22 @@ private var pendingRestart = false
  */
 @Composable
 fun LanguageChangeRestartDialog(onDismiss: () -> Unit) {
-    if (!pendingRestart) return
-    var open by remember { mutableStateOf(true) }
-    if (!open) return
+    // Always read pendingRestart before any conditional so Compose registers the observation.
+    val show = pendingRestart.value
+    if (!show) return
     AlertDialog(
         onDismissRequest = {
-            open = false
-            pendingRestart = false
+            pendingRestart.value = false
             onDismiss()
         },
-        title = { Text("Restart required") },
-        text = { Text("Please restart the app to apply the new language.") },
+        title = { Text(stringResource(Res.string.ui_language_change_restart_title)) },
+        text = { Text(stringResource(Res.string.ui_language_change_restart_body)) },
         confirmButton = {
             TextButton(onClick = {
-                open = false
-                pendingRestart = false
+                pendingRestart.value = false
                 onDismiss()
             }) {
-                Text("OK")
+                Text(stringResource(Res.string.ui_ok))
             }
         },
     )

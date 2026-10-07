@@ -288,4 +288,6 @@
     <string name="ui_webdav_tls_check_url">TLS error · tap to check server URL</string>
     <string name="ui_wide">Wide</string>
     <string name="ui_reset_to_global_defaults">Reset to global defaults</string>
+    <string name="ui_language_change_restart_title">Restart required</string>
+    <string name="ui_language_change_restart_body">Please restart the app to apply the new language.</string>
 </resources>

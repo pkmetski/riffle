@@ -35,7 +35,7 @@
     <string name="ui_no_highlight_color">Sin color de resaltado</string>
     <string name="ui_selected_suffix">, seleccionado</string>
     <string name="ui_highlight_suffix"> resaltado</string>
-    <string name="ui_emphasis">Énfasis</string>
+    <string name="ui_emphasis">Énfasis </string>
     <string name="ui_active_suffix">, activo</string>
     <string name="ui_note">Nota</string>
     <string name="ui_add_a_note">Añade una nota…</string>

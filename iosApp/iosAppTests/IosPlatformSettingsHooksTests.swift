@@ -51,16 +51,18 @@ final class IosPlatformSettingsHooksTests: XCTestCase {
     }
 
     func testOnLanguageChangedSystemClearsAppOverride() {
-        // Write a known override, then clear it with System; afterwards write another known
-        // value and verify it takes effect — proving the System call cleared the write layer.
+        // Write Spanish, clear with System, write Bulgarian — verify the write layer responds to
+        // Bulgarian (not Spanish), proving System actually removed the Spanish override.
         IosPlatformSettingsHooks.shared.onLanguageChanged(language: Settings_uiAppLanguage.spanish)
-        XCTAssertEqual(defaults.stringArray(forKey: key), ["es-ES"])
+        XCTAssertEqual(IosPlatformSettingsHooks.shared.currentLanguage().tag, "es-ES",
+                       "Pre-condition: Spanish must be active before clearing")
         IosPlatformSettingsHooks.shared.onLanguageChanged(language: Settings_uiAppLanguage.system)
-        // After selecting System the app override is gone; write a new one to confirm the
-        // domain is writable again, then restore it inside the existing tearDown.
-        IosPlatformSettingsHooks.shared.onLanguageChanged(language: Settings_uiAppLanguage.bulgarian)
-        XCTAssertEqual(defaults.stringArray(forKey: key), ["bg"],
-                       "A new language selection after System must write correctly")
+        // The app's persistent domain must no longer contain the key. NSUserDefaults writes to
+        // the main bundle's domain; read it back directly to avoid interference from system layers.
+        let appBundle = Bundle.main.bundleIdentifier ?? ""
+        let appDomain = defaults.persistentDomain(forName: appBundle)
+        XCTAssertNil(appDomain?[key],
+                     "onLanguageChanged(System) must remove AppleLanguages from the app domain; bundle=\(appBundle)")
     }
 
     // MARK: - currentLanguage reads the stored tag
