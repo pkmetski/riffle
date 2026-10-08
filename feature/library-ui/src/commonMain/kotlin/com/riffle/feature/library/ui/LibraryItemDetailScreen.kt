@@ -154,7 +154,6 @@ fun LibraryItemDetailScreen(
     onEditMetadata: (() -> Unit)? = null,
     vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) }),
 ) {
-
     val uiState by vm.uiState.collectAsState()
     val downloadState by vm.downloadState.collectAsState()
     val audiobookDownloadState by vm.audiobookDownloadState.collectAsState()
