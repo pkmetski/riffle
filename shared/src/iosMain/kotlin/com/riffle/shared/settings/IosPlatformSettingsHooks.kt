@@ -13,12 +13,11 @@ import com.riffle.feature.settings.ui.generated.resources.ui_language_change_res
 import com.riffle.feature.settings.ui.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
+import platform.Foundation.NSBundle
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIApplicationWillEnterForegroundNotification
-
-private const val KEY_EXPLICIT_LANGUAGE_SET = "riffle.explicit_language_set"
 
 /**
  * iOS implementation of [PlatformSettingsHooks].
@@ -40,10 +39,16 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
 
     override fun currentLanguage(): AppLanguage {
         val defaults = NSUserDefaults.standardUserDefaults
-        // If user never explicitly set a language, return System
-        if (defaults.objectForKey(KEY_EXPLICIT_LANGUAGE_SET) == null) return AppLanguage.System
-        val languages = defaults.stringArrayForKey("AppleLanguages")
-        val firstTag = languages?.firstOrNull() as? String ?: return AppLanguage.System
+        // Read only from the app's own persistent domain so the system-level language list
+        // (which iOS always populates) does not masquerade as a user-set preference.
+        val bundleId = NSBundle.mainBundle.bundleIdentifier ?: return AppLanguage.System
+
+        @Suppress("UNCHECKED_CAST")
+        val appDomain = defaults.persistentDomainForName(bundleId) ?: return AppLanguage.System
+
+        @Suppress("UNCHECKED_CAST")
+        val languages = appDomain["AppleLanguages"] as? List<*> ?: return AppLanguage.System
+        val firstTag = languages.firstOrNull() as? String ?: return AppLanguage.System
         return AppLanguage.fromTag(firstTag)
     }
 
@@ -51,10 +56,8 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
         val defaults = NSUserDefaults.standardUserDefaults
         if (language == AppLanguage.System) {
             defaults.removeObjectForKey("AppleLanguages")
-            defaults.removeObjectForKey(KEY_EXPLICIT_LANGUAGE_SET)
         } else {
             defaults.setObject(listOf(language.tag), "AppleLanguages")
-            defaults.setBool(true, forKey = KEY_EXPLICIT_LANGUAGE_SET)
         }
         defaults.synchronize()
         pendingRestart.value = true
