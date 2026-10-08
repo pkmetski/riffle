@@ -114,11 +114,8 @@ import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.settings.ui.readersettings.TocPanel
-import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_opening_book
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
-import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -673,16 +670,19 @@ fun EpubReaderScreen(
     var cadenceSupported by remember(item.id) { mutableStateOf(true) }
 
     // Pause Auto-Scroll and Cadence while any reader panel is open (TOC / Formatting / Search /
-    // Annotations); resume on close. Mirrors Android's LaunchedEffect in EpubReaderScreen.kt
-    // (ADR 0053). Uses the same Pause/Resume event shape so the cause-scoped resume logic
-    // in AutoScrollController and CadenceController doesn't un-park a longer-lived pause.
+    // Annotations); resume on close. Mirrors Android's setAutoScrollPaused(paused, cause) logic
+    // (ADR 0053). Scoped resume: only dispatch Resume when the current pause cause is PanelOpen
+    // so a user-initiated UserPausedPill stop is never un-parked by a panel close.
     LaunchedEffect(annotationsPanelOpen, settingsOpen, searchOpen, tocOpen) {
         val anyOpen = annotationsPanelOpen || settingsOpen || searchOpen || tocOpen
         if (anyOpen) {
             autoScroll.dispatch(AutoScrollEvent.Pause(PauseCause.PanelOpen))
             cadence.pauseFor(CadencePauseCause.PanelOpen)
         } else {
-            autoScroll.dispatch(AutoScrollEvent.Resume)
+            val s = autoScroll.state.value
+            if (s is AutoScrollState.Paused && s.cause == PauseCause.PanelOpen) {
+                autoScroll.dispatch(AutoScrollEvent.Resume)
+            }
             cadence.resumeIfPaused()
         }
     }
