@@ -271,6 +271,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.koin.compose.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import platform.Foundation.NSBundle
@@ -842,7 +843,7 @@ private fun iosLibraryModule(
         }
     }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
-    single {
+    viewModel {
         val bundle = NSBundle.mainBundle
         val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
         val buildNumber = (bundle.infoDictionary?.get("CFBundleVersion") as? String)?.toIntOrNull() ?: 0
@@ -874,7 +875,7 @@ private fun iosLibraryModule(
             annotationDao = get(),
         )
     }
-    single { ChangelogViewModel(appUpdateRepository = get()) }
+    viewModel { ChangelogViewModel(appUpdateRepository = get()) }
     single<Clock> { IosSystemClock }
     single<TimeProvider> { SystemTimeProvider }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
