@@ -15,6 +15,7 @@
     <string name="ui_formatting">Форматиране</string>
     <string name="ui_display">Дисплей</string>
     <string name="ui_reset_to_global_defaults">Връщане към глобалните настройки по подразбиране</string>
+    <string name="ui_search">Search</string>
     <string name="ui_search_in_book">Търсене в книгата...</string>
     <string name="ui_no_results">Няма резултати</string>
     <string name="ui_result_position">%1$d от %2$d</string>
@@ -53,6 +54,9 @@
     <string name="ui_resume_auto_scroll">Продължаване на авто-скрол</string>
     <string name="ui_pause_cadence">Пауза на каденса</string>
     <string name="ui_resume_cadence">Продължаване на каденса</string>
+
+    <!-- Loading state -->
+    <string name="ui_opening_book">Отваряне на книга…</string>
 
     <!-- Chapter map overlay -->
     <string name="ui_chapter_progress_count">Глава %1$d от %2$d</string>

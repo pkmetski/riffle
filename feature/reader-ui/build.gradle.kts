@@ -98,6 +98,9 @@ tasks.withType<Test>().configureEach {
         // CbzPanelViewer: same constraint — runs on iOS sim; Android renders the panel view
         // on-device in `app/src/androidTest` (`CbzThumbnailStripTest` harness area).
         excludeTestsMatching("com.riffle.feature.reader.ui.CbzPanelViewerTest")
+        // FigureZoomOverlay: same constraint — runs on iOS sim; Android renders the overlay
+        // on-device via EpubReaderScreen (harness coverage comes from existing reader flow tests).
+        excludeTestsMatching("com.riffle.feature.reader.ui.FigureZoomOverlayTest")
         isFailOnNoMatchingTests = false
     }
 }
