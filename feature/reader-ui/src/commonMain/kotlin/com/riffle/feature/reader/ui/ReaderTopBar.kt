@@ -15,11 +15,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_annotations
 import com.riffle.feature.reader.ui.generated.resources.ui_back
+import com.riffle.feature.reader.ui.generated.resources.ui_format
 import com.riffle.feature.reader.ui.generated.resources.ui_search
 import com.riffle.feature.reader.ui.generated.resources.ui_table_of_contents
 import org.jetbrains.compose.resources.stringResource
@@ -101,6 +104,7 @@ fun ReaderTopBar(
                             contentDescription = stringResource(Res.string.ui_annotations),
                         )
                     }
+                    val formatDescription = stringResource(Res.string.ui_format)
                     IconButton(
                         onClick = onFormat,
                         modifier = Modifier.testTag(TestTags.READER_SETTINGS),
@@ -109,6 +113,7 @@ fun ReaderTopBar(
                             text = "Aa",
                             color = Color.White,
                             style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.semantics { contentDescription = formatDescription },
                         )
                     }
                 }
