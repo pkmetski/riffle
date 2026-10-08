@@ -10,8 +10,8 @@ import com.riffle.core.sync.AnnotationLockPort
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.ReconcileLocks
 import com.riffle.core.models.AnnotationFileHeader
-import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.datetime.Clock
 import kotlinx.coroutines.Job
 
 /**
@@ -55,7 +55,7 @@ class AnnotationSyncController(
      * when the catalog hasn't cached the title yet — header renderer falls back to the id.
      */
     bookTitleProvider: suspend (sourceId: String, itemId: String) -> String? = { _, _ -> null },
-    nowIso: () -> String = { Instant.now().toString() },
+    nowIso: () -> String = { Clock.System.now().toString() },
     clock: () -> Long = System::currentTimeMillis,
     /**
      * Per-book mutex shared with [AnnotationSweep] (#321). Held across read-then-write so the

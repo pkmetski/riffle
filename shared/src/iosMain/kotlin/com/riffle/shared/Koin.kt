@@ -15,6 +15,7 @@ import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
@@ -90,6 +91,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSweepEnqueuer
+import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppUpdatePreferencesStore
@@ -846,6 +848,27 @@ private fun iosLibraryModule(
         }
     }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
+    single { AnnotationMergeService() }
+    single {
+        val dispatchers = get<DispatcherProvider>()
+        val holder = get<AnnotationSyncTargetHolder>()
+        AnnotationSyncController(
+            targetProvider = { holder.current() },
+            mergeService = get(),
+            annotationDao = get(),
+            deviceIdStore = get(),
+            deviceLabelResolver = get(),
+            scope = CoroutineScope(SupervisorJob() + dispatchers.io),
+            statusStore = get(),
+            sweepEnqueuer = get(),
+            usernameProvider = { sid -> get<SourceRepository>().getById(sid)?.username },
+            bookTitleProvider = { sid, itemId ->
+                get<LibraryItemDao>().getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
+            },
+            locks = get(),
+            sentinelWriter = get(),
+        )
+    }
     viewModel {
         val bundle = NSBundle.mainBundle
         val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
