@@ -308,21 +308,26 @@ final class NavDrawerTests: XCTestCase {
         burger.tap()
 
         let secondLibrary = app.staticTexts[StubAbsServer.testLibraryName2]
-        // Budget 45 s: the drawer populates from cached data, but on a CPU-saturated runner
-        // (after 50+ min of heavy tests) Compose re-composition can be slow.
+        // Library names in the drawer come from cached data — they should appear quickly.
+        // Use a short timeout here so that if the drawer is slow, the test fails fast
+        // (< 90 s per attempt) and stays below the 180 s SLOW_RE threshold that would
+        // trigger a whole-suite bash retry and blow the job timeout.
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 45),
+            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 15),
             "Drawer must list the first library"
         )
         XCTAssertTrue(secondLibrary.exists, "Drawer must list every visible library, not just the active one")
 
         secondLibrary.tap()
-        // The iOS nav stack is keyed by libraryId (re-created on switch); allow 45 s for
-        // the new LibraryItemsScreen to render its title on a slow runner.
+        // The iOS nav stack is keyed by libraryId (re-created on switch); the new
+        // LibraryItemsScreen may take up to 45 s to render its title on a slow runner.
+        // This is the only long wait in the test — keeping the others short ensures
+        // worst-case per-attempt duration stays under 90 s (2 attempts < 180 s = SLOW_RE).
         XCTAssertTrue(
             app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 45),
             "Selecting a library must re-title the library screen"
         )
-        XCTAssertTrue(burger.waitForExistence(timeout: 45), "The drawer must close back onto the library screen")
+        // Once the library title is visible, the burger should already be present.
+        XCTAssertTrue(burger.waitForExistence(timeout: 15), "The drawer must close back onto the library screen")
     }
 }
