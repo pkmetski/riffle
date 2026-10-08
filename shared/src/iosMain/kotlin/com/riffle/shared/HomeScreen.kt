@@ -73,11 +73,11 @@ import com.riffle.shared.source.SourceOnboardingHost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import platform.Foundation.NSBundle
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import platform.Foundation.NSBundle
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
