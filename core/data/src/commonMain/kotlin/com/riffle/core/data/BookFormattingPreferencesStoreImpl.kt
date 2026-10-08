@@ -4,15 +4,16 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.ScreenDimensionBucket
 
 // Formatting is per-device, keyed by (sourceId, itemId, screenDimensionBucket). sourceId
 // prevents colliding item ids across Sources from sharing one row (ADR 0031); screenDimensionBucket
-// gives each screen-size class independent settings for the same book. Mirrors Android's
-// BookFormattingPreferencesStoreImpl — keep the two in sync when adding columns.
-class IosBookFormattingPreferencesStoreImpl(
+// gives each screen-size class independent settings for the same book. Both the full-book reader
+// and the elided (annotations) reader share the same row.
+class BookFormattingPreferencesStoreImpl constructor(
     private val dao: BookFormattingPreferencesDao,
 ) : BookFormattingPreferencesStore {
 

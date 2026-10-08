@@ -7,25 +7,19 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Regression pins for the book-formatting-preferences key shape. Both the full-book reader and
  * the elided (annotations) reader share one row per (sourceId, itemId, screenDimensionBucket),
  * and each screenDimensionBucket gets an independent row.
  *
- * Removed-test: save under FullBook does not affect read under Highlights
- * Removed-test: save under Highlights does not affect read under FullBook
- * Removed-test: both scopes hold independent values for the same book
- * Removed-test: clear only removes the targeted scope
- *
- * Behaviour retired: per-scope isolation in the book-preferences store no longer exists; the
- * full-book reader and elided reader share one row so per-book customisations propagate to both.
- * The separate FormattingScope-keyed store was added in migration 44→45 and removed in 70→71.
+ * Covers the iOS code path as well as Android — `BookFormattingPreferencesStoreImpl` is in
+ * commonMain and this test runs as `commonTest` (iosSimulatorArm64Test on CI).
  */
-class BookFormattingPreferencesStoreScopeIsolationTest {
+class BookFormattingPreferencesStoreImplTest {
 
     private val sourceId = "srv-A"
     private val dim = ScreenDimensionBucket.PhonePortrait
@@ -55,18 +49,15 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
     )
 
     @Test
-    fun `override round-trips for a book`() = runTest {
+    fun overrideRoundTripsForABook() = runTest {
         val store = newStore()
         store.save(sourceId, "item-1", dim, BookFormattingOverrides(theme = ReaderTheme.Dark))
 
-        assertEquals(
-            ReaderTheme.Dark,
-            store.load(sourceId, "item-1", dim)?.theme,
-        )
+        assertEquals(ReaderTheme.Dark, store.load(sourceId, "item-1", dim)?.theme)
     }
 
     @Test
-    fun `portrait and landscape dimensions hold independent values for the same book`() = runTest {
+    fun portraitAndLandscapeDimensionsHoldIndependentValues() = runTest {
         val store = newStore()
         store.save(sourceId, "item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
         store.save(sourceId, "item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
@@ -76,37 +67,27 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
     }
 
     @Test
-    fun `clear removes the row for the targeted dimension only`() = runTest {
+    fun clearRemovesOnlyTheTargetedDimension() = runTest {
         val store = newStore()
         store.save(sourceId, "item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
         store.save(sourceId, "item-1", dimLandscape, BookFormattingOverrides(fontSize = 1.8f))
 
         store.clear(sourceId, "item-1", dim)
 
-        assertNull(
-            "Portrait value must be gone after a portrait-scoped clear",
-            store.load(sourceId, "item-1", dim)?.fontSize,
-        )
-        assertEquals(
-            "Landscape value must survive a portrait-scoped clear",
-            1.8f,
-            store.load(sourceId, "item-1", dimLandscape)?.fontSize,
-        )
+        assertNull(store.load(sourceId, "item-1", dim)?.fontSize, "Portrait value must be gone after a portrait-scoped clear")
+        assertEquals(1.8f, store.load(sourceId, "item-1", dimLandscape)?.fontSize, "Landscape value must survive a portrait-scoped clear")
     }
 
     @Test
-    fun `colored chapter map override round-trips for a book`() = runTest {
+    fun coloredChapterMapOverrideRoundTrips() = runTest {
         val store = newStore()
         store.save(sourceId, "item-1", dim, BookFormattingOverrides(coloredChapterMap = false))
 
-        assertEquals(
-            false,
-            store.load(sourceId, "item-1", dim)?.coloredChapterMap,
-        )
+        assertEquals(false, store.load(sourceId, "item-1", dim)?.coloredChapterMap)
     }
 
     @Test
-    fun `two sources with the same itemId hold independent settings`() = runTest {
+    fun twoSourcesWithSameItemIdHoldIndependentSettings() = runTest {
         val store = newStore()
         store.save("src-A", "item-1", dim, BookFormattingOverrides(fontSize = 1.4f))
         store.save("src-B", "item-1", dim, BookFormattingOverrides(fontSize = 1.8f))
