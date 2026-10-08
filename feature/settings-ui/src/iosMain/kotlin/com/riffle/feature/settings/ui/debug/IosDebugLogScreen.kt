@@ -158,7 +158,11 @@ private fun IosLogRow(entry: InMemoryLogBuffer.Entry) {
     val time = remember(entry.timestampMs) {
         val dt = Instant.fromEpochMilliseconds(entry.timestampMs)
             .toLocalDateTime(TimeZone.currentSystemDefault())
-        "%02d:%02d:%02d.%03d".format(dt.hour, dt.minute, dt.second, entry.timestampMs % 1000)
+        val ms = (entry.timestampMs % 1000).toString().padStart(3, '0')
+        "${dt.hour.toString().padStart(2, '0')}:" +
+            "${dt.minute.toString().padStart(2, '0')}:" +
+            "${dt.second.toString().padStart(2, '0')}." +
+            ms
     }
     val (bg, fg) = when (entry.level) {
         InMemoryLogBuffer.Entry.Level.D -> Color.Transparent to MaterialTheme.colorScheme.onSurface
