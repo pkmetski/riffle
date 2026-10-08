@@ -102,8 +102,8 @@ import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
 import com.riffle.feature.library.ui.generated.resources.ui_no_results_for
-import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
+import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_offline_banner
 import com.riffle.feature.library.ui.generated.resources.ui_show_all_annotations
@@ -1126,7 +1126,9 @@ private fun AllBooksTabContent(
                 label = { Text(notStartedLabel) },
                 leadingIcon = if (notStartedFilterActive) {
                     { Icon(RiffleIcons.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
-                } else null,
+                } else {
+                    null
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_FILTER),
             )
             Box {
@@ -1141,10 +1143,15 @@ private fun AllBooksTabContent(
                     LibrarySortMode.entries.forEach { mode ->
                         DropdownMenuItem(
                             text = { Text(mode.label()) },
-                            onClick = { onSetSortMode(mode); sortMenuExpanded = false },
+                            onClick = {
+                                onSetSortMode(mode)
+                                sortMenuExpanded = false
+                            },
                             leadingIcon = if (mode == librarySortMode) {
                                 { Icon(RiffleIcons.Check, contentDescription = null) }
-                            } else null,
+                            } else {
+                                null
+                            },
                         )
                     }
                 }
