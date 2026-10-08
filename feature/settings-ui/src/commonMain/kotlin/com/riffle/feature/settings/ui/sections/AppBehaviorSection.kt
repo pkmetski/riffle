@@ -18,6 +18,7 @@ internal fun AppBehaviorSection(
     onVolumeKeyNavigationEnabledChange: (Boolean) -> Unit,
     invertVolumeKeys: Boolean,
     onInvertVolumeKeysChange: (Boolean) -> Unit,
+    showVolumeKeyRows: Boolean = true,
 ) {
     // TODO: migrate to Res.string.ui_behavior
     SettingsSectionHeader(stringResource(Res.string.ui_behavior))
@@ -26,6 +27,7 @@ internal fun AppBehaviorSection(
             keepScreenOn, onKeepScreenOnChange,
             volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange,
             invertVolumeKeys, onInvertVolumeKeysChange,
+            showVolumeKeyRows = showVolumeKeyRows,
         )
     }
 }

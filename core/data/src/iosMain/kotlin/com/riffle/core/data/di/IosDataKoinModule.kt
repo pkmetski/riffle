@@ -19,6 +19,7 @@ import com.riffle.core.data.IosConnectivityObserver
 import com.riffle.core.data.IosCoverGridDensityStoreImpl
 import com.riffle.core.data.IosDeviceIdStoreImpl
 import com.riffle.core.data.IosDeviceLabelResolver
+import com.riffle.core.data.IosDeviceLabelStoreImpl
 import com.riffle.core.data.IosFileStore
 import com.riffle.core.data.IosFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
@@ -68,6 +69,7 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
@@ -113,6 +115,7 @@ val iosDataModule = module {
     single<FileStore> { IosFileStore() }
     single<SourceFilesCleaner> { IosSourceFilesCleaner(get(), get()) }
     single<DeviceLabelResolver> { IosDeviceLabelResolver() }
+    single<DeviceLabelStore> { IosDeviceLabelStoreImpl() }
 
     single<FolderPickerInterface> { IosFolderPicker() }
     single { IosFolderWalker(get()) }

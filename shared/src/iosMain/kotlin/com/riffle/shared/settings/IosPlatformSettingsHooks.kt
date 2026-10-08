@@ -4,6 +4,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
 import com.riffle.feature.settings.ui.generated.resources.Res
@@ -12,7 +13,11 @@ import com.riffle.feature.settings.ui.generated.resources.ui_language_change_res
 import com.riffle.feature.settings.ui.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
+import platform.Foundation.NSBundle
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSUserDefaults
+import platform.UIKit.UIApplicationWillEnterForegroundNotification
 
 /**
  * iOS implementation of [PlatformSettingsHooks].
@@ -30,9 +35,20 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
 
     override fun canInstallUpdate(): Boolean = false
 
+    override fun supportsVolumeKeyNavigation(): Boolean = false
+
     override fun currentLanguage(): AppLanguage {
-        val languages = NSUserDefaults.standardUserDefaults.stringArrayForKey("AppleLanguages")
-        val firstTag = languages?.firstOrNull() as? String ?: return AppLanguage.System
+        val defaults = NSUserDefaults.standardUserDefaults
+        // Read only from the app's own persistent domain so the system-level language list
+        // (which iOS always populates) does not masquerade as a user-set preference.
+        val bundleId = NSBundle.mainBundle.bundleIdentifier ?: return AppLanguage.System
+
+        @Suppress("UNCHECKED_CAST")
+        val appDomain = defaults.persistentDomainForName(bundleId) ?: return AppLanguage.System
+
+        @Suppress("UNCHECKED_CAST")
+        val languages = appDomain["AppleLanguages"] as? List<*> ?: return AppLanguage.System
+        val firstTag = languages.firstOrNull() as? String ?: return AppLanguage.System
         return AppLanguage.fromTag(firstTag)
     }
 
@@ -49,7 +65,16 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
 
     @Composable
     override fun OnResumeEffect(block: () -> Unit) {
-        // No lifecycle hook needed for this basic implementation.
+        DisposableEffect(Unit) {
+            val observer = NSNotificationCenter.defaultCenter.addObserverForName(
+                name = UIApplicationWillEnterForegroundNotification,
+                `object` = null,
+                queue = NSOperationQueue.mainQueue,
+            ) { _ -> block() }
+            onDispose {
+                NSNotificationCenter.defaultCenter.removeObserver(observer)
+            }
+        }
     }
 }
 

@@ -59,10 +59,18 @@ import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.reader.highlights.ReaderSource
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.SettingsScreen
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceScreen
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
+import com.riffle.feature.settings.ui.debug.IosDebugLogScreen
+import com.riffle.feature.settings.ui.developer.IosDeveloperOptionsScreen
+import com.riffle.feature.settings.ui.dictionary.IosDictionaryPacksScreen
+import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
+import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
 import com.riffle.shared.reader.EpubReaderScreen
@@ -82,8 +90,13 @@ private enum class AppSection { Library, Settings, Downloads, Riffle }
 private sealed interface IosSettingsSubScreen {
     data object AddSource : IosSettingsSubScreen
     data object AnnotationsSync : IosSettingsSubScreen
+    data object AnnotationSyncMaintenance : IosSettingsSubScreen
     data object ReadaloudSettings : IosSettingsSubScreen
+    data class ReadaloudMatches(val sourceId: String) : IosSettingsSubScreen
     data object Changelog : IosSettingsSubScreen
+    data object DeveloperOptions : IosSettingsSubScreen
+    data object DebugLogs : IosSettingsSubScreen
+    data object DictionaryPacks : IosSettingsSubScreen
 }
 
 @Composable
@@ -194,13 +207,32 @@ fun HomeScreen() {
                     IosSettingsSubScreen.AnnotationsSync -> AnnotationsSyncSettingsScreen(
                         onNavigateBack = { settingsSubScreen = null },
                         onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
-                        onNavigateToMaintenance = { /* no-op: maintenance screen is Android-only for now */ },
+                        onNavigateToMaintenance = { settingsSubScreen = IosSettingsSubScreen.AnnotationSyncMaintenance },
                     )
+                    IosSettingsSubScreen.AnnotationSyncMaintenance -> {
+                        val maintenanceViewModel = koinInject<AnnotationSyncMaintenanceViewModel>()
+                        AnnotationSyncMaintenanceScreen(
+                            onNavigateBack = { settingsSubScreen = null },
+                            viewModel = maintenanceViewModel,
+                        )
+                    }
                     IosSettingsSubScreen.ReadaloudSettings -> ReadaloudSettingsScreen(
                         onNavigateBack = { settingsSubScreen = null },
                         onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
-                        onNavigateToReadaloudMatches = { /* no-op on iOS */ },
+                        onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
                     )
+                    is IosSettingsSubScreen.ReadaloudMatches -> {
+                        val koin = getKoin()
+                        val host = remember(sub.sourceId) { ScreenScopedViewModelHost() }
+                        val matchesViewModel: ReadaloudMatchesViewModel = remember(sub.sourceId) {
+                            host.adopt(koin.get { parametersOf(sub.sourceId) })
+                        }
+                        DisposableEffect(sub.sourceId) { onDispose { host.clear() } }
+                        ReadaloudMatchesScreen(
+                            onNavigateBack = { settingsSubScreen = null },
+                            viewModel = matchesViewModel,
+                        )
+                    }
                     IosSettingsSubScreen.Changelog -> {
                         val changelogViewModel = koinInject<ChangelogViewModel>()
                         ChangelogScreen(
@@ -208,6 +240,20 @@ fun HomeScreen() {
                             viewModel = changelogViewModel,
                         )
                     }
+                    IosSettingsSubScreen.DeveloperOptions -> {
+                        val settingsViewModel = koinInject<SettingsViewModel>()
+                        IosDeveloperOptionsScreen(
+                            onNavigateBack = { settingsSubScreen = null },
+                            onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
+                            viewModel = settingsViewModel,
+                        )
+                    }
+                    IosSettingsSubScreen.DebugLogs -> IosDebugLogScreen(
+                        onNavigateBack = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
+                    )
+                    IosSettingsSubScreen.DictionaryPacks -> IosDictionaryPacksScreen(
+                        onNavigateBack = { settingsSubScreen = null },
+                    )
                     null -> SettingsScreen(
                         isExpandedWidth = false,
                         onNavigateBack = { appSection = AppSection.Library },
@@ -220,9 +266,9 @@ fun HomeScreen() {
                         },
                         onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
                         onNavigateToAnnotationsSyncSettings = { settingsSubScreen = IosSettingsSubScreen.AnnotationsSync },
-                        onNavigateToDeveloperOptions = { /* no-op: developer options is Android-only */ },
-                        onNavigateToDictionaryPacks = { /* no-op: dictionary packs is Android-only */ },
-                        onNavigateToDebugLogs = { /* no-op: debug logs is Android-only */ },
+                        onNavigateToDeveloperOptions = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
+                        onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
+                        onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
                         onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
                         platformHooks = IosPlatformSettingsHooks,
                     )

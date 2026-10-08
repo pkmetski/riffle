@@ -15,6 +15,7 @@ import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AppearanceCoordinatorImpl
@@ -226,7 +227,9 @@ import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
+import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
@@ -271,6 +274,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.koin.compose.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import platform.Foundation.NSBundle
@@ -842,7 +846,7 @@ private fun iosLibraryModule(
         }
     }
     single { com.riffle.core.sync.AnnotationSyncStatusStore() }
-    single {
+    viewModel {
         val bundle = NSBundle.mainBundle
         val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
         val buildNumber = (bundle.infoDictionary?.get("CFBundleVersion") as? String)?.toIntOrNull() ?: 0
@@ -874,7 +878,31 @@ private fun iosLibraryModule(
             annotationDao = get(),
         )
     }
-    single { ChangelogViewModel(appUpdateRepository = get()) }
+    viewModel { ChangelogViewModel(appUpdateRepository = get()) }
+    single {
+        val holder = get<AnnotationSyncTargetHolder>()
+        AnnotationSyncMaintenance(targetProvider = { holder.current() })
+    }
+    viewModel {
+        AnnotationSyncMaintenanceViewModel(
+            configStore = get(),
+            maintenance = get(),
+            deviceIdStore = get(),
+            deviceLabelStore = get(),
+            deviceLabelResolver = get(),
+            sourceRepository = get(),
+            statusStore = get(),
+        )
+    }
+    factory { params ->
+        ReadaloudMatchesViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("sourceId" to params.get<String>())),
+            reviewRepository = get(),
+            reviewActions = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
     single<Clock> { IosSystemClock }
     single<TimeProvider> { SystemTimeProvider }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }

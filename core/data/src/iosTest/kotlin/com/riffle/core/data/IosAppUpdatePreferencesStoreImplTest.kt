@@ -26,10 +26,10 @@ class IosAppUpdatePreferencesStoreImplTest {
     fun cleanup() = keys.forEach { NSUserDefaults.standardUserDefaults.removeObjectForKey(it) }
 
     @Test
-    fun `defaults to auto-update off and no ignored version`() = runTest {
+    fun `defaults to auto-update on and no ignored version`() = runTest {
         val store = IosAppUpdatePreferencesStoreImpl()
 
-        assertFalse(store.autoUpdateEnabled.first())
+        assertTrue(store.autoUpdateEnabled.first())
         assertEquals(0, store.ignoredVersionCode.first())
     }
 

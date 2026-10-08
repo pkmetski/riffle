@@ -4,5 +4,6 @@ import org.koin.dsl.module
 
 val iosLoggingModule =
     module {
-        single<Logger> { IosLogger() }
+        single { InMemoryLogBuffer() }
+        single<Logger> { IosLogger(buffer = get()) }
     }

@@ -20,7 +20,9 @@ class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
 
     private val defaults = NSUserDefaults.standardUserDefaults
 
-    private val autoUpdateState = MutableStateFlow(defaults.boolForKey(KEY_AUTO_UPDATE_ENABLED))
+    private val autoUpdateState = MutableStateFlow(
+        if (defaults.objectForKey(KEY_AUTO_UPDATE_ENABLED) != null) defaults.boolForKey(KEY_AUTO_UPDATE_ENABLED) else true
+    )
     private val ignoredVersionState = MutableStateFlow(defaults.integerForKey(KEY_IGNORED_VERSION_CODE).toInt())
 
     override val autoUpdateEnabled: Flow<Boolean> = autoUpdateState.asStateFlow()

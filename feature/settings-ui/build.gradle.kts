@@ -66,6 +66,14 @@ kotlin {
             // DictionaryPacksScreen uses formatBytes from feature:downloads.
             implementation(project(":feature:downloads"))
         }
+        iosMain.dependencies {
+            // IosDebugLogScreen reads InMemoryLogBuffer directly (no AndroidViewModel).
+            implementation(project(":core:logging"))
+            // IosDictionaryPacksScreen reads LanguageCatalog to display available packs.
+            implementation(project(":core:dictionary"))
+            // IosDictionaryPacksScreen uses formatBytes for size display.
+            implementation(project(":feature:downloads"))
+        }
         iosTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)

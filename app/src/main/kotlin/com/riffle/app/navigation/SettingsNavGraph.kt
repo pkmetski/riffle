@@ -48,6 +48,8 @@ internal fun NavGraphBuilder.settingsNavGraph(
 
                 override fun canInstallUpdate(): Boolean = true
 
+                override fun supportsVolumeKeyNavigation(): Boolean = true
+
                 override fun currentLanguage(): AppLanguage {
                     val appLang = AppLocaleController.currentLanguage(context)
                     return AppLanguage.fromTag(appLang.tag)

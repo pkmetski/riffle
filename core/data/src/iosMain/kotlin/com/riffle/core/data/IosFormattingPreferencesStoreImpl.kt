@@ -62,6 +62,7 @@ internal class IosFormattingPreferencesStoreImpl : FormattingPreferencesStore {
         )
         defaults.setObject(preferences.themeSchedule.dayTheme.name, forKey = KEY_SCHEDULE_DAY_THEME)
         defaults.setObject(preferences.themeSchedule.nightTheme.name, forKey = KEY_SCHEDULE_NIGHT_THEME)
+        defaults.setBool(preferences.forcePaginatedInLandscape, forKey = KEY_FORCE_PAGINATED_IN_LANDSCAPE)
         _preferences.value = preferences
     }
 
@@ -144,6 +145,7 @@ internal class IosFormattingPreferencesStoreImpl : FormattingPreferencesStore {
                 ?.takeIf { it != ReaderTheme.Auto }
                 ?: ThemeSchedule.DEFAULT_NIGHT_THEME,
         ),
+        forcePaginatedInLandscape = boolOrDefault(KEY_FORCE_PAGINATED_IN_LANDSCAPE, FormattingPreferences.DEFAULT_FORCE_PAGINATED_IN_LANDSCAPE),
     )
 
     private fun boolOrDefault(key: String, default: Boolean): Boolean =
@@ -179,6 +181,7 @@ internal class IosFormattingPreferencesStoreImpl : FormattingPreferencesStore {
         const val KEY_SCHEDULE_NIGHT_START = "formatting.theme_schedule_night_start_minute_of_day"
         const val KEY_SCHEDULE_DAY_THEME = "formatting.theme_schedule_day_theme"
         const val KEY_SCHEDULE_NIGHT_THEME = "formatting.theme_schedule_night_theme"
+        const val KEY_FORCE_PAGINATED_IN_LANDSCAPE = "formatting.force_paginated_in_landscape"
     }
 }
 

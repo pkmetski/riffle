@@ -29,4 +29,11 @@ interface PlatformSettingsHooks {
     /** Runs [block] whenever the screen resumes (e.g. returns from background). */
     @Composable
     fun OnResumeEffect(block: () -> Unit)
+
+    /**
+     * True when the platform can intercept hardware volume-key events for reader navigation.
+     * iOS: false — the OS handles volume keys before any app can consume them.
+     * Android: true.
+     */
+    fun supportsVolumeKeyNavigation(): Boolean = true
 }
