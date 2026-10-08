@@ -215,9 +215,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Initialize ADB
         run: |
-          adb kill-server || true
-          adb start-server
-          adb devices
+          $ANDROID_HOME/platform-tools/adb kill-server || true
+          $ANDROID_HOME/platform-tools/adb start-server
+          $ANDROID_HOME/platform-tools/adb devices
       - name: Run Android phone harness tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -295,9 +295,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Initialize ADB
         run: |
-          adb kill-server || true
-          adb start-server
-          adb devices
+          $ANDROID_HOME/platform-tools/adb kill-server || true
+          $ANDROID_HOME/platform-tools/adb start-server
+          $ANDROID_HOME/platform-tools/adb devices
       - name: Run Android tablet harness tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
