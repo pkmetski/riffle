@@ -577,9 +577,9 @@ class AnnotationFocusHarnessTest : KoinTest {
         // The Search icon is gated on ReaderState.Ready. During a chapter navigation triggered by
         // the previous search result, the reader briefly re-enters a loading state and Search
         // disappears from the semantic tree. Vertical mode (scroll=true Readium) re-enters Ready
-        // more slowly than paginated. 25 s → 50 s proved insufficient on slow CI runners;
-        // budget 90 s to cover the slowest observed runner.
-        composeTestRule.waitUntil(timeoutMillis = 90_000) {
+        // more slowly than paginated. 25 s → 50 s → 90 s proved insufficient on slow CI runners;
+        // budget 120 s to cover the slowest observed runner.
+        composeTestRule.waitUntil(timeoutMillis = 120_000) {
             composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
         }
         // The Search icon can disappear between the waitUntil pass and performClick if the reader

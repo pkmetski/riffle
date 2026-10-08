@@ -99,9 +99,10 @@ internal sealed interface LibraryNav {
 }
 
 /**
- * The reader/player [item] opens, or `null` when no iOS surface can render it. Callers keep the
- * current destination on `null` rather than dismissing, so "Read" on an unsupported format is
- * inert instead of silently closing the sheet.
+ * The reader/player [item] opens for a **Listen** action, or `null` when no iOS surface can
+ * render it. `isListenable` wins so a combined ebook+audio item opens the audiobook player.
+ * Callers keep the current destination on `null` rather than dismissing, so "Listen" on an
+ * unsupported format is inert instead of silently closing the sheet.
  */
 internal fun readerNavForItem(item: LibraryItem): LibraryNav.ReaderDestination? = when {
     item.isListenable -> LibraryNav.AudiobookPlayer(item)
@@ -109,6 +110,38 @@ internal fun readerNavForItem(item: LibraryItem): LibraryNav.ReaderDestination? 
     item.ebookFormat == EbookFormat.Cbz -> LibraryNav.CbzReader(item)
     item.isReadable -> LibraryNav.Reader(item)
     else -> null
+}
+
+/**
+ * The reader [item] opens for a **Read** action, or `null` when no iOS surface can render it.
+ *
+ * Unlike [readerNavForItem], ebook format wins over `isListenable` — mirroring Android's
+ * `readerRouteFor` rule. A combined ebook+audio item opens the EPUB reader via the Read button
+ * while the audiobook player is still reachable via the Listen button (which calls
+ * [readerNavForItem]). Falls back to `AudiobookPlayer` only for pure-audio items that have no
+ * readable ebook format.
+ */
+internal fun readNavForItem(item: LibraryItem): LibraryNav.ReaderDestination? = when {
+    item.ebookFormat == EbookFormat.Pdf -> LibraryNav.PdfReader(item)
+    item.ebookFormat == EbookFormat.Cbz -> LibraryNav.CbzReader(item)
+    item.isReadable -> LibraryNav.Reader(item)
+    item.isListenable -> LibraryNav.AudiobookPlayer(item)
+    else -> null
+}
+
+/**
+ * Same as [openItemForReading] but uses [readNavForItem] — routes by ebook format rather than
+ * `isListenable`. Used for the "Read" button so that ebook+audio items open the EPUB reader
+ * instead of the audiobook player (which is reserved for "Listen").
+ */
+internal fun openReadItemForReading(
+    item: LibraryItem,
+    applicationScope: ApplicationScope,
+    recordItemOpened: suspend (itemId: String) -> Unit,
+): LibraryNav.ReaderDestination? {
+    val destination = readNavForItem(item) ?: return null
+    applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+    return destination
 }
 
 /**
