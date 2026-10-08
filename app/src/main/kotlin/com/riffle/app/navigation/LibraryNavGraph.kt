@@ -30,13 +30,20 @@ import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.app.feature.navigation.HomeScreen
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
+import com.riffle.feature.library.CollectionDetailViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.LibraryItemDetailViewModel
+import com.riffle.feature.library.LibraryItemsViewModel
+import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
+import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
@@ -115,6 +122,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
         LibraryItemsScreen(
             libraryId = libraryId,
             libraryName = libraryName,
+            viewModel = koinViewModel<LibraryItemsViewModel>(parameters = { parametersOf(libraryId) }),
+            annotationsViewModel = koinViewModel<AnnotationsListViewModel>(parameters = { parametersOf(libraryId) }),
             onOpenDrawer = { scope.launch { drawerState.open() } },
             onSeriesSelected = { series ->
                 navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
@@ -208,6 +217,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
         LibrarySectionScreen(
             libraryId = sectionLibraryId,
             sectionType = sectionType,
+            viewModel = koinViewModel<LibrarySectionViewModel>(parameters = { parametersOf(sectionLibraryId, sectionType) }),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
             },
@@ -232,6 +242,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             seriesId = seriesId,
             libraryId = seriesLibraryId,
             seriesName = seriesName,
+            viewModel = koinViewModel<SeriesDetailViewModel>(parameters = { parametersOf(seriesId, seriesLibraryId) }),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
             },
@@ -256,6 +267,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             collectionId = collectionId,
             libraryId = collectionLibraryId,
             collectionName = collectionName,
+            viewModel = koinViewModel<CollectionDetailViewModel>(parameters = { parametersOf(collectionId, collectionLibraryId) }),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
             },
@@ -278,6 +290,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
         LibraryItemDetailScreen(
             itemId = itemId,
             sourceId = sourceId,
+            vm = koinViewModel<LibraryItemDetailViewModel>(parameters = { parametersOf(itemId, sourceId) }),
             onBack = { navController.popBackStackIfTop(backStackEntry) },
             onRead = { item ->
                 readerRouteFor(item)?.let { navController.navigate(it) }

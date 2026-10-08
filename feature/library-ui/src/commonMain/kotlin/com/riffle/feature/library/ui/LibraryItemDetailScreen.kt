@@ -152,8 +152,8 @@ fun LibraryItemDetailScreen(
     onFacetSelected: (libraryId: String, facet: FacetType, value: String) -> Unit = { _, _, _ -> },
     onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit = { _, _, _ -> },
     onEditMetadata: (() -> Unit)? = null,
+    vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) }),
 ) {
-    val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
 
     val uiState by vm.uiState.collectAsState()
     val downloadState by vm.downloadState.collectAsState()

@@ -145,7 +145,7 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 private val libraryViewModelModule = module {
-    factory { params ->
+    viewModel { params ->
         LibraryItemsViewModel(
             libraryId = params.get(),
             libraryObserver = get(),
@@ -167,7 +167,7 @@ private val libraryViewModelModule = module {
             dispatchers = get(),
         )
     }
-    factory { params ->
+    viewModel { params ->
         LibraryItemDetailViewModel(
             itemId = params.get(),
             sourceId = params.get(),
@@ -206,7 +206,7 @@ private val libraryViewModelModule = module {
             webSourceLibraryItemUpserter = get(),
         )
     }
-    factory { params ->
+    viewModel { params ->
         LibrarySectionViewModel(
             libraryId = params.get(),
             sectionType = params.get(),
@@ -226,7 +226,7 @@ private val libraryViewModelModule = module {
             readaloudLinkRepository = get(),
         )
     }
-    factory { params ->
+    viewModel { params ->
         SeriesDetailViewModel(
             seriesId = params.get(),
             libraryId = params.get(),
@@ -238,7 +238,7 @@ private val libraryViewModelModule = module {
             connectivityObserver = get(),
         )
     }
-    factory { params ->
+    viewModel { params ->
         CollectionDetailViewModel(
             collectionId = params.get(),
             libraryId = params.get(),
@@ -686,7 +686,7 @@ private val audiobookViewModelModule = module {
 }
 
 private val annotationsViewModelModule = module {
-    factory { params ->
+    viewModel { params ->
         AnnotationsListViewModel(
             libraryId = params.get(),
             sourceRepository = get(),
