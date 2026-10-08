@@ -10,6 +10,7 @@ import com.riffle.app.feature.reader.readaloud.AudioPlayerService
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.models.AudiobookTracks
 import com.riffle.core.common.Clock
@@ -20,7 +21,10 @@ import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.feature.player.AudioPlayerInterface
 import com.riffle.feature.player.NowPlayingMetadataKey
+import com.riffle.feature.player.PendingSeekGate
+import com.riffle.feature.player.ResumePlaybackGate
 import com.riffle.feature.player.SkipIntervals
+import com.riffle.feature.player.SleepTimerDriver
 import com.riffle.feature.player.SleepTimerMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -69,8 +73,20 @@ open class AudiobookController constructor(
     private val _state = MutableStateFlow(AudioPlayerInterface.PlaybackState())
     override val state: StateFlow<AudioPlayerInterface.PlaybackState> = _state.asStateFlow()
 
-    private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
-    override val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+    private val sleepDriver = SleepTimerDriver(scope) {
+        repeat(SleepTimerDriver.FADE_STEPS) { i ->
+            controller?.setVolume((1f - (i + 1f) / SleepTimerDriver.FADE_STEPS).coerceAtLeast(0f))
+            delay(SleepTimerDriver.FADE_STEP_MS)
+        }
+        pollJob?.cancel()
+        // Reset wantsToPlay before pausing so the Player.Listener EVENT_IS_PLAYING_CHANGED
+        // callback that fires after pause() does not immediately restart via maybeStart().
+        wantsToPlay = false
+        controller?.pause()
+        controller?.setVolume(1f)
+    }
+    override val sleepTimer: StateFlow<SleepTimerMode> get() = sleepDriver.sleepTimer
+    override val sleepTimerFired: SharedFlow<Unit> get() = sleepDriver.fired
 
     // replay=1 so a STATE_ENDED that fires while no collector is attached — e.g. across an Activity
     // recreation (rotation, theme change) right at end-of-book — is still delivered to the next
@@ -78,14 +94,11 @@ open class AudiobookController constructor(
     // after that point can't re-trigger; idempotent.
     private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     override val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
-    private val _sleepTimerFired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    override val sleepTimerFired: SharedFlow<Unit> = _sleepTimerFired.asSharedFlow()
-    private var timerJob: Job? = null
 
     private val controller: MediaController? get() = connector?.controller
     private var pollJob: Job? = null
     private var spans: List<AudiobookTrackSpan> = emptyList()
-    private var chapters: List<AudiobookChapter> = emptyList()
+    private var timeline: AudiobookTimeline = AudiobookTimeline(durationSec = 0.0)
     private var durationSec: Double = 0.0
     private var prepared = false
     private var wantsToPlay = false
@@ -137,7 +150,7 @@ open class AudiobookController constructor(
         logger.d(LogChannel.Handoff) { "AB.prepare start (controller already connected=${controller != null})" }
         val t0 = clock.nowMs()
         this.spans = spans
-        this.chapters = chapters
+        this.timeline = AudiobookTimeline(durationSec = durationSec, chapters = chapters)
         this.durationSec = durationSec
         SharedAudiobookContext.spans = spans
         SharedAudiobookContext.totalDurationMs = (durationSec * 1000.0).toLong()
@@ -149,7 +162,7 @@ open class AudiobookController constructor(
         val c = ensureConnected() ?: return
         logger.d(LogChannel.Handoff) { "AB.prepare ensureConnected +${clock.nowMs() - t0}ms" }
         val initialRemainingSec = NowPlayingMetadataKey.remainingSec(startAtSec, durationSec)
-        val initialChapter = chapterAt(startAtSec)
+        val initialChapter = timeline.chapterAt(startAtSec)
         lastNowPlayingKey = NowPlayingMetadataKey.of(startAtSec, durationSec, initialChapter)
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
@@ -199,9 +212,7 @@ open class AudiobookController constructor(
     }
 
     override fun pause() {
-        timerJob?.cancel()
-        timerJob = null
-        _sleepTimer.value = SleepTimerMode.None
+        sleepDriver.cancel()
         wantsToPlay = false
         controller?.pause()
         pollJob?.cancel()
@@ -234,48 +245,17 @@ open class AudiobookController constructor(
     }
 
     override fun setSleepTimer(mode: SleepTimerMode) {
-        timerJob?.cancel()
-        timerJob = null
-        _sleepTimer.value = mode
-        if (mode is SleepTimerMode.CountDown) {
-            timerJob = scope.launch {
-                var remaining = mode.remainingMs
-                while (remaining > 0L) {
-                    _sleepTimer.value = SleepTimerMode.CountDown(remaining)
-                    delay(1_000L)
-                    remaining -= 1_000L
-                }
-                fadeAndStop()
-            }
-        }
+        sleepDriver.set(mode)
         // EndOfChapter: no countdown needed; ViewModel calls triggerSleepNow() on chapter change.
     }
 
     override fun cancelSleepTimer() {
-        timerJob?.cancel()
-        timerJob = null
-        _sleepTimer.value = SleepTimerMode.None
+        sleepDriver.cancel()
     }
 
     // Called by ViewModel when a chapter boundary is crossed in EndOfChapter mode.
     override fun triggerSleepNow() {
-        timerJob?.cancel()
-        timerJob = scope.launch { fadeAndStop() }
-    }
-
-    private suspend fun fadeAndStop() {
-        repeat(FADE_STEPS) { i ->
-            controller?.setVolume((1f - (i + 1f) / FADE_STEPS).coerceAtLeast(0f))
-            delay(FADE_STEP_MS)
-        }
-        pollJob?.cancel()
-        // Reset wantsToPlay before pausing so the Player.Listener EVENT_IS_PLAYING_CHANGED
-        // callback that fires after pause() does not immediately restart via maybeStart().
-        wantsToPlay = false
-        controller?.pause()
-        controller?.setVolume(1f)
-        _sleepTimer.value = SleepTimerMode.None
-        _sleepTimerFired.tryEmit(Unit)
+        sleepDriver.triggerNow()
     }
 
     /** Seeks to a book-absolute position, resolving it to the right track + offset. */
@@ -341,7 +321,7 @@ open class AudiobookController constructor(
         _playbackEnded.resetReplayCache()
         connector?.release()
         spans = emptyList()
-        chapters = emptyList()
+        timeline = AudiobookTimeline(durationSec = 0.0)
         prepared = false
         wantsToPlay = false
         // Release the bundle reference only if THIS session set it (parity with ReadaloudController),
@@ -377,7 +357,7 @@ open class AudiobookController constructor(
         }
         connector?.releaseForHandoff()
         spans = emptyList()
-        chapters = emptyList()
+        timeline = AudiobookTimeline(durationSec = 0.0)
         prepared = false
         wantsToPlay = false
         ownsSharedBundle = false
@@ -445,7 +425,7 @@ open class AudiobookController constructor(
     private fun maybeUpdateRemainingMetadata(c: MediaController?, positionSec: Double) {
         if (c == null || !prepared || durationSec <= 0.0) return
         val remaining = NowPlayingMetadataKey.remainingSec(positionSec, durationSec)
-        val chapter = chapterAt(positionSec)
+        val chapter = timeline.chapterAt(positionSec)
         val key = NowPlayingMetadataKey.of(positionSec, durationSec, chapter)
         if (key == lastNowPlayingKey) return
         val index = c.currentMediaItemIndex
@@ -458,17 +438,10 @@ open class AudiobookController constructor(
         c.replaceMediaItem(index, item.buildUpon().setMediaMetadata(newMetadata).build())
     }
 
-    private fun chapterAt(positionSec: Double): AudiobookChapter? {
-        if (chapters.isEmpty()) return null
-        return chapters.lastOrNull { positionSec >= it.startSec } ?: chapters.first()
-    }
-
     companion object {
         const val REWIND_SEC = 15.0
         const val FORWARD_SEC = 30.0
         private const val POLL_INTERVAL_MS = 250L
-        private const val FADE_STEPS = 50
-        private const val FADE_STEP_MS = 100L
 
         private val UnconfinedDispatcherProvider = object : DispatcherProvider {
             override val main = kotlinx.coroutines.Dispatchers.Unconfined

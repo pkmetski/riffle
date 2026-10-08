@@ -155,8 +155,17 @@ interface IosEndOfBookCallback {
 /**
  * Lock-screen / Control Centre transport commands, resolved against the book timeline by
  * [IosAudioPlayerController]. Same interface-not-lambda rationale as [IosPositionCallback].
+ *
+ * Play and pause are routed here (not called on the bridge directly) so the Kotlin controller's
+ * [IosAudioPlayerController.pause] can cancel the sleep timer — a direct bridge call bypasses it.
  */
 interface IosRemoteCommandCallback {
+    /** Play command from lock screen / Control Centre / CarPlay. */
+    fun onPlay()
+
+    /** Pause command from lock screen / Control Centre / CarPlay. */
+    fun onPause()
+
     /** Now Playing scrubber dragged to a **book-absolute** [positionSec]. */
     fun onSeekAbsolute(positionSec: Double)
 
