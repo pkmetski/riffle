@@ -18,7 +18,8 @@ kotlin {
         }
     }
     jvm()
-    // BundledSQLiteDriver packages its own SQLite; no system SQLite linker flag needed.
+    iosArm64()
+    iosSimulatorArm64()
 
     sourceSets {
         commonTest.dependencies {

@@ -5,7 +5,6 @@ import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LocalMinuteTime
-import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
@@ -191,4 +190,3 @@ private fun minuteOfDayToLocalTime(value: Int): LocalMinuteTime {
     val clamped = value.coerceIn(0, 24 * 60 - 1)
     return LocalMinuteTime.of(clamped / 60, clamped % 60)
 }
-

@@ -7,12 +7,12 @@ import com.riffle.core.common.IosRandomProvider
 import com.riffle.core.common.RandomProvider
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
+import com.riffle.core.data.BookComicFormattingPreferencesStoreImpl
+import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.CatalogSyncSourceResolver
 import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.IosAudiobookSleepStopStoreImpl
-import com.riffle.core.data.BookComicFormattingPreferencesStoreImpl
-import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosCatalogProgressRemoteFactory
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosConnectivityObserver
