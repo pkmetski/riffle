@@ -10,10 +10,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -30,9 +28,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,7 +36,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -71,7 +65,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -716,12 +709,15 @@ fun EpubReaderScreen(
                         )
                     }
                     if (annotationsPanelVisible) {
-                        AnnotationsPanel(
+                        com.riffle.feature.reader.ui.SharedAnnotationsPanel(
                             annotations = annotations,
                             onNavigate = { id -> viewModel.navigateToAnnotation(id) },
                             onDelete = { id -> viewModel.deleteAnnotation(id) },
                             onRename = { id, title -> viewModel.renameBookmark(id, title) },
                             onDismiss = viewModel::closeAnnotationsPanel,
+                            figureContent = { dataUri, _, imgModifier ->
+                                AndroidFigureImage(href = dataUri, publication = null, modifier = imgModifier)
+                            },
                         )
                     }
                     lookupTarget?.let { target ->
@@ -858,130 +854,91 @@ fun EpubReaderScreen(
             }
         }
 
-        AnimatedVisibility(
-            visible = !immersiveState.isImmersive,
-            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
-            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
-        ) {
-            if (isSearchActive) {
-                SearchTopBar(
-                    query = searchQuery,
-                    resultCount = searchResults.size,
-                    currentIndex = currentSearchIndex,
-                    onQueryChange = viewModel::onSearchQueryChanged,
-                    onPrev = viewModel::prevSearchResult,
-                    onNext = viewModel::nextSearchResult,
-                    onClose = viewModel::closeSearch,
-                    onNavigateBack = onNavigateBack,
-                )
-            } else {
-                val formatContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_format)
-                TopAppBar(
-                    title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
-                    navigationIcon = {
-                        IconButton(
-                            onClick = onNavigateBack,
-                            modifier = Modifier.testTag(TestTags.READER_BACK),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
-                        }
-                    },
-                    actions = {
-                        if (state is ReaderState.Ready) {
-                            IconButton(
-                                onClick = viewModel::openSearch,
-                                modifier = Modifier.testTag(TestTags.READER_SEARCH),
-                            ) {
-                                Icon(Icons.Default.Search, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search))
-                            }
-                            IconButton(
-                                onClick = viewModel::openToc,
-                                modifier = Modifier.testTag(TestTags.READER_TOC),
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents))
-                            }
-                            IconButton(
-                                onClick = viewModel::openAnnotationsPanel,
-                                modifier = Modifier.testTag(TestTags.READER_ANNOTATIONS),
-                            ) {
-                                Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations))
-                            }
-                            IconButton(
-                                onClick = { showFormattingPanel = true },
-                                modifier = Modifier.testTag(TestTags.READER_SETTINGS),
-                            ) {
-                                Text(
-                                    "Aa",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.semantics { contentDescription = formatContentDescription },
-                                )
-                            }
-                            val autoScrollState by viewModel.autoScrollState.collectAsState()
-                            if (formattingPrefs.showAutoScroll &&
-                                (effectiveOrientation == ReaderOrientation.Vertical || effectiveOrientation == ReaderOrientation.Continuous)
-                            ) {
-                                com.riffle.feature.reader.ui.AutoScrollToggleIcon(
-                                    isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
-                                    onClick = {
-                                        if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
-                                            viewModel.stopAutoScroll()
-                                        } else {
-                                            viewModel.startAutoScroll()
-                                        }
-                                    },
-                                )
-                            }
-                            val cadenceState by viewModel.cadenceState.collectAsState()
-                            val cadencePlatformSupported by viewModel.cadencePlatformSupported.collectAsState()
-                            if (formattingPrefs.showCadence && cadencePlatformSupported) {
-                                val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
-                                com.riffle.feature.reader.ui.CadenceToggleIcon(
-                                    isRunning = cadenceRunning,
-                                    onClick = {
-                                        if (cadenceRunning) viewModel.stopCadence()
-                                        else viewModel.startCadence()
-                                    },
-                                )
-                            }
-                            if (readaloudVisible && showReadaloudUi) {
-                                IconButton(
-                                    onClick = viewModel::openReadaloud,
-                                    enabled = readaloudAvailable,
-                                    modifier = Modifier.testTag(TestTags.READER_READALOUD),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_readaloud),
-                                        contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud),
-                                    )
-                                }
-                            }
-                            if (shouldShowShareHighlights(viewModel.readerSource)) {
-                                if (isExporting) {
-                                    Box(
-                                        modifier = Modifier.size(48.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            strokeWidth = 2.dp,
-                                        )
-                                    }
-                                } else {
-                                    IconButton(onClick = viewModel::onShareElidedView) {
-                                        Icon(
-                                            imageVector = Icons.Default.Share,
-                                            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_share_annotations_as_pdf),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    colors = readerTopAppBarColors(),
-                )
-            }
+        if (!immersiveState.isImmersive && isSearchActive) {
+            com.riffle.feature.reader.ui.SharedSearchTopBar(
+                query = searchQuery,
+                resultCount = searchResults.size,
+                currentIndex = currentSearchIndex,
+                onQueryChange = viewModel::onSearchQueryChanged,
+                onPrev = viewModel::prevSearchResult,
+                onNext = viewModel::nextSearchResult,
+                onClose = viewModel::closeSearch,
+                onNavigateBack = onNavigateBack,
+            )
         }
+        com.riffle.feature.reader.ui.ReaderTopBar(
+            visible = !immersiveState.isImmersive && !isSearchActive,
+            title = title,
+            isReady = state is ReaderState.Ready,
+            onBack = onNavigateBack,
+            onSearch = viewModel::openSearch,
+            onToc = viewModel::openToc,
+            onAnnotations = viewModel::openAnnotationsPanel,
+            onFormat = { showFormattingPanel = true },
+            extraActions = {
+                if (state is ReaderState.Ready) {
+                    val autoScrollState by viewModel.autoScrollState.collectAsState()
+                    if (formattingPrefs.showAutoScroll &&
+                        (effectiveOrientation == ReaderOrientation.Vertical || effectiveOrientation == ReaderOrientation.Continuous)
+                    ) {
+                        com.riffle.feature.reader.ui.AutoScrollToggleIcon(
+                            isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
+                            onClick = {
+                                if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
+                                    viewModel.stopAutoScroll()
+                                } else {
+                                    viewModel.startAutoScroll()
+                                }
+                            },
+                        )
+                    }
+                    val cadenceState by viewModel.cadenceState.collectAsState()
+                    val cadencePlatformSupported by viewModel.cadencePlatformSupported.collectAsState()
+                    if (formattingPrefs.showCadence && cadencePlatformSupported) {
+                        val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
+                        com.riffle.feature.reader.ui.CadenceToggleIcon(
+                            isRunning = cadenceRunning,
+                            onClick = {
+                                if (cadenceRunning) viewModel.stopCadence()
+                                else viewModel.startCadence()
+                            },
+                        )
+                    }
+                    if (readaloudVisible && showReadaloudUi) {
+                        IconButton(
+                            onClick = viewModel::openReadaloud,
+                            enabled = readaloudAvailable,
+                            modifier = Modifier.testTag(TestTags.READER_READALOUD),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_readaloud),
+                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud),
+                            )
+                        }
+                    }
+                    if (shouldShowShareHighlights(viewModel.readerSource)) {
+                        if (isExporting) {
+                            Box(
+                                modifier = Modifier.size(48.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = viewModel::onShareElidedView) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_share_annotations_as_pdf),
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+        )
 
         if (showFormattingPanel) {
             ReaderSettingsSheet(
@@ -995,7 +952,7 @@ fun EpubReaderScreen(
         }
         footnotePopup?.let { popupState ->
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-            FootnotePopup(
+            com.riffle.feature.reader.ui.FootnotePopup(
                 state = popupState,
                 onDismiss = viewModel::dismissFootnotePopup,
                 onLinkTap = { url ->
@@ -1011,7 +968,7 @@ fun EpubReaderScreen(
         }
         val returnTarget by viewModel.returnTarget.collectAsState()
         if (returnTarget != null) {
-            ReturnToPositionCard(
+            com.riffle.feature.reader.ui.ReturnToPositionCard(
                 onReturn = viewModel::returnToCapturedPosition,
                 onDismiss = viewModel::dismissReturnTarget,
             )
@@ -1038,7 +995,7 @@ fun EpubReaderScreen(
         // Auto-Scroll HUD pill — overlays everything else and survives Immersive Mode.
         com.riffle.feature.reader.ui.AutoScrollHudPill(
             state = autoScrollStateForPill,
-            labels = androidSpeedHudLabels(),
+            labels = com.riffle.feature.reader.ui.speedHudLabels(),
             onPause = { viewModel.pauseAutoScrollFromPill() },
             onResume = { viewModel.resumeAutoScrollFromPill() },
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
@@ -1050,7 +1007,7 @@ fun EpubReaderScreen(
         val cadenceStateForPill by viewModel.cadenceState.collectAsState()
         com.riffle.feature.reader.ui.CadenceHudPill(
             state = cadenceStateForPill,
-            labels = androidCadenceHudLabels(),
+            labels = com.riffle.feature.reader.ui.cadenceHudLabels(),
             onPause = { viewModel.pauseCadence(com.riffle.core.domain.cadence.PauseCause.PanelOpen) },
             onResume = { viewModel.resumeCadenceIfPaused() },
             onSlower = { viewModel.nudgeCadence(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
@@ -1063,10 +1020,16 @@ fun EpubReaderScreen(
         // Figure-zoom overlay — mounted at the outermost Box so it dims and covers every reader
         // mode, all reader chrome, and every bottom stack element (readaloud, chapter rail).
         val figureZoom by viewModel.figureZoom.collectAsState()
-        FigureZoomOverlay(
+        val figurePublication = (state as? ReaderState.Ready)?.publication
+        com.riffle.feature.reader.ui.FigureZoomOverlay(
             state = figureZoom,
-            publication = (state as? ReaderState.Ready)?.publication,
             onDismiss = viewModel::dismissFigureZoom,
+            imageContent = { href, imgModifier ->
+                AndroidFigureImage(href = href, publication = figurePublication, modifier = imgModifier)
+            },
+            svgContent = { svgMarkup, imgModifier ->
+                AndroidSvgWebView(svgMarkup = svgMarkup, modifier = imgModifier)
+            },
         )
     }
 }
@@ -1114,7 +1077,7 @@ private fun EpubChapterRailOverlay(
         showCurrentChapterLabel = showChapterNameLabel,
         showProgressLabels = showProgressLabels,
         showReadingTimeEstimate = showReadingTimeEstimate,
-        templates = chapterMapProgressLabelTemplates(),
+        templates = com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates(),
         chapterTimeRemaining = chapterTimeRemaining,
         bookTimeRemaining = bookTimeRemaining,
         bookmarkPositions = bookmarkPositions,

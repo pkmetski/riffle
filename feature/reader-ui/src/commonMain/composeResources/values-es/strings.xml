@@ -54,6 +54,9 @@
     <string name="ui_pause_cadence">Pausar cadencia</string>
     <string name="ui_resume_cadence">Reanudar cadencia</string>
 
+    <!-- Loading state -->
+    <string name="ui_opening_book">Abriendo libro…</string>
+
     <!-- Chapter map overlay -->
     <string name="ui_chapter_progress_count">Capítulo %1$d de %2$d</string>
     <string name="ui_reader_duration_minutes">%1$d min</string>

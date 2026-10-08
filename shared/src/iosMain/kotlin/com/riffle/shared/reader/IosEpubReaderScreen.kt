@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -99,6 +101,7 @@ import com.riffle.feature.reader.ui.AutoScrollToggleIcon
 import com.riffle.feature.reader.ui.CadenceHudPill
 import com.riffle.feature.reader.ui.CadenceToggleIcon
 import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.FigureZoomOverlay
 import com.riffle.feature.reader.ui.FootnotePopup
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.ReaderTopBar
@@ -111,8 +114,11 @@ import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.settings.ui.readersettings.TocPanel
+import com.riffle.feature.reader.ui.generated.resources.Res
+import com.riffle.feature.reader.ui.generated.resources.ui_opening_book
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import kotlinx.coroutines.CoroutineScope
+import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -317,9 +323,12 @@ fun EpubReaderScreen(
         combine(
             formattingPreferencesStore.preferences,
             appearanceCoordinator.resolved,
-        ) { prefs, appearance -> prefs to prefs.withResolvedTheme(appearance) }
-            .collect { (stored, prefs) ->
-                val effective = bookOverrides.applyTo(prefs)
+            snapshotFlow { bookOverrides },
+        ) { prefs, appearance, overrides ->
+            Triple(prefs, prefs.withResolvedTheme(appearance), overrides)
+        }
+            .collect { (stored, prefs, overrides) ->
+                val effective = overrides.applyTo(prefs)
                 storedPrefs = stored
                 resolvedPrefs = effective
                 orientationRef.value = effective.orientation
@@ -663,6 +672,21 @@ fun EpubReaderScreen(
     // open) hides its row too.
     var cadenceSupported by remember(item.id) { mutableStateOf(true) }
 
+    // Pause Auto-Scroll and Cadence while any reader panel is open (TOC / Formatting / Search /
+    // Annotations); resume on close. Mirrors Android's LaunchedEffect in EpubReaderScreen.kt
+    // (ADR 0053). Uses the same Pause/Resume event shape so the cause-scoped resume logic
+    // in AutoScrollController and CadenceController doesn't un-park a longer-lived pause.
+    LaunchedEffect(annotationsPanelOpen, settingsOpen, searchOpen, tocOpen) {
+        val anyOpen = annotationsPanelOpen || settingsOpen || searchOpen || tocOpen
+        if (anyOpen) {
+            autoScroll.dispatch(AutoScrollEvent.Pause(PauseCause.PanelOpen))
+            cadence.pauseFor(CadencePauseCause.PanelOpen)
+        } else {
+            autoScroll.dispatch(AutoScrollEvent.Resume)
+            cadence.resumeIfPaused()
+        }
+    }
+
     LaunchedEffect(cadence) {
         // Defect fixed here and on Android in the same change: `cadenceWpm` never reached a
         // running session, so Cadence always ticked at AutoScrollSpeed.Default.
@@ -866,7 +890,7 @@ fun EpubReaderScreen(
                 BasicText(loadError ?: "Error")
             }
             localPath == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText("Opening book…")
+                CircularProgressIndicator()
             }
             else -> UIKitViewController(
                 factory = { bridge.viewController() },
@@ -875,13 +899,15 @@ fun EpubReaderScreen(
             )
         }
 
-        // Figure zoom overlay — fullscreen, above all reader layers including chrome. Mirrors the
-        // Android placement at the top of EpubReaderScreen's outer Box.
-        IosEpubFigureZoomOverlay(
+        // Figure zoom overlay — fullscreen, above all reader layers including chrome. Shared
+        // gesture logic lives in FigureZoomOverlay (reader-ui); iOS-specific image/SVG rendering
+        // is injected via the imageContent/svgContent lambdas.
+        FigureZoomOverlay(
             state = figureZoomState,
-            navigator = navigator,
             onDismiss = { figureZoomState = null },
             modifier = Modifier.fillMaxSize(),
+            imageContent = { href, imgModifier -> IosEpubFigureImage(href, navigator, imgModifier) },
+            svgContent = { svgMarkup, imgModifier -> IosEpubSvgView(svgMarkup, imgModifier) },
         )
 
         // Shared M3 top bar (slides in/out with chromeVisible).

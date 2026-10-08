@@ -62,28 +62,7 @@ import com.riffle.feature.reader.ui.AnnotationSheetLabels
 import com.riffle.feature.reader.ui.EmphasisChipRow
 import com.riffle.feature.reader.ui.HighlightSwatchRow
 
-/**
- * The strings the shared annotation rows need, from this app's resources — so `values-bg` and
- * `values-es` keep serving them while the composables themselves live in `:feature:reader-ui`
- * and are rendered by both platforms.
- */
-@Composable
-internal fun rememberAnnotationSheetLabels(): AnnotationSheetLabels = AnnotationSheetLabels(
-    noHighlightColor = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_no_highlight_color),
-    selectedSuffix = ", selected",
-    highlightSuffix = " highlight",
-    emphasis = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_emphasis),
-    activeSuffix = ", active",
-    note = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_note),
-    addNote = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_add_a_note),
-    edit = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_edit),
-    save = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_save),
-    remove = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_remove),
-    cancel = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_cancel),
-    delete = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_delete_annotation),
-    bookmark = "Bookmark this page",
-    removeBookmark = "Remove bookmark",
-)
+// annotationSheetLabels() moved to feature:reader-ui commonMain (composeResources-backed).
 
 @Composable
 fun HighlightActionsPopup(
@@ -106,7 +85,7 @@ fun HighlightActionsPopup(
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
     val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }
-    val sheetLabels = rememberAnnotationSheetLabels()
+    val sheetLabels = com.riffle.feature.reader.ui.annotationSheetLabels()
 
     Popup(
         popupPositionProvider = provider,
