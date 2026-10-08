@@ -224,9 +224,13 @@ import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
 import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
+import com.riffle.core.data.AnnotationSyncMaintenance
+import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
+import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
@@ -876,6 +880,30 @@ private fun iosLibraryModule(
         )
     }
     viewModel { ChangelogViewModel(appUpdateRepository = get()) }
+    single {
+        val holder = get<AnnotationSyncTargetHolder>()
+        AnnotationSyncMaintenance(targetProvider = { holder.current() })
+    }
+    viewModel {
+        AnnotationSyncMaintenanceViewModel(
+            configStore = get(),
+            maintenance = get(),
+            deviceIdStore = get(),
+            deviceLabelStore = get(),
+            deviceLabelResolver = get(),
+            sourceRepository = get(),
+            statusStore = get(),
+        )
+    }
+    factory { params ->
+        ReadaloudMatchesViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("sourceId" to params.get<String>())),
+            reviewRepository = get(),
+            reviewActions = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+        )
+    }
     single<Clock> { IosSystemClock }
     single<TimeProvider> { SystemTimeProvider }
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
