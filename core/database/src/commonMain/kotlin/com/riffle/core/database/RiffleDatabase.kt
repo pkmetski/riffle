@@ -278,9 +278,9 @@ abstract class RiffleDatabase : RoomDatabase() {
         // The new FK to servers(id) cascade-deletes positions when a server is removed.
         val MIGRATION_18_19 = object : Migration(18, 19) {
             override fun migrate(db: SQLiteConnection) {
-                val activeServerId: String? = db.query("SELECT id FROM servers WHERE isActive = 1 LIMIT 1").use { c ->
-                    if (c.moveToFirst()) c.getString(0) else null
-                }
+                val activeServerId: String? = db.prepare(
+                    "SELECT id FROM servers WHERE isActive = 1 LIMIT 1"
+                ).use { stmt -> if (stmt.step()) stmt.getText(0) else null }
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `reading_positions_new` (" +
                         "`serverId` TEXT NOT NULL, " +
@@ -291,11 +291,10 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
                 )
                 if (activeServerId != null) {
-                    db.execSQL(
+                    db.prepare(
                         "INSERT INTO `reading_positions_new` (serverId, itemId, cfi, localUpdatedAt) " +
-                            "SELECT ?, itemId, cfi, localUpdatedAt FROM `reading_positions`",
-                        arrayOf<Any>(activeServerId),
-                    )
+                            "SELECT ?, itemId, cfi, localUpdatedAt FROM `reading_positions`"
+                    ).use { stmt -> stmt.bindText(1, activeServerId); stmt.step() }
                 }
                 db.execSQL("DROP TABLE `reading_positions`")
                 db.execSQL("ALTER TABLE `reading_positions_new` RENAME TO `reading_positions`")
@@ -1406,19 +1405,25 @@ abstract class RiffleDatabase : RoomDatabase() {
                         val addedAt: Long,
                     )
                     val oldFolders = mutableListOf<OldFolder>()
-                    db.query("SELECT sourceId, treeUri, displayName, addedAtEpochMs FROM local_files_folders").use { c ->
-                        while (c.moveToNext()) {
-                            oldFolders += OldFolder(c.getString(0), c.getString(1), c.getString(2), c.getLong(3))
+                    db.prepare("SELECT sourceId, treeUri, displayName, addedAtEpochMs FROM local_files_folders").use { stmt ->
+                        while (stmt.step()) {
+                            oldFolders += OldFolder(stmt.getText(0)!!, stmt.getText(1)!!, stmt.getText(2)!!, stmt.getLong(3))
                         }
                     }
                     val folderToLibraryId = mutableMapOf<Pair<String, String>, String>()
                     for (f in oldFolders) {
                         val newLibraryId = legacyFolderLibraryId(f.sourceId, f.treeUri)
                         folderToLibraryId[f.sourceId to f.treeUri] = newLibraryId
-                        db.execSQL(
-                            "INSERT INTO `local_files_folders_new` (sourceId, treeUri, displayName, addedAtEpochMs, libraryId) VALUES (?, ?, ?, ?, ?)",
-                            arrayOf<Any>(f.sourceId, f.treeUri, f.displayName, f.addedAt, newLibraryId),
-                        )
+                        db.prepare(
+                            "INSERT INTO `local_files_folders_new` (sourceId, treeUri, displayName, addedAtEpochMs, libraryId) VALUES (?, ?, ?, ?, ?)"
+                        ).use { stmt ->
+                            stmt.bindText(1, f.sourceId)
+                            stmt.bindText(2, f.treeUri)
+                            stmt.bindText(3, f.displayName)
+                            stmt.bindLong(4, f.addedAt)
+                            stmt.bindText(5, newLibraryId)
+                            stmt.step()
+                        }
                     }
                     db.execSQL("DROP TABLE `local_files_folders`")
                     db.execSQL("ALTER TABLE `local_files_folders_new` RENAME TO `local_files_folders`")
@@ -1479,21 +1484,30 @@ abstract class RiffleDatabase : RoomDatabase() {
                     // 4. Insert one `LibraryEntity` per folder.
                     for (f in oldFolders) {
                         val newLibraryId = folderToLibraryId.getValue(f.sourceId to f.treeUri)
-                        db.execSQL(
-                            "INSERT OR REPLACE INTO `libraries` (id, name, mediaType, sourceId, isUnsupported) VALUES (?, ?, 'book', ?, 0)",
-                            arrayOf<Any>(newLibraryId, f.displayName, f.sourceId),
-                        )
+                        db.prepare(
+                            "INSERT OR REPLACE INTO `libraries` (id, name, mediaType, sourceId, isUnsupported) VALUES (?, ?, 'book', ?, 0)"
+                        ).use { stmt ->
+                            stmt.bindText(1, newLibraryId)
+                            stmt.bindText(2, f.displayName)
+                            stmt.bindText(3, f.sourceId)
+                            stmt.step()
+                        }
                     }
 
                     // 5. Reassign existing library_items.libraryId = 'local:root' rows to the
                     //    per-folder library based on their file's historical folderTreeUri.
                     for (f in oldFolders) {
                         val newLibraryId = folderToLibraryId.getValue(f.sourceId to f.treeUri)
-                        db.execSQL(
+                        db.prepare(
                             "UPDATE library_items SET libraryId = ? WHERE sourceId = ? AND libraryId = 'local:root' " +
-                                "AND id IN (SELECT sourceItemId FROM local_files_file_folders WHERE sourceId = ? AND folderTreeUri = ?)",
-                            arrayOf<Any>(newLibraryId, f.sourceId, f.sourceId, f.treeUri),
-                        )
+                                "AND id IN (SELECT sourceItemId FROM local_files_file_folders WHERE sourceId = ? AND folderTreeUri = ?)"
+                        ).use { stmt ->
+                            stmt.bindText(1, newLibraryId)
+                            stmt.bindText(2, f.sourceId)
+                            stmt.bindText(3, f.sourceId)
+                            stmt.bindText(4, f.treeUri)
+                            stmt.step()
+                        }
                     }
                     // Any library_items row still tagged 'local:root' has no matching file — drop
                     // it. It's an orphan we can't serve, and leaving it would violate the FK-like
@@ -1913,18 +1927,19 @@ abstract class RiffleDatabase : RoomDatabase() {
 
             override fun migrate(db: SQLiteConnection) {
                 val rows = mutableListOf<Pair<Long, String>>()
-                db.query("SELECT rowid, cfi FROM reading_positions WHERE cfi LIKE '%\"application/pdf\"%'")
-                    .use { c ->
-                        while (c.moveToNext()) {
-                            rows.add(c.getLong(0) to c.getString(1))
+                db.prepare("SELECT rowid, cfi FROM reading_positions WHERE cfi LIKE '%\"application/pdf\"%'")
+                    .use { stmt ->
+                        while (stmt.step()) {
+                            rows.add(stmt.getLong(0) to stmt.getText(1)!!)
                         }
                     }
                 for ((rowid, cfi) in rows) {
                     val corrected = decrementPdfiumPosition(cfi) ?: continue
-                    db.execSQL(
-                        "UPDATE reading_positions SET cfi = ? WHERE rowid = ?",
-                        arrayOf<Any>(corrected, rowid),
-                    )
+                    db.prepare("UPDATE reading_positions SET cfi = ? WHERE rowid = ?").use { stmt ->
+                        stmt.bindText(1, corrected)
+                        stmt.bindLong(2, rowid)
+                        stmt.step()
+                    }
                 }
             }
 

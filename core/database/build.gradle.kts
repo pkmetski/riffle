@@ -60,6 +60,11 @@ kotlin {
             // The sqlite-bundled native binary stays in nonIosMain so the XCFramework link
             // graph never picks it up (that binary was the OOM cause, not Room itself).
             implementation(libs.androidx.room.runtime)
+            // androidx.sqlite:sqlite is needed in commonMain for SQLiteConnection.query() /
+            // SQLiteConnection.use() extensions used in migration bodies. On Android the
+            // nonIosMain sqlite-bundled dependency transitively provides the runtime; this
+            // commonMain dep ensures the compiler resolves the extension symbols for all targets.
+            implementation(libs.androidx.sqlite)
         }
         getByName("nonIosMain").dependencies {
             // Bundled SQLite binary for Android/JVM — must not be included on iOS.
