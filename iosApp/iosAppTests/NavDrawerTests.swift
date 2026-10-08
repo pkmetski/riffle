@@ -25,6 +25,9 @@ import XCTest
 // does not implement DownloadsCapability on iOS. NavigationDrawerViewModel therefore sets
 // showDownloadsLink=false for ABS-only setups, and the Downloads entry does not appear.
 //
+// Version footer: appVersion is wired on iOS via CFBundleShortVersionString in HomeScreen.kt
+// (issue #1184 parity), so the "Riffle v…" footer is expected to appear in the drawer.
+//
 // Class-level launch strategy: the base iOS harness suite takes ~40 minutes, leaving ~10 min
 // for new tests before hitting the 50-min job wall. With -parallel-testing-worker-count 2
 // each simulator clone now shares a single app launch for all its NavDrawerTests instead of
@@ -201,11 +204,11 @@ final class NavDrawerTests: XCTestCase {
     // MARK: - ND-3/4/7/8  Drawer contents, host subtitle, Downloads and version absences
 
     /// The navigation drawer must list the source name, Settings, and the source host subtitle;
-    /// it must not show Downloads (AbsCatalog is JVM-only on iOS) or a version footer
-    /// (appVersion is not wired on iOS).
+    /// it must not show Downloads (AbsCatalog is JVM-only on iOS); it must show a version footer
+    /// (appVersion is wired via CFBundleShortVersionString in HomeScreen.kt as of #1184).
     ///
     /// Consolidates ND-3 (source header + Settings present), ND-4 (host subtitle in header),
-    /// ND-7 (Downloads absent for ABS-only), and ND-8 (version footer absent). All four
+    /// ND-7 (Downloads absent for ABS-only), and ND-8 (version footer present). All four
     /// assertions need only one drawer open, so merging them saves three app launches.
     func testDrawerContentsSubtitleAndAbsencesForAbsSource() throws {
         let burger = app.buttons["Open menu"]
@@ -246,11 +249,12 @@ final class NavDrawerTests: XCTestCase {
             "Downloads must not appear in the drawer for ABS-only sources on iOS (AbsCatalog is JVM-only)"
         )
 
-        // ND-8: iOS does not supply appVersion, so the version footer must not appear.
+        // ND-8: iOS wires appVersion via CFBundleShortVersionString (HomeScreen.kt, issue #1184),
+        // so the version footer must appear in the drawer.
         let versionPredicate = NSPredicate(format: "label BEGINSWITH 'Riffle v'")
-        XCTAssertEqual(
-            app.staticTexts.matching(versionPredicate).count, 0,
-            "iOS does not supply appVersion, so the version footer must not appear in the drawer"
+        XCTAssertGreaterThanOrEqual(
+            app.staticTexts.matching(versionPredicate).count, 1,
+            "iOS wires appVersion, so the version footer must appear in the drawer"
         )
 
         // Close the drawer so subsequent tests start from library home (drawer open = burger hidden).
