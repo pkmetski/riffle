@@ -10,7 +10,7 @@ import kotlin.test.Test
  */
 class IosLoggerTest {
 
-    private val logger = IosLogger()
+    private val logger = IosLogger(InMemoryLogBuffer())
 
     @Test
     fun logsPlainMessagesWithoutCrashing() {
