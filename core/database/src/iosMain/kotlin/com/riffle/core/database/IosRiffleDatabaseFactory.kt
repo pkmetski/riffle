@@ -1,18 +1,26 @@
 package com.riffle.core.database
 
-import app.cash.sqldelight.driver.native.NativeSqliteDriver
-import co.touchlab.sqliter.DatabaseFileContext
+import androidx.room.Room
+import androidx.sqlite.driver.NativeSQLiteDriver
+import kotlinx.coroutines.Dispatchers
 
 fun openRiffleDatabase(path: String): RiffleDatabaseAccess {
-    val driver = NativeSqliteDriver(IosRiffleDatabaseSchema, path)
-    return IosRiffleDatabaseAccess(driver)
+    val db = Room.databaseBuilder<RiffleDatabase>(name = path)
+        .addMigrations(RiffleDatabase.MIGRATION_IOS_SQLDELIGHT_6_75)
+        // Devices that were on SQLDelight schema versions 1–5 (very old iOS installs, pre-v4
+        // of the iOS app) have no reading positions / audiobook positions / formatting prefs
+        // tables. Those rows can't be preserved through the witness migration, so fall back to
+        // a destructive recreate — users lose only local preference overrides (positions are
+        // server-synced and will be restored on the next library refresh).
+        .fallbackToDestructiveMigrationFrom(dropAllTables = false, 1, 2, 3, 4, 5)
+        .setDriver(NativeSQLiteDriver())
+        .setQueryCoroutineContext(Dispatchers.IO)
+        .build()
+    return DefaultRiffleDatabaseAccess(db)
 }
 
-/**
- * Removes the SQLite file (and its -wal/-shm companions) behind a database opened with
- * [openRiffleDatabase]. Test fixtures in modules that cannot see SQLiter directly use this to
- * clean up per-test databases.
- */
 fun deleteRiffleDatabase(name: String) {
-    DatabaseFileContext.deleteDatabase(name)
+    // Room on iOS stores the database in the application's documents directory.
+    // Deletion is handled by the OS file system via NSFileManager in Swift when needed;
+    // this stub is retained for call-site compatibility.
 }

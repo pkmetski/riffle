@@ -26,12 +26,8 @@ kotlin {
     }
     jvm()
 
-    // The iOS test executables link SQLDelight's NativeSqliteDriver, whose sqliter cinterop
-    // references the system SQLite symbols. The app gets these from iosApp's
-    // `OTHER_LDFLAGS = -lsqlite3`; the Kotlin/Native test binary has no Xcode build settings,
-    // so it needs the flag declared here or `linkDebugTestIos*` fails with a wall of
-    // "Undefined symbols: _sqlite3_bind_blob…". A library target's only binaries are its test
-    // executables, so `binaries.all` is scoped to exactly those.
+    // Room KMP on iOS uses the system SQLite (NativeSQLiteDriver). The Kotlin/Native test
+    // binary has no Xcode build settings, so the linker flag must be declared here.
     iosArm64 { binaries.all { linkerOpts("-lsqlite3") } }
     iosSimulatorArm64 { binaries.all { linkerOpts("-lsqlite3") } }
 
@@ -60,16 +56,18 @@ kotlin {
         commonMain.dependencies {
             api(project(":core:database-api"))
             implementation(libs.kotlinx.coroutines.core)
-        }
-        // Room and its SQLite driver are Android/JVM-only. Moving them out of commonMain
-        // removes the Room klib from the iOS XCFramework link graph, eliminating OOM.
-        getByName("nonIosMain").dependencies {
+            // Room KMP runtime — annotations + core APIs used by RiffleDatabase (commonMain).
+            // The sqlite-bundled native binary stays in nonIosMain so the XCFramework link
+            // graph never picks it up (that binary was the OOM cause, not Room itself).
             implementation(libs.androidx.room.runtime)
+        }
+        getByName("nonIosMain").dependencies {
+            // Bundled SQLite binary for Android/JVM — must not be included on iOS.
             implementation(libs.androidx.sqlite.bundled)
         }
         iosMain.dependencies {
-            // System SQLite via NativeSqliteDriver: zero added link weight (uses OS SQLite).
-            implementation(libs.sqldelight.native.driver)
+            // Room KMP on iOS uses the system SQLite (no bundled binary, no OOM).
+            implementation(libs.androidx.sqlite)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -88,10 +86,11 @@ kotlin {
     }
 }
 
-// Room KSP only for Android and JVM — iOS uses SQLDelight, not Room.
 dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
     add("kspJvm", libs.androidx.room.compiler)
+    add("kspIosArm64", libs.androidx.room.compiler)
+    add("kspIosSimulatorArm64", libs.androidx.room.compiler)
 }
 
 room {

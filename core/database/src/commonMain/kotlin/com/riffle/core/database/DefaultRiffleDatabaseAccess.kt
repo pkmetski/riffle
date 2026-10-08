@@ -1,0 +1,36 @@
+package com.riffle.core.database
+
+internal class DefaultRiffleDatabaseAccess(
+    internal val database: RiffleDatabase,
+) : RiffleDatabaseAccess {
+    override fun close() = database.close()
+    override fun sourceDao() = database.sourceDao()
+    override fun libraryDao() = database.libraryDao()
+    override fun libraryItemDao() = database.libraryItemDao()
+    override fun seriesDao() = database.seriesDao()
+    override fun collectionDao() = database.collectionDao()
+    override fun readingPositionDao() = database.readingPositionDao()
+    override fun bookFormattingPreferencesDao() = database.bookFormattingPreferencesDao()
+    override fun readaloudLinkDao() = database.readaloudLinkDao()
+    override fun readaloudCandidateDao() = database.readaloudCandidateDao()
+    override fun readaloudDismissalDao() = database.readaloudDismissalDao()
+    override fun crossEpubIndexDao() = database.crossEpubIndexDao()
+    override fun annotationDao() = database.annotationDao()
+    override fun readaloudResumePositionDao() = database.readaloudResumePositionDao()
+    override fun audioPlaybackPreferencesDao() = database.audioPlaybackPreferencesDao()
+    override fun audiobookPositionDao() = database.audiobookPositionDao()
+    override fun audiobookBookmarkDao() = database.audiobookBookmarkDao()
+    override fun tocCacheDao() = database.tocCacheDao()
+    override fun audiobookChapterCacheDao() = database.audiobookChapterCacheDao()
+    override fun localFilesFolderDao() = database.localFilesFolderDao()
+    override fun localFilesFileDao() = database.localFilesFileDao()
+    override fun localFilesFileFolderDao() = database.localFilesFileFolderDao()
+    override fun localFileMetadataOverrideDao() = database.localFileMetadataOverrideDao()
+    override fun remoteItemFreshnessDao() = database.remoteItemFreshnessDao()
+    override fun playlistDao() = database.playlistDao()
+    override fun publicationMetricsCacheDao() = database.publicationMetricsCacheDao()
+    override fun bookComicFormattingPreferencesDao() = database.bookComicFormattingPreferencesDao()
+    override fun dictionaryPackDao() = database.dictionaryPackDao()
+    override fun lookupHistoryDao() = database.lookupHistoryDao()
+    override fun coverGridScaleDao() = database.coverGridScaleDao()
+}

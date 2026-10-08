@@ -1946,6 +1946,17 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
             }
         }
+
+        // iOS witness migration: the hand-written SQLDelight schema (IosRiffleDatabaseSchema,
+        // version 6) was kept column-for-column in sync with Room v75. No DDL is needed — the
+        // existing tables and indices already match Room's expectations at v75. This migration
+        // just advances user_version from 6 to 75 so Room accepts the database.
+        // SQLite schema differences (missing backtick quoting, no ON UPDATE NO ACTION clause)
+        // do not affect PRAGMA table_info / foreign_key_list validation, so Room's schema
+        // check passes on the pre-existing SQLDelight-created tables.
+        val MIGRATION_IOS_SQLDELIGHT_6_75 = object : Migration(6, 75) {
+            override fun migrate(db: SQLiteConnection) = Unit
+        }
     }
 }
 

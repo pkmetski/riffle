@@ -174,6 +174,21 @@ class IosLibraryItemDaoTest : IosDaoTestBase() {
             "Flow must reflect batch progress update")
     }
 
+    @Test
+    fun updateReadingProgressFromServerRespectsStamp() = runTest {
+        seedSource(SOURCE_ID)
+        db.libraryItemDao().replaceAllForLibrary(SOURCE_ID, libraryId, listOf(makeItem(ITEM_ID, progress = 0.2f)))
+
+        db.libraryItemDao().updateReadingProgressFromServer(SOURCE_ID, ITEM_ID, 0.6f, 200L)
+        assertEquals(0.6f, db.libraryItemDao().getById(SOURCE_ID, ITEM_ID)!!.readingProgress)
+        // Lagging server update (older stamp) must be rejected.
+        db.libraryItemDao().updateReadingProgressFromServer(SOURCE_ID, ITEM_ID, 0.1f, 100L)
+        assertEquals(0.6f, db.libraryItemDao().getById(SOURCE_ID, ITEM_ID)!!.readingProgress)
+        // Newer stamp wins.
+        db.libraryItemDao().updateReadingProgressFromServer(SOURCE_ID, ITEM_ID, 0.9f, 300L)
+        assertEquals(0.9f, db.libraryItemDao().getById(SOURCE_ID, ITEM_ID)!!.readingProgress)
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private fun makeItem(
