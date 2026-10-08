@@ -4,6 +4,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
 import com.riffle.feature.settings.ui.generated.resources.Res
@@ -12,7 +13,12 @@ import com.riffle.feature.settings.ui.generated.resources.ui_language_change_res
 import com.riffle.feature.settings.ui.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSUserDefaults
+import platform.UIKit.UIApplicationWillEnterForegroundNotification
+
+private const val KEY_EXPLICIT_LANGUAGE_SET = "riffle.explicit_language_set"
 
 /**
  * iOS implementation of [PlatformSettingsHooks].
@@ -30,8 +36,13 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
 
     override fun canInstallUpdate(): Boolean = false
 
+    override fun supportsVolumeKeyNavigation(): Boolean = false
+
     override fun currentLanguage(): AppLanguage {
-        val languages = NSUserDefaults.standardUserDefaults.stringArrayForKey("AppleLanguages")
+        val defaults = NSUserDefaults.standardUserDefaults
+        // If user never explicitly set a language, return System
+        if (defaults.objectForKey(KEY_EXPLICIT_LANGUAGE_SET) == null) return AppLanguage.System
+        val languages = defaults.stringArrayForKey("AppleLanguages")
         val firstTag = languages?.firstOrNull() as? String ?: return AppLanguage.System
         return AppLanguage.fromTag(firstTag)
     }
@@ -40,8 +51,10 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
         val defaults = NSUserDefaults.standardUserDefaults
         if (language == AppLanguage.System) {
             defaults.removeObjectForKey("AppleLanguages")
+            defaults.removeObjectForKey(KEY_EXPLICIT_LANGUAGE_SET)
         } else {
             defaults.setObject(listOf(language.tag), "AppleLanguages")
+            defaults.setBool(true, forKey = KEY_EXPLICIT_LANGUAGE_SET)
         }
         defaults.synchronize()
         pendingRestart.value = true
@@ -49,7 +62,16 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
 
     @Composable
     override fun OnResumeEffect(block: () -> Unit) {
-        // No lifecycle hook needed for this basic implementation.
+        DisposableEffect(Unit) {
+            val observer = NSNotificationCenter.defaultCenter.addObserverForName(
+                name = UIApplicationWillEnterForegroundNotification,
+                `object` = null,
+                queue = NSOperationQueue.mainQueue,
+            ) { _ -> block() }
+            onDispose {
+                NSNotificationCenter.defaultCenter.removeObserver(observer)
+            }
+        }
     }
 }
 
