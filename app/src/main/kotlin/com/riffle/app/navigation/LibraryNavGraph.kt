@@ -1,35 +1,34 @@
 package com.riffle.app.navigation
 
 import com.riffle.feature.navigation.collectionDetailRoute
-import com.riffle.feature.navigation.committedTopRoute
 import com.riffle.feature.navigation.libraryEntryRoute
 import com.riffle.feature.navigation.libraryItemDetailRoute
 import com.riffle.feature.navigation.librarySectionRoute
 import com.riffle.feature.navigation.seriesDetailRoute
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.feature.designsystem.BookCoverTile
-import com.riffle.app.feature.library.CollectionDetailScreen
-import com.riffle.app.feature.library.LibraryItemDetailScreen
-import com.riffle.app.feature.library.LibraryItemCard
-import com.riffle.app.feature.library.androidAnnotationSearchLabels
-import com.riffle.app.feature.library.androidFilteredBooksLabels
 import com.riffle.feature.designsystem.coverGridMinCell
-import com.riffle.app.feature.library.LibraryItemsScreen
-import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.feature.library.LibrarySectionType
-import com.riffle.app.feature.library.SeriesDetailScreen
-import com.riffle.app.feature.library.androidPlaylistLabels
-import com.riffle.app.feature.library.RiffleScreen
+import com.riffle.feature.library.ui.CollectionDetailScreen
+import com.riffle.feature.library.ui.DownloadsScreen
+import com.riffle.feature.library.ui.LibraryItemDetailScreen
+import com.riffle.feature.library.ui.LibraryItemsScreen
+import com.riffle.feature.library.ui.LibrarySectionScreen
+import com.riffle.feature.library.RiffleViewModel
+import com.riffle.feature.library.ui.RiffleScreen
+import com.riffle.feature.library.ui.SeriesDetailScreen
+import com.riffle.feature.library.ui.annotationSearchLabels
+import com.riffle.feature.library.ui.filteredBooksLabels
+import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.app.feature.navigation.HomeScreen
+import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
@@ -45,14 +44,13 @@ import kotlinx.coroutines.launch
 
 internal fun NavGraphBuilder.libraryNavGraph(
     navController: NavController,
-    windowSizeClass: WindowSizeClass,
     drawerState: DrawerState,
     scope: CoroutineScope,
-    libBackEnabled: Boolean,
     onSetActiveLibrary: (String) -> Unit,
 ) {
     composable(RIFFLE) {
         RiffleScreen(
+            viewModel = koinViewModel<RiffleViewModel>(),
             onOpenDrawer = { scope.launch { drawerState.open() } },
             onItemSelected = { sourceId, itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
@@ -84,7 +82,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
     }
     composable(DOWNLOADS) { backStackEntry ->
         DownloadsScreen(
-            windowSizeClass = windowSizeClass,
+            viewModel = koinViewModel<DownloadsViewModel>(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -115,20 +113,9 @@ internal fun NavGraphBuilder.libraryNavGraph(
             }
         }
         LibraryItemsScreen(
+            libraryId = libraryId,
             libraryName = libraryName,
-            windowSizeClass = windowSizeClass,
             onOpenDrawer = { scope.launch { drawerState.open() } },
-            backEnabled = libBackEnabled,
-            // Read the committed back stack synchronously at handler-fire time (not via
-            // Compose state) so we correctly distinguish: library_items is the committed
-            // top (run library back action) vs. a sub-screen is the committed top but
-            // library_items shows as the predictive-back preview or the recomposition
-            // window hasn't caught up yet (pop the sub-screen instead).
-            isCommittedOnLibraryItems = {
-                committedTopRoute(navController.currentBackStackSnapshot().map { it.destination.route })
-                    ?.startsWith("library_items/") == true
-            },
-            onNavigateBack = { navController.popCommittedTopFromLibraryPreview() },
             onSeriesSelected = { series ->
                 navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
             },
@@ -158,13 +145,17 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onSectionSeeMore = { sectionType ->
                 navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
             },
-            onAnnotatedBookClick = { sourceId, itemId ->
+            onAnnotatedBookSelected = { sourceId, itemId ->
                 navController.navigate(annotationsBookClickRoute(sourceId, itemId))
             },
             onPlaylistSelected = { playlist ->
                 val encodedName = URLEncoder.encode(playlist.name, "UTF-8")
                 val encodedId = URLEncoder.encode(playlist.id, "UTF-8")
                 navController.navigate("playlist_detail/$libraryId/$encodedId/$encodedName")
+            },
+            onSearchAnnotations = { query ->
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
             },
         )
     }
@@ -180,7 +171,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
         val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
         PlaylistDetailScreen(
             viewModel = koinViewModel<PlaylistDetailViewModel>(),
-            labels = androidPlaylistLabels(),
+            labels = playlistLabels(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -197,10 +188,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
                     "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ&userPlay=true"
                 )
             },
-            // The one host-specific part of the shared screen: Android's card fetches the
-            // authenticated cover through its OkHttp-backed Coil loader.
             itemContent = { item, token, onClick ->
-                LibraryItemCard(item = item, token = token, onClick = onClick)
+                BookCoverTile(item = item, token = token, onClick = onClick)
             },
         )
     }
@@ -212,10 +201,12 @@ internal fun NavGraphBuilder.libraryNavGraph(
             navArgument("sectionType") { type = NavType.StringType },
         ),
     ) { backStackEntry ->
+        val sectionLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
         val sectionType = LibrarySectionType.valueOf(
             backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.IN_PROGRESS.name
         )
         LibrarySectionScreen(
+            libraryId = sectionLibraryId,
             sectionType = sectionType,
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -231,11 +222,15 @@ internal fun NavGraphBuilder.libraryNavGraph(
             navArgument("seriesName") { type = NavType.StringType },
         )
     ) { backStackEntry ->
+        val seriesLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
+        val seriesId = backStackEntry.arguments?.getString("seriesId").orEmpty()
         val seriesName = URLDecoder.decode(
             backStackEntry.arguments?.getString("seriesName") ?: "",
             "UTF-8"
         )
         SeriesDetailScreen(
+            seriesId = seriesId,
+            libraryId = seriesLibraryId,
             seriesName = seriesName,
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -251,11 +246,15 @@ internal fun NavGraphBuilder.libraryNavGraph(
             navArgument("collectionName") { type = NavType.StringType },
         )
     ) { backStackEntry ->
+        val collectionLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
+        val collectionId = backStackEntry.arguments?.getString("collectionId").orEmpty()
         val collectionName = URLDecoder.decode(
             backStackEntry.arguments?.getString("collectionName") ?: "",
             "UTF-8"
         )
         CollectionDetailScreen(
+            collectionId = collectionId,
+            libraryId = collectionLibraryId,
             collectionName = collectionName,
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -274,13 +273,16 @@ internal fun NavGraphBuilder.libraryNavGraph(
             },
         )
     ) { backStackEntry ->
+        val itemId = backStackEntry.arguments?.getString("itemId").orEmpty()
+        val sourceId = backStackEntry.arguments?.getString("sourceId")
         LibraryItemDetailScreen(
-            windowSizeClass = windowSizeClass,
-            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-            onReadItem = { item ->
+            itemId = itemId,
+            sourceId = sourceId,
+            onBack = { navController.popBackStackIfTop(backStackEntry) },
+            onRead = { item ->
                 readerRouteFor(item)?.let { navController.navigate(it) }
             },
-            onListenItem = { item ->
+            onListen = { item ->
                 val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
                 navController.navigate("audiobook_player/$encodedSourceId/$encodedId?userPlay=true")
@@ -300,12 +302,12 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
                 navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec&userPlay=true")
             },
-            onNavigateToFacet = { libraryId, facet, value ->
+            onFacetSelected = { libId, facet, value ->
                 val encoded = URLEncoder.encode(value, "UTF-8")
-                navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
+                navController.navigate("filtered_books/$libId/${facet.name}/$encoded")
             },
-            onNavigateToSeries = { libraryId, seriesId, seriesName ->
-                navController.navigate(seriesDetailRoute(libraryId, seriesId, seriesName))
+            onNavigateToSeries = { libId, seriesId, seriesName ->
+                navController.navigate(seriesDetailRoute(libId, seriesId, seriesName))
             },
         )
     }
@@ -319,7 +321,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
     ) { backStackEntry ->
         FilteredBooksScreen(
             viewModel = koinViewModel<FilteredBooksViewModel>(),
-            labels = androidFilteredBooksLabels(),
+            labels = filteredBooksLabels(),
             minCellSize = coverGridMinCell(),
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -343,7 +345,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
     ) { backStackEntry ->
         AnnotationSearchResultsScreen(
             viewModel = koinViewModel<AnnotationSearchViewModel>(),
-            labels = androidAnnotationSearchLabels(),
+            labels = annotationSearchLabels(),
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onAnnotationSelected = { result ->
                 val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")

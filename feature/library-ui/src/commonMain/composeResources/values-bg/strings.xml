@@ -101,4 +101,12 @@
     <string name="ui_no_annotations_for_query">Няма анотации за "%1$s"</string>
     <string name="ui_bookmark_fallback_title">Отметка</string>
     <string name="ui_audiobook_bookmark_fallback_title">Отметка за аудиокнига</string>
+    <!-- Library items — sort mode labels -->
+    <string name="ui_sort_recently_added">Наскоро добавени</string>
+    <string name="ui_sort_oldest_first">Най-стари първо</string>
+    <string name="ui_sort_title_az">Заглавие А→Я</string>
+    <string name="ui_sort_title_za">Заглавие Я→А</string>
+    <string name="ui_sort_author_az">Автор А→Я</string>
+    <string name="ui_sort_recently_opened">Наскоро отворени</string>
+    <string name="ui_offline_banner">Офлайн — показват се кешираните данни</string>
 </resources>

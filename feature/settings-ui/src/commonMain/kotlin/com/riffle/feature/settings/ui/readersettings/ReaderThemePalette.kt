@@ -17,7 +17,7 @@ typealias ReaderThemePalette = com.riffle.feature.reader.ui.ReaderThemePalette
 // Riffle's "dark dim" mode reuses Readium's Theme.DARK background but overrides the body
 // text colour to a softer grey. The override is passed to Readium via
 // EpubPreferences.textColor in FormattingPreferencesMapper.
-internal val DARK_DIM_TEXT: Color = Color(DARK_DIM_TEXT_ARGB)
+val DARK_DIM_TEXT: Color = Color(DARK_DIM_TEXT_ARGB)
 
 val ReaderTheme.palette: ReaderThemePalette
     get() = readerPalette

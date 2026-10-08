@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.app.feature.readersettings.BehaviorSection
+import com.riffle.feature.settings.ui.readersettings.BehaviorSection
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule

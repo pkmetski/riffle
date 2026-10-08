@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.BookSectionGrid
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,10 +20,11 @@ class SeriesDetailGridTest {
     @Test
     fun coverShowsCompactSeriesPositionBadge() {
         rule.setContent {
-            SeriesDetailGrid(
+            BookSectionGrid(
                 items = listOf(item(seriesName = "The Expanse #4")),
                 token = "",
                 onItemSelected = {},
+                showSeriesBadge = true,
             )
         }
 

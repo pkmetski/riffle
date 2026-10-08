@@ -24,19 +24,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -45,13 +46,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -80,7 +81,6 @@ import com.riffle.feature.designsystem.generated.resources.ui_all_books
 import com.riffle.feature.designsystem.generated.resources.ui_annotations
 import com.riffle.feature.designsystem.generated.resources.ui_collections
 import com.riffle.feature.designsystem.generated.resources.ui_home
-import com.riffle.feature.designsystem.generated.resources.ui_open_menu
 import com.riffle.feature.designsystem.generated.resources.ui_playlists
 import com.riffle.feature.designsystem.generated.resources.ui_section_completed
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
@@ -88,18 +88,37 @@ import com.riffle.feature.designsystem.generated.resources.ui_section_in_progres
 import com.riffle.feature.designsystem.generated.resources.ui_section_recently_added
 import com.riffle.feature.designsystem.generated.resources.ui_series
 import com.riffle.feature.designsystem.generated.resources.ui_to_read
+import com.riffle.feature.library.AnnotationSearchResult
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.AnnotationsListViewModel
+import com.riffle.feature.library.AudiobookBookmarkSearchResult
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibraryProjection
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.library.LibrarySortMode
 import com.riffle.feature.library.LibraryTabVisibility
 import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
+import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
+import com.riffle.feature.library.ui.generated.resources.ui_no_results_for
+import com.riffle.feature.library.ui.generated.resources.ui_not_started
+import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
+import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
+import com.riffle.feature.library.ui.generated.resources.ui_offline_banner
+import com.riffle.feature.library.ui.generated.resources.ui_show_all_annotations
+import com.riffle.feature.library.ui.generated.resources.ui_sort
+import com.riffle.feature.library.ui.generated.resources.ui_sort_author_az
+import com.riffle.feature.library.ui.generated.resources.ui_sort_oldest_first
+import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_added
+import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_opened
+import com.riffle.feature.library.ui.generated.resources.ui_sort_title_az
+import com.riffle.feature.library.ui.generated.resources.ui_sort_title_za
+import com.riffle.feature.source.ui.SourceBrowseHeader
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import com.riffle.feature.library.ui.generated.resources.Res as LibRes
 
 private const val SECTION_ROW_HEIGHT = 200
 private const val BOOK_SECTION_ROW_HEIGHT = 250
@@ -122,6 +141,9 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
     onSearchAnnotations: (String) -> Unit,
+    onAnnotationSelected: (AnnotationSearchResult) -> Unit = {},
+    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit = {},
+    onShowAllAnnotations: (String) -> Unit = {},
     showRecentlyAdded: Boolean = true,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
@@ -154,6 +176,10 @@ fun LibraryItemsScreen(
     val playlists by viewModel.playlists.collectAsState()
     val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val seriesCoverUrls by viewModel.seriesCoverUrls.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
+    val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
+    val librarySortMode by viewModel.librarySortMode.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -162,11 +188,14 @@ fun LibraryItemsScreen(
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
     }
 
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LibraryTopBar(title = libraryName, onMenuClick = onOpenDrawer, scrollBehavior = scrollBehavior)
+            SourceBrowseHeader(
+                sourceName = libraryName,
+                searchQuery = searchQuery,
+                onSearchQueryChange = viewModel::onSearchQueryChange,
+                onOpenDrawer = onOpenDrawer,
+            )
         },
         bottomBar = {
             LibraryTabBar(
@@ -176,38 +205,64 @@ fun LibraryItemsScreen(
             )
         },
     ) { innerPadding ->
-        CoverGridZoomBox(
-            browseScaleFlow = viewModel.coverGridScale,
-            onPersistScaleChange = viewModel::setCoverGridScale,
-            homeScaleFlow = viewModel.homeCoverGridScale,
-            onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
-            isHomeTab = selectedTab == 0,
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-        ) {
-            if (isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Loading…")
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            if (isOffline) {
+                Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                    Text(
+                        text = stringResource(LibRes.string.ui_offline_banner),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-            } else {
-                LibraryTabContent(
-                    selectedTab = selectedTab,
-                    projection = projection,
-                    token = viewModel.authToken,
-                    playlists = playlists,
-                    annotationsState = annotationsState,
-                    coversAreSquare = coversAreSquare,
-                    linkedItemIds = linkedItemIds,
-                    collectionCoverUrls = collectionCoverUrls,
-                    showRecentlyAdded = showRecentlyAdded,
-                    seriesCoverUrls = seriesCoverUrls,
-                    onItemSelected = onItemSelected,
-                    onAnnotatedBookSelected = onAnnotatedBookSelected,
-                    onSeriesSelected = onSeriesSelected,
-                    onCollectionSelected = onCollectionSelected,
-                    onSectionSeeMore = onSectionSeeMore,
-                    onPlaylistSelected = onPlaylistSelected,
-                    onSearchAnnotations = onSearchAnnotations,
-                )
+            }
+            CoverGridZoomBox(
+                browseScaleFlow = viewModel.coverGridScale,
+                onPersistScaleChange = viewModel::setCoverGridScale,
+                homeScaleFlow = viewModel.homeCoverGridScale,
+                onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                isHomeTab = selectedTab == 0,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (isLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Loading…")
+                    }
+                } else if (searchQuery.isNotBlank()) {
+                    SearchResultsContent(
+                        query = searchQuery,
+                        annotations = projection.annotations,
+                        audiobookBookmarks = projection.audiobookBookmarks,
+                        token = viewModel.authToken,
+                        onAnnotationSelected = onAnnotationSelected,
+                        onAudiobookBookmarkSelected = onAudiobookBookmarkSelected,
+                        onShowAllAnnotations = { onShowAllAnnotations(searchQuery) },
+                    )
+                } else {
+                    LibraryTabContent(
+                        selectedTab = selectedTab,
+                        projection = projection,
+                        token = viewModel.authToken,
+                        playlists = playlists,
+                        annotationsState = annotationsState,
+                        coversAreSquare = coversAreSquare,
+                        linkedItemIds = linkedItemIds,
+                        collectionCoverUrls = collectionCoverUrls,
+                        showRecentlyAdded = showRecentlyAdded,
+                        seriesCoverUrls = seriesCoverUrls,
+                        notStartedFilterActive = notStartedFilterActive,
+                        librarySortMode = librarySortMode,
+                        onItemSelected = onItemSelected,
+                        onAnnotatedBookSelected = onAnnotatedBookSelected,
+                        onSeriesSelected = onSeriesSelected,
+                        onCollectionSelected = onCollectionSelected,
+                        onSectionSeeMore = onSectionSeeMore,
+                        onPlaylistSelected = onPlaylistSelected,
+                        onSearchAnnotations = onSearchAnnotations,
+                        onToggleNotStarted = viewModel::toggleNotStartedFilter,
+                        onSetSortMode = viewModel::setLibrarySortMode,
+                    )
+                }
             }
         }
     }
@@ -239,6 +294,8 @@ fun LibraryTabContent(
     // Live cover URLs derived from series member items — more up-to-date than the series cover stored
     // in the DB. Defaulted to emptyMap so tests focused on other tabs need not supply it.
     seriesCoverUrls: Map<String, String> = emptyMap(),
+    notStartedFilterActive: Boolean = false,
+    librarySortMode: LibrarySortMode = LibrarySortMode.ADDED_DESC,
     onItemSelected: (LibraryItem) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
     onSeriesSelected: (Series) -> Unit,
@@ -246,13 +303,15 @@ fun LibraryTabContent(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
     onSearchAnnotations: (String) -> Unit,
+    onToggleNotStarted: () -> Unit = {},
+    onSetSortMode: (LibrarySortMode) -> Unit = {},
 ) {
     when (selectedTab) {
         0 -> HomeTabContent(
             projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded,
             seriesCoverUrls, onItemSelected, onSeriesSelected, onCollectionSelected, onSectionSeeMore,
         )
-        1 -> SimpleItemList(projection.toRead, token, "Nothing in To Read", onItemSelected)
+        1 -> ToReadTabContent(projection.toRead, token, coversAreSquare, linkedItemIds, onItemSelected)
         // The search field above the list is iOS's only route into the annotation-search
         // results screen: Android reaches it from the library search bar's "Show all"
         // affordance, which iOS has no equivalent of (#1072 §3). Without it
@@ -263,7 +322,17 @@ fun LibraryTabContent(
         }
         3 -> SeriesTabContent(projection.series, token, onSeriesSelected)
         4 -> CollectionsTabContent(projection.collections, token, collectionCoverUrls, onCollectionSelected)
-        5 -> AllBooksTabContent(projection.allBooks, token, coversAreSquare, linkedItemIds, onItemSelected)
+        5 -> AllBooksTabContent(
+            items = projection.allBooks,
+            token = token,
+            coversAreSquare = coversAreSquare,
+            linkedItemIds = linkedItemIds,
+            notStartedFilterActive = notStartedFilterActive,
+            librarySortMode = librarySortMode,
+            onItemSelected = onItemSelected,
+            onToggleNotStarted = onToggleNotStarted,
+            onSetSortMode = onSetSortMode,
+        )
         // Index 6 previously fell through to `else`, so the Playlists tab silently rendered the
         // Home tab. The shared ViewModel has exposed `playlists` all along
         // (LibraryItemsViewModel.kt:201); the iOS screen just never read it. The tab body is now
@@ -344,25 +413,86 @@ private fun LibraryTabBar(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Shows inline annotation and audiobook-bookmark search results for a non-blank [query].
+ * Mirrors the SearchResultsContent in Android's LibraryItemsScreen.
+ */
 @Composable
-private fun LibraryTopBar(
-    title: String,
-    onMenuClick: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior? = null,
+private fun SearchResultsContent(
+    query: String,
+    annotations: List<AnnotationSearchResult>,
+    audiobookBookmarks: List<AudiobookBookmarkSearchResult>,
+    token: String,
+    onAnnotationSelected: (AnnotationSearchResult) -> Unit,
+    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
+    onShowAllAnnotations: () -> Unit,
 ) {
-    TopAppBar(
-        title = { Text(title) },
-        navigationIcon = {
-            IconButton(
-                onClick = onMenuClick,
-                modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
-            ) {
-                Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
+    val labels = annotationSearchLabels()
+    val noResultsText = stringResource(LibRes.string.ui_no_results_for, query)
+    val showAllText = stringResource(LibRes.string.ui_show_all_annotations, annotations.size + audiobookBookmarks.size)
+    val total = annotations.size + audiobookBookmarks.size
+    if (total == 0) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(noResultsText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+        items(annotations, key = { "ann_${it.annotation.id}" }) { result ->
+            AnnotationResultRow(
+                result = result,
+                token = token,
+                labels = labels,
+                onClick = { onAnnotationSelected(result) },
+            )
+        }
+        items(audiobookBookmarks, key = { "bm_${it.bookmark.id}" }) { result ->
+            AudiobookBookmarkResultRow(
+                result = result,
+                token = token,
+                labels = labels,
+                onClick = { onAudiobookBookmarkSelected(result) },
+            )
+        }
+        if (total > 0) {
+            item {
+                TextButton(
+                    onClick = onShowAllAnnotations,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    Text(showAllText)
+                }
             }
-        },
-        scrollBehavior = scrollBehavior,
-    )
+        }
+    }
+}
+
+@Composable
+private fun ToReadTabContent(
+    items: List<LibraryItem>,
+    token: String,
+    coversAreSquare: Boolean,
+    linkedItemIds: Set<String>,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = stringResource(LibRes.string.ui_nothing_in_to_read),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+        BookGrid(
+            items = items,
+            token = token,
+            onItemSelected = onItemSelected,
+            hasReadaloudLink = { it.id in linkedItemIds },
+        )
+    }
 }
 
 @Composable
@@ -975,22 +1105,77 @@ private fun AllBooksTabContent(
     token: String,
     coversAreSquare: Boolean,
     linkedItemIds: Set<String>,
+    notStartedFilterActive: Boolean,
+    librarySortMode: LibrarySortMode,
     onItemSelected: (LibraryItem) -> Unit,
+    onToggleNotStarted: () -> Unit,
+    onSetSortMode: (LibrarySortMode) -> Unit,
 ) {
-    if (items.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No books", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val notStartedLabel = stringResource(LibRes.string.ui_not_started)
+    val noUnstartedLabel = stringResource(LibRes.string.ui_no_unstarted_books)
+    val sortLabel = stringResource(LibRes.string.ui_sort, librarySortMode.label())
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = notStartedFilterActive,
+                onClick = onToggleNotStarted,
+                label = { Text(notStartedLabel) },
+                leadingIcon = if (notStartedFilterActive) {
+                    { Icon(RiffleIcons.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                } else null,
+                modifier = Modifier.testTag(TestTags.LIBRARY_FILTER),
+            )
+            Box {
+                FilterChip(
+                    selected = librarySortMode != LibrarySortMode.ADDED_DESC,
+                    onClick = { sortMenuExpanded = true },
+                    label = { Text(sortLabel) },
+                    trailingIcon = { Icon(RiffleIcons.ArrowDropDown, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) },
+                    modifier = Modifier.testTag(TestTags.LIBRARY_SORT),
+                )
+                DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                    LibrarySortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.label()) },
+                            onClick = { onSetSortMode(mode); sortMenuExpanded = false },
+                            leadingIcon = if (mode == librarySortMode) {
+                                { Icon(RiffleIcons.Check, contentDescription = null) }
+                            } else null,
+                        )
+                    }
+                }
+            }
         }
-        return
+        if (items.isEmpty()) {
+            val emptyMsg = if (notStartedFilterActive) noUnstartedLabel else stringResource(LibRes.string.ui_all_books_count, 0)
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(emptyMsg, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+                BookGrid(
+                    items = items,
+                    token = token,
+                    onItemSelected = onItemSelected,
+                    hasReadaloudLink = { it.id in linkedItemIds },
+                )
+            }
+        }
     }
-    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
-        BookGrid(
-            items = items,
-            token = token,
-            onItemSelected = onItemSelected,
-            hasReadaloudLink = { it.id in linkedItemIds },
-        )
-    }
+}
+
+@Composable
+private fun LibrarySortMode.label(): String = when (this) {
+    LibrarySortMode.ADDED_DESC -> stringResource(LibRes.string.ui_sort_recently_added)
+    LibrarySortMode.ADDED_ASC -> stringResource(LibRes.string.ui_sort_oldest_first)
+    LibrarySortMode.TITLE_ASC -> stringResource(LibRes.string.ui_sort_title_az)
+    LibrarySortMode.TITLE_DESC -> stringResource(LibRes.string.ui_sort_title_za)
+    LibrarySortMode.AUTHOR_ASC -> stringResource(LibRes.string.ui_sort_author_az)
+    LibrarySortMode.RECENTLY_OPENED -> stringResource(LibRes.string.ui_sort_recently_opened)
 }
 
 @Composable

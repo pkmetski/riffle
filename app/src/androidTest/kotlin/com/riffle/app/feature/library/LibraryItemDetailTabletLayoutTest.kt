@@ -11,7 +11,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.harness.TabletLayout
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.TestTags.LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG
+import com.riffle.feature.designsystem.TestTags.LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG
 import com.riffle.feature.library.DownloadState
+import com.riffle.feature.library.ui.LibraryItemDetailContentTablet
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

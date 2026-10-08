@@ -22,6 +22,10 @@ object TestTags {
     const val LIBRARY_SECTION_BACK = "library_section_back"
     fun libraryBookItem(index: Int) = "library_book_item_$index"
 
+    // ── Library Item Detail ───────────────────────────────────────────────────
+    const val LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG = "library_item_detail_left_pane"
+    const val LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG = "library_item_detail_right_pane"
+
     // ── Book detail ───────────────────────────────────────────────────────────
     const val BOOK_DETAIL_BACK = "book_detail_back"
     const val BOOK_DETAIL_TITLE = "book_detail_title"

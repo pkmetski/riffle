@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.runtime.Composable
-import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
+import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.settings.ui.readersettings.ReaderSettingsSheet as SharedReaderSettingsSheet
 
