@@ -184,6 +184,7 @@ fun SettingsScreen(
                     onVolumeKeyNavigationEnabledChange = viewModel::setVolumeKeyNavigationEnabled,
                     invertVolumeKeys = invertVolumeKeys,
                     onInvertVolumeKeysChange = viewModel::setInvertVolumeKeys,
+                    showVolumeKeyRows = platformHooks.supportsVolumeKeyNavigation(),
                 )
                 HorizontalDivider()
 

@@ -38,21 +38,24 @@ fun BehaviorSection(
     onVolumeKeyNavigationEnabledChange: (Boolean) -> Unit,
     invertVolumeKeys: Boolean,
     onInvertVolumeKeysChange: (Boolean) -> Unit,
+    showVolumeKeyRows: Boolean = true,
 ) {
     Column {
         // TODO: migrate to Res.string.ui_keep_screen_on_while_reading
         ToggleRow(stringResource(Res.string.ui_keep_screen_on_while_reading), keepScreenOn, onKeepScreenOnChange, testTag = TestTags.READER_SETTINGS_KEEP_SCREEN_ON)
-        // TODO: migrate to Res.string.ui_volume_key_navigation
-        ToggleRow(stringResource(Res.string.ui_volume_key_navigation), volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange, testTag = TestTags.READER_SETTINGS_VOLUME_KEY_NAV)
-        ToggleRow(
-            // TODO: migrate to Res.string.ui_invert_volume_keys
-            label = stringResource(Res.string.ui_invert_volume_keys),
-            checked = invertVolumeKeys,
-            onChange = onInvertVolumeKeysChange,
-            enabled = volumeKeyNavigationEnabled,
-            modifier = Modifier.padding(start = 16.dp),
-            testTag = TestTags.READER_SETTINGS_INVERT_VOLUME_KEYS,
-        )
+        if (showVolumeKeyRows) {
+            // TODO: migrate to Res.string.ui_volume_key_navigation
+            ToggleRow(stringResource(Res.string.ui_volume_key_navigation), volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange, testTag = TestTags.READER_SETTINGS_VOLUME_KEY_NAV)
+            ToggleRow(
+                // TODO: migrate to Res.string.ui_invert_volume_keys
+                label = stringResource(Res.string.ui_invert_volume_keys),
+                checked = invertVolumeKeys,
+                onChange = onInvertVolumeKeysChange,
+                enabled = volumeKeyNavigationEnabled,
+                modifier = Modifier.padding(start = 16.dp),
+                testTag = TestTags.READER_SETTINGS_INVERT_VOLUME_KEYS,
+            )
+        }
     }
 }
 
