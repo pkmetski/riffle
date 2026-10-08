@@ -573,15 +573,31 @@ class AnnotationFocusHarnessTest : KoinTest {
         // Ensure the loading spinner from any in-progress chapter navigation is gone before
         // showing chrome — TAG_READER_READY alone does not guarantee ReaderState.Ready.
         waitForReaderReady()
-        showTopAppBar()
         // The Search icon is gated on ReaderState.Ready. During a chapter navigation triggered by
         // the previous search result, the reader briefly re-enters a loading state and Search
         // disappears from the semantic tree. Vertical mode (scroll=true Readium) re-enters Ready
-        // more slowly than paginated. 25 s → 50 s → 90 s proved insufficient on slow CI runners;
-        // budget 120 s to cover the slowest observed runner.
-        composeTestRule.waitUntil(timeoutMillis = 120_000) {
-            composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+        // more slowly than paginated. A single long timeout proved unreliable on slow CI runners;
+        // retry showing chrome up to 5 times with a 30 s window each, so a Ready→Loading→Ready
+        // cycle is handled by the retry loop instead of requiring a timeout large enough for the
+        // combined duration.
+        var searchFound = false
+        repeat(5) {
+            if (searchFound) return@repeat
+            try {
+                showTopAppBar()
+                composeTestRule.waitUntil(timeoutMillis = 30_000) {
+                    composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+                }
+                searchFound = true
+            } catch (_: AssertionError) {
+                // showTopAppBar() threw — reader is still in loading state. Wait for Ready.
+                waitForReaderReady()
+            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+                // Search did not appear in 30 s — reader may have re-entered loading. Wait and retry.
+                waitForReaderReady()
+            }
         }
+        if (!searchFound) throw AssertionError("navigateWithSearch: Search button not visible after 5 attempts")
         // The Search icon can disappear between the waitUntil pass and performClick if the reader
         // briefly re-enters a loading state (e.g. vertical mode slow chapter transition on CI).
         // Retry once: re-show chrome and click again, matching the pattern used for the Annotations

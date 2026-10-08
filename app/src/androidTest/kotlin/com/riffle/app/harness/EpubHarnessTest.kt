@@ -96,11 +96,13 @@ class EpubHarnessTest : KoinTest {
             composeTestRule.onNodeWithContentDescription("Series").performClick()
         }
 
-        // Library items screen shows the series — tap into it
+        // Library items screen shows the series — tap into it.
+        // SeriesGridTile sets contentDescription on the tile and clears text semantics to avoid
+        // iOS double-labeling (see comment in LibraryItemsScreen.kt). Use contentDescription.
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_SERIES_NAME).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_SERIES_NAME).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_SERIES_NAME).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_SERIES_NAME).performClick()
 
         // Series detail loads — tap the item
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
