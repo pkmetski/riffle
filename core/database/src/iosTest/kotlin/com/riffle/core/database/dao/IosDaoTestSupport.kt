@@ -1,7 +1,7 @@
 package com.riffle.core.database.dao
 
 import androidx.room.Room
-import androidx.sqlite.driver.NativeSQLiteDriver
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.riffle.core.database.DefaultRiffleDatabaseAccess
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.RiffleDatabaseAccess
@@ -18,8 +18,8 @@ import kotlin.test.BeforeTest
 /**
  * Shared fixture for the iOS DAO suites.
  *
- * Creates an in-memory Room database backed by the system SQLite (NativeSQLiteDriver) — the same
- * driver production uses — so the assertions cover the real Room-generated DAO SQL, not a fake.
+ * Creates an in-memory Room database backed by BundledSQLiteDriver — the same driver production
+ * uses — so the assertions cover the real Room-generated DAO SQL, not a fake.
  * In-memory databases are automatically destroyed when closed, which keeps the test runner's
  * file system clean without any explicit cleanup.
  */
@@ -30,7 +30,7 @@ abstract class IosDaoTestBase {
     @BeforeTest
     fun openDatabase() {
         val roomDb = Room.inMemoryDatabaseBuilder<RiffleDatabase>()
-            .setDriver(NativeSQLiteDriver())
+            .setDriver(BundledSQLiteDriver())
             // Dispatchers.Unconfined makes Room re-execute queries on the calling coroutine's
             // thread (the test thread) instead of a real background pool. This lets the test
             // scheduler control flow-emission timing without real thread delays.

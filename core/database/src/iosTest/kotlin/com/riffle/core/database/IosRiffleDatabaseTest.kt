@@ -1,7 +1,7 @@
 package com.riffle.core.database
 
 import androidx.room.Room
-import androidx.sqlite.driver.NativeSQLiteDriver
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -12,7 +12,7 @@ class IosRiffleDatabaseTest {
     @Test
     fun nativeSqliteDriverCreatesDatabaseAndPreservesFlowQueriesOnIos() = runTest {
         val db = Room.inMemoryDatabaseBuilder<RiffleDatabase>()
-            .setDriver(NativeSQLiteDriver())
+            .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(Dispatchers.Default)
             .build()
         val database = DefaultRiffleDatabaseAccess(db)

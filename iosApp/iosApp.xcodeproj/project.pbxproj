@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
+		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
+		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
 		A1C0DE010001 /* AutoScrollBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE010002 /* AutoScrollBridgeTests.swift */; };
 		A1C0DE020001 /* CadenceBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE020002 /* CadenceBridgeTests.swift */; };
 		A1C0DE030001 /* AnnotationBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE030002 /* AnnotationBridgeTests.swift */; };
@@ -22,8 +24,6 @@
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
 		B1060010 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
 		B1060011 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
-		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
-		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
 		B1060012 /* OpenInDocumentStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060021 /* OpenInDocumentStagingTests.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
@@ -461,6 +461,7 @@
 				B1000010 /* RiffleApp.swift in Sources */,
 				B1000011 /* ContentView.swift in Sources */,
 				B1060010 /* OpenInDocument.swift in Sources */,
+				B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */,
 				B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */,
 				A1C0DE040001 /* ReadiumDecorationTemplates.swift in Sources */,
 				B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */,
@@ -468,7 +469,6 @@
 				B1010020 /* OReillyLazyContainer.swift in Sources */,
 				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
 				7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */,
-				B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

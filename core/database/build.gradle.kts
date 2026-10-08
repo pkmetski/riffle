@@ -25,14 +25,10 @@ kotlin {
         }
     }
     jvm()
+    iosArm64()
+    iosSimulatorArm64()
 
-    // Room KMP on iOS uses the system SQLite (NativeSQLiteDriver). The Kotlin/Native test
-    // binary has no Xcode build settings, so the linker flag must be declared here.
-    // The androidx.sqlite cinterop wrapper references sqlite3_load_extension, which iOS system
-    // SQLite omits (SQLITE_OMIT_LOAD_EXTENSION). Mark it as an allowed-undefined symbol so
-    // the linker does not fail; the wrapper is never called at runtime for these tests.
-    iosArm64 { binaries.all { linkerOpts("-lsqlite3") } }
-    iosSimulatorArm64 { binaries.all { linkerOpts("-lsqlite3") } }
+    // BundledSQLiteDriver packages its own SQLite, so no system SQLite linker flag is needed.
 
     sourceSets {
         // Intermediate source set for Android + JVM targets only.
@@ -74,20 +70,13 @@ kotlin {
             implementation(libs.androidx.sqlite.bundled)
         }
         iosMain.dependencies {
-            // Room KMP on iOS uses the system SQLite (no bundled binary, no OOM).
-            implementation(libs.androidx.sqlite)
+            // BundledSQLiteDriver requires sqlite-bundled on iOS — it bundles its own SQLite
+            // so the app is not subject to iOS system SQLite's SQLITE_OMIT_LOAD_EXTENSION.
+            implementation(libs.androidx.sqlite.bundled)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
-        }
-        // sqlite-bundled provides sqlite3_load_extension (absent in iOS system SQLite, which is
-        // compiled with SQLITE_OMIT_LOAD_EXTENSION). The androidx.sqlite cinterop wrapper
-        // references this symbol even though NativeSQLiteDriver never calls it at runtime;
-        // without it dyld fails on launch. This stays in iosTest only — the production
-        // XCFramework must NOT link sqlite-bundled (that binary caused OOM in the KN linker).
-        iosTest.dependencies {
-            implementation(libs.androidx.sqlite.bundled)
         }
         getByName("androidDeviceTest").dependencies {
             implementation(libs.junit)

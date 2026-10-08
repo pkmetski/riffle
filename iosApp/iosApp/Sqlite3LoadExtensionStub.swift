@@ -1,14 +1,15 @@
-// iOS system SQLite is compiled with SQLITE_OMIT_LOAD_EXTENSION.
-// The androidx.sqlite KMP cinterop references sqlite3_load_extension even though it is never
-// called at runtime on iOS. Without this stub dyld aborts on launch with "symbol not found in
-// flat namespace". Returning SQLITE_ERROR (1) is safe: any caller would handle the error.
+import Foundation
+
+// The androidx.sqlite cinterop layer generates a wrapper that references sqlite3_load_extension,
+// which iOS system SQLite (and androidx.sqlite-bundled) omit. This no-op stub satisfies the
+// linker; it is never called at runtime because BundledSQLiteDriver never invokes the extension
+// loading path.
 @_cdecl("sqlite3_load_extension")
-func sqlite3LoadExtension(
-    db: OpaquePointer?,
-    zFile: UnsafePointer<CChar>?,
-    zProc: UnsafePointer<CChar>?,
-    pzErrMsg: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+func sqlite3LoadExtensionStub(
+    _ db: OpaquePointer?,
+    _ zFile: UnsafePointer<CChar>?,
+    _ zProc: UnsafePointer<CChar>?,
+    _ pzErrMsg: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    pzErrMsg?.pointee = nil
     return 1 // SQLITE_ERROR
 }
