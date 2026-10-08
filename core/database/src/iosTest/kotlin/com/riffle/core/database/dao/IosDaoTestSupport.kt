@@ -31,7 +31,10 @@ abstract class IosDaoTestBase {
     fun openDatabase() {
         val roomDb = Room.inMemoryDatabaseBuilder<RiffleDatabase>()
             .setDriver(NativeSQLiteDriver())
-            .setQueryCoroutineContext(Dispatchers.IO)
+            // Dispatchers.Unconfined makes Room re-execute queries on the calling coroutine's
+            // thread (the test thread) instead of a real background pool. This lets the test
+            // scheduler control flow-emission timing without real thread delays.
+            .setQueryCoroutineContext(Dispatchers.Unconfined)
             .build()
         db = DefaultRiffleDatabaseAccess(roomDb)
     }

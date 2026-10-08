@@ -11,7 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class BookFormattingPreferencesStoreImplTest {
+class BookFormattingPreferencesStoreDaoPassthroughTest {
 
     private val capturedGetBuckets = mutableListOf<String>()
     private val capturedGetSourceIds = mutableListOf<String>()

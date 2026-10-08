@@ -13,7 +13,7 @@ class IosRiffleDatabaseTest {
     fun nativeSqliteDriverCreatesDatabaseAndPreservesFlowQueriesOnIos() = runTest {
         val db = Room.inMemoryDatabaseBuilder<RiffleDatabase>()
             .setDriver(NativeSQLiteDriver())
-            .setQueryCoroutineContext(Dispatchers.IO)
+            .setQueryCoroutineContext(Dispatchers.Default)
             .build()
         val database = DefaultRiffleDatabaseAccess(db)
         val source = SourceEntity(

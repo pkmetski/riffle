@@ -56,7 +56,7 @@ class AnnotationSyncController(
      */
     bookTitleProvider: suspend (sourceId: String, itemId: String) -> String? = { _, _ -> null },
     nowIso: () -> String = { Clock.System.now().toString() },
-    clock: () -> Long = System::currentTimeMillis,
+    clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
     /**
      * Per-book mutex shared with [AnnotationSweep] (#321). Held across read-then-write so the
      * sweep and a live push cannot interleave on the same device file. Defaults to a fresh

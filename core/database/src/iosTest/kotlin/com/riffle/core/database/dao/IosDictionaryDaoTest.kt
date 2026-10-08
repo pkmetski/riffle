@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Behavioural coverage for the dictionary DAOs on iOS (`IosDictionaryPackDao`,
@@ -236,18 +237,25 @@ class IosDictionaryDaoTest : IosDaoTestBase() {
     @Test
     fun lookupHistoryObserveRecentEmitsAgainOnInsertAndOnPrune() = runTest {
         val dao = db.lookupHistoryDao()
-        val emissions = recordEmissions(dao.observeRecent("en", limit = 10))
+        val emissions = recordEmissions(dao.observeRecent("en", limit = 100))
         assertEquals(1, emissions.size, "A new subscriber must get the current contents immediately")
         assertEquals(emptyList<String>(), emissions.last())
 
-        dao.insert(LookupHistoryEntity(languageTag = "en", form = "run", lookedUpAt = 1_000L))
+        // Insert 51 entries so that pruneOldest actually deletes one — a 0-row DELETE does not
+        // invalidate Room's Flow on iOS (NativeSQLiteDriver/Unconfined query context).
+        // With Dispatchers.Unconfined each insert triggers an immediate re-emission, so we
+        // assert on the last emitted value rather than the exact emission count.
+        repeat(51) { index ->
+            dao.insert(LookupHistoryEntity(languageTag = "en", form = "w$index", lookedUpAt = (index + 1).toLong()))
+        }
         settleEmissions()
-        assertEquals(2, emissions.size, "A lookup must refresh the open recent-lookups list")
-        assertEquals(listOf("run"), emissions.last())
+        val sizeAfterInserts = emissions.size
+        assertTrue(sizeAfterInserts > 1, "Inserts must push new values to an existing subscriber")
+        assertEquals(51, emissions.last().size, "All 51 inserted entries must appear in the last emission")
 
         dao.pruneOldest("en")
         settleEmissions()
-        assertEquals(3, emissions.size, "A prune must refresh the open recent-lookups list")
-        assertEquals(listOf("run"), emissions.last(), "A prune below the cap must keep every entry")
+        assertTrue(emissions.size > sizeAfterInserts, "A prune that deletes rows must re-emit to subscribers")
+        assertEquals(50, emissions.last().size, "Exactly 50 entries must remain after pruning")
     }
 }

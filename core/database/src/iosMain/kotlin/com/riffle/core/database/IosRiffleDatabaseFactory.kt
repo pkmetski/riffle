@@ -14,7 +14,8 @@ fun openRiffleDatabase(path: String): RiffleDatabaseAccess {
         // server-synced and will be restored on the next library refresh).
         .fallbackToDestructiveMigrationFrom(dropAllTables = false, 1, 2, 3, 4, 5)
         .setDriver(NativeSQLiteDriver())
-        .setQueryCoroutineContext(Dispatchers.IO)
+        // Kotlin/Native exposes no separate IO dispatcher; Default is the background pool.
+        .setQueryCoroutineContext(Dispatchers.Default)
         .build()
     return DefaultRiffleDatabaseAccess(db)
 }

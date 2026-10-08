@@ -92,6 +92,12 @@ kotlin {
             // Ktor's MockEngine is the KMP stand-in for the JVM tests' MockWebServer — it lets the
             // iOS audiobook download/cache tests drive the real Ktor streaming path (issue #1065).
             implementation(libs.ktor.client.mock)
+            // sqlite-bundled provides sqlite3_load_extension (absent in iOS system SQLite, which is
+            // compiled with SQLITE_OMIT_LOAD_EXTENSION). The androidx.sqlite cinterop wrapper
+            // references this symbol even though NativeSQLiteDriver never calls it at runtime.
+            // Without it dyld fails on launch. This stays in iosTest only — production XCFramework
+            // must not link sqlite-bundled (the large binary caused OOM in the KN linker).
+            implementation(libs.androidx.sqlite.bundled)
         }
         // Shared JVM-only test helpers visible to both jvmTest and androidHostTest.
         // OkHttp/System.getenv prevent these from living in commonTest (iOS target would reject them).
