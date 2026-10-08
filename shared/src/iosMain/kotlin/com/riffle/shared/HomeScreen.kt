@@ -58,6 +58,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
+import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
@@ -72,6 +73,7 @@ import com.riffle.shared.source.SourceOnboardingHost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import platform.Foundation.NSBundle
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
@@ -90,6 +92,7 @@ private sealed interface IosSettingsSubScreen {
 fun HomeScreen() {
     val viewModel = koinInject<HomeViewModel>()
     val drawerViewModel = koinInject<NavigationDrawerViewModel>()
+    val libraryObserver = koinInject<LibraryObserver>()
 
     val scope = rememberCoroutineScope()
     var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
@@ -99,10 +102,16 @@ fun HomeScreen() {
     var activeLibraryId by remember { mutableStateOf<String?>(null) }
     var isInReaderDestination by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    // Pending nav from lock-screen / notification taps (openNowPlayingRequests). Cleared by
+    // LibraryHost after it pushes the destination onto its stack.
+    var pendingLibraryNav by remember { mutableStateOf<LibraryNav?>(null) }
 
     val density = LocalDensity.current.density
     val containerSize = LocalWindowInfo.current.containerSize
     val isTabletLayout = (containerSize.width / density) >= 840f && (containerSize.height / density) >= 480f
+    val iosAppVersion = remember {
+        NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String
+    }
 
     val allServers by drawerViewModel.allServers.collectAsState()
     val activeServer by drawerViewModel.activeServer.collectAsState()
@@ -113,6 +122,23 @@ fun HomeScreen() {
 
     LaunchedEffect(refreshKey) {
         destination = viewModel.getStartDestination()
+    }
+
+    // Lock-screen / notification tap → open the active player.
+    LaunchedEffect(drawerViewModel) {
+        drawerViewModel.openNowPlayingRequests.collect {
+            val target = drawerViewModel.currentNowPlaying() ?: return@collect
+            val item = when (target) {
+                is NowPlaying.Audiobook -> libraryObserver.getItem(target.sourceId, target.itemId)
+                is NowPlaying.Readaloud -> libraryObserver.getItem(target.itemId)
+            } ?: return@collect
+            val nav = when (target) {
+                is NowPlaying.Audiobook -> LibraryNav.AudiobookPlayer(item)
+                is NowPlaying.Readaloud -> LibraryNav.Reader(item)
+            }
+            pendingLibraryNav = nav
+            appSection = AppSection.Library
+        }
     }
 
     LanguageChangeRestartDialog(onDismiss = {})
@@ -130,11 +156,14 @@ fun HomeScreen() {
         }
     }
 
-    val drawerEnabled = appSection == AppSection.Library || appSection == AppSection.Riffle
+    // Swipe-to-open is disabled while a reader is covering the screen — mirrors Android's
+    // gesturesEnabled = !isReaderRoute(currentRoute). `isInReaderDestination` is set by both
+    // LibraryHost (via SideEffect/DisposableEffect) and the Riffle section.
+    val drawerGesturesEnabled = !isInReaderDestination
 
     RiffleNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = drawerEnabled,
+        gesturesEnabled = drawerGesturesEnabled,
         usePermanentDrawer = isTabletLayout,
         hidePermanentDrawerPanel = isTabletLayout && isInReaderDestination,
         activeServer = activeServer,
@@ -144,6 +173,7 @@ fun HomeScreen() {
         serverVersions = serverVersions,
         showDownloadsLink = showDownloadsLink,
         isRiffleActive = appSection == AppSection.Riffle || isRiffleMode,
+        appVersion = iosAppVersion,
         onRiffleSelected = {
             scope.launch { drawerState.close() }
             drawerViewModel.setRiffleActive()
@@ -209,7 +239,7 @@ fun HomeScreen() {
                         )
                     }
                     null -> SettingsScreen(
-                        isExpandedWidth = false,
+                        isExpandedWidth = isTabletLayout,
                         onNavigateBack = { appSection = AppSection.Library },
                         onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
                         onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource },
@@ -230,50 +260,114 @@ fun HomeScreen() {
             }
             AppSection.Downloads -> {
                 val downloadsViewModel = koinInject<DownloadsViewModel>()
-                DownloadsScreen(
-                    onNavigateBack = { appSection = AppSection.Library },
-                    onItemSelected = { item ->
-                        // Navigate to item detail via library section
-                        appSection = AppSection.Library
-                    },
-                    viewModel = downloadsViewModel,
-                )
+                val downloadsApplicationScope = koinInject<ApplicationScope>()
+                val downloadsRecordItemOpened = koinInject<RecordItemOpened>()
+                var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
+                val detail = downloadsDetailNav
+                if (detail != null) {
+                    LibraryItemDetailScreen(
+                        itemId = detail.itemId,
+                        sourceId = detail.sourceId,
+                        onBack = { downloadsDetailNav = null },
+                        onRead = { item ->
+                            openReadItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                                ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
+                        },
+                        onListen = { item ->
+                            openItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                                ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
+                        },
+                        onFacetSelected = { _, _, _ -> },
+                    )
+                } else {
+                    DownloadsScreen(
+                        onNavigateBack = { appSection = AppSection.Library },
+                        onItemSelected = { item ->
+                            downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
+                        },
+                        viewModel = downloadsViewModel,
+                    )
+                }
             }
             AppSection.Riffle -> {
                 val riffleViewModel = koinInject<RiffleViewModel>()
                 val riffleApplicationScope = koinInject<ApplicationScope>()
                 val riffleRecordItemOpened = koinInject<RecordItemOpened>()
-                var riffleNav by remember { mutableStateOf<LibraryNav?>(null) }
-                when (val current = riffleNav) {
+                var riffleNavStack by remember { mutableStateOf(listOf<LibraryNav>()) }
+
+                fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
+                fun rifflePop() { riffleNavStack = riffleNavStack.dropLast(1) }
+
+                SideEffect { isInReaderDestination = riffleNavStack.lastOrNull() is LibraryNav.ReaderDestination }
+                DisposableEffect(Unit) { onDispose { isInReaderDestination = false } }
+
+                when (val current = riffleNavStack.lastOrNull()) {
                     is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
                         itemId = current.itemId,
                         sourceId = current.sourceId,
-                        onBack = { riffleNav = null },
+                        onBack = ::rifflePop,
                         onRead = { item ->
-                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
+                            openReadItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                                ?.let { rifflePush(it) }
                         },
                         onListen = { item ->
-                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)?.let { riffleNav = it }
+                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                                ?.let { rifflePush(it) }
                         },
                         onFacetSelected = { facetLibraryId, facet, value ->
-                            riffleNav = LibraryNav.FilteredBooks(facetLibraryId, facet, value)
+                            rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
                         },
+                    )
+                    is LibraryNav.ElidedReader -> ElidedReaderLoader(
+                        itemId = current.itemId,
+                        sourceId = current.sourceId,
+                        onBack = ::rifflePop,
                     )
                     is LibraryNav.FilteredBooks -> FilteredBooksHost(
                         destination = current,
-                        onBack = { riffleNav = null },
-                        onItemSelected = { item -> riffleNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }) },
+                        onBack = ::rifflePop,
+                        onItemSelected = { item ->
+                            rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
+                        },
+                    )
+                    is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
+                        destination = current,
+                        onBack = ::rifflePop,
+                        onOpenBook = { sourceId, itemId ->
+                            rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                        },
+                    )
+                    is LibraryNav.SeriesDetail -> SeriesDetailScreen(
+                        seriesId = current.seriesId,
+                        libraryId = current.seriesLibraryId,
+                        seriesName = current.seriesName,
+                        onItemSelected = { item ->
+                            rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
+                        },
+                        onNavigateBack = ::rifflePop,
+                    )
+                    is LibraryNav.CollectionDetail -> CollectionDetailScreen(
+                        collectionId = current.collectionId,
+                        libraryId = current.collectionLibraryId,
+                        collectionName = current.collectionName,
+                        onItemSelected = { item ->
+                            rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
+                        },
+                        onNavigateBack = ::rifflePop,
                     )
                     is LibraryNav.ReaderDestination -> ReaderHost(
                         destination = current,
-                        onBack = { riffleNav = null },
+                        onBack = ::rifflePop,
                         onPlaylistAdvance = { _, _ -> },
                     )
                     else -> RiffleScreen(
                         viewModel = riffleViewModel,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onItemSelected = { sourceId, itemId ->
-                            riffleNav = LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null })
+                            rifflePush(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
+                        },
+                        onAnnotatedBookClick = { sourceId, itemId ->
+                            rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                         },
                     )
                 }
@@ -306,6 +400,8 @@ fun HomeScreen() {
                             libraryName = dest.libraryName,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
                             onReaderActiveChanged = { isInReaderDestination = it },
+                            pendingNav = pendingLibraryNav,
+                            onPendingNavHandled = { pendingLibraryNav = null },
                         )
                     }
                 }
@@ -321,14 +417,25 @@ private fun LibraryHost(
     libraryName: String,
     onOpenDrawer: () -> Unit,
     onReaderActiveChanged: (Boolean) -> Unit = {},
+    pendingNav: LibraryNav? = null,
+    onPendingNavHandled: () -> Unit = {},
 ) {
     // rememberSaveable cannot be used here: LibraryNav.ReaderDestination carries a LibraryItem
     // which is not Parcelable/Serializable, so the stack would crash on process death.
     // The tradeoff (back stack reset on process kill) is acceptable for iOS.
-    var navStack by remember { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
+    // Keyed on libraryId so switching libraries via the drawer resets the stack — avoiding the
+    // wrong library's detail screen staying visible when the user switches.
+    var navStack by remember(libraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
+
+    // Lock-screen / notification taps arrive via pendingNav. Push the destination and clear.
+    LaunchedEffect(pendingNav) {
+        val nav = pendingNav ?: return@LaunchedEffect
+        navStack = navStack + nav
+        onPendingNavHandled()
+    }
 
     fun push(dest: LibraryNav) {
         navStack = navStack + dest
@@ -409,9 +516,10 @@ private fun LibraryHost(
             itemId = current.itemId,
             sourceId = current.sourceId,
             onBack = ::pop,
-            // Stay on the sheet when the format has no iOS reader rather than dismissing it.
+            // Read: routes by ebook format so ebook+audio items open the EPUB reader.
+            // Listen: isListenable wins so ebook+audio items open the audiobook player.
             onRead = { item ->
-                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
             },
             onListen = { item ->
                 openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }

@@ -34,6 +34,7 @@ import com.riffle.app.BuildConfig
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.player.NowPlaying
 import com.riffle.app.ui.isTabletLayout
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import java.net.URLEncoder
@@ -108,9 +109,20 @@ fun MainScreen(
     val isRiffleMode by viewModel.isRiffleMode.collectAsState()
 
     val currentBackStack by navController.currentBackStackEntryAsState()
-    val activeLibraryId = currentBackStack
-        ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
-        ?.arguments?.getString("libraryId")
+    val activeLibraryId = currentBackStack?.let { entry ->
+        val route = entry.destination.route ?: return@let null
+        when {
+            route.startsWith("library_items/") ->
+                entry.arguments?.getString("libraryId")
+            // Web-source browse routes: "$prefix/{libraryId}/{libraryName}" — highlight the
+            // active web-source library in the drawer just as a Room-backed library does.
+            SourceType.entries.filter { it.isUnboundedCatalog }.any { type ->
+                WebSourceDescriptors.forType(type)?.browseRoutePrefix
+                    ?.let { route.startsWith("$it/") } == true
+            } -> entry.arguments?.getString("libraryId")
+            else -> null
+        }
+    }
     val currentRoute = currentBackStack?.destination?.route
 
     val drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open

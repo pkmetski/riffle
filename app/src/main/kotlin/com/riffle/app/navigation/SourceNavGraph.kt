@@ -94,7 +94,10 @@ internal fun NavGraphBuilder.sourceNavGraph(
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
             },
-            onSearchAnnotations = { _ -> },
+            onSearchAnnotations = { query ->
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
+            },
         )
     }
     composable(ADD_CHITANKA) { backStackEntry ->
@@ -134,7 +137,10 @@ internal fun NavGraphBuilder.sourceNavGraph(
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
             },
-            onSearchAnnotations = { _ -> },
+            onSearchAnnotations = { query ->
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
+            },
         )
     }
     composable(ADD_GUTENBERG) { backStackEntry ->
@@ -174,7 +180,10 @@ internal fun NavGraphBuilder.sourceNavGraph(
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
             },
-            onSearchAnnotations = { _ -> },
+            onSearchAnnotations = { query ->
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
+            },
         )
     }
     composable(
