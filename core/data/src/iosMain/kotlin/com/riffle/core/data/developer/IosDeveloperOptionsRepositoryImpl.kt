@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import platform.Foundation.NSData
 import platform.Foundation.NSMutableDictionary
+import platform.Foundation.NSNumber
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDefaults
@@ -36,11 +37,11 @@ private object Keychain {
 
     fun get(): String? = memScoped {
         val query = NSMutableDictionary()
-        query.setValue(kSecClassGenericPassword, kSecClass)
-        query.setValue(SERVICE, kSecAttrService)
-        query.setValue(ACCOUNT, kSecAttrAccount)
-        query.setValue(true, kSecReturnData)
-        query.setValue(kSecMatchLimitOne, kSecMatchLimit)
+        query[kSecClass] = kSecClassGenericPassword
+        query[kSecAttrService] = SERVICE
+        query[kSecAttrAccount] = ACCOUNT
+        query[kSecReturnData] = NSNumber.numberWithBool(true)
+        query[kSecMatchLimit] = kSecMatchLimitOne
         val result = alloc<ObjCObjectVar<Any?>>()
         val status = SecItemCopyMatching(query, result.ptr.reinterpret())
         if (status != errSecSuccess) return null
@@ -49,18 +50,18 @@ private object Keychain {
     }
 
     fun set(value: String?) {
-        val query = NSMutableDictionary()
-        query.setValue(kSecClassGenericPassword, kSecClass)
-        query.setValue(SERVICE, kSecAttrService)
-        query.setValue(ACCOUNT, kSecAttrAccount)
-        SecItemDelete(query)
+        val deleteQuery = NSMutableDictionary()
+        deleteQuery[kSecClass] = kSecClassGenericPassword
+        deleteQuery[kSecAttrService] = SERVICE
+        deleteQuery[kSecAttrAccount] = ACCOUNT
+        SecItemDelete(deleteQuery)
         if (value.isNullOrEmpty()) return
         val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
         val attrs = NSMutableDictionary()
-        attrs.setValue(kSecClassGenericPassword, kSecClass)
-        attrs.setValue(SERVICE, kSecAttrService)
-        attrs.setValue(ACCOUNT, kSecAttrAccount)
-        attrs.setValue(data, kSecValueData)
+        attrs[kSecClass] = kSecClassGenericPassword
+        attrs[kSecAttrService] = SERVICE
+        attrs[kSecAttrAccount] = ACCOUNT
+        attrs[kSecValueData] = data
         SecItemAdd(attrs, null)
     }
 }
