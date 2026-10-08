@@ -22,6 +22,8 @@
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
 		B1060010 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
 		B1060011 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
+		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
+		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
 		B1060012 /* OpenInDocumentStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060021 /* OpenInDocumentStagingTests.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
@@ -96,6 +98,7 @@
 		B1000020 /* RiffleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleApp.swift; sourceTree = "<group>"; };
 		B1000021 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B1060020 /* OpenInDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocument.swift; sourceTree = "<group>"; };
+		B1099030 /* Sqlite3LoadExtensionStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sqlite3LoadExtensionStub.swift; sourceTree = "<group>"; };
 		B1060021 /* OpenInDocumentStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocumentStagingTests.swift; sourceTree = "<group>"; };
 		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B1001001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -194,6 +197,7 @@
 				B1000020 /* RiffleApp.swift */,
 				B1000021 /* ContentView.swift */,
 				B1060020 /* OpenInDocument.swift */,
+				B1099030 /* Sqlite3LoadExtensionStub.swift */,
 				B1000022 /* Assets.xcassets */,
 				B1002030 /* ReadiumEpubNavigatorBridge.swift */,
 				B1003030 /* IosAudioPlayerBridgeImpl.swift */,
@@ -464,6 +468,7 @@
 				B1010020 /* OReillyLazyContainer.swift in Sources */,
 				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
 				7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */,
+				B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -528,6 +533,7 @@
 				B1054010 /* AudioPlayerBridgeTests.swift in Sources */,
 				A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */,
 				B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */,
+				B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
