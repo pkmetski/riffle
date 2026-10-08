@@ -6,7 +6,9 @@ import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.models.AudiobookTracks
 import com.riffle.feature.player.AudioPlayerInterface
 import com.riffle.feature.player.NowPlayingMetadataKey
+import com.riffle.feature.player.PendingSeekGate
 import com.riffle.feature.player.SkipIntervals
+import com.riffle.feature.player.SleepTimerDriver
 import com.riffle.feature.player.SleepTimerMode
 import com.riffle.feature.player.notificationArtistText
 import kotlinx.coroutines.CoroutineDispatcher
@@ -50,13 +52,19 @@ class IosAudioPlayerController(
     private val _state = MutableStateFlow(AudioPlayerInterface.PlaybackState())
     override val state: StateFlow<AudioPlayerInterface.PlaybackState> = _state.asStateFlow()
 
-    private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
-    override val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+    private val sleepDriver = SleepTimerDriver(scope) {
+        repeat(SleepTimerDriver.FADE_STEPS) { i ->
+            bridge.setVolume((1f - (i + 1f) / SleepTimerDriver.FADE_STEPS).coerceAtLeast(0f))
+            delay(SleepTimerDriver.FADE_STEP_MS)
+        }
+        bridge.pause()
+        bridge.setVolume(1f)
+    }
+    override val sleepTimer: StateFlow<SleepTimerMode> get() = sleepDriver.sleepTimer
+    override val sleepTimerFired: SharedFlow<Unit> get() = sleepDriver.fired
 
     private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     override val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
-    private val _sleepTimerFired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    override val sleepTimerFired: SharedFlow<Unit> = _sleepTimerFired.asSharedFlow()
 
     private var totalDurationSec: Double = 0.0
     private var spans: List<AudiobookTrackSpan> = emptyList()
@@ -65,26 +73,38 @@ class IosAudioPlayerController(
     private var coverUri: String? = null
     private var currentSpeed: Float = 1f
     private var lastNowPlayingKey: NowPlayingMetadataKey = NowPlayingMetadataKey.NONE
-    private var sleepJob: kotlinx.coroutines.Job? = null
+    private val pendingSeek = PendingSeekGate()
 
     init {
         bridge.setPositionCallback(object : IosPositionCallback {
             override fun onPosition(trackIndex: Int, offsetSec: Double) {
                 val absolute = AudiobookTracks.absoluteSec(trackIndex, offsetSec, spans)
+                // Confirm (and clear) the pending-seek gate once the position has converged to the
+                // seek target — mirrors Android's AudiobookController which calls maybeConfirm on
+                // every EVENT_POSITION_DISCONTINUITY / position poll.
+                pendingSeek.maybeConfirm(absolute)
+                val reportedSec = pendingSeek.sample { absolute }
                 _state.value = _state.value.copy(
-                    positionSec = absolute,
+                    positionSec = reportedSec,
                     durationSec = totalDurationSec,
-                    bufferedSec = absolute + bridge.currentTrackBufferedSec(),
+                    bufferedSec = reportedSec + bridge.currentTrackBufferedSec(),
                 )
-                maybeRefreshNowPlaying(absolute)
+                maybeRefreshNowPlaying(reportedSec)
             }
         })
         bridge.setPlayingCallback(object : IosPlayingCallback {
             override fun onPlaying(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
+                // Update the lock-screen rate and elapsed immediately on every play/pause toggle so
+                // the OS knows to stop or resume extrapolating the elapsed time counter.
+                if (totalDurationSec > 0) pushNowPlaying(_state.value.positionSec)
             }
         })
         bridge.setRemoteCommandCallback(object : IosRemoteCommandCallback {
+            // Route play/pause through the Kotlin controller so the sleep timer is cancelled on
+            // lock-screen pause — a direct bridge.pause() bypasses the sleep driver.
+            override fun onPlay() = play()
+            override fun onPause() = pause()
             override fun onSeekAbsolute(positionSec: Double) = seekTo(positionSec)
             override fun onSkip(deltaSec: Double) = skipBy(deltaSec)
             override fun onTrackDelta(delta: Int) {
@@ -131,6 +151,7 @@ class IosAudioPlayerController(
         // Flush any stale end-of-book event from a prior session before loading new tracks,
         // mirroring Android AudiobookController.resetReplayCache() before prepare().
         _playbackEnded.resetReplayCache()
+        pendingSeek.reset()
         totalDurationSec = durationSec
         this.spans = spans
         this.timeline = AudiobookTimeline(durationSec = durationSec, chapters = chapters)
@@ -160,9 +181,8 @@ class IosAudioPlayerController(
     }
 
     override fun pause() {
-        // Android's AudiobookController.pause() clears the sleep timer (an explicit pause retires
-        // the "stop playing in N minutes" intent); play() deliberately does not.
-        cancelSleepTimerInternal()
+        // An explicit pause retires the "stop playing in N minutes" intent; play() does not.
+        sleepDriver.cancel()
         bridge.pause()
     }
 
@@ -176,49 +196,22 @@ class IosAudioPlayerController(
         // Rate must only be set while playing — save and apply on next play() call.
         // IosAudioPlayerBridgeImpl handles this via pendingRate field.
         bridge.setSpeed(speed)
+        // Push updated rate to the lock-screen immediately so the Now Playing display reflects
+        // the new speed rather than waiting for the next chapter/minute tick.
+        if (totalDurationSec > 0) pushNowPlaying(currentAbsoluteSec())
     }
 
     override fun setSleepTimer(mode: SleepTimerMode) {
-        sleepJob?.cancel()
-        _sleepTimer.value = mode
-        when (mode) {
-            is SleepTimerMode.CountDown -> {
-                var remaining = mode.remainingMs
-                sleepJob = scope.launch {
-                    while (remaining > 0) {
-                        delay(SLEEP_TICK_MS)
-                        remaining -= SLEEP_TICK_MS
-                        if (remaining <= 0) {
-                            fadeAndStop()
-                        } else {
-                            _sleepTimer.value = SleepTimerMode.CountDown(remaining.coerceAtLeast(0))
-                        }
-                    }
-                }
-            }
-            is SleepTimerMode.EndOfChapter -> { /* chapter detection is done in the ViewModel */ }
-            is SleepTimerMode.None -> { /* already cleared */ }
-        }
+        sleepDriver.set(mode)
+        // EndOfChapter: no countdown needed; ViewModel calls triggerSleepNow() on chapter change.
     }
 
     override fun cancelSleepTimer() {
-        cancelSleepTimerInternal()
+        sleepDriver.cancel()
     }
 
     override fun triggerSleepNow() {
-        sleepJob?.cancel()
-        sleepJob = scope.launch { fadeAndStop() }
-    }
-
-    private suspend fun fadeAndStop() {
-        repeat(FADE_STEPS) { i ->
-            bridge.setVolume((1f - (i + 1f) / FADE_STEPS).coerceAtLeast(0f))
-            delay(FADE_STEP_MS)
-        }
-        bridge.pause()
-        bridge.setVolume(1f)
-        _sleepTimer.value = SleepTimerMode.None
-        _sleepTimerFired.tryEmit(Unit)
+        sleepDriver.triggerNow()
     }
 
     override fun seekTo(absoluteSec: Double) {
@@ -226,6 +219,9 @@ class IosAudioPlayerController(
             0.0,
             if (totalDurationSec > 0) totalDurationSec else absoluteSec.coerceAtLeast(0.0),
         )
+        // Latch the seek target so onPosition callbacks during the seek window report the
+        // intended position rather than the raw (possibly pre-seek) track offset.
+        pendingSeek.onSeekIssued(clamped)
         bridge.seekToTrack(
             trackIndex = AudiobookTracks.trackIndexAt(clamped, spans),
             offsetSec = AudiobookTracks.offsetInTrackSec(clamped, spans),
@@ -249,8 +245,7 @@ class IosAudioPlayerController(
     override fun clearEndOfBookCache() = Unit
 
     override fun stop() {
-        sleepJob?.cancel()
-        _sleepTimer.value = SleepTimerMode.None
+        sleepDriver.cancel()
         bridge.dispose()
         spans = emptyList()
         timeline = AudiobookTimeline(durationSec = 0.0)
@@ -293,16 +288,7 @@ class IosAudioPlayerController(
         )
     }
 
-    private fun cancelSleepTimerInternal() {
-        sleepJob?.cancel()
-        sleepJob = null
-        _sleepTimer.value = SleepTimerMode.None
-    }
-
     companion object {
-        private const val SLEEP_TICK_MS = 1_000L
         private const val MS_PER_SEC = 1000.0
-        private const val FADE_STEPS = 50
-        private const val FADE_STEP_MS = 100L
     }
 }

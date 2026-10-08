@@ -623,4 +623,65 @@ class IosAudioPlayerControllerTest {
 
         assertEquals(1, bridge.pauseCalls, "exactly one pause call expected after fade")
     }
+
+    // ── PendingSeekGate wiring (#1190) ─────────────────────────────────────────────
+
+    /**
+     * Regression: before PendingSeekGate was wired into iOS, a seek to 250 s followed by an
+     * immediate onPosition callback from AVFoundation (which still reported the old track-local
+     * offset) caused the UI to briefly show the pre-seek position. The gate must suppress stale
+     * callbacks until the position converges to the seek target.
+     */
+    @Test
+    fun pendingSeekGateSuppressesStalePositionCallbacks() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        // Seek to book-absolute 250 s (track 2, offset 50 s).
+        controller.seekTo(250.0)
+        // Bridge fires a position callback still on the old track — a stale read from before the
+        // seek landed.
+        assertNotNull(bridge.positionCallback).onPosition(trackIndex = 0, offsetSec = 5.0)
+        // The gate must return the pending seek target (250 s), not the stale 5 s.
+        assertEquals(250.0, controller.state.value.positionSec, "stale callback must not win over the pending seek target")
+    }
+
+    @Test
+    fun pendingSeekGateConfirmsOncePositionConverges() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        controller.seekTo(250.0)
+        // Simulate AVFoundation reporting the seek target exactly — gate confirms.
+        assertNotNull(bridge.positionCallback).onPosition(trackIndex = 2, offsetSec = 50.0)
+        // Next callback at a different position; gate is confirmed so live position wins.
+        // track 2 starts at 200 s; offset 55 → book-absolute 255 s.
+        assertNotNull(bridge.positionCallback).onPosition(trackIndex = 2, offsetSec = 55.0)
+        assertEquals(255.0, controller.state.value.positionSec, "after confirmation, live position must win")
+    }
+
+    // ── Remote play/pause routing (#1190) ──────────────────────────────────────────
+
+    /**
+     * Regression: before onPlay/onPause were added to IosRemoteCommandCallback, lock-screen
+     * pause bypassed the Kotlin controller and skipped cancelSleepTimer(). The sleep timer must
+     * be cancelled when the user pauses from the lock screen.
+     */
+    @Test
+    fun remotePauseCancelsTheSleepTimer() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 300_000L))
+        assertNotNull(bridge.remoteCommandCallback).onPause()
+        assertEquals(SleepTimerMode.None, controller.sleepTimer.value,
+            "lock-screen pause must cancel the sleep timer via the Kotlin controller")
+    }
+
+    @Test
+    fun remotePlayDoesNotCancelTheSleepTimer() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 300_000L))
+        assertNotNull(bridge.remoteCommandCallback).onPlay()
+        assertTrue(controller.sleepTimer.value is SleepTimerMode.CountDown,
+            "lock-screen play must not retire the sleep timer")
+    }
 }

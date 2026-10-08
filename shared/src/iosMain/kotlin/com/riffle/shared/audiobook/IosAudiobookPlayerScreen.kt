@@ -39,6 +39,7 @@ fun AudiobookPlayerScreen(
     playlistLibraryId: String?,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+    onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
 ) {
     // The ViewModel is a Koin `factory` and iOS has no navigation-provided ViewModelStoreOwner, so
     // without an explicit host nothing ever calls AudiobookPlayerViewModel.onCleared() — the follow
@@ -90,5 +91,6 @@ fun AudiobookPlayerScreen(
         labels = playerChromeLabels(),
         onNavigateBack = onBack,
         twoColumn = twoColumn,
+        onSwitchToReadaloud = onSwitchToReadaloud,
     )
 }

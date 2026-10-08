@@ -392,11 +392,13 @@ import UIKit
     private func setupRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
         center.playCommand.addTarget { [weak self] _ in
-            self?.play()
+            // Route through the Kotlin controller (not the bridge directly) so the sleep timer
+            // is managed in one place — IosAudioPlayerController.pause() cancels it.
+            self?.remoteCommandCallback?.onPlay()
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
-            self?.pause()
+            self?.remoteCommandCallback?.onPause()
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
