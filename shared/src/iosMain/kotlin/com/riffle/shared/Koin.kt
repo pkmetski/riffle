@@ -15,6 +15,7 @@ import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AppearanceCoordinatorImpl
@@ -224,8 +225,6 @@ import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
 import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
-import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
