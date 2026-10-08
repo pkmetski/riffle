@@ -308,17 +308,21 @@ final class NavDrawerTests: XCTestCase {
         burger.tap()
 
         let secondLibrary = app.staticTexts[StubAbsServer.testLibraryName2]
+        // Budget 45 s: the drawer populates from cached data, but on a CPU-saturated runner
+        // (after 50+ min of heavy tests) Compose re-composition can be slow.
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 25),
+            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 45),
             "Drawer must list the first library"
         )
         XCTAssertTrue(secondLibrary.exists, "Drawer must list every visible library, not just the active one")
 
         secondLibrary.tap()
+        // The iOS nav stack is keyed by libraryId (re-created on switch); allow 45 s for
+        // the new LibraryItemsScreen to render its title on a slow runner.
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 25),
+            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 45),
             "Selecting a library must re-title the library screen"
         )
-        XCTAssertTrue(burger.waitForExistence(timeout: 25), "The drawer must close back onto the library screen")
+        XCTAssertTrue(burger.waitForExistence(timeout: 45), "The drawer must close back onto the library screen")
     }
 }
