@@ -316,14 +316,11 @@ final class NavDrawerTests: XCTestCase {
         XCTAssertTrue(secondLibrary.exists, "Drawer must list every visible library, not just the active one")
 
         secondLibrary.tap()
-        // The iOS nav stack is keyed by libraryId (re-created on switch); the new
-        // LibraryItemsScreen can take 55 s+ to render its title on a CPU-saturated runner
-        // (observed: test runs after 500+ s of prior tests on Clone 1). The SLOW_RE bash
-        // retry was removed, so there is no per-attempt duration cap to worry about —
-        // budget 75 s so the test passes even on heavily loaded runners.
+        // SourceBrowseHeader renders the title as sourceName.uppercase(), so the accessibility
+        // element in the screen header is "TEST LIBRARY 2", not "Test Library 2".
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 75),
-            "Selecting a library must re-title the library screen"
+            app.staticTexts[StubAbsServer.testLibraryName2.uppercased()].waitForExistence(timeout: 30),
+            "Selecting a library must re-title the library screen (title rendered uppercase)"
         )
         // Once the library title is visible, the burger should already be present.
         XCTAssertTrue(burger.waitForExistence(timeout: 15), "The drawer must close back onto the library screen")
