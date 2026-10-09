@@ -89,9 +89,9 @@ import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudLinkDao
+import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSweepEnqueuer
-import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationsLibraryRepository
 import com.riffle.core.domain.AppUpdatePreferencesStore
