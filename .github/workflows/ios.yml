@@ -315,7 +315,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: macos-15
-    timeout-minutes: 70
+    timeout-minutes: 100
     concurrency:
       group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
