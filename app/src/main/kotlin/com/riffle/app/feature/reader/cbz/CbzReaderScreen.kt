@@ -74,7 +74,7 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
-import com.riffle.app.feature.readersettings.palette
+import com.riffle.feature.settings.ui.readersettings.palette
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.ReaderTheme

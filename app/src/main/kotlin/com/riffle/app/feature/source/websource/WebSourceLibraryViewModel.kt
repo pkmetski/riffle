@@ -1,5 +1,8 @@
 package com.riffle.app.feature.source.websource
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -7,10 +10,17 @@ import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.feature.library.HomeTabContent
+import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.BookGrid
+import com.riffle.feature.designsystem.BookSectionGrid
+import com.riffle.feature.designsystem.LocalCoverGridScale
+import com.riffle.feature.designsystem.SectionHeader
+import com.riffle.feature.designsystem.pinchCoverZoom
 import com.riffle.feature.library.LibrarySectionType
-import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.core.data.ToReadRepository
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.riffle.app.R
 import com.riffle.core.data.websource.PositionTombstoneWriter
 import com.riffle.core.data.websource.RemoteItemFreshness
 import com.riffle.core.domain.ConnectivityObserver
@@ -118,19 +128,26 @@ fun WebSourceHomeTab(
     val inProgress by viewModel.inProgress.collectAsState()
     val finished by viewModel.finished.collectAsState()
     val continueSeries by viewModel.continueSeries.collectAsState()
-
-    HomeTabContent(
-        inProgress = inProgress,
-        continueSeries = continueSeries,
-        recentlyAdded = emptyList(),
-        finished = finished,
-        isLoading = false,
-        token = "",
-        onItemSelected = { item -> onOpenDetail(item.id) },
-        onSectionSeeMore = onSectionSeeMore,
-        onCoverScaleChange = onCoverScaleChange,
-        onItemLongPress = { item -> viewModel.removeFromLibrary(item.sourceId, item.id) },
-    )
+    val scale = LocalCoverGridScale.current
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .pinchCoverZoom(scale, onCoverScaleChange),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
+        if (inProgress.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.ui_section_in_progress)) }
+            item { BookSectionGrid(items = inProgress, token = "", onItemSelected = { onOpenDetail(it.id) }, onItemLongPress = { viewModel.removeFromLibrary(it.sourceId, it.id) }) }
+        }
+        if (continueSeries.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.ui_section_continue_series)) }
+            item { BookSectionGrid(items = continueSeries, token = "", onItemSelected = { onOpenDetail(it.id) }, onItemLongPress = { viewModel.removeFromLibrary(it.sourceId, it.id) }) }
+        }
+        if (finished.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.ui_section_completed)) }
+            item { BookSectionGrid(items = finished, token = "", onItemSelected = { onOpenDetail(it.id) }, onItemLongPress = { viewModel.removeFromLibrary(it.sourceId, it.id) }) }
+        }
+    }
 }
 
 @Composable
@@ -140,11 +157,11 @@ fun WebSourceToReadTab(
     viewModel: WebSourceLibraryViewModel = koinViewModel(),
 ) {
     val items by viewModel.toReadItems.collectAsState()
-    ToReadTabContent(
+    val scale = LocalCoverGridScale.current
+    BookGrid(
         items = items,
-        isLoading = false,
         token = "",
-        onItemSelected = { item -> onOpenDetail(item.id) },
-        onCoverScaleChange = onCoverScaleChange,
+        onItemSelected = { onOpenDetail(it.id) },
+        modifier = Modifier.fillMaxSize().pinchCoverZoom(scale, onCoverScaleChange),
     )
 }

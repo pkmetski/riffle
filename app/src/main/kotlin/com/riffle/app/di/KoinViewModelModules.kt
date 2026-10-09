@@ -53,7 +53,7 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel
 import com.riffle.app.feature.source.websource.WebSourceLibraryViewModel
-import com.riffle.app.feature.update.ChangelogViewModel
+import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.app.feature.update.StartupUpdateViewModel
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
@@ -145,10 +145,9 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 private val libraryViewModelModule = module {
-    viewModel {
-        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         LibraryItemsViewModel(
-            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
+            libraryId = params.get(),
             libraryObserver = get(),
             refreshLibraryItemsUseCase = get(),
             refreshSeriesUseCase = get(),
@@ -168,11 +167,10 @@ private val libraryViewModelModule = module {
             dispatchers = get(),
         )
     }
-    viewModel {
-        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         LibraryItemDetailViewModel(
-            itemId = savedStateHandle.get<String>("itemId") ?: "",
-            sourceId = savedStateHandle.get<String>("sourceId")?.takeIf { it.isNotBlank() },
+            itemId = params.get(),
+            sourceId = params.get(),
             libraryObserver = get(),
             recordItemOpened = get(),
             updateReadingProgressUseCase = get(),
@@ -208,13 +206,10 @@ private val libraryViewModelModule = module {
             webSourceLibraryItemUpserter = get(),
         )
     }
-    viewModel {
-        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         LibrarySectionViewModel(
-            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
-            sectionType = savedStateHandle.get<String>("sectionType")
-                ?.let { runCatching { LibrarySectionType.valueOf(it) }.getOrNull() }
-                ?: LibrarySectionType.IN_PROGRESS,
+            libraryId = params.get(),
+            sectionType = params.get(),
             libraryObserver = get(),
             sourceRepository = get(),
             tokenStorage = get(),
@@ -231,11 +226,10 @@ private val libraryViewModelModule = module {
             readaloudLinkRepository = get(),
         )
     }
-    viewModel {
-        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         SeriesDetailViewModel(
-            seriesId = savedStateHandle.get<String>("seriesId") ?: "",
-            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
+            seriesId = params.get(),
+            libraryId = params.get(),
             libraryObserver = get(),
             refreshSeriesUseCase = get(),
             sourceRepository = get(),
@@ -244,11 +238,10 @@ private val libraryViewModelModule = module {
             connectivityObserver = get(),
         )
     }
-    viewModel {
-        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         CollectionDetailViewModel(
-            collectionId = savedStateHandle.get<String>("collectionId") ?: "",
-            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
+            collectionId = params.get(),
+            libraryId = params.get(),
             libraryObserver = get(),
             refreshCollectionsUseCase = get(),
             sourceRepository = get(),
@@ -693,10 +686,9 @@ private val audiobookViewModelModule = module {
 }
 
 private val annotationsViewModelModule = module {
-    viewModel {
-        val savedStateHandle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         AnnotationsListViewModel(
-            libraryId = savedStateHandle.get<String>("libraryId") ?: "",
+            libraryId = params.get(),
             sourceRepository = get(),
             repo = get(),
             tokenStorage = get(),

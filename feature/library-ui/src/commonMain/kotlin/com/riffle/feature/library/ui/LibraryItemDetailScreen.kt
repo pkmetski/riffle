@@ -151,9 +151,9 @@ fun LibraryItemDetailScreen(
     onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onFacetSelected: (libraryId: String, facet: FacetType, value: String) -> Unit = { _, _, _ -> },
     onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit = { _, _, _ -> },
+    onEditMetadata: (() -> Unit)? = null,
+    vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) }),
 ) {
-    val vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) })
-
     val uiState by vm.uiState.collectAsState()
     val downloadState by vm.downloadState.collectAsState()
     val audiobookDownloadState by vm.audiobookDownloadState.collectAsState()
@@ -298,13 +298,13 @@ fun LibraryItemDetailScreen(
                     showOverflowMenu = false
                     showUploadDestinationDialog = true
                 },
+                onEditMetadata = onEditMetadata,
                 messages = messages,
             ) { innerPadding ->
                 if (isExpandedWidth) {
                     DetailContentTablet(
                         modifier = Modifier.padding(innerPadding),
                         state = state,
-                        vm = vm,
                         token = vm.authToken,
                         downloadState = downloadState,
                         audiobookDownloadState = audiobookDownloadState,
@@ -338,7 +338,6 @@ fun LibraryItemDetailScreen(
                     DetailContentPhone(
                         modifier = Modifier.padding(innerPadding),
                         state = state,
-                        vm = vm,
                         token = vm.authToken,
                         downloadState = downloadState,
                         audiobookDownloadState = audiobookDownloadState,
@@ -384,6 +383,7 @@ private fun DetailReadyScaffold(
     onToggleOverflowMenu: () -> Unit,
     onDismissOverflowMenu: () -> Unit,
     onUploadTo: () -> Unit,
+    onEditMetadata: (() -> Unit)? = null,
     messages: com.riffle.feature.source.ui.TransientMessages,
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) {
@@ -416,12 +416,12 @@ private fun DetailReadyScaffold(
                                     expanded = showOverflowMenu,
                                     onDismissRequest = onDismissOverflowMenu,
                                 ) {
-                                    if (state.capabilities.canEditMetadata) {
+                                    if (state.capabilities.canEditMetadata && onEditMetadata != null) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(Res.string.ui_edit_metadata)) },
                                             onClick = {
-                                                /* metadata editing not yet implemented in shared screen */
                                                 onDismissOverflowMenu()
+                                                onEditMetadata()
                                             },
                                         )
                                     }
@@ -503,7 +503,6 @@ private fun DetailErrorContent(onBack: () -> Unit) {
 private fun DetailContentPhone(
     modifier: Modifier = Modifier,
     state: LibraryItemDetailUiState.Ready,
-    vm: LibraryItemDetailViewModel,
     token: String,
     downloadState: DownloadState,
     audiobookDownloadState: DownloadState?,
@@ -621,7 +620,6 @@ private fun DetailContentPhone(
 private fun DetailContentTablet(
     modifier: Modifier = Modifier,
     state: LibraryItemDetailUiState.Ready,
-    vm: LibraryItemDetailViewModel,
     token: String,
     downloadState: DownloadState,
     audiobookDownloadState: DownloadState?,
@@ -673,6 +671,7 @@ private fun DetailContentTablet(
         // Left pane — cover + primary CTAs (non-scrolling)
         Column(
             modifier = Modifier
+                .testTag(TestTags.LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG)
                 .widthIn(max = 360.dp)
                 .fillMaxHeight()
                 .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
@@ -714,6 +713,7 @@ private fun DetailContentTablet(
         // Right pane — metadata (scrolling)
         Column(
             modifier = Modifier
+                .testTag(TestTags.LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG)
                 .weight(1f)
                 .fillMaxHeight()
                 .verticalScroll(rememberScrollState())
@@ -816,7 +816,18 @@ internal fun PublicationFactsLine(item: LibraryItem, estimatedTotalReadingTimeSe
         }
         EbookFormat.Unsupported -> null
     }
-    if (text.isNullOrBlank()) return
+    if (text.isNullOrBlank()) {
+        // Reserve vertical space for formats whose data arrives asynchronously (EPUB reading-time
+        // estimate, extracted PDF page count) so the action row below never reflows on first load.
+        if (item.ebookFormat == EbookFormat.Epub || item.ebookFormat == EbookFormat.Pdf) {
+            Text(
+                text = "",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        return
+    }
     Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -1274,6 +1285,168 @@ internal fun ebookReadingTimeText(
         }
         else -> estimated(total)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Test-accessible wrappers — expose the internal rendering for instrumentation
+// tests in consuming modules (:app/src/androidTest) that cannot access private
+// or internal functions across module boundaries.
+// ---------------------------------------------------------------------------
+
+@Composable
+fun LibraryItemDetailContent(
+    item: LibraryItem,
+    seriesId: String? = null,
+    capabilities: DetailCapabilities = DetailCapabilities.All,
+    onFacet: (FacetType, String) -> Unit = { _, _ -> },
+    onSeriesClick: (String, String) -> Unit = { _, _ -> },
+    isInToRead: Boolean = false,
+    token: String = "",
+    downloadState: DownloadState = DownloadState.NotDownloaded,
+    isCachedOrDownloaded: Boolean = false,
+    isOffline: Boolean = false,
+    readaloudDownloadState: DownloadState? = null,
+    audiobookDownloadState: DownloadState? = null,
+    tocState: TocState = TocState.Loading,
+    chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
+    estimatedTotalReadingTimeSec: Long? = null,
+    pdfPageCount: Int? = null,
+    epubVersion: String? = null,
+    onReadItem: (LibraryItem) -> Unit = {},
+    onListenItem: (LibraryItem) -> Unit = {},
+    onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
+    onMarkAsRead: () -> Unit = {},
+    onMarkAsUnread: () -> Unit = {},
+    onToggleToRead: () -> Unit = {},
+    onAddToPlaylist: () -> Unit = {},
+    onDownload: () -> Unit = {},
+    onRemove: () -> Unit = {},
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val state = LibraryItemDetailUiState.Ready(
+        item = item,
+        seriesId = seriesId,
+        isInToRead = isInToRead,
+        isCachedOrDownloaded = isCachedOrDownloaded,
+        isOffline = isOffline,
+        capabilities = capabilities,
+    )
+    DetailContentPhone(
+        modifier = modifier,
+        state = state,
+        token = token,
+        downloadState = downloadState,
+        audiobookDownloadState = audiobookDownloadState,
+        readaloudDownloadState = readaloudDownloadState,
+        tocState = tocState,
+        chaptersState = chaptersState,
+        currentPositionHref = currentPositionHref,
+        estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
+        pdfPageCount = pdfPageCount,
+        epubVersion = epubVersion,
+        showKoFiNudge = false,
+        onRead = { onReadItem(item) },
+        onListen = { onListenItem(item) },
+        onReadAtHref = { href -> onReadItemAtHref(item, href) },
+        onListenAtSec = { sec -> onListenItemAtSec(item, sec) },
+        onMarkAsRead = onMarkAsRead,
+        onMarkAsUnread = onMarkAsUnread,
+        onToggleToRead = onToggleToRead,
+        onAddToPlaylist = onAddToPlaylist,
+        onFacet = { facet, value -> onFacet(facet, value) },
+        onSeries = { seriesId2 -> onSeriesClick(item.libraryId, seriesId2) },
+        onDismissKoFi = {},
+        onDownload = onDownload,
+        onRemove = onRemove,
+        onDownloadAudiobook = onDownloadAudiobook,
+        onRemoveAudiobook = onRemoveAudiobook,
+        onDownloadReadaloud = onDownloadReadaloud,
+        onRemoveReadaloud = onRemoveReadaloud,
+    )
+}
+
+@Composable
+fun LibraryItemDetailContentTablet(
+    item: LibraryItem,
+    seriesId: String? = null,
+    capabilities: DetailCapabilities = DetailCapabilities.All,
+    onFacet: (FacetType, String) -> Unit = { _, _ -> },
+    onSeriesClick: (String, String) -> Unit = { _, _ -> },
+    isInToRead: Boolean = false,
+    token: String = "",
+    downloadState: DownloadState = DownloadState.NotDownloaded,
+    isCachedOrDownloaded: Boolean = false,
+    isOffline: Boolean = false,
+    readaloudDownloadState: DownloadState? = null,
+    audiobookDownloadState: DownloadState? = null,
+    tocState: TocState = TocState.Loading,
+    chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
+    estimatedTotalReadingTimeSec: Long? = null,
+    pdfPageCount: Int? = null,
+    epubVersion: String? = null,
+    onReadItem: (LibraryItem) -> Unit = {},
+    onListenItem: (LibraryItem) -> Unit = {},
+    onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
+    onMarkAsRead: () -> Unit = {},
+    onMarkAsUnread: () -> Unit = {},
+    onToggleToRead: () -> Unit = {},
+    onAddToPlaylist: () -> Unit = {},
+    onDownload: () -> Unit = {},
+    onRemove: () -> Unit = {},
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val state = LibraryItemDetailUiState.Ready(
+        item = item,
+        seriesId = seriesId,
+        isInToRead = isInToRead,
+        isCachedOrDownloaded = isCachedOrDownloaded,
+        isOffline = isOffline,
+        capabilities = capabilities,
+    )
+    DetailContentTablet(
+        modifier = modifier,
+        state = state,
+        token = token,
+        downloadState = downloadState,
+        audiobookDownloadState = audiobookDownloadState,
+        readaloudDownloadState = readaloudDownloadState,
+        tocState = tocState,
+        chaptersState = chaptersState,
+        currentPositionHref = currentPositionHref,
+        estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
+        pdfPageCount = pdfPageCount,
+        epubVersion = epubVersion,
+        showKoFiNudge = false,
+        onRead = { onReadItem(item) },
+        onListen = { onListenItem(item) },
+        onReadAtHref = { href -> onReadItemAtHref(item, href) },
+        onListenAtSec = { sec -> onListenItemAtSec(item, sec) },
+        onMarkAsRead = onMarkAsRead,
+        onMarkAsUnread = onMarkAsUnread,
+        onToggleToRead = onToggleToRead,
+        onAddToPlaylist = onAddToPlaylist,
+        onFacet = { facet, value -> onFacet(facet, value) },
+        onSeries = { seriesId2 -> onSeriesClick(item.libraryId, seriesId2) },
+        onDismissKoFi = {},
+        onDownload = onDownload,
+        onRemove = onRemove,
+        onDownloadAudiobook = onDownloadAudiobook,
+        onRemoveAudiobook = onRemoveAudiobook,
+        onDownloadReadaloud = onDownloadReadaloud,
+        onRemoveReadaloud = onRemoveReadaloud,
+    )
 }
 
 /** "N pages" or "M of N pages read" depending on progress. */

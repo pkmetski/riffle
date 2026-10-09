@@ -56,7 +56,7 @@ import kotlin.math.roundToInt
  * slider left the current position. Example: from 1.7 (reachable by dragging the 0.2-step
  * margins slider), pressing + returns 1.8, not 1.9.
  */
-internal fun steppedTypographyValue(
+fun steppedTypographyValue(
     current: Float,
     step: Float,
     range: ClosedFloatingPointRange<Float>,
@@ -78,16 +78,16 @@ internal fun steppedTypographyValue(
 
 // The slider bubbles print the same numbers the captions and the iOS steppers do, so they
 // read them from the one shared formatter rather than re-deriving with String.format.
-internal fun fontSizeBubble(v: Float): String = ReaderSettingsSummaries.fontSizePercentLabel(v)
-internal fun lineSpacingBubble(v: Float): String = ReaderSettingsSummaries.scaleTimesLabel(v)
-internal fun marginsBubble(v: Float): String = ReaderSettingsSummaries.scaleTimesLabel(v)
-internal fun wpmBubble(v: Float): String = "${v.roundToInt()}"
+fun fontSizeBubble(v: Float): String = ReaderSettingsSummaries.fontSizePercentLabel(v)
+fun lineSpacingBubble(v: Float): String = ReaderSettingsSummaries.scaleTimesLabel(v)
+fun marginsBubble(v: Float): String = ReaderSettingsSummaries.scaleTimesLabel(v)
+fun wpmBubble(v: Float): String = "${v.roundToInt()}"
 
 /**
  * True when [value] is an integer multiple of [majorEvery], within [epsilon].
  * Majors line up on natural round numbers (100 wpm, 1.0×, …) regardless of where the range starts.
  */
-internal fun isMajorTick(
+fun isMajorTick(
     value: Float,
     majorEvery: Float,
     epsilon: Float = 1e-3f,
@@ -97,7 +97,7 @@ internal fun isMajorTick(
 }
 
 @Composable
-internal fun UnifiedSliderRow(
+fun UnifiedSliderRow(
     title: String,
     caption: String,
     value: Float,

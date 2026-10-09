@@ -1,5 +1,7 @@
 package com.riffle.app.feature.update
 
+import com.riffle.feature.settings.ui.changelog.ChangelogUiState
+import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.ReleaseInfo

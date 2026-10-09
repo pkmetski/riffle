@@ -75,12 +75,20 @@ fun BookSectionGrid(
                     onClick = { onItemSelected(item) },
                     onLongClick = if (onItemLongPress != null) ({ onItemLongPress(item) }) else null,
                     hasReadaloudLink = item.id in linkedItemIds,
-                    seriesNameBadge = if (showSeriesBadge) item.seriesName else null,
+                    seriesNameBadge = if (showSeriesBadge) seriesPositionBadge(item.seriesName) else null,
                     sourceBadge = sourceBadgeProvider?.invoke(item),
                 )
             }
         }
     }
+}
+
+private fun seriesPositionBadge(seriesName: String?): String? {
+    val sequence = seriesName
+        ?.substringAfterLast(" #", missingDelimiterValue = "")
+        ?.trim()
+        .orEmpty()
+    return sequence.takeIf { it.isNotEmpty() }?.let { "#$it" }
 }
 
 /**

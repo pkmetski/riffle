@@ -122,4 +122,13 @@
     <string name="ui_no_annotations_for_query">No annotations for "%1$s"</string>
     <string name="ui_bookmark_fallback_title">Bookmark</string>
     <string name="ui_audiobook_bookmark_fallback_title">Audiobook Bookmark</string>
+    <!-- Library items — sort mode labels (All Books chip) -->
+    <string name="ui_sort_recently_added">Recently Added</string>
+    <string name="ui_sort_oldest_first">Oldest First</string>
+    <string name="ui_sort_title_az">Title A→Z</string>
+    <string name="ui_sort_title_za">Title Z→A</string>
+    <string name="ui_sort_author_az">Author A→Z</string>
+    <string name="ui_sort_recently_opened">Recently Opened</string>
+    <!-- Library items — offline banner -->
+    <string name="ui_offline_banner">Offline — showing cached data</string>
 </resources>

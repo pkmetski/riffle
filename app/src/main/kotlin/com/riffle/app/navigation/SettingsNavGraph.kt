@@ -27,7 +27,8 @@ import com.riffle.feature.settings.ui.developer.DeveloperOptionsScreen
 import com.riffle.feature.settings.ui.dictionary.DictionaryPacksScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
-import com.riffle.app.feature.update.ChangelogScreen
+import com.riffle.feature.settings.ui.changelog.ChangelogScreen
+import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.i18n.findActivity
 import java.net.URLEncoder
@@ -130,6 +131,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
     composable(CHANGELOG) { backStackEntry ->
         ChangelogScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+            viewModel = koinViewModel<ChangelogViewModel>(),
         )
     }
     composable(ANNOTATIONS_SYNC_SETTINGS) { backStackEntry ->

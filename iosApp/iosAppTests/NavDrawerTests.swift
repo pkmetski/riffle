@@ -308,17 +308,21 @@ final class NavDrawerTests: XCTestCase {
         burger.tap()
 
         let secondLibrary = app.staticTexts[StubAbsServer.testLibraryName2]
+        // Library names in the drawer come from cached data — they should appear quickly.
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 25),
+            app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 15),
             "Drawer must list the first library"
         )
         XCTAssertTrue(secondLibrary.exists, "Drawer must list every visible library, not just the active one")
 
         secondLibrary.tap()
+        // SourceBrowseHeader renders the title as sourceName.uppercase(), so the accessibility
+        // element in the screen header is "TEST LIBRARY 2", not "Test Library 2".
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 25),
-            "Selecting a library must re-title the library screen"
+            app.staticTexts[StubAbsServer.testLibraryName2.uppercased()].waitForExistence(timeout: 30),
+            "Selecting a library must re-title the library screen (title rendered uppercase)"
         )
-        XCTAssertTrue(burger.waitForExistence(timeout: 25), "The drawer must close back onto the library screen")
+        // Once the library title is visible, the burger should already be present.
+        XCTAssertTrue(burger.waitForExistence(timeout: 15), "The drawer must close back onto the library screen")
     }
 }

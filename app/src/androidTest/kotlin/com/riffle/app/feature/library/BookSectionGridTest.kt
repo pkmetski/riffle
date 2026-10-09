@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.BookSectionGrid
 import com.riffle.feature.designsystem.LocalCoverGridScale
 import org.junit.Assert.assertTrue
 import org.junit.Rule

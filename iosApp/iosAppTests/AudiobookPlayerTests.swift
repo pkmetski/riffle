@@ -109,13 +109,13 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         let allPillsPresent = NSPredicate { _, _ in
             self.chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
         }
-        // 180 s: playPause appeared but the CMP tree can still be settling under CI load; the old
-        // 60 s cap caused a spurious fail, raised to 120 s, then raised again to 180 s after
-        // observing ~149 s total test times on Clone 1 under heavy runner contention (the pill
-        // wait starts after playPause appears, so a slow ~30 s load + 120 s cap = 150 s total).
+        // 240 s: playPause appeared but the CMP tree can still be settling under CI load; the old
+        // 60 s cap caused a spurious fail, raised to 120 s, then to 180 s after observing ~149 s
+        // total test times on Clone 1, then raised again to 240 s after observing 223 s total test
+        // times on Clone 2 under heavy runner contention (both retry iterations timed out at 180 s).
         let pillsResult = XCTWaiter.wait(
             for: [XCTNSPredicateExpectation(predicate: allPillsPresent, object: nil)],
-            timeout: 180
+            timeout: 240
         )
         XCTAssertEqual(pillsResult, .completed,
                        "Player must offer Chapters, bookmarks, sleep-timer and speed controls")

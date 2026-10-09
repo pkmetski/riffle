@@ -64,7 +64,7 @@ import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
-internal enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
+enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
 
 @Composable
 internal fun ThemeSwatch(
@@ -209,7 +209,7 @@ internal fun FontChipRow(
 }
 
 @Composable
-internal fun ThemeChipRows(
+fun ThemeChipRows(
     selected: ReaderTheme,
     onSelect: (ReaderTheme) -> Unit,
     schedule: ThemeSchedule = ThemeSchedule(),

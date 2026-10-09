@@ -82,11 +82,10 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     # This job Kotlin/Native-compiles and runs 29 modules' iosSimulatorArm64Test plus the XCTest
-    # unit target; it normally finishes in ~22 min but a CPU-contended macos-15 runner can push it
-    # well past that. 35 min was too tight (killed mid-run on a slow runner); 50 min was too tight
-    # after feature:library-ui iosSimulatorArm64Test was added (killed at exactly 50 on a slow
-    # runner); 65 is the new safety cap, not a per-test wait.
-    timeout-minutes: 65
+    # unit target; recent successful runs: 26–38 min. 35 min was too tight (killed mid-run on a
+    # slow runner); 50 min was killed once after feature:library-ui iosSimulatorArm64Test was
+    # added; recent runs have settled back into the 26–38 min range, so 50 is reinstated.
+    timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
@@ -316,7 +315,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 70
     concurrency:
       group: ios-harness-test-phone-${{ github.ref }}
       cancel-in-progress: true
@@ -436,22 +435,19 @@ jobs:
           # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
           # assertion. Keep this list narrow so real failures are never retried away.
           CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test|Timed out while acquiring background assertion'
-          # Contention signature (failure mode 2, see the block comment above): a parallel clone that
-          # never died but ran so CPU-starved that even the harness's generous per-wait timeouts were
-          # exceeded. The tell is a single test that took absurdly long — healthy tests finish in
-          # well under 90 s, so any run of 180 s+ means the box was starved, not that a test is
-          # genuinely broken. This is infra-driven and hits a different random test every run
-          # (observed on main across PdfReader/ProgressPipeline/NavDrawer/AddKomga), so it is safe to
-          # retry on a fresh simulator. A genuine regression produces no such 180 s+ run and still
-          # fails fast below.
-          SLOW_RE='\((1[89][0-9]|[2-9][0-9]{2}|[0-9]{4,})\.[0-9]+ seconds\)'
+          # NOTE: The SLOW_RE bash-level retry (for tests taking 180 s+ due to CPU saturation)
+          # has been removed. The -retry-tests-on-failure -test-iterations 2 flags already give
+          # every failing test a second chance within the same xcodebuild invocation. A bash-level
+          # retry starts a fresh xcodebuild (rm + relink + full suite, ~30 min), which combined
+          # with the first run (~40 min) consistently exceeds the 70-min job timeout. On a
+          # saturated runner the retry also runs slowly and still fails, so the retry only adds
+          # time without improving reliability. Occasional slow-runner failures require a CI
+          # re-run, which is preferable to systematic job timeouts.
           if run_harness; then
             exit 0
           fi
           if grep -qE "$CRASH_RE" xcodebuild-harness.log; then
             echo "::warning::Simulator infrastructure failure detected — retrying once on a clean simulator."
-          elif grep -qE "$SLOW_RE" xcodebuild-harness.log; then
-            echo "::warning::Simulator CPU-contention detected (a test ran 180 s+) — retrying once on a clean simulator."
           else
             echo "Harness failed with genuine test failures (no simulator-infrastructure signature) — not retrying."
             exit 1

@@ -101,11 +101,11 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.feature.reader.renderer.DefaultRendererBridge
 import com.riffle.app.feature.reader.renderer.RendererBridge
 import com.riffle.app.feature.reader.sentence.SentencePlaybackController
-import com.riffle.app.feature.readersettings.TocPanel
-import com.riffle.app.feature.readersettings.formatting.RenderCapabilities
+import com.riffle.feature.settings.ui.readersettings.TocPanel
+import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
-import com.riffle.app.feature.readersettings.palette
-import com.riffle.app.feature.readersettings.swatchBackdropColor
+import com.riffle.feature.settings.ui.readersettings.palette
+import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
 import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.core.common.TimeRemaining
 import com.riffle.core.domain.FormattingPreferences
