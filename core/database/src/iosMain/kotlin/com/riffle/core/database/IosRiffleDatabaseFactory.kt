@@ -11,8 +11,8 @@ fun openRiffleDatabase(path: String): RiffleDatabaseAccess {
     //
     // The path must be absolute. SQLDelight's NativeSqliteDriver resolved bare filenames to
     // Library/Application Support/databases/ automatically; Room does not. NSHomeDirectory() gives
-    // the app container root; Room writes the database to NSHomeDirectory()/Documents/riffle.db
-    // by convention (Documents is the only user-visible directory, so it is the natural home).
+    // the app container root (e.g. /var/mobile/Containers/Data/Application/<UUID>/); a bare
+    // filename resolves to NSHomeDirectory()/<name>, i.e. the app container root directly.
     val absolutePath = if (path.startsWith('/')) path else "${NSHomeDirectory()}/$path"
     val db = Room.databaseBuilder<RiffleDatabase>(name = absolutePath)
         .addMigrations(RiffleDatabase.MIGRATION_IOS_SQLDELIGHT_6_75)
