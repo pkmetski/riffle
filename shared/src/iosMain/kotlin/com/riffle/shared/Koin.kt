@@ -248,6 +248,10 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
+import com.riffle.shared.readaloud.IosReadaloudBridge
+import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
+import com.riffle.shared.readaloud.IosReadaloudController
+import com.riffle.shared.readaloud.IosReadaloudSession
 import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosCoverImageCopier
@@ -287,6 +291,7 @@ private fun iosLibraryModule(
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
+    readaloudBridgeFactory: IosReadaloudBridgeFactory,
 ) = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
@@ -639,6 +644,28 @@ private fun iosLibraryModule(
     // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
     single { IosReadaloudHandoff() }
     single<ReadaloudHandoff> { get<IosReadaloudHandoff>() }
+    single<IosReadaloudBridgeFactory> { readaloudBridgeFactory }
+    single<IosReadaloudSession.Factory> {
+        IosReadaloudSession.Factory { sourceId, itemId ->
+            val bridge: IosReadaloudBridge = get<IosReadaloudBridgeFactory>().create()
+            val controller = IosReadaloudController(
+                bridge = bridge,
+                bundleAudioExtractor = get(),
+                readaloudHandoff = get(),
+            )
+            IosReadaloudSession(
+                sourceId = sourceId,
+                itemId = itemId,
+                controller = controller,
+                audioRepository = get(),
+                bundleReader = get(),
+                readaloudPreferencesStore = get(),
+                resumeStore = get(),
+                dispatchers = get(),
+                parentScope = get(),
+            )
+        }
+    }
     // Same ReaderSyncFactory Android binds (ADR 0023), now that it is commonMain: reader <->
     // audiobook position sync for a matched book, over iOS's EPUB locator/analyzer.
     // Live on iOS: AudiobookReconciliationCoordinator.attach calls createIfApplicable /
@@ -1335,11 +1362,13 @@ fun startKoin(
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
+    readaloudBridgeFactory: IosReadaloudBridgeFactory,
 ) = startKoinWithDatabase(
     navigatorBridgeFactory = navigatorBridgeFactory,
     audioPlayerBridgeFactory = audioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
     publicationInspector = publicationInspector,
+    readaloudBridgeFactory = readaloudBridgeFactory,
     databaseFile = RIFFLE_DATABASE_FILE,
 )
 
@@ -1353,6 +1382,7 @@ internal fun startKoinWithDatabase(
     audioPlayerBridgeFactory: IosAudioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
+    readaloudBridgeFactory: IosReadaloudBridgeFactory,
     databaseFile: String,
 ) {
     val app = koinStartKoin {
@@ -1360,7 +1390,7 @@ internal fun startKoinWithDatabase(
             iosLoggingModule,
             iosDataModule,
             iosDatabaseModule(databaseFile),
-            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector),
+            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector, readaloudBridgeFactory),
         )
     }
 

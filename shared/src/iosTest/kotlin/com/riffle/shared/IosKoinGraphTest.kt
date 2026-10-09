@@ -62,6 +62,8 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
 import com.riffle.shared.audiobook.IosAudioPlayerBridge
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
+import com.riffle.shared.readaloud.IosReadaloudBridge
+import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
 import com.riffle.shared.reader.IosEpubNavigatorBridge
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfNavigatorBridge
@@ -150,6 +152,10 @@ class IosKoinGraphTest {
         override fun create(): IosPdfNavigatorBridge = error("not needed for graph resolution")
     }
 
+    private object StubReadaloudBridgeFactory : IosReadaloudBridgeFactory {
+        override fun create(): IosReadaloudBridge = error("not needed for graph resolution")
+    }
+
     private object StubPublicationInspector : IosPublicationInspector {
         override fun inspectEpub(filePath: String, onResult: (resultJson: String?) -> Unit) = onResult(null)
 
@@ -167,6 +173,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -228,6 +235,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -253,6 +261,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -284,6 +293,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -317,6 +327,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -352,6 +363,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -384,6 +396,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
@@ -412,6 +425,7 @@ class IosKoinGraphTest {
             audioPlayerBridgeFactory = StubAudioBridgeFactory,
             pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
             publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
             databaseFile = uniqueDatabaseFile(),
         )
         val koin = KoinPlatform.getKoin()
