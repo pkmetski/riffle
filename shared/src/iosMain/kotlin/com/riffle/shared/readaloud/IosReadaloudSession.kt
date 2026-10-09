@@ -106,20 +106,10 @@ internal class IosReadaloudSession(
                 _activeFragmentRef.value = clip?.textFragmentRef
             }
         }
-        // Determine availability: has audio when the bundle is on disk.
-        _readaloudAvailable.value = audioRepository.isAudioAvailable(sourceId, itemId)
-        if (!_readaloudAvailable.value) {
-            // Probe for a network bundle size so the download dialog can show the right figure.
-            scope.launch {
-                val bytes = withContext(dispatchers.io) {
-                    audioRepository.probeSizeBytes(sourceId, itemId)
-                }
-                if (bytes != null) {
-                    // Book has Storyteller audio — mark available so the UI shows the Play button.
-                    _readaloudAvailable.value = true
-                }
-            }
-        }
+        // Optimistically enabled — openReadaloud() determines availability on tap and shows the
+        // download dialog or "not available" bar if needed. Eager probing on reader open added a
+        // background network call that contributed to CI test timeouts on loaded runners.
+        _readaloudAvailable.value = true
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -129,11 +119,17 @@ internal class IosReadaloudSession(
         _readaloudOpen.value = true
         val bundlePath = bundleReader.bundlePath(sourceId, itemId)
         if (bundlePath == null) {
-            // Audio not on disk — show download prompt (or stream if Storyteller supports it).
+            // Audio not on disk — probe for a server bundle size to show download dialog.
             val sizeBytes = withContext(dispatchers.io) {
                 audioRepository.probeSizeBytes(sourceId, itemId)
             }
-            _downloadPromptBytes.value = sizeBytes
+            if (sizeBytes != null) {
+                _downloadPromptBytes.value = sizeBytes
+            } else {
+                // Book has no Storyteller audio — show a brief bar message and close.
+                _barMessage.value = "No readaloud audio available for this book"
+                _readaloudOpen.value = false
+            }
             return
         }
         startPlaybackFromBundle(bundlePath, resumeFragmentRef)
