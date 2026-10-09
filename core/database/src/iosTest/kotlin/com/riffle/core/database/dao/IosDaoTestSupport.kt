@@ -1,51 +1,47 @@
 package com.riffle.core.database.dao
 
-import co.touchlab.sqliter.DatabaseFileContext
+import androidx.room.Room
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import com.riffle.core.database.DefaultRiffleDatabaseAccess
+import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
-import com.riffle.core.database.openRiffleDatabase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import platform.Foundation.NSUUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 
 /**
  * Shared fixture for the iOS DAO suites.
  *
- * These tests drive the real `Ios*Dao` implementations through the real
- * [openRiffleDatabase] entry point — the same NativeSqliteDriver + [com.riffle.core.database.IosRiffleDatabaseSchema]
- * pair production uses — so the assertions cover the actual SQL each DAO issues, not a fake.
- *
- * Going through [openRiffleDatabase] rather than constructing DAOs against a bare driver (as
- * `IosRiffleDatabaseSchemaTest` does) is deliberate: every DAO then shares the one
- * [com.riffle.core.database.IosInvalidator] instance that `IosRiffleDatabaseAccess` owns, which is
- * what makes the Flow-emission assertions meaningful. A DAO that forgets to call `invalidate()`
- * after a write leaves live collectors stale on device; that is exactly the defect these suites pin.
+ * Creates an in-memory Room database backed by BundledSQLiteDriver — the same driver production
+ * uses — so the assertions cover the real Room-generated DAO SQL, not a fake.
+ * In-memory databases are automatically destroyed when closed, which keeps the test runner's
+ * file system clean without any explicit cleanup.
  */
 abstract class IosDaoTestBase {
 
     protected lateinit var db: RiffleDatabaseAccess
 
-    private lateinit var databaseName: String
-
     @BeforeTest
     fun openDatabase() {
-        // A bare filename, exactly as production passes it (`openRiffleDatabase("riffle.db")` in
-        // IosDatabaseKoinModule). SQLiter treats the argument as a NAME and resolves it against its
-        // own base path; handing it a full path throws "File … contains a path separator" out of
-        // DatabaseConfiguration's checkFilename.
-        databaseName = "riffle-dao-test-${NSUUID().UUIDString}.db"
-        db = openRiffleDatabase(databaseName)
+        val roomDb = Room.inMemoryDatabaseBuilder<RiffleDatabase>()
+            .setDriver(BundledSQLiteDriver())
+            // Dispatchers.Unconfined makes Room re-execute queries on the calling coroutine's
+            // thread (the test thread) instead of a real background pool. This lets the test
+            // scheduler control flow-emission timing without real thread delays.
+            .setQueryCoroutineContext(Dispatchers.Unconfined)
+            .build()
+        db = DefaultRiffleDatabaseAccess(roomDb)
     }
 
     @AfterTest
     fun closeDatabase() {
         db.close()
-        DatabaseFileContext.deleteDatabase(databaseName)
     }
 
     /**

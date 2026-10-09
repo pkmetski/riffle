@@ -158,6 +158,10 @@ tasks.register("checkRiffleInfraSeams") {
             // CoroutineContext; injecting DispatcherProvider here would invert the dependency graph.
             "core/database/src/nonIosMain/kotlin/com/riffle/core/database/RiffleDatabaseFactory.kt",
             "core/database/src/nonIosMain/kotlin/com/riffle/core/database/RiffleDatabaseBuilderExt.kt",
+            // iOS Room factory — same rationale; NativeSQLiteDriver's coroutine context must be
+            // provided directly. Injecting DispatcherProvider would add a core:domain dependency
+            // to core:database, inverting the graph.
+            "core/database/src/iosMain/kotlin/com/riffle/core/database/IosRiffleDatabaseFactory.kt",
         )
 
         val scanRoots = listOf(
@@ -170,7 +174,7 @@ tasks.register("checkRiffleInfraSeams") {
             .flatMap { it.walkTopDown().toList() }
             .filter { it.isFile && it.extension == "kt" }
             // Only enforce on production source — tests legitimately reference the literals in fakes.
-            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") || it.absolutePath.contains("/src/androidHostTest/") || it.absolutePath.contains("/src/jvmTest/") || it.absolutePath.contains("/src/commonTest/") || it.absolutePath.contains("/src/sharedJvmTest/") }
+            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") || it.absolutePath.contains("/src/androidHostTest/") || it.absolutePath.contains("/src/jvmTest/") || it.absolutePath.contains("/src/commonTest/") || it.absolutePath.contains("/src/sharedJvmTest/") || it.absolutePath.contains("/src/iosTest/") }
             .forEach { f ->
                 val rel = f.relativeTo(layout.projectDirectory.asFile).path
                 if (rel in allowlist) return@forEach

@@ -18,11 +18,8 @@ kotlin {
         }
     }
     jvm()
-    // IosSourceRepositoryImplTest (#1101) drives the repository over the real NativeSqliteDriver
-    // database, so the Kotlin/Native test executables need the system SQLite symbols — the same
-    // `-lsqlite3` core:database and shared declare for their test binaries.
-    iosArm64 { binaries.all { linkerOpts("-lsqlite3") } }
-    iosSimulatorArm64 { binaries.all { linkerOpts("-lsqlite3") } }
+    iosArm64()
+    iosSimulatorArm64()
 
     sourceSets {
         commonTest.dependencies {
@@ -92,6 +89,8 @@ kotlin {
             // Ktor's MockEngine is the KMP stand-in for the JVM tests' MockWebServer — it lets the
             // iOS audiobook download/cache tests drive the real Ktor streaming path (issue #1065).
             implementation(libs.ktor.client.mock)
+            // sqlite-bundled is transitively provided by core:database's iosMain dependency on
+            // sqlite-bundled (needed for BundledSQLiteDriver). No separate declaration needed.
         }
         // Shared JVM-only test helpers visible to both jvmTest and androidHostTest.
         // OkHttp/System.getenv prevent these from living in commonTest (iOS target would reject them).

@@ -27,12 +27,13 @@ struct RiffleApp: App {
 }
 
 private func wipeAppState() {
-    // SQLDelight's NativeSqliteDriver stores the DB in Library/Application Support/databases/,
-    // not directly under NSHomeDirectory(). Delete the whole databases directory so WAL/SHM
-    // files are also cleared and Room re-creates the schema on the next Koin start.
-    if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-        let dbDir = appSupport.appendingPathComponent("databases")
-        try? FileManager.default.removeItem(at: dbDir)
+    // Room KMP (BundledSQLiteDriver) stores the database at NSHomeDirectory()/riffle.db, not
+    // in Library/Application Support/databases/ (SQLDelight's old location). Delete the main
+    // database file and its WAL/SHM sidecars so Room re-creates the schema on the next Koin start.
+    let homeDir = NSHomeDirectory()
+    let fm = FileManager.default
+    for name in ["riffle.db", "riffle.db-wal", "riffle.db-shm"] {
+        try? fm.removeItem(atPath: "\(homeDir)/\(name)")
     }
     if let bundleId = Bundle.main.bundleIdentifier {
         UserDefaults.standard.removePersistentDomain(forName: bundleId)

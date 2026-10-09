@@ -14,8 +14,6 @@ const val RIFFLE_DATABASE_FILE: String = "riffle.db"
  * runner is slow enough for them to overlap, not locally.
  */
 fun iosDatabaseModule(databaseFile: String = RIFFLE_DATABASE_FILE) = module {
-    // NativeSqliteDriver 2.0.x only accepts a plain filename (no path separators).
-    // SQLite opens the file relative to the process working directory on iOS.
     single<RiffleDatabaseAccess> { openRiffleDatabase(databaseFile) }
     single { get<RiffleDatabaseAccess>().sourceDao() }
     single { get<RiffleDatabaseAccess>().libraryDao() }

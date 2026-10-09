@@ -5,7 +5,6 @@ import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LocalMinuteTime
-import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
@@ -190,19 +189,4 @@ private fun LocalMinuteTime.toMinuteOfDay(): Int = hour * 60 + minute
 private fun minuteOfDayToLocalTime(value: Int): LocalMinuteTime {
     val clamped = value.coerceIn(0, 24 * 60 - 1)
     return LocalMinuteTime.of(clamped / 60, clamped % 60)
-}
-
-// Same codec as Android to round-trip identically.
-private const val SERIF_V2_PERSIST_NAME = "SerifV2"
-private const val LEGACY_SERIF_PERSIST_NAME = "Serif"
-
-internal fun ReaderFontFamily.encodePersistName(): String = when (this) {
-    ReaderFontFamily.Serif -> SERIF_V2_PERSIST_NAME
-    else -> name
-}
-
-internal fun String.decodeFontFamily(): ReaderFontFamily? = when (this) {
-    SERIF_V2_PERSIST_NAME -> ReaderFontFamily.Serif
-    LEGACY_SERIF_PERSIST_NAME -> ReaderFontFamily.Original
-    else -> runCatching { ReaderFontFamily.valueOf(this) }.getOrNull()
 }
