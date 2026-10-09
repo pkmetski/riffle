@@ -1288,7 +1288,7 @@ fun EpubReaderScreen(
         readaloudDownloadPromptBytes?.let { bytes ->
             IosReadaloudDownloadDialog(
                 sizeBytes = bytes,
-                onConfirm = { readaloudSession.startDownload(wifiOnly = false) },
+                onConfirm = { readaloudSession.startDownload() },
                 onDismiss = readaloudSession::dismissDownloadPrompt,
             )
         }

@@ -49,7 +49,7 @@ internal class IosReadaloudSession(
     private val dispatchers: DispatcherProvider,
     parentScope: CoroutineScope,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + dispatchers.main)
+    private val scope = CoroutineScope(SupervisorJob(parentScope.coroutineContext[Job]) + dispatchers.main)
 
     // ── State surface ────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ internal class IosReadaloudSession(
      * populates it by parsing the EPUB chapter HTML via [IosEpubNavigatorBridge.getChapterBytes].
      */
     val sentenceQuotes: StateFlow<Map<String, SentenceQuote>> =
-        MutableStateFlow<Map<String, SentenceQuote>>(emptyMap())
+        MutableStateFlow<Map<String, SentenceQuote>>(emptyMap()).asStateFlow()
 
     val readaloudHighlightColor: StateFlow<HighlightColor> =
         readaloudPreferencesStore.preferences
@@ -164,7 +164,7 @@ internal class IosReadaloudSession(
     fun playFromFragment(fragmentRef: String) = controller.playFromFragment(fragmentRef)
 
     /** Initiates a bundle download. Call after the user confirms the download dialog. */
-    fun startDownload(wifiOnly: Boolean) {
+    fun startDownload() {
         if (downloadJob?.isActive == true) return
         _downloadPromptBytes.value = null
         downloadJob = scope.launch {
@@ -207,6 +207,8 @@ internal class IosReadaloudSession(
             _barMessage.value = "No readaloud data in bundle"
             return
         }
+        // Guard against a closeReadaloud() that arrived while IO was suspended.
+        if (!_readaloudOpen.value) return
         track = t
 
         // Determine the resume position.

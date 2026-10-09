@@ -201,13 +201,14 @@ import Riffle
         lastResolvedIndex = start
 
         let cmTime = CMTime(seconds: max(offsetSec, 0), preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        let shouldResume = resumePlaying
         player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
             guard let self, !self.isDisposed else { return }
             self.emitPosition()
-        }
-        if resumePlaying {
-            player.play()
-            if pendingRate != 1.0 { player.rate = pendingRate }
+            if shouldResume {
+                self.player?.play()
+                if self.pendingRate != 1.0 { self.player?.rate = self.pendingRate }
+            }
         }
     }
 
@@ -220,6 +221,9 @@ import Riffle
             )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {}
+        // Remove any stale observers from a previous prepare before adding fresh ones.
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
         setupAudioSessionObservers()
     }
 
