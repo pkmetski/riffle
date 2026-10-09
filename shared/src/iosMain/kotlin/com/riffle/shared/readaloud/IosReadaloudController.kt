@@ -44,8 +44,10 @@ internal class IosReadaloudController(
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     private var track: ReadaloudTrack? = null
+
     /** Maps a distinct audio-file zip-entry path to its index in the queued playlist. */
     private val audioIndex = LinkedHashMap<String, Int>()
+
     /** Inverse of [audioIndex]: index → audioSrc, for converting bridge positions back. */
     private val indexToAudioSrc = ArrayList<String>()
 

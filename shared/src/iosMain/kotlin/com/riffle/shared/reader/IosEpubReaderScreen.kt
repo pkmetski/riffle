@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
-import com.riffle.feature.designsystem.RiffleIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -71,6 +70,7 @@ import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
@@ -129,6 +129,7 @@ import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_could_not_download_book
 import com.riffle.shared.generated.resources.ui_error
 import com.riffle.shared.generated.resources.ui_no_highlights_to_show
+import com.riffle.shared.readaloud.IosReadaloudSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -138,7 +139,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
-import com.riffle.shared.readaloud.IosReadaloudSession
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
@@ -1519,7 +1519,7 @@ private fun IosReadaloudMiniPlayer(
                     TextButton(
                         onClick = { onSpeedChange(nextSpeed) },
                         modifier = Modifier.testTag(TestTags.READALOUD_SPEED),
-                    ) { Text("${speed}×") }
+                    ) { Text("$speed×") }
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onRewind, modifier = Modifier.testTag(TestTags.READALOUD_REWIND)) {
                         Icon(RiffleIcons.FastRewind, contentDescription = "Rewind 15s")

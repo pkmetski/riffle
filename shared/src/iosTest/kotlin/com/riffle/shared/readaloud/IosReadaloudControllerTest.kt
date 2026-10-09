@@ -47,8 +47,12 @@ class IosReadaloudControllerTest {
             reportedOffset = startOffsetSec
         }
 
-        override fun play() { playCalls++ }
-        override fun pause() { pauseCalls++ }
+        override fun play() {
+            playCalls++
+        }
+        override fun pause() {
+            pauseCalls++
+        }
         override fun setSpeed(speed: Float) = Unit
         override fun seekToSrc(srcIndex: Int, offsetSec: Double) {
             seeks += srcIndex to offsetSec
@@ -64,7 +68,9 @@ class IosReadaloudControllerTest {
         override fun setPlayingCallback(callback: IosReadaloudPlayingCallback?) {
             playingCallback = callback
         }
-        override fun dispose() { disposeCalls++ }
+        override fun dispose() {
+            disposeCalls++
+        }
     }
 
     private class FakeBundleAudioExtractor : BundleAudioExtractor {
