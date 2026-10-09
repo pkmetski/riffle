@@ -88,9 +88,11 @@ class AnnotationFocusHarnessTest : KoinTest {
         // androidx.navigation:navigation-compose ≥ 2.9.x, the navigation modifier's
         // detach/attach lifecycle sequence can be in mid-flight when waitForIdle() drains the
         // slot table, triggering `IllegalStateException: Must run runDetachLifecycle() once after
-        // runAttachLifecycle()`. A short sleep gives the last composition cycle time to settle
-        // naturally before the Activity is destroyed. (Same pattern as NavigationSnapHarnessTest.)
-        Thread.sleep(400)
+        // runAttachLifecycle()`. A longer sleep (800 ms, was 400 ms) gives the last composition
+        // cycle time to settle naturally before the Activity is destroyed, reducing the chance
+        // of the Compose SlotWriter ArrayIndexOutOfBoundsException seen intermittently during
+        // scenario.close(). (Same pattern as NavigationSnapHarnessTest.)
+        Thread.sleep(800)
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
         Thread.sleep(400)
