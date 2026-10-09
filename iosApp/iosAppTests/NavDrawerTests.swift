@@ -309,9 +309,6 @@ final class NavDrawerTests: XCTestCase {
 
         let secondLibrary = app.staticTexts[StubAbsServer.testLibraryName2]
         // Library names in the drawer come from cached data — they should appear quickly.
-        // Use a short timeout here so that if the drawer is slow, the test fails fast
-        // (< 90 s per attempt) and stays below the 180 s SLOW_RE threshold that would
-        // trigger a whole-suite bash retry and blow the job timeout.
         XCTAssertTrue(
             app.staticTexts[StubAbsServer.testLibraryName].waitForExistence(timeout: 15),
             "Drawer must list the first library"
@@ -320,11 +317,12 @@ final class NavDrawerTests: XCTestCase {
 
         secondLibrary.tap()
         // The iOS nav stack is keyed by libraryId (re-created on switch); the new
-        // LibraryItemsScreen may take up to 45 s to render its title on a slow runner.
-        // This is the only long wait in the test — keeping the others short ensures
-        // worst-case per-attempt duration stays under 90 s (2 attempts < 180 s = SLOW_RE).
+        // LibraryItemsScreen can take 55 s+ to render its title on a CPU-saturated runner
+        // (observed: test runs after 500+ s of prior tests on Clone 1). The SLOW_RE bash
+        // retry was removed, so there is no per-attempt duration cap to worry about —
+        // budget 75 s so the test passes even on heavily loaded runners.
         XCTAssertTrue(
-            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 45),
+            app.staticTexts[StubAbsServer.testLibraryName2].waitForExistence(timeout: 75),
             "Selecting a library must re-title the library screen"
         )
         // Once the library title is visible, the burger should already be present.
