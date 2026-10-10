@@ -73,6 +73,7 @@ class ReadiumSwiftNavigator(
     private val _viewportFractionEvents =
         MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private val _figureTapPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    private val _riffleUrls = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
 
@@ -102,6 +103,9 @@ class ReadiumSwiftNavigator(
      * state use that parser rather than dealing with raw JSON.
      */
     val figureTapPayloads: Flow<String> = _figureTapPayloads
+
+    /** `riffle://` URLs intercepted from the Highlights-mode synthetic EPUB's tap targets. */
+    val riffleUrls: Flow<String> = _riffleUrls
 
     private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
@@ -149,6 +153,9 @@ class ReadiumSwiftNavigator(
         bridge.setFootnoteCallback { contentHtml ->
             _eventFlow.tryEmit(NavigatorEvent.Footnote(contentHtml))
         }
+        bridge.setRiffleUrlCallback { url ->
+            _riffleUrls.tryEmit(url)
+        }
     }
 
     init {
@@ -182,6 +189,7 @@ class ReadiumSwiftNavigator(
         bridge.setDecorationActivatedCallback(null)
         bridge.setFigureTapCallback(null)
         bridge.setFootnoteCallback(null)
+        bridge.setRiffleUrlCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
     }

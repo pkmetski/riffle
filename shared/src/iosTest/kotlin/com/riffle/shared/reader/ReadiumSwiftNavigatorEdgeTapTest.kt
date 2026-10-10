@@ -63,6 +63,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         override fun scrollByPx(pixels: Int, onResult: (Boolean) -> Unit) = onResult(true)
         override fun startSearch(query: String, onBatch: ((String) -> Unit)?, onDone: (() -> Unit)?) = Unit
         override fun cancelSearch() = Unit
+        override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
     }
 
     private fun navigator(

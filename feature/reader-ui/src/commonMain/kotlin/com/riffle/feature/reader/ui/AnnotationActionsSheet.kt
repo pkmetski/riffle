@@ -64,6 +64,7 @@ data class AnnotationSheetLabels(
     val delete: String,
     val bookmark: String,
     val removeBookmark: String,
+    val openInBook: String = "Open in book",
 ) {
     companion object {
         val English = AnnotationSheetLabels(
@@ -81,6 +82,7 @@ data class AnnotationSheetLabels(
             delete = "Delete annotation",
             bookmark = "Bookmark this page",
             removeBookmark = "Remove bookmark",
+            openInBook = "Open in book",
         )
     }
 }
@@ -254,6 +256,8 @@ fun AnnotationActionsSheet(
     onOpenNoteEditor: () -> Unit,
     onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    showOpenInBook: Boolean = false,
+    onOpenInBook: () -> Unit = {},
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -328,6 +332,22 @@ fun AnnotationActionsSheet(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
+            }
+            if (showOpenInBook) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(TestTags.ANNOTATION_OPEN_IN_BOOK)
+                        .clickable(onClick = onOpenInBook)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = labels.openInBook,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
         }
     }

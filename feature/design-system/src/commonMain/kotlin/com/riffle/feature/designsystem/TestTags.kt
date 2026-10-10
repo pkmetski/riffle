@@ -102,6 +102,7 @@ object TestTags {
     const val IOS_READER_SEARCH_FIELD = "ios_reader_search_field"
     const val IOS_READER_AUTOSCROLL = "ios_reader_autoscroll"
     const val IOS_READER_CADENCE = "ios_reader_cadence"
+    const val IOS_READER_SHARE_HIGHLIGHTS = "ios_reader_share_highlights"
     const val IOS_READER_BOOKMARK = "ios_reader_bookmark"
     const val IOS_READER_AUTOSCROLL_PAUSE = "ios_reader_autoscroll_pause"
 
@@ -237,6 +238,7 @@ object TestTags {
     fun annotationChip(styleToken: Any) = "annotation_chip_$styleToken"
     const val ANNOTATION_DELETE = "annotation_delete"
     const val ANNOTATION_NOTE_ROW = "annotation_note_row"
+    const val ANNOTATION_OPEN_IN_BOOK = "annotation_open_in_book"
     const val NOTE_EDITOR_FIELD = "note_editor_field"
     const val NOTE_EDITOR_REMOVE = "note_editor_remove"
     const val NOTE_EDITOR_CANCEL = "note_editor_cancel"

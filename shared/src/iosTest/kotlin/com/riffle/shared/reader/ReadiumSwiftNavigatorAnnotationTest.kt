@@ -75,6 +75,10 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
         override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
+        var riffleUrlCallback: ((String) -> Unit)? = null
+        override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) {
+            riffleUrlCallback = callback
+        }
     }
 
     private fun navigator(bridge: FakeBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())
@@ -245,5 +249,21 @@ class ReadiumSwiftNavigatorAnnotationTest {
             "<html><body><p>Hello</p></body></html>",
             navigator.getChapterBytes("ch1.xhtml")?.decodeToString(),
         )
+    }
+
+    // ── riffle:// URL forwarding ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun riffleUrlFromBridgeIsEmittedOnRiffleUrlsFlow() = runTest {
+        val bridge = FakeBridge()
+        val navigator = navigator(bridge)
+
+        val collected = mutableListOf<String>()
+        val job = launch(Dispatchers.Unconfined) { navigator.riffleUrls.collect { collected += it } }
+
+        bridge.riffleUrlCallback?.invoke("riffle://annotation-tap/abc123")
+        job.cancel()
+
+        assertEquals(listOf("riffle://annotation-tap/abc123"), collected)
     }
 }

@@ -368,6 +368,10 @@ fun HomeScreen() {
                         itemId = current.itemId,
                         sourceId = current.sourceId,
                         onBack = ::rifflePop,
+                        onOpenInBook = { openItem, locatorJson ->
+                            rifflePop()
+                            rifflePush(LibraryNav.Reader(openItem, locatorJson))
+                        },
                     )
                     is LibraryNav.FilteredBooks -> FilteredBooksHost(
                         destination = current,
@@ -507,6 +511,9 @@ private fun LibraryHost(
                 onOpenDrawer = onOpenDrawer,
                 onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
                 onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
+                onAnnotatedBookSelected = { sourceId, itemId ->
+                    push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                },
             )
         } else {
             LibraryItemsScreen(
@@ -590,6 +597,10 @@ private fun LibraryHost(
             itemId = current.itemId,
             sourceId = current.sourceId,
             onBack = ::pop,
+            onOpenInBook = { openItem, locatorJson ->
+                pop()
+                push(LibraryNav.Reader(openItem, locatorJson))
+            },
         )
         is LibraryNav.ReaderDestination -> {
             // End-of-book inside a playlist: the ViewModel has already found the next item id;
@@ -653,6 +664,7 @@ internal fun ElidedReaderLoader(
     itemId: String,
     sourceId: String?,
     onBack: () -> Unit,
+    onOpenInBook: ((item: LibraryItem, locatorJson: String) -> Unit)? = null,
 ) {
     val libraryObserver = koinInject<LibraryObserver>()
     var item by remember { mutableStateOf<LibraryItem?>(null) }
@@ -668,7 +680,14 @@ internal fun ElidedReaderLoader(
     }
     val loadedItem = item
     when {
-        loadedItem != null -> EpubReaderScreen(item = loadedItem, onBack = onBack, source = ReaderSource.Highlights)
+        loadedItem != null -> EpubReaderScreen(
+            item = loadedItem,
+            onBack = onBack,
+            source = ReaderSource.Highlights,
+            onOpenInBook = onOpenInBook?.let { cb ->
+                { locatorJson -> cb(loadedItem, locatorJson) }
+            },
+        )
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Text("Book not found")
         }

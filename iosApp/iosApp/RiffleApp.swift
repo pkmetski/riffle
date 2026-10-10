@@ -12,7 +12,8 @@ struct RiffleApp: App {
             navigatorBridgeFactory: ReadiumEpubNavigatorBridgeFactory(),
             audioPlayerBridgeFactory: IosAudioPlayerBridgeFactoryImpl(),
             pdfNavigatorBridgeFactory: PdfKitNavigatorBridgeFactoryImpl(),
-            publicationInspector: ReadiumPublicationInspector()
+            publicationInspector: ReadiumPublicationInspector(),
+            elidedPdfBridge: ElidedPdfBridge()
         )
         // UI-test harness: add a stub source through the production authenticate → commit path so
         // tests start on the library home without driving the add-source screens (no-op otherwise).
@@ -31,9 +32,9 @@ private func wipeAppState() {
     // in Library/Application Support/databases/ (SQLDelight's old location). Delete the main
     // database file and its WAL/SHM sidecars so Room re-creates the schema on the next Koin start.
     let homeDir = NSHomeDirectory()
-    let fm = FileManager.default
+    let fileManager = FileManager.default
     for name in ["riffle.db", "riffle.db-wal", "riffle.db-shm"] {
-        try? fm.removeItem(atPath: "\(homeDir)/\(name)")
+        try? fileManager.removeItem(atPath: "\(homeDir)/\(name)")
     }
     if let bundleId = Bundle.main.bundleIdentifier {
         UserDefaults.standard.removePersistentDomain(forName: bundleId)

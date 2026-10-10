@@ -76,6 +76,7 @@ fun UnboundedBrowseScreen(
     onOpenDrawer: () -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onSearchAnnotations: (String) -> Unit,
+    onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
 ) {
     val key = "$sourceType/$libraryId"
     val host = remember(key) { ScreenScopedViewModelHost() }
@@ -177,7 +178,7 @@ fun UnboundedBrowseScreen(
                             // not anything the source published, so we suppress it.
                             showRecentlyAdded = false,
                             onItemSelected = { item: LibraryItem -> onOpenDetail(item.id) },
-                            onAnnotatedBookSelected = { _: String, itemId: String -> onOpenDetail(itemId) },
+                            onAnnotatedBookSelected = onAnnotatedBookSelected,
                             onSeriesSelected = {},
                             onCollectionSelected = {},
                             onSectionSeeMore = {},
