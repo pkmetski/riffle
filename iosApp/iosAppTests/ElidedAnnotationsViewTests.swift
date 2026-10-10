@@ -85,19 +85,19 @@ final class ElidedAnnotationsViewTests: XCTestCase {
     // MARK: - IosElidedEpubAssembler
 
     func testAssemblerReturnsNilForEmptyChapters() {
-        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:])
         XCTAssertNil(result, "assemble should return nil when no chapters provided")
     }
 
     func testAssemblerReturnsNilForChaptersWithNoHighlights() {
         let emptyChapter = ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [])
-        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [emptyChapter])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [emptyChapter], emphasisBarCss: "", dataUriByHref: [:])
         XCTAssertNil(result, "assemble should return nil when all chapters have empty highlights")
     }
 
     func testAssemblerCreatesDirectoryWithRequiredFiles() {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters) else {
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]) else {
             XCTFail("assemble returned nil for non-empty chapters")
             return
         }
@@ -116,7 +116,7 @@ final class ElidedAnnotationsViewTests: XCTestCase {
 
     func testAssemblerMimetypeContent() throws {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters) else {
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]) else {
             XCTFail("assemble returned nil")
             return
         }

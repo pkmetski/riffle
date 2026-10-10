@@ -20,6 +20,21 @@ interface IosPublicationInspector {
     fun inspectEpub(filePath: String, onResult: (resultJson: String?) -> Unit)
 
     /**
+     * Read one resource from an EPUB by its spine href and return its content Base64-encoded.
+     *
+     * Used by [IosElidedEpubAssembler] to embed figure bytes as data-URIs in the synthetic EPUB's
+     * chapter HTML, mirroring Android's [HighlightsPublicationFactory.figureBytesByHref] map.
+     *
+     * [onResult] is invoked exactly once on the main thread with the Base64 string, or `null`
+     * when the publication cannot be opened, the href is absent, or the resource is empty.
+     */
+    fun readEpubResourceBase64(
+        filePath: String,
+        href: String,
+        onResult: (base64: String?) -> Unit,
+    )
+
+    /**
      * Resolves a whole-book progression (0.0..1.0) to a Locator, the **fallback** inbound-sync
      * path for when the server gives us a bare `ebookProgress` float and no usable `ebookLocation`
      * CFI (ADR-0013's primary path).
@@ -47,6 +62,15 @@ interface IosPublicationInspector {
  * information (0, or outside 0..1), so the fallback never costs a publication open when there is
  * nothing to resolve.
  */
+/** Suspending wrapper over [IosPublicationInspector.readEpubResourceBase64]. */
+internal suspend fun readEpubResourceBase64(
+    inspector: IosPublicationInspector,
+    filePath: String,
+    href: String,
+): String? = suspendCancellableCoroutine { cont ->
+    inspector.readEpubResourceBase64(filePath, href) { base64 -> cont.resume(base64) }
+}
+
 internal suspend fun locatorForProgression(
     inspector: IosPublicationInspector,
     filePath: String,

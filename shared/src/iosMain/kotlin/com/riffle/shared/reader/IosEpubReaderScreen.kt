@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +63,7 @@ import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
@@ -92,6 +95,14 @@ import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.highlights.buildChapterElisionsFromAnnotations
+import com.riffle.feature.reader.highlights.buildCombinedHtml
+import com.riffle.feature.reader.highlights.buildPdfFileName
+import com.riffle.feature.reader.highlights.figureHrefsFromChapters
+import com.riffle.feature.reader.highlights.mimeForHref
+import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
+import com.riffle.feature.reader.highlights.shouldShowOpenInBook
+import com.riffle.feature.reader.highlights.shouldShowShareHighlights
+import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toReadiumTextStyling
@@ -140,6 +151,8 @@ fun EpubReaderScreen(
     item: LibraryItem,
     onBack: () -> Unit,
     source: ReaderSource = ReaderSource.FullBook,
+    initialLocatorJson: String? = null,
+    onOpenInBook: ((locatorJson: String) -> Unit)? = null,
 ) {
     KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()
@@ -156,6 +169,7 @@ fun EpubReaderScreen(
     val readingSpeedStore = koinInject<ReadingSpeedStore>()
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
+    val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
     val isLandscape = containerSize.width > containerSize.height
@@ -244,6 +258,8 @@ fun EpubReaderScreen(
     var lazyFetcher by remember { mutableStateOf<IosLazyChapterFetcher?>(null) }
     // Cached publication shape for prefetch index lookups — avoids re-fetching on every position.
     var lazyShape by remember { mutableStateOf<LazyPublicationShape?>(null) }
+    // Populated in Highlights mode so "Open in Book" can resolve the tapped annotation's locator.
+    var highlightsAnnotations by remember { mutableStateOf<List<Annotation>>(emptyList()) }
 
     // Load per-book formatting overrides on open. When the dimension bucket changes (fold/rotate),
     // reload the row for the new bucket — each screen-size class has its own settings (ADR 0031).
@@ -252,19 +268,50 @@ fun EpubReaderScreen(
             ?: BookFormattingOverrides()
     }
 
+    // Theme-derived CSS for the ∅-colour bar — derived here (composable scope, where
+    // MaterialTheme is available) so the LaunchedEffect below can capture it by closure.
+    // Matches what Android's EpubReaderScreen pushes via SideEffect → setEmphasisBarCss().
+    val emphasisBarCss = MaterialTheme.colorScheme.onSurfaceVariant.toArgb().toCssRgba()
+
     LaunchedEffect(item.id) {
         if (source == ReaderSource.Highlights) {
             // Elided Annotations View: build a synthetic EPUB from the book's highlights and
             // open it from a temp directory. No position restore — always opens at the start.
             val annotations = annotationStore.observeAnnotations(item.sourceId, item.id).first()
+            highlightsAnnotations = annotations
             val chapters = buildChapterElisionsFromAnnotations(annotations)
-            val dirPath = IosElidedEpubAssembler.assemble(item, chapters)
+
+            // Embed figure bytes as data-URIs — mirrors Android's HighlightsPublicationFactory.
+            // Skipped for lazy publications (no local EPUB file to read from).
+            val cap = catalogRegistry.forSourceId(item.sourceId) as? LazyPublicationCapability
+            val dataUriByHref: Map<String, String> = if (cap?.lazyPublication(item.id) != null) {
+                emptyMap()
+            } else {
+                val epubPath = downloader.localPath(item)
+                if (epubPath != null) {
+                    val hrefs = figureHrefsFromChapters(chapters)
+                    hrefs.mapNotNull { href ->
+                        val base64 = readEpubResourceBase64(publicationInspector, epubPath, href)
+                            ?: return@mapNotNull null
+                        href to "data:${mimeForHref(href)};base64,$base64"
+                    }.toMap()
+                } else {
+                    emptyMap()
+                }
+            }
+
+            val dirPath = IosElidedEpubAssembler.assemble(
+                item, chapters, emphasisBarCss = emphasisBarCss, dataUriByHref = dataUriByHref,
+            )
             if (dirPath == null) {
                 loadError = "No highlights to show"
                 return@LaunchedEffect
             }
             navigator.openSyntheticEpub(dirPath, null)
-            coordinator.start()
+            // The coordinator applies real annotation HREFs against the synthetic EPUB's
+            // highlights/chN.xhtml spine — decorations would never match. The synthetic EPUB's
+            // chapter HTML already bakes colors and accent bars in via renderChapterHtml, so no
+            // Readium decoration layer is needed in Highlights mode.
             localPath = dirPath
             return@LaunchedEffect
         }
@@ -298,7 +345,8 @@ fun EpubReaderScreen(
         // that arrived as a bare `readingProgress` float is all we have. Resolve it through
         // Readium's locate(progression:) so the book opens where the other device left off
         // instead of at page one. The primary CFI path, when present, still wins.
-        val openAt = savedLocator
+        val openAt = initialLocatorJson
+            ?: savedLocator
             ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
         navigator.open(path, openAt)
         coordinator.start()
@@ -753,6 +801,16 @@ fun EpubReaderScreen(
             figureZoomState = FigureTapMessageParser.parse(payload)
         }
     }
+    // Accent-bar tap in Highlights mode: open the actions sheet for the tapped annotation.
+    // The synthetic EPUB's chapter HTML contains `<span class="riffle-hl-tap">` elements that
+    // navigate to riffle://annotation-tap/<id>. Readium classifies these as external URLs and
+    // the Swift bridge fires riffleUrls instead of opening Safari.
+    LaunchedEffect(navigator, source) {
+        if (source != ReaderSource.Highlights) return@LaunchedEffect
+        navigator.riffleUrls.collect { url ->
+            parseAnnotationTapUrl(url)?.let { id -> editTargetId = id }
+        }
+    }
 
     // Paint the current sentence and keep it on screen. One decoration group of its own so it
     // replaces atomically and never fights the annotation highlights.
@@ -923,6 +981,28 @@ fun EpubReaderScreen(
             onAnnotations = { annotationsPanelOpen = !annotationsPanelOpen; tocOpen = false; searchOpen = false },
             onFormat = { settingsOpen = true },
             extraActions = {
+                if (shouldShowShareHighlights(source)) {
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            val chapters = buildChapterElisionsFromAnnotations(highlightsAnnotations)
+                            val html = buildCombinedHtml(
+                                chapters = chapters,
+                                bookTitle = item.title,
+                                figureBytesByHref = emptyMap(),
+                                publisherFontFaceCss = "",
+                                bookBodyFontFamily = null,
+                            )
+                            val fileName = buildPdfFileName(item.title, item.id)
+                            elidedPdfBridge.exportAndShare(html, fileName)
+                        },
+                        modifier = Modifier.testTag(TestTags.IOS_READER_SHARE_HIGHLIGHTS),
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = RiffleIcons.Share,
+                            contentDescription = null,
+                        )
+                    }
+                }
                 if (prefsForChrome != null &&
                     prefsForChrome.showAutoScroll &&
                     prefsForChrome.orientation != ReaderOrientation.Horizontal
@@ -1051,6 +1131,7 @@ fun EpubReaderScreen(
                         if (editTarget != null) {
                             editor.recolor(editTarget.id, color)
                         } else if (liveSelection != null) {
+                            if (source == ReaderSource.Highlights) return@launch
                             editor.createHighlight(liveSelection, color, pendingStyles, null)
                                 ?.let { editTargetId = it.id }
                             pendingStyles = emptySet()
@@ -1062,6 +1143,7 @@ fun EpubReaderScreen(
                         if (editTarget != null) {
                             editor.recolor(editTarget.id, null)
                         } else if (liveSelection != null) {
+                            if (source == ReaderSource.Highlights) return@launch
                             editor.createHighlight(liveSelection, null, pendingStyles, null)
                                 ?.let { editTargetId = it.id }
                             pendingStyles = emptySet()
@@ -1083,6 +1165,7 @@ fun EpubReaderScreen(
                             }
                             pendingStyles = next
                             if (liveSelection != null && next.isNotEmpty()) {
+                                if (source == ReaderSource.Highlights) return@launch
                                 editor.createHighlight(liveSelection, null, next, null)
                                     ?.let { editTargetId = it.id }
                                 pendingStyles = emptySet()
@@ -1096,6 +1179,15 @@ fun EpubReaderScreen(
                         scope.launch { editor.delete(target.id) }
                         editTargetId = null
                     }
+                },
+                showOpenInBook = shouldShowOpenInBook(source),
+                onOpenInBook = {
+                    val targetId = editTargetId ?: return@AnnotationActionsSheet
+                    val annotation = highlightsAnnotations.firstOrNull { it.id == targetId }
+                        ?: return@AnnotationActionsSheet
+                    val locatorJson = buildAnnotationLocatorJson(annotation.chapterHref, annotation.cfi)
+                    editTargetId = null
+                    onOpenInBook?.invoke(locatorJson)
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1117,9 +1209,11 @@ fun EpubReaderScreen(
                         if (existing != null) {
                             editor.setNote(existing.id, text)
                         } else {
-                            selection?.let { sel ->
-                                editor.createHighlight(sel, null, pendingStyles, text)
-                                    ?.let { editTargetId = it.id }
+                            if (source != ReaderSource.Highlights) {
+                                selection?.let { sel ->
+                                    editor.createHighlight(sel, null, pendingStyles, text)
+                                        ?.let { editTargetId = it.id }
+                                }
                             }
                             pendingStyles = emptySet()
                         }
@@ -1372,6 +1466,17 @@ private fun KoFiNudgeOverlay(
         onSupport = { shownFlow.value = false },
         modifier = modifier,
     )
+}
+
+/**
+ * Builds a minimal Readium Locator JSON for "Open in Book" navigation from the Highlights/elided
+ * reader. Readium-Swift's navigator.open() accepts this format to restore the exact chapter and
+ * CFI position.
+ */
+private fun buildAnnotationLocatorJson(chapterHref: String, cfi: String): String {
+    val escapedHref = chapterHref.replace("\"", "\\\"")
+    val escapedCfi = cfi.replace("\"", "\\\"")
+    return """{"href":"$escapedHref","type":"application/xhtml+xml","locations":{"fragments":["$escapedCfi"]}}"""
 }
 
 internal suspend fun startCadenceFromCurrentPage(

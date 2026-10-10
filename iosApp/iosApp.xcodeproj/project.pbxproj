@@ -18,6 +18,7 @@
 		A1C0DE040001 /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
+		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
 		8528A47455B6399D5B23B630 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
 		A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
 		B1000010 /* RiffleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* RiffleApp.swift */; };
@@ -156,6 +157,7 @@
 		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
 		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
+		E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -205,6 +207,7 @@
 				B1010030 /* OReillyLazyContainer.swift */,
 				B1011030 /* OReillyPublicationBuilder.swift */,
 				FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */,
+				E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */,
 				A1C0DE040002 /* ReadiumDecorationTemplates.swift */,
 			);
 			path = iosApp;
@@ -469,6 +472,7 @@
 				B1010020 /* OReillyLazyContainer.swift in Sources */,
 				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
 				7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */,
+				0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

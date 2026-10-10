@@ -2,6 +2,7 @@ package com.riffle.shared.reader
 
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.reader.highlights.ChapterElision
+import com.riffle.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
 import com.riffle.feature.reader.highlights.ElidedEpubPackager
 import com.riffle.feature.reader.highlights.renderChapterHtml
 import kotlinx.cinterop.BetaInteropApi
@@ -42,7 +43,12 @@ import platform.Foundation.create
 object IosElidedEpubAssembler {
 
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-    fun assemble(item: LibraryItem, chapters: List<ChapterElision>): String? {
+    fun assemble(
+        item: LibraryItem,
+        chapters: List<ChapterElision>,
+        emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
+        dataUriByHref: Map<String, String> = emptyMap(),
+    ): String? {
         val nonEmpty = chapters.filter { it.highlights.isNotEmpty() }
         if (nonEmpty.isEmpty()) return null
 
@@ -69,7 +75,10 @@ object IosElidedEpubAssembler {
             put("content.opf", ElidedEpubPackager.buildOpf(item.title, item.id, nonEmpty))
             put("nav.xhtml", ElidedEpubPackager.buildNav(item.title, nonEmpty))
             nonEmpty.forEachIndexed { i, chapter ->
-                put(ElidedEpubPackager.chapterHref(i), renderChapterHtml(chapter))
+                put(
+                    ElidedEpubPackager.chapterHref(i),
+                    renderChapterHtml(chapter, dataUriByHref = dataUriByHref, emphasisBarCss = emphasisBarCss),
+                )
             }
         }
 
