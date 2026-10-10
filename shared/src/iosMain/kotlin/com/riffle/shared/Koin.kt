@@ -662,7 +662,7 @@ private fun iosLibraryModule(
                 readaloudPreferencesStore = get(),
                 resumeStore = get(),
                 dispatchers = get(),
-                parentScope = get(),
+                parentScope = get<ApplicationScope>().coroutineScope,
             )
         }
     }
