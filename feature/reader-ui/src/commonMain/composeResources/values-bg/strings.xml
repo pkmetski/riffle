@@ -82,6 +82,10 @@
 
     <!-- CBZ formatting sheet -->
     <string name="ui_background">Фон</string>
+    <string name="ui_light">Светъл</string>
+    <string name="ui_dark">Тъмен</string>
+    <string name="ui_sepia">Сепия</string>
+    <string name="ui_auto">Автоматично</string>
     <string name="ui_panel_view">Изглед на панела</string>
     <string name="ui_frame_one_panel_at_a_time_in_reading_order">Рамкирайте панел по панел в ред на четене</string>
     <string name="ui_panel_overflow">Преливане на панел</string>

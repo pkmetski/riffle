@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,10 +46,9 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val effectiveComicFormatting by vm.effectiveComicFormatting.collectAsState()
     val hasComicOverrides by vm.hasComicOverrides.collectAsState()
 
-    DisposableEffect(vm) {
-        vm.onReaderResumed()
-        onDispose { vm.onReaderClosed() }
-    }
+    // Shared CbzReaderScreen already calls onReaderClosed() in its own DisposableEffect(viewModel).
+    // This side only needs the resume signal, which has no Android-lifecycle equivalent on iOS.
+    LaunchedEffect(vm) { vm.onReaderResumed() }
 
     var isImmersive by remember { mutableStateOf(false) }
 
@@ -88,7 +87,7 @@ private fun IosComicPageContent(
 ) {
     var bytes by remember(pageIndex) { mutableStateOf<ByteArray?>(null) }
 
-    androidx.compose.runtime.LaunchedEffect(pageIndex) {
+    LaunchedEffect(pageIndex) {
         withContext(Dispatchers.IO) {
             bytes = runCatching { imageSource.imageBytes(pageIndex) }.getOrNull()
         }

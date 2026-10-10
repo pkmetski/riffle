@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.TestTags
@@ -35,12 +36,11 @@ fun CbzThumbnailStrip(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val density = LocalDensity.current
 
     LaunchedEffect(currentPage) {
-        listState.animateScrollToItem(
-            index = currentPage,
-            scrollOffset = -THUMB_WIDTH.value.toInt() * 2,
-        )
+        val offsetPx = with(density) { (-(THUMB_WIDTH * 2)).roundToPx() }
+        listState.animateScrollToItem(index = currentPage, scrollOffset = offsetPx)
     }
 
     LazyRow(

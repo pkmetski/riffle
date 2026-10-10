@@ -84,6 +84,10 @@
 
     <!-- CBZ formatting sheet -->
     <string name="ui_background">Background</string>
+    <string name="ui_light">Light</string>
+    <string name="ui_dark">Dark</string>
+    <string name="ui_sepia">Sepia</string>
+    <string name="ui_auto">Auto</string>
     <string name="ui_panel_view">Panel View</string>
     <string name="ui_frame_one_panel_at_a_time_in_reading_order">Frame one panel at a time in reading order</string>
     <string name="ui_panel_overflow">Panel Overflow</string>

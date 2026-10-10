@@ -23,15 +23,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
+import com.riffle.core.domain.comic.ComicBackgroundThemeOptions
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_animation_speed
+import com.riffle.feature.reader.ui.generated.resources.ui_auto
+import com.riffle.feature.reader.ui.generated.resources.ui_background
 import com.riffle.feature.reader.ui.generated.resources.ui_current_page_and_remaining_pages
 import com.riffle.feature.reader.ui.generated.resources.ui_cuts_oversized_panels_in_half
+import com.riffle.feature.reader.ui.generated.resources.ui_dark
 import com.riffle.feature.reader.ui.generated.resources.ui_frame_one_panel_at_a_time_in_reading_order
 import com.riffle.feature.reader.ui.generated.resources.ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully
+import com.riffle.feature.reader.ui.generated.resources.ui_light
 import com.riffle.feature.reader.ui.generated.resources.ui_no_split
 import com.riffle.feature.reader.ui.generated.resources.ui_off
 import com.riffle.feature.reader.ui.generated.resources.ui_on_screen_info
@@ -41,6 +48,7 @@ import com.riffle.feature.reader.ui.generated.resources.ui_panel_view
 import com.riffle.feature.reader.ui.generated.resources.ui_progress_bar_at_the_bottom_of_the_page
 import com.riffle.feature.reader.ui.generated.resources.ui_reading_progress
 import com.riffle.feature.reader.ui.generated.resources.ui_reset_to_global_defaults
+import com.riffle.feature.reader.ui.generated.resources.ui_sepia
 import com.riffle.feature.reader.ui.generated.resources.ui_show_oversized_panels_as_is_without_splitting
 import com.riffle.feature.reader.ui.generated.resources.ui_smart_split
 import com.riffle.feature.reader.ui.generated.resources.ui_smart_split_description
@@ -63,6 +71,42 @@ internal fun IosComicFormattingSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 8.dp),
         ) {
+            // Background theme
+            Text(
+                text = stringResource(Res.string.ui_background),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+            )
+            val selectedTheme = formatting.backgroundTheme.asComicBackgroundTheme()
+            Column(Modifier.selectableGroup()) {
+                ComicBackgroundThemeOptions.forEach { theme ->
+                    val label = stringResource(
+                        when (theme) {
+                            ReaderTheme.Light -> Res.string.ui_light
+                            ReaderTheme.Dark -> Res.string.ui_dark
+                            ReaderTheme.Sepia -> Res.string.ui_sepia
+                            else -> Res.string.ui_auto
+                        },
+                    )
+                    ListItem(
+                        headlineContent = { Text(label) },
+                        leadingContent = {
+                            RadioButton(
+                                selected = selectedTheme == theme,
+                                onClick = null,
+                            )
+                        },
+                        modifier = Modifier.selectable(
+                            selected = selectedTheme == theme,
+                            onClick = { onUpdate(BookComicFormattingOverrides(backgroundTheme = theme)) },
+                            role = Role.RadioButton,
+                        ),
+                    )
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
             // Panel View
             ListItem(
                 headlineContent = { Text(stringResource(Res.string.ui_panel_view)) },
