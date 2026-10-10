@@ -25,7 +25,7 @@ class AutoScrollHudPillTest {
         setContent {
             AutoScrollHudPill(
                 state = AutoScrollState.Idle,
-                labels = SpeedHudLabels.English,
+                labels = testSpeedHudLabels,
                 onPause = {},
                 onResume = {},
                 onSlower = {},
@@ -42,7 +42,7 @@ class AutoScrollHudPillTest {
         setContent {
             AutoScrollHudPill(
                 state = AutoScrollState.Running(AutoScrollSpeed.of(320)),
-                labels = SpeedHudLabels.English,
+                labels = testSpeedHudLabels,
                 onPause = { events += "pause" },
                 onResume = { events += "resume" },
                 onSlower = { events += "slower" },
@@ -67,7 +67,7 @@ class AutoScrollHudPillTest {
         setContent {
             AutoScrollHudPill(
                 state = AutoScrollState.Paused(AutoScrollSpeed.of(320), PauseCause.UserPausedPill),
-                labels = SpeedHudLabels.English,
+                labels = testSpeedHudLabels,
                 onPause = {},
                 onResume = {},
                 onSlower = {},

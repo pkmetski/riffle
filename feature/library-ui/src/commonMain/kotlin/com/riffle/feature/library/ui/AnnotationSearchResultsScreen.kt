@@ -272,18 +272,4 @@ data class AnnotationSearchLabels(
     val bookmarkFallbackTitle: String,
     /** Shown for an audiobook bookmark the user never named. */
     val audiobookBookmarkFallbackTitle: String,
-) {
-    companion object {
-        /**
-         * Verbatim from `app/src/main/res/values/strings.xml` (and, where Android still inlines a
-         * literal, from the literal). Used by the iOS host.
-         */
-        val English = AnnotationSearchLabels(
-            back = "Back",
-            titleTemplate = "Annotations · '%1\$s'",
-            noResultsTemplate = "No annotations for \"%1\$s\"",
-            bookmarkFallbackTitle = "Bookmark",
-            audiobookBookmarkFallbackTitle = "Audiobook Bookmark",
-        )
-    }
-}
+)

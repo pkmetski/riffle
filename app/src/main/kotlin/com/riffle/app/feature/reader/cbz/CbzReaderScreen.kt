@@ -41,11 +41,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.androidx.compose.koinViewModel
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.comic.ComicPageSource
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelSource
+import com.riffle.feature.reader.ui.CbzPanelViewer
+import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
+import com.riffle.feature.reader.ui.readerThemeLabelColor
+import org.koin.androidx.compose.koinViewModel
 
 private const val MAX_PAGE_DIMENSION = 4096
 private const val MAX_THUMB_DIMENSION = 256

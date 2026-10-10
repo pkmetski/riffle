@@ -101,7 +101,10 @@ import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
+import com.riffle.feature.library.ui.generated.resources.ui_loading
+import com.riffle.feature.library.ui.generated.resources.ui_no_collections
 import com.riffle.feature.library.ui.generated.resources.ui_no_results_for
+import com.riffle.feature.library.ui.generated.resources.ui_no_series
 import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
 import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
@@ -226,7 +229,7 @@ fun LibraryItemsScreen(
             ) {
                 if (isLoading) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Loading…")
+                        Text(stringResource(LibRes.string.ui_loading))
                     }
                 } else if (searchQuery.isNotBlank()) {
                     SearchResultsContent(
@@ -687,7 +690,7 @@ internal fun AnnotationsTabContent(
 ) {
     if (state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Loading…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(LibRes.string.ui_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -805,7 +808,7 @@ internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -
 private fun SeriesTabContent(series: List<Series>, token: String, onSeriesSelected: (Series) -> Unit) {
     if (series.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No series", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(LibRes.string.ui_no_series), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -867,7 +870,11 @@ private fun CollectionsTabContent(
 ) {
     if (collections.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No collections", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(LibRes.string.ui_no_collections),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         return
     }

@@ -74,6 +74,7 @@ import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
+import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
@@ -86,6 +87,7 @@ import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSBundle
+import com.riffle.shared.generated.resources.Res as SharedRes
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
@@ -670,7 +672,7 @@ internal fun ElidedReaderLoader(
     when {
         loadedItem != null -> EpubReaderScreen(item = loadedItem, onBack = onBack, source = ReaderSource.Highlights)
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Text("Book not found")
+            Text(stringResource(SharedRes.string.ui_book_not_found))
         }
         else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_book_not_found">Book not found</string>
+    <string name="ui_opening">Opening…</string>
+    <string name="ui_opening_pdf">Opening PDF…</string>
+    <string name="ui_error">Error</string>
+    <string name="ui_could_not_download_book">Could not download book</string>
+    <string name="ui_could_not_download_pdf">Could not download PDF</string>
+    <string name="ui_no_highlights_to_show">No highlights to show</string>
+</resources>

@@ -28,6 +28,12 @@ import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
+import com.riffle.feature.library.ui.generated.resources.Res
+import com.riffle.feature.library.ui.generated.resources.ui_annotations
+import com.riffle.feature.library.ui.generated.resources.ui_home
+import com.riffle.feature.library.ui.generated.resources.ui_library
+import com.riffle.feature.library.ui.generated.resources.ui_open_menu
+import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
@@ -42,6 +48,7 @@ import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
 import com.riffle.feature.source.ui.websource.isAudioRoot
 import com.riffle.feature.source.ui.websource.unboundedLocalTabToLibraryTabIndex
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
@@ -118,7 +125,7 @@ fun UnboundedBrowseScreen(
                     title = { Text(libraryName) },
                     navigationIcon = {
                         androidx.compose.material3.IconButton(onClick = onOpenDrawer) {
-                            Icon(RiffleIcons.Menu, contentDescription = "Open menu")
+                            Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
                         }
                     },
                 )
@@ -129,26 +136,26 @@ fun UnboundedBrowseScreen(
                 NavigationBarItem(
                     selected = selectedLocalTab == TAB_HOME,
                     onClick = { selectedLocalTab = TAB_HOME },
-                    icon = { Icon(RiffleIcons.Home, contentDescription = "Home") },
+                    icon = { Icon(RiffleIcons.Home, contentDescription = stringResource(Res.string.ui_home)) },
                 )
                 if (tabVisibility?.toRead == true) {
                     NavigationBarItem(
                         selected = selectedLocalTab == TAB_TO_READ,
                         onClick = { selectedLocalTab = TAB_TO_READ },
-                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = stringResource(Res.string.ui_to_read)) },
                     )
                 }
                 if (tabVisibility?.annotations == true) {
                     NavigationBarItem(
                         selected = selectedLocalTab == TAB_ANNOTATIONS,
                         onClick = { selectedLocalTab = TAB_ANNOTATIONS },
-                        icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                        icon = { Icon(RiffleIcons.Annotations, contentDescription = stringResource(Res.string.ui_annotations)) },
                     )
                 }
                 NavigationBarItem(
                     selected = selectedLocalTab == TAB_LIBRARY,
                     onClick = { selectedLocalTab = TAB_LIBRARY },
-                    icon = { Icon(RiffleIcons.GridView, contentDescription = "Library") },
+                    icon = { Icon(RiffleIcons.GridView, contentDescription = stringResource(Res.string.ui_library)) },
                 )
             }
         },

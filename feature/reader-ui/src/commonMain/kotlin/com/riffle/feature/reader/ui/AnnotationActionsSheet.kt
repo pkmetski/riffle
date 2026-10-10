@@ -64,26 +64,7 @@ data class AnnotationSheetLabels(
     val delete: String,
     val bookmark: String,
     val removeBookmark: String,
-) {
-    companion object {
-        val English = AnnotationSheetLabels(
-            noHighlightColor = "No highlight color",
-            selectedSuffix = ", selected",
-            highlightSuffix = " highlight",
-            emphasis = "Emphasis ",
-            activeSuffix = ", active",
-            note = "Note",
-            addNote = "Add note",
-            edit = "Edit",
-            save = "Save",
-            remove = "Remove",
-            cancel = "Cancel",
-            delete = "Delete annotation",
-            bookmark = "Bookmark this page",
-            removeBookmark = "Remove bookmark",
-        )
-    }
-}
+)
 
 /**
  * A row of the four highlight swatches plus the `∅` "no colour" swatch.

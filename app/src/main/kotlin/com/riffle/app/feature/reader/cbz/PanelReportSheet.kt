@@ -91,7 +91,7 @@ internal fun PanelReportSheet(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(
-                    value = state.failureType?.label ?: "Select issue type",
+                    value = state.failureType?.label ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_select_issue_type),
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -143,10 +143,10 @@ internal fun PanelReportSheet(
                 val hint = when (state.failureType) {
                     PanelDetectionFailureType.MissedPanel,
                     PanelDetectionFailureType.SplitPanel,
-                    PanelDetectionFailureType.MergedPanels -> "Draw the correct panel boundaries"
+                    PanelDetectionFailureType.MergedPanels -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_draw_correct_boundaries)
                     PanelDetectionFailureType.CutPanelCutOff ->
-                        "Tap the cut-off panel to identify it; drag to draw its correct boundary"
-                    else -> "Draw panel boundary lines"
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_tap_cut_off_panel)
+                    else -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_draw_boundary_lines)
                 }
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
@@ -156,7 +156,7 @@ internal fun PanelReportSheet(
                 )
             }
             if (falsePanelMode) {
-                Text("Tap to mark or unmark panels as false detections",
+                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_mark_false_detections),
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
             }

@@ -42,33 +42,7 @@ data class PlaylistLabels(
     val itemCountOne: String,
     /** `"%1$d items"` */
     val itemCountOther: String,
-) {
-    companion object {
-        /**
-         * The English catalogue, verbatim from `app/src/main/res/values/strings.xml` (and, where
-         * Android still inlines a literal, from the literal). Used by the iOS host, which has no
-         * string-resource mechanism yet. Keep the two in step: these are the same keys, not a
-         * second wording.
-         */
-        val English = PlaylistLabels(
-            back = "Back",
-            play = "Play",
-            loading = "Loading…",
-            playlistIsEmpty = "This playlist is empty.",
-            removeFromPlaylist = "Remove from playlist",
-            noPlaylistsFromAnyItem = "No playlists yet. Create one from any item.",
-            addToPlaylist = "Add to playlist",
-            newPlaylist = "New playlist",
-            noPlaylistsGetStarted = "No playlists yet. Create one to get started.",
-            inThisPlaylist = "In this playlist",
-            name = "Name",
-            create = "Create",
-            cancel = "Cancel",
-            itemCountOne = "1 item",
-            itemCountOther = "%1\$d items",
-        )
-    }
-}
+)
 
 /**
  * `"1 item"` / `"7 items"` — the count line under a playlist's name.

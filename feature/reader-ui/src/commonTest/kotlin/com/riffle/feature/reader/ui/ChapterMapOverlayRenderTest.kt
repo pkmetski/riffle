@@ -46,7 +46,7 @@ class ChapterMapOverlayRenderTest {
             showCurrentChapterLabel = showCurrentChapterLabel,
             showProgressLabels = showProgressLabels,
             showReadingTimeEstimate = showReadingTimeEstimate,
-            templates = ChapterMapProgressLabelTemplates.English,
+            templates = testChapterMapProgressLabelTemplates,
             chapterTimeRemaining = chapterTimeRemaining,
             bookTimeRemaining = bookTimeRemaining,
             onSegmentClick = {},

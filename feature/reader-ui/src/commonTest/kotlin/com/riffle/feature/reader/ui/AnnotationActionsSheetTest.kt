@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
  */
 class AnnotationActionsSheetTest {
 
-    private val labels = AnnotationSheetLabels.English
+    private val labels = testAnnotationSheetLabels
 
     @OptIn(ExperimentalTestApi::class)
     @Test

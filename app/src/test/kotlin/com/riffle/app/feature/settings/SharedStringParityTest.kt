@@ -131,11 +131,14 @@ class SharedStringParityTest {
      * Minimal `values/strings.xml` reader — enough for the plain `<string name="x">text</string>`
      * entries this test names. Unescapes the XML entities and the Android `\'` escape, and turns
      * `%%` into a literal `%` the way the platform's formatter does.
+     *
+     * Reads from both `app/src/main/res/values/strings.xml` AND all feature-module
+     * `composeResources/values/strings.xml` files, since #1192 moved most shared UI strings from
+     * the app res into composeResources.
      */
     private fun readEnglishStrings(): Map<String, String> {
-        val xml = stringsFile().readText()
         val pattern = Regex("""<string name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
-        return pattern.findAll(xml).associate { m ->
+        fun parseXml(file: File): Map<String, String> = pattern.findAll(file.readText()).associate { m ->
             val value = m.groupValues[2]
                 .replace("\\'", "'")
                 .replace("&lt;", "<")
@@ -143,17 +146,26 @@ class SharedStringParityTest {
                 .replace("&amp;", "&")
             m.groupValues[1] to value
         }
+        val projectRoot = findProjectRoot()
+        val result = mutableMapOf<String, String>()
+        // Merge composeResources strings first, then app/res on top (app/res takes precedence for keys it still has)
+        projectRoot.walkTopDown()
+            .filter { it.name == "strings.xml" && it.path.contains("composeResources/values/") }
+            .filter { !it.path.contains("test") && !it.path.contains("Test") }
+            .forEach { result.putAll(parseXml(it)) }
+        val appRes = File(projectRoot, "app/src/main/res/values/strings.xml")
+        if (appRes.isFile) result.putAll(parseXml(appRes))
+        return result
     }
 
-    private fun stringsFile(): File {
+    private fun findProjectRoot(): File {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {
-            val candidate = File(dir, "app/src/main/res/values/strings.xml")
-            if (candidate.isFile) return candidate
+            if (File(dir, "app/src/main/res/values/strings.xml").isFile) return dir
             dir = dir.parentFile
         }
-        val here = File("src/main/res/values/strings.xml").absoluteFile
+        val here = File("app/src/main/res/values/strings.xml").absoluteFile
         assertTrue("Could not locate app/src/main/res/values/strings.xml", here.isFile)
-        return here
+        return here.parentFile.parentFile.parentFile.parentFile
     }
 }

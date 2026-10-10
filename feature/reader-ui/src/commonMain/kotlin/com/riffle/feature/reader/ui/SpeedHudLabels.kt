@@ -16,25 +16,4 @@ data class SpeedHudLabels(
     val wordsPerMinute: String,
     val pause: String,
     val resume: String,
-) {
-    companion object {
-        /** Verbatim from `app/src/main/res/values/strings.xml`, for the iOS host. */
-        val English = SpeedHudLabels(
-            slower = "Slower",
-            faster = "Faster",
-            wordsPerMinute = "%1\$d wpm",
-            pause = "Pause auto-scroll",
-            resume = "Resume auto-scroll",
-        )
-
-        /**
-         * The Cadence pill's catalogue. Only the play/pause description differs — the two pills
-         * share everything else, and Cadence's own descriptions are what Android's
-         * `CadenceHudPill` already announced before the pill moved here.
-         */
-        val EnglishCadence = English.copy(
-            pause = "Pause cadence",
-            resume = "Resume cadence",
-        )
-    }
-}
+)

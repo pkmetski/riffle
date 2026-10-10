@@ -96,6 +96,7 @@ kotlin {
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)
+            implementation(compose.components.resources)
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
@@ -120,4 +121,9 @@ kotlin {
             implementation(libs.ktor.client.mock)
         }
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.riffle.shared.generated.resources"
+    publicResClass = true
 }

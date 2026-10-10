@@ -63,6 +63,7 @@ import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.ui.ChapterNavigationRail
+import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.chapterRailProgressPercent
 import com.riffle.feature.reader.ui.formatTemplate
 import com.riffle.feature.reader.pdfActiveHref

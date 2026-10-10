@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.player.CompactDurationLabelTemplates
 import com.riffle.feature.player.ui.PlayerChromeLabels
 import com.riffle.feature.player.ui.PlayerSurface
 import com.riffle.feature.player.ui.PlayerSurfaceActions
@@ -40,7 +41,27 @@ class PlayerTitleYearTest {
         onSleepTimerCancel = {},
     )
 
-    private val labels = PlayerChromeLabels.English
+    private val labels = PlayerChromeLabels(
+        back = "Back", cannotPlay = "This audiobook can't be played right now.",
+        play = "Play", pause = "Pause", previousChapter = "Previous chapter",
+        nextChapter = "Next chapter", chapters = "Chapters", bookmarks = "Bookmarks",
+        bookmarkCountOne = "1 bookmark", bookmarkCountOther = "%1\$d bookmarks",
+        addBookmark = "Add bookmark", removeBookmark = "Remove bookmark",
+        newBookmark = "New bookmark", renameBookmark = "Rename bookmark",
+        bookmarkOptions = "Bookmark options", rename = "Rename", delete = "Delete",
+        save = "Save", cancel = "Cancel", noBookmarksYet = "No bookmarks yet.",
+        offlineBookmarksWillSync = "Offline — bookmarks will sync",
+        nowPlaying = "Now playing", chapterNumber = "Chapter %1\$d",
+        playbackSpeed = "Playback Speed", sleepTimerSheetTitle = "Sleep Timer",
+        sleepTimer = "Sleep timer", sleepPillIdle = "Sleep",
+        sleepPillEndOfChapter = "End of ch.", endOfChapter = "End of chapter",
+        sleepingIn = "Sleeping in %1\$s",
+        sleepingAtEndOfChapter = "Sleeping at end of chapter",
+        cancelTimer = "Cancel timer", minutesShort = "%1\$d min", audiobook = "Audiobook",
+        compactDuration = CompactDurationLabelTemplates(
+            minutes = "%1\$dmin", hours = "%1\$dh", hoursMinutes = "%1\$dh %2\$dmin",
+        ),
+    )
 
     @Test
     fun yearShowsWhenPresent() {

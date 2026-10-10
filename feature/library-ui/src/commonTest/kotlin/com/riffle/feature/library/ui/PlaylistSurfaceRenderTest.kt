@@ -26,7 +26,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class PlaylistSurfaceRenderTest {
 
-    private val labels = PlaylistLabels.English
+    private val labels = testPlaylistLabels
 
     private val evening = CatalogPlaylist(id = "p1", rootId = "root", name = "Evening Queue", bookCount = 4)
     private val morning = CatalogPlaylist(
