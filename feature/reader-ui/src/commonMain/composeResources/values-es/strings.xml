@@ -72,4 +72,35 @@
     <string name="ui_current_chapter_value">Capítulo actual: %1$s</string>
     <string name="ui_total_progress_value">Progreso total: %1$s</string>
     <string name="ui_active_rail_segment_progress">Segmento activo: %1$s. Progreso %2$d%%</string>
+
+    <!-- CBZ / comic reader -->
+    <string name="reader_book_not_found">Libro no encontrado</string>
+    <string name="ui_comic_formatting">Formato de cómic</string>
+    <string name="error_comic_page_load_failed">No se pudo cargar esta página</string>
+    <string name="ui_comic_page_number">Página de cómic %1$d</string>
+    <string name="ui_comic_page_panel">Página de cómic %1$d, panel %2$d</string>
+
+    <!-- CBZ formatting sheet -->
+    <string name="ui_background">Fondo</string>
+    <string name="ui_light">Claro</string>
+    <string name="ui_dark">Oscuro</string>
+    <string name="ui_sepia">Sepia</string>
+    <string name="ui_auto">Automático</string>
+    <string name="ui_panel_view">Vista del panel</string>
+    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Encuadra un panel cada vez en orden de lectura</string>
+    <string name="ui_panel_overflow">Desbordamiento del panel</string>
+    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">Cómo manejar paneles que son demasiado anchos o altos para ampliarlos de manera útil.</string>
+    <string name="ui_no_split">Sin dividir</string>
+    <string name="ui_show_oversized_panels_as_is_without_splitting">Mostrar los paneles demasiado grandes tal cual, sin dividirlos</string>
+    <string name="ui_split">Dividir</string>
+    <string name="ui_cuts_oversized_panels_in_half">Divide los paneles demasiado grandes por la mitad y muestra cada mitad como una página propia</string>
+    <string name="ui_smart_split">División inteligente</string>
+    <string name="ui_smart_split_description">Como Dividir, pero busca una separación natural (canal o espacio en blanco) para un corte más limpio</string>
+    <string name="ui_animation_speed">Velocidad de animación</string>
+    <string name="ui_off">Desactivado</string>
+    <string name="ui_on_screen_info">Información en pantalla</string>
+    <string name="ui_reading_progress">Progreso de lectura</string>
+    <string name="ui_progress_bar_at_the_bottom_of_the_page">Barra de progreso en la parte inferior de la página</string>
+    <string name="ui_page_numbers">Números de página</string>
+    <string name="ui_current_page_and_remaining_pages">Página actual y páginas restantes</string>
 </resources>

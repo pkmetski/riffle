@@ -1,37 +1,21 @@
 package com.riffle.shared.reader
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
-import com.riffle.core.domain.comic.ComicImageSource
 import com.riffle.core.models.LibraryItem
-import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
-import com.riffle.feature.reader.argbPalette
-import com.riffle.feature.reader.ui.CbzPanelViewer
+import com.riffle.feature.reader.ui.CbzReaderScreen
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -48,104 +32,56 @@ import platform.UIKit.UIImageView
 import platform.UIKit.UIViewContentMode
 
 /**
- * iOS comic (CBZ) reader. Hosts the shared [CbzReaderViewModel] — the VM opens the book (resolving
- * source/credentials and streaming or downloading pages via the injected iOS CbzRepository) and
- * exposes [CbzReaderState]; this screen renders the current page and drives page turns.
+ * iOS thin wrapper around the shared [CbzReaderScreen]. Acquires the VM via Koin, manages
+ * keep-screen-on and immersive state, and wires iOS-specific image rendering into the slots.
+ *
+ * The function name and signature are preserved so that [com.riffle.shared.LibraryNav] can call
+ * this without modification.
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable
 fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     KeepReaderScreenOn()
     val vm = koinInject<CbzReaderViewModel> { parametersOf(item.id, item.sourceId) }
-
-    DisposableEffect(vm) {
-        vm.onReaderResumed()
-        onDispose { vm.onReaderClosed() }
-    }
-
-    val state by vm.state.collectAsState()
-    val comicBackgroundTheme by vm.comicBackgroundTheme.collectAsState()
-    val panelViewOn by vm.panelViewOn.collectAsState()
-    val effectivePanels by vm.effectivePanels.collectAsState()
-    val currentPanelIndex by vm.currentPanelIndex.collectAsState()
-    val currentPage by vm.currentPage.collectAsState()
     val effectiveComicFormatting by vm.effectiveComicFormatting.collectAsState()
+    val hasComicOverrides by vm.hasComicOverrides.collectAsState()
+
+    // Shared CbzReaderScreen already calls onReaderClosed() in its own DisposableEffect(viewModel).
+    // This side only needs the resume signal, which has no Android-lifecycle equivalent on iOS.
+    LaunchedEffect(vm) { vm.onReaderResumed() }
+
     var isImmersive by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(Color(comicBackgroundTheme.argbPalette.background.toInt()))) {
-        when (val s = state) {
-            CbzReaderState.BookNotFound -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText("Book not found")
-            }
-            is CbzReaderState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText(s.message)
-            }
-            CbzReaderState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText("Opening…")
-            }
-            is CbzReaderState.Ready -> {
-                if (panelViewOn) {
-                    CbzPanelViewer(
-                        currentPage = currentPage,
-                        pagePanels = effectivePanels,
-                        panelIndex = currentPanelIndex,
-                        panelAnimationSpeedMs = effectiveComicFormatting.panelAnimationSpeedMs,
-                        onNextPanel = vm::nextPanel,
-                        onPrevPanel = vm::previousPanel,
-                        onSkipGuidedPage = vm::skipGuidedPanelsOnPage,
-                        onToggleImmersive = { isImmersive = !isImmersive },
-                        volumeNavEvents = vm.volumeNavEvents,
-                        onViewportSizeChanged = vm::setViewportSize,
-                    ) { modifier, page ->
-                        ComicPageView(imageSource = s.imageSource, pageIndex = page, modifier = modifier)
-                    }
-                } else {
-                    CbzPager(vm = vm, imageSource = s.imageSource, pageCount = s.pageCount)
-                }
-            }
-        }
+    val ready by vm.state.collectAsState()
 
-        if (!isImmersive) {
-            Box(
-                modifier = Modifier
-                    .systemBarsPadding()
-                    .padding(12.dp)
-                    .align(Alignment.TopStart),
-            ) {
-                BasicText(
-                    text = "← Back",
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .testTag(TestTags.IOS_CBZ_READER_BACK)
-                        .clickable(onClick = onBack),
-                )
+    CbzReaderScreen(
+        viewModel = vm,
+        onNavigateBack = onBack,
+        isImmersive = isImmersive,
+        onToggleImmersive = { isImmersive = !isImmersive },
+        pageContent = { modifier, page ->
+            val source = (ready as? com.riffle.feature.reader.CbzReaderState.Ready)?.imageSource
+            if (source != null) {
+                IosComicPageContent(modifier = modifier, imageSource = source, pageIndex = page)
             }
-        }
-    }
-}
-
-@Suppress("ktlint:standard:function-naming")
-@Composable
-private fun CbzPager(vm: CbzReaderViewModel, imageSource: ComicImageSource, pageCount: Int) {
-    val currentPage by vm.currentPage.collectAsState()
-    val pagerState = rememberPagerState(initialPage = currentPage, pageCount = { pageCount })
-
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.currentPage }.collect { page ->
-            vm.jumpToPage(page)
-        }
-    }
-
-    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { pageIndex ->
-        ComicPageView(imageSource = imageSource, pageIndex = pageIndex)
-    }
+        },
+        formattingSheet = { onDismiss ->
+            IosComicFormattingSheet(
+                formatting = effectiveComicFormatting,
+                hasBookOverrides = hasComicOverrides,
+                onUpdate = vm::updateComicFormatting,
+                onReset = vm::resetComicFormattingToDefaults,
+                onDismiss = onDismiss,
+            )
+        },
+    )
 }
 
 @Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 @Composable
-private fun ComicPageView(
-    imageSource: ComicImageSource,
+private fun IosComicPageContent(
+    imageSource: com.riffle.core.domain.comic.ComicImageSource,
     pageIndex: Int,
     modifier: Modifier = Modifier,
 ) {

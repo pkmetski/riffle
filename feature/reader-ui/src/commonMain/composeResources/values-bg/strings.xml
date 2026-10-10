@@ -72,4 +72,35 @@
     <string name="ui_current_chapter_value">Текуща глава: %1$s</string>
     <string name="ui_total_progress_value">Общ напредък: %1$s</string>
     <string name="ui_active_rail_segment_progress">Активен сегмент: %1$s. Напредък %2$d%%</string>
+
+    <!-- CBZ / comic reader -->
+    <string name="reader_book_not_found">Книгата не е намерена</string>
+    <string name="ui_comic_formatting">Настройки за комикс</string>
+    <string name="error_comic_page_load_failed">Тази страница не можа да се зареди</string>
+    <string name="ui_comic_page_number">Страница от комикс %1$d</string>
+    <string name="ui_comic_page_panel">Страница от комикс %1$d, панел %2$d</string>
+
+    <!-- CBZ formatting sheet -->
+    <string name="ui_background">Фон</string>
+    <string name="ui_light">Светъл</string>
+    <string name="ui_dark">Тъмен</string>
+    <string name="ui_sepia">Сепия</string>
+    <string name="ui_auto">Автоматично</string>
+    <string name="ui_panel_view">Изглед на панела</string>
+    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Рамкирайте панел по панел в ред на четене</string>
+    <string name="ui_panel_overflow">Преливане на панел</string>
+    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">Как да боравите с панели, които са твърде широки или високи, за да ги увеличите полезно.</string>
+    <string name="ui_no_split">Без разделяне</string>
+    <string name="ui_show_oversized_panels_as_is_without_splitting">Показване на твърде големи панели без разделяне</string>
+    <string name="ui_split">Разделяне</string>
+    <string name="ui_cuts_oversized_panels_in_half">Разделя твърде големите панели на две и показва всяка половина като отделна страница</string>
+    <string name="ui_smart_split">Умно разделяне</string>
+    <string name="ui_smart_split_description">Като Разделяне, но намира естествена граница (канал или празно пространство) за по-чисто срязване</string>
+    <string name="ui_animation_speed">Скорост на анимацията</string>
+    <string name="ui_off">Изкл.</string>
+    <string name="ui_on_screen_info">Информация на екрана</string>
+    <string name="ui_reading_progress">Напредък в четенето</string>
+    <string name="ui_progress_bar_at_the_bottom_of_the_page">Лента за напредък в долната част на страницата</string>
+    <string name="ui_page_numbers">Номерата на страниците</string>
+    <string name="ui_current_page_and_remaining_pages">Текуща страница и оставащи страници</string>
 </resources>

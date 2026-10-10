@@ -1,7 +1,7 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader.ui
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Pins the double-tap zoom translation math.
@@ -27,7 +27,6 @@ class DoubleTapZoomTranslationTest {
 
     @Test
     fun tap_at_top_left_shifts_image_down_and_right() {
-        // (0 - 500) * (1 - 2) = 500,  (0 - 1000) * (1 - 2) = 1000
         val (tx, ty) = doubleTapZoomTranslation(0f, 0f, 1000f, 2000f, 2f)
         assertEquals(500f, tx, 0.001f)
         assertEquals(1000f, ty, 0.001f)
@@ -35,7 +34,6 @@ class DoubleTapZoomTranslationTest {
 
     @Test
     fun tap_at_bottom_right_shifts_image_up_and_left() {
-        // (1000 - 500) * (1 - 2) = -500,  (2000 - 1000) * (1 - 2) = -1000
         val (tx, ty) = doubleTapZoomTranslation(1000f, 2000f, 1000f, 2000f, 2f)
         assertEquals(-500f, tx, 0.001f)
         assertEquals(-1000f, ty, 0.001f)

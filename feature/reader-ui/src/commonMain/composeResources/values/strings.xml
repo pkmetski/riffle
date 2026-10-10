@@ -74,4 +74,35 @@
     <string name="ui_current_chapter_value">Current chapter: %1$s</string>
     <string name="ui_total_progress_value">Total progress: %1$s</string>
     <string name="ui_active_rail_segment_progress">Active rail segment: %1$s. Progress %2$d%%</string>
+
+    <!-- CBZ / comic reader -->
+    <string name="reader_book_not_found">Book not found</string>
+    <string name="ui_comic_formatting">Comic formatting</string>
+    <string name="error_comic_page_load_failed">Couldn\'t load this page</string>
+    <string name="ui_comic_page_number">Comic page %1$d</string>
+    <string name="ui_comic_page_panel">Comic page %1$d panel %2$d</string>
+
+    <!-- CBZ formatting sheet -->
+    <string name="ui_background">Background</string>
+    <string name="ui_light">Light</string>
+    <string name="ui_dark">Dark</string>
+    <string name="ui_sepia">Sepia</string>
+    <string name="ui_auto">Auto</string>
+    <string name="ui_panel_view">Panel View</string>
+    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Frame one panel at a time in reading order</string>
+    <string name="ui_panel_overflow">Panel Overflow</string>
+    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">How to handle panels that are too wide or tall to zoom into usefully.</string>
+    <string name="ui_no_split">No split</string>
+    <string name="ui_show_oversized_panels_as_is_without_splitting">Show oversized panels as-is without splitting</string>
+    <string name="ui_split">Split</string>
+    <string name="ui_cuts_oversized_panels_in_half">Cuts oversized panels in half and shows each half as its own page</string>
+    <string name="ui_smart_split">Smart split</string>
+    <string name="ui_smart_split_description">Like Split, but finds a natural seam (gutter or whitespace) to cut at a cleaner boundary</string>
+    <string name="ui_animation_speed">Animation Speed</string>
+    <string name="ui_off">Off</string>
+    <string name="ui_on_screen_info">On-screen info</string>
+    <string name="ui_reading_progress">Reading progress</string>
+    <string name="ui_progress_bar_at_the_bottom_of_the_page">Progress bar at the bottom of the page</string>
+    <string name="ui_page_numbers">Page numbers</string>
+    <string name="ui_current_page_and_remaining_pages">Current page and remaining pages</string>
 </resources>
