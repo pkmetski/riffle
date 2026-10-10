@@ -2,7 +2,8 @@ package com.riffle.app.feature.reader.highlights
 
 import com.riffle.feature.reader.highlights.ChapterElision
 import com.riffle.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
-import com.riffle.feature.reader.highlights.decodedEmbeddedFigures
+import com.riffle.feature.reader.highlights.figureHrefsFromChapters
+import com.riffle.feature.reader.highlights.mimeForHref
 import com.riffle.feature.reader.highlights.renderChapterHtml
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
@@ -88,15 +89,7 @@ class HighlightsPublicationFactory constructor() {
         val readingOrder = mutableListOf<Link>()
         val chapterUrls = mutableMapOf<String, Url>()
 
-        val hrefs = nonEmptyChapters
-            .flatMap { it.highlights }
-            .flatMap { annotation ->
-                buildList {
-                    annotation.imageHref?.let { add(it) }
-                    annotation.decodedEmbeddedFigures()?.forEach { fig -> fig.href?.let { add(it) } }
-                }
-            }
-            .distinct()
+        val hrefs = figureHrefsFromChapters(nonEmptyChapters)
         val dataUriByHref = mutableMapOf<String, String>()
         for (href in hrefs) {
             val bytes = resourceFetcher.fetch(href) ?: continue
@@ -175,20 +168,9 @@ class HighlightsPublicationFactory constructor() {
     )
 }
 
-// ─── Figure path + MIME helpers (Android-only — used only by buildHandle) ────
+// ─── Figure path helper (Android-only — used only by buildHandle) ────────────
 
 private fun syntheticPath(href: String): String = "synthetic/figures/" + href.replace('/', '_')
-
-private fun mimeForHref(href: String): String {
-    val trimmed = href.substringBefore('?').substringBefore('#').lowercase()
-    return when {
-        trimmed.endsWith(".png") -> "image/png"
-        trimmed.endsWith(".gif") -> "image/gif"
-        trimmed.endsWith(".webp") -> "image/webp"
-        trimmed.endsWith(".svg") -> "image/svg+xml"
-        else -> "image/jpeg"
-    }
-}
 
 // ─── In-memory Readium Container ─────────────────────────────────────────────
 

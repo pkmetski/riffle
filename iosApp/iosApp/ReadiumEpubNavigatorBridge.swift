@@ -35,6 +35,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var decorationActivatedCallback: ((String) -> Void)?
     private var figureTapCallback: ((String) -> Void)?
     private var footnoteCallback: ((String) -> Void)?
+    private var riffleUrlCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
     /// remove the handler and break the retain cycle that WKUserContentController's strong
@@ -347,6 +348,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         activeSearchTask = nil
     }
 
+    func setRiffleUrlCallback(callback: ((String) -> Void)?) {
+        riffleUrlCallback = callback
+    }
+
     private func serializeTocLinks(_ links: [Link]) -> String {
         let items = links.map { serializeTocLink($0) }.joined(separator: ",")
         return "[\(items)]"
@@ -523,7 +528,16 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     /// Tapping an external link in a book did nothing until #1071 §17 — this delegate method was
     /// an empty stub. Android hands the URL to `Intent.ACTION_VIEW`
     /// (`EpubReaderScreen.kt:1625-1632`); the iOS equivalent is `UIApplication.open`.
+    ///
+    /// `riffle://` URLs are accent-bar tap targets injected by `ElidedChapterHtmlBuilder` in the
+    /// Highlights-mode synthetic EPUB. They must NOT reach the system URL opener (Safari would
+    /// refuse `riffle://` and do nothing). Forward them to the Kotlin side via [riffleUrlCallback]
+    /// and return early so Safari is never involved.
     func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
+        if url.scheme == "riffle", let cb = riffleUrlCallback {
+            cb(url.absoluteString)
+            return
+        }
         urlOpener(url)
     }
 

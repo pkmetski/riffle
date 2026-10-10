@@ -94,3 +94,30 @@ $navItems
     private fun String.xmlEscapeAttr(): String =
         replace("&", "&amp;").replace("\"", "&quot;")
 }
+
+/**
+ * Returns the MIME type for an EPUB resource href, used to build data-URI strings for
+ * embedded figure bytes in the elided Annotations View.
+ */
+fun mimeForHref(href: String): String {
+    val trimmed = href.substringBefore('?').substringBefore('#').lowercase()
+    return when {
+        trimmed.endsWith(".png") -> "image/png"
+        trimmed.endsWith(".gif") -> "image/gif"
+        trimmed.endsWith(".webp") -> "image/webp"
+        trimmed.endsWith(".svg") -> "image/svg+xml"
+        else -> "image/jpeg"
+    }
+}
+
+/** Collects all unique figure hrefs referenced by any annotation across all [chapters]. */
+fun figureHrefsFromChapters(chapters: List<ChapterElision>): List<String> =
+    chapters
+        .flatMap { it.highlights }
+        .flatMap { annotation ->
+            buildList {
+                annotation.imageHref?.let { add(it) }
+                annotation.decodedEmbeddedFigures()?.forEach { fig -> fig.href?.let { add(it) } }
+            }
+        }
+        .distinct()

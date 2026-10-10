@@ -80,7 +80,10 @@ internal sealed interface LibraryNav {
         val item: LibraryItem
     }
 
-    data class Reader(override val item: LibraryItem) : ReaderDestination
+    data class Reader(
+        override val item: LibraryItem,
+        val initialLocatorJson: String? = null,
+    ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination
 
@@ -224,7 +227,11 @@ internal fun ReaderHost(
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
 ) {
     when (destination) {
-        is LibraryNav.Reader -> EpubReaderScreen(item = destination.item, onBack = onBack)
+        is LibraryNav.Reader -> EpubReaderScreen(
+            item = destination.item,
+            onBack = onBack,
+            initialLocatorJson = destination.initialLocatorJson,
+        )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.AudiobookPlayer -> AudiobookPlayerScreen(

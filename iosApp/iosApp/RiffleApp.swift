@@ -13,7 +13,8 @@ struct RiffleApp: App {
             audioPlayerBridgeFactory: IosAudioPlayerBridgeFactoryImpl(),
             pdfNavigatorBridgeFactory: PdfKitNavigatorBridgeFactoryImpl(),
             publicationInspector: ReadiumPublicationInspector(),
-            readaloudBridgeFactory: IosReadaloudBridgeFactoryImpl()
+            readaloudBridgeFactory: IosReadaloudBridgeFactoryImpl(),
+            elidedPdfBridge: ElidedPdfBridge()
         )
         // UI-test harness: add a stub source through the production authenticate → commit path so
         // tests start on the library home without driving the add-source screens (no-op otherwise).
