@@ -65,11 +65,16 @@ object HardcodedStringLiteralLint {
                         // Skip comment lines
                         if (trimmed.startsWith("//") || trimmed.startsWith("*")) return@forEachIndexed
 
-                        if (TEXT_LITERAL.containsMatchIn(line) || CONTENT_DESC_LITERAL.containsMatchIn(line)) {
-                            // Extract the literal value to apply the symbols-only filter
-                            val literalMatch = Regex("""(?:BasicText|Text|contentDescription\s*=)\s*\("([^"]*)"""")
-                                .find(line)
-                            val literal = literalMatch?.groupValues?.getOrNull(1) ?: ""
+                        val textMatch = TEXT_LITERAL.containsMatchIn(line)
+                        val cdMatch = CONTENT_DESC_LITERAL.containsMatchIn(line)
+                        if (textMatch || cdMatch) {
+                            // Extract the literal value to apply the symbols-only filter.
+                            // Two distinct patterns: Text("…") uses '(' and contentDescription = "…" uses '='.
+                            val literal = if (textMatch) {
+                                Regex("""(?:BasicText|Text)\s*\(\s*"([^"]*)"""").find(line)?.groupValues?.getOrNull(1) ?: ""
+                            } else {
+                                Regex("""contentDescription\s*=\s*"([^"]*)"""").find(line)?.groupValues?.getOrNull(1) ?: ""
+                            }
                             if (literal.isNotEmpty() && !SYMBOLS_ONLY.matches(literal) && !SINGLE_LETTER.matches(literal)) {
                                 offenders += Offender(f, idx + 1, line)
                             }
