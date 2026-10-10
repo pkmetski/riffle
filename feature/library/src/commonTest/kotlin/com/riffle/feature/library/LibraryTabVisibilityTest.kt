@@ -1,12 +1,8 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import com.riffle.feature.library.LibraryTabVisibility
-import com.riffle.feature.library.isTabVisible
-import com.riffle.feature.library.shouldClampSelectedTab
-import com.riffle.feature.library.tabIndexForAnnotations
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Pins the `isTabVisible` clamp helper — Home (0) and All Books (5) stay visible no matter what,

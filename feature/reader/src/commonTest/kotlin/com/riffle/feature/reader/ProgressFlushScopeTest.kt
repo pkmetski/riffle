@@ -1,11 +1,11 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.ProgressFlushScope
-import com.riffle.app.testing.TestApplicationScope
+import com.riffle.core.domain.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -13,12 +13,18 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProgressFlushScopeTest {
+
+    private class TestApplicationScope(private val scope: CoroutineScope) : ApplicationScope {
+        override val coroutineScope: CoroutineScope = scope
+        override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job = scope.launch(block = block)
+        override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T = scope.async(block = block).await()
+    }
 
     // The fix: a close/pause progress write handed to the flush scope completes even when the screen's
     // own scope is torn down the instant after — the "press X / pause, then leave the book right away"
@@ -41,7 +47,7 @@ class ProgressFlushScopeTest {
         viewModelScope.cancel() // leave the book right away
 
         advanceUntilIdle()
-        assertTrue("the close flush must survive screen teardown", completed)
+        assertTrue(completed, "the close flush must survive screen teardown")
     }
 
     // Documents the bug being fixed: the identical write launched directly on the (cancellable) caller
@@ -58,6 +64,6 @@ class ProgressFlushScopeTest {
         viewModelScope.cancel()
 
         advanceUntilIdle()
-        assertFalse("a write on the cancelled scope is lost — this is the bug", completed)
+        assertFalse(completed, "a write on the cancelled scope is lost — this is the bug")
     }
 }

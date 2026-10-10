@@ -470,7 +470,7 @@ class AddSourceViewModelTest {
     }
 
     @Test
-    fun `init with type=storyteller and editId prefills url, username, password from repo and token storage`() = runTest {
+    fun `init with type=storyteller and editId prefills url username password from repo and token storage`() = runTest {
         val storyteller = Source(
             id = "st-1",
             url = SourceUrl.parse("http://media-server:8001")!!,

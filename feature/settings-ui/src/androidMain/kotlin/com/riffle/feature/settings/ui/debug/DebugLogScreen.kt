@@ -206,12 +206,3 @@ private fun LogRow(entry: InMemoryLogBuffer.Entry) {
 }
 
 private val TIME_FMT = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
-
-/**
- * The buffer stores entries oldest→newest; the debug screen must show newest first so the most
- * recent entry sits at the top of the viewport. Extracted so the ordering can be pinned by a
- * pure-JVM test — reverting the flip would otherwise silently regress to an oldest-at-top view.
- */
-internal fun debugLogDisplayOrder(
-    entries: List<InMemoryLogBuffer.Entry>,
-): List<InMemoryLogBuffer.Entry> = entries.asReversed()

@@ -2,12 +2,10 @@ package com.riffle.feature.player
 
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.feature.reader.AudioLedCycleResult
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReaderSyncCoordinatorInterface
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -16,9 +14,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FollowLoopOrchestratorTest {
@@ -32,6 +30,22 @@ class FollowLoopOrchestratorTest {
         override val coroutineScope: CoroutineScope = scope
         override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job = scope.launch(block = block)
         override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T = scope.async(block = block).await()
+    }
+
+    private class FakeReaderSyncCoordinator(
+        override val ebookItemId: String? = null,
+        private val defaultResult: AudioLedCycleResult = AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 0L),
+        private val cycleResults: Map<Pair<Double, Long>, AudioLedCycleResult> = emptyMap(),
+    ) : ReaderSyncCoordinatorInterface {
+        val cycles = mutableListOf<Pair<Double, Long>>()
+
+        override suspend fun runAudioLedCycle(currentAudioSec: Double, localUpdatedAt: Long): AudioLedCycleResult {
+            cycles += currentAudioSec to localUpdatedAt
+            return cycleResults[currentAudioSec to localUpdatedAt] ?: defaultResult
+        }
+
+        override fun canonicalForAudioSeconds(seconds: Double): String? = null
+        override fun readaloudAnchorForAudioSeconds(seconds: Double): ReadaloudResumePosition? = null
     }
 
     private class FakeContext(
@@ -81,9 +95,9 @@ class FollowLoopOrchestratorTest {
     @Test
     fun `matched tick above floor + playing advances floor and adopts canonical stamp`() = runTest {
         val (orch, ctx, clock) = setup()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        coEvery { rs.runAudioLedCycle(any(), any()) } returns
-            AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 5_000L)
+        val rs = FakeReaderSyncCoordinator(
+            defaultResult = AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 5_000L),
+        )
         ctx.readerSync = rs
         ctx.currentSec = 100.0
         ctx.playing = true
@@ -94,18 +108,19 @@ class FollowLoopOrchestratorTest {
         advanceTimeBy(FollowLoopOrchestrator.FOLLOW_INTERVAL_MS + 100)
         orch.cancel()
 
-        assertEquals(100.0, ctx.reconciledResumeSec, 0.0001)
-        assertEquals("canonical stamp adopted", 5_000L, ctx.localUpdatedAt)
+        assertEquals(100.0, ctx.reconciledResumeSec)
+        assertEquals(5_000L, ctx.localUpdatedAt, "canonical stamp adopted")
         assertEquals(listOf(100.0), ctx.hotAdvances)
-        coVerify(exactly = 1) { rs.runAudioLedCycle(100.0, 2_000L) }
+        assertEquals(1, rs.cycles.size)
+        assertEquals(100.0 to 2_000L, rs.cycles[0])
     }
 
     @Test
     fun `matched tick below floor inbound-only cycle floor untouched`() = runTest {
         val (orch, ctx, clock) = setup()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        coEvery { rs.runAudioLedCycle(any(), any()) } returns
-            AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 42L)
+        val rs = FakeReaderSyncCoordinator(
+            defaultResult = AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 42L),
+        )
         ctx.readerSync = rs
         ctx.currentSec = 10.0
         ctx.reconciledResumeSec = 100.0
@@ -116,18 +131,19 @@ class FollowLoopOrchestratorTest {
         advanceTimeBy(FollowLoopOrchestrator.FOLLOW_INTERVAL_MS + 100)
         orch.cancel()
 
-        assertEquals("floor untouched below-floor", 100.0, ctx.reconciledResumeSec, 0.0001)
-        assertEquals("canonical stamp adopted via max()", 42L, ctx.localUpdatedAt)
-        assertTrue("no hot advance below-floor", ctx.hotAdvances.isEmpty())
-        coVerify(exactly = 1) { rs.runAudioLedCycle(10.0, 0L) }
+        assertEquals(100.0, ctx.reconciledResumeSec, "floor untouched below-floor")
+        assertEquals(42L, ctx.localUpdatedAt, "canonical stamp adopted via max()")
+        assertTrue(ctx.hotAdvances.isEmpty(), "no hot advance below-floor")
+        assertEquals(1, rs.cycles.size)
+        assertEquals(10.0 to 0L, rs.cycles[0])
     }
 
     @Test
     fun `inbound jump seeks the player and moves floor to the jump`() = runTest {
         val (orch, ctx, _) = setup()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        coEvery { rs.runAudioLedCycle(any(), any()) } returns
-            AudioLedCycleResult(jumpToAudioSec = 250.0, canonicalLastUpdate = 999L)
+        val rs = FakeReaderSyncCoordinator(
+            defaultResult = AudioLedCycleResult(jumpToAudioSec = 250.0, canonicalLastUpdate = 999L),
+        )
         ctx.readerSync = rs
         ctx.currentSec = 10.0
         ctx.reconciledResumeSec = 100.0
@@ -138,7 +154,7 @@ class FollowLoopOrchestratorTest {
         orch.cancel()
 
         assertEquals(250.0 as Double?, ctx.seekedTo)
-        assertEquals(250.0, ctx.reconciledResumeSec, 0.0001)
+        assertEquals(250.0, ctx.reconciledResumeSec)
     }
 
     @Test
@@ -153,7 +169,7 @@ class FollowLoopOrchestratorTest {
         orch.cancel()
 
         assertEquals(42.0 as Double?, ctx.attachedAt)
-        assertTrue("tick body skipped after successful attach", ctx.hotAdvances.isEmpty())
+        assertTrue(ctx.hotAdvances.isEmpty(), "tick body skipped after successful attach")
         assertTrue(ctx.singlePeerWrites.isEmpty())
     }
 
@@ -171,7 +187,7 @@ class FollowLoopOrchestratorTest {
 
         assertEquals(listOf(300.0), ctx.singlePeerWrites)
         assertEquals(listOf(300.0), ctx.hotAdvances)
-        assertEquals(300.0, ctx.reconciledResumeSec, 0.0001)
+        assertEquals(300.0, ctx.reconciledResumeSec)
     }
 
     @Test
@@ -188,7 +204,7 @@ class FollowLoopOrchestratorTest {
 
         assertTrue(ctx.singlePeerWrites.isEmpty())
         assertTrue(ctx.hotAdvances.isEmpty())
-        assertEquals(200.0, ctx.reconciledResumeSec, 0.0001)
+        assertEquals(200.0, ctx.reconciledResumeSec)
     }
 
     @Test
@@ -209,9 +225,9 @@ class FollowLoopOrchestratorTest {
     @Test
     fun `stopWithFinalFlush on matched runs clock-stamped cycle + closeFlush`() = runTest {
         val (orch, ctx, clock) = setup()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        coEvery { rs.runAudioLedCycle(any(), any()) } returns
-            AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 7_000L)
+        val rs = FakeReaderSyncCoordinator(
+            defaultResult = AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 7_000L),
+        )
         ctx.readerSync = rs
         ctx.currentSec = 150.0
         ctx.reconciledResumeSec = 100.0
@@ -226,7 +242,8 @@ class FollowLoopOrchestratorTest {
 
         assertEquals(7_000L, ctx.localUpdatedAt)
         assertEquals(listOf(150.0 to 0.55f), ctx.closeFlushes)
-        coVerify(exactly = 1) { rs.runAudioLedCycle(150.0, 3_500L) }
+        assertEquals(1, rs.cycles.size)
+        assertEquals(150.0 to 3_500L, rs.cycles[0])
     }
 
     @Test
@@ -294,7 +311,7 @@ class FollowLoopOrchestratorTest {
         advanceTimeBy(FollowLoopOrchestrator.FOLLOW_INTERVAL_MS + 100)
         orch.cancel()
 
-        assertEquals("second start() must not spawn a second tick", 1, ctx.singlePeerWrites.size)
+        assertEquals(1, ctx.singlePeerWrites.size, "second start() must not spawn a second tick")
     }
 
     @Test
@@ -310,6 +327,6 @@ class FollowLoopOrchestratorTest {
         advanceTimeBy(FollowLoopOrchestrator.FOLLOW_INTERVAL_MS + 100)
 
         assertTrue(ctx.singlePeerWrites.isEmpty())
-        assertTrue("cancel does not flush", ctx.closeFlushes.isEmpty())
+        assertTrue(ctx.closeFlushes.isEmpty(), "cancel does not flush")
     }
 }

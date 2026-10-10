@@ -2,8 +2,8 @@ package com.riffle.feature.settings.ui.debug
 
 import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.logging.LogChannel
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class DebugLogDisplayOrderTest {
 

@@ -1,15 +1,12 @@
-package com.riffle.app.feature.reader.controllers
+package com.riffle.feature.reader
 
-import com.riffle.feature.reader.VolumeKeyDispatcher
-import com.riffle.feature.reader.VolumeNavEvent
-import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class VolumeKeyDispatcherTest {
 
@@ -54,7 +51,7 @@ class VolumeKeyDispatcherTest {
 
     private class FakeVolumeKeyPreferencesStore(
         val navigationEnabled: Boolean = false,
-        val invertKeys: Boolean = false
+        val invertKeys: Boolean = false,
     ) : VolumeKeyPreferencesStore {
         override val volumeKeyNavigationEnabled: Flow<Boolean> = flowOf(navigationEnabled)
         override val invertVolumeKeys: Flow<Boolean> = flowOf(invertKeys)
