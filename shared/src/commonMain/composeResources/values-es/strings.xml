@@ -7,4 +7,15 @@
     <string name="ui_could_not_download_book">Could not download book</string>
     <string name="ui_could_not_download_pdf">Could not download PDF</string>
     <string name="ui_no_highlights_to_show">No highlights to show</string>
+
+    <!-- Readaloud mini-player -->
+    <string name="ui_readaloud">Readaloud</string>
+    <string name="ui_rewind">Rewind 15s</string>
+    <string name="ui_forward">Forward 30s</string>
+    <string name="ui_previous_chapter">Previous chapter</string>
+    <string name="ui_next_chapter">Next chapter</string>
+    <string name="ui_close_readaloud">Close readaloud</string>
+    <string name="ui_download">Download</string>
+    <string name="ui_cancel">Cancel</string>
+    <string name="ui_download_readaloud_audio">Download readaloud audio (%1$s)?</string>
 </resources>

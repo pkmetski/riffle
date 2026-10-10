@@ -123,12 +123,22 @@ import com.riffle.feature.reader.ui.cadenceHudLabels
 import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
+import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.shared.generated.resources.Res
+import com.riffle.shared.generated.resources.ui_cancel
+import com.riffle.shared.generated.resources.ui_close_readaloud
 import com.riffle.shared.generated.resources.ui_could_not_download_book
+import com.riffle.shared.generated.resources.ui_download
+import com.riffle.shared.generated.resources.ui_download_readaloud_audio
 import com.riffle.shared.generated.resources.ui_error
+import com.riffle.shared.generated.resources.ui_forward
+import com.riffle.shared.generated.resources.ui_next_chapter
 import com.riffle.shared.generated.resources.ui_no_highlights_to_show
+import com.riffle.shared.generated.resources.ui_previous_chapter
+import com.riffle.shared.generated.resources.ui_readaloud
+import com.riffle.shared.generated.resources.ui_rewind
 import com.riffle.shared.readaloud.IosReadaloudSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -1019,7 +1029,7 @@ fun EpubReaderScreen(
                     ) {
                         Icon(
                             imageVector = RiffleIcons.PlayArrow,
-                            contentDescription = "Read aloud",
+                            contentDescription = stringResource(Res.string.ui_readaloud),
                         )
                     }
                 }
@@ -1519,16 +1529,16 @@ private fun IosReadaloudMiniPlayer(
                     TextButton(
                         onClick = { onSpeedChange(nextSpeed) },
                         modifier = Modifier.testTag(TestTags.READALOUD_SPEED),
-                    ) { Text("$speed×") }
+                    ) { Text(PlaybackSpeed.label(speed)) }
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onRewind, modifier = Modifier.testTag(TestTags.READALOUD_REWIND)) {
-                        Icon(RiffleIcons.FastRewind, contentDescription = "Rewind 15s")
+                        Icon(RiffleIcons.FastRewind, contentDescription = stringResource(Res.string.ui_rewind))
                     }
                     IconButton(
                         onClick = onPreviousChapter,
                         enabled = canPreviousChapter,
                         modifier = Modifier.testTag(TestTags.READALOUD_PREV_CHAPTER),
-                    ) { Icon(RiffleIcons.SkipPrevious, contentDescription = "Previous chapter") }
+                    ) { Icon(RiffleIcons.SkipPrevious, contentDescription = stringResource(Res.string.ui_previous_chapter)) }
                     IconButton(onClick = onPlayPause, modifier = Modifier.testTag(TestTags.READALOUD_PLAY_PAUSE)) {
                         Icon(
                             imageVector = if (isPlaying) RiffleIcons.Pause else RiffleIcons.PlayArrow,
@@ -1539,15 +1549,15 @@ private fun IosReadaloudMiniPlayer(
                         onClick = onNextChapter,
                         enabled = canNextChapter,
                         modifier = Modifier.testTag(TestTags.READALOUD_NEXT_CHAPTER),
-                    ) { Icon(RiffleIcons.SkipNext, contentDescription = "Next chapter") }
+                    ) { Icon(RiffleIcons.SkipNext, contentDescription = stringResource(Res.string.ui_next_chapter)) }
                     IconButton(onClick = onForward, modifier = Modifier.testTag(TestTags.READALOUD_FORWARD)) {
-                        Icon(RiffleIcons.FastForward, contentDescription = "Forward 30s")
+                        Icon(RiffleIcons.FastForward, contentDescription = stringResource(Res.string.ui_forward))
                     }
                     Spacer(Modifier.weight(1f))
                 }
             }
             IconButton(onClick = onClose, modifier = Modifier.testTag(TestTags.READALOUD_CLOSE)) {
-                Icon(RiffleIcons.Close, contentDescription = "Close")
+                Icon(RiffleIcons.Close, contentDescription = stringResource(Res.string.ui_close_readaloud))
             }
         }
     }
@@ -1568,8 +1578,8 @@ private fun IosReadaloudDownloadDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(TestTags.READALOUD_DOWNLOAD_DIALOG),
-        title = { Text("Download readaloud audio ($sizeLabel)?") },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Download") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text(stringResource(Res.string.ui_download_readaloud_audio, sizeLabel)) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(Res.string.ui_download)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } },
     )
 }
