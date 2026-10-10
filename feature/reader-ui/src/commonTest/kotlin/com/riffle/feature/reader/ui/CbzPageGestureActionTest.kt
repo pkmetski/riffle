@@ -1,7 +1,7 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader.ui
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Pins the swipe-to-turn fix. Prior implementation used `detectTransformGestures`,

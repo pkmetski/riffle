@@ -5,43 +5,13 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import android.view.WindowManager
 import android.provider.Settings
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,45 +22,32 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
-import androidx.compose.ui.graphics.asImageBitmap
-import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.reader.RailSegment
-import com.riffle.feature.reader.VolumeNavEvent
-import com.riffle.app.feature.reader.cbzSegmentPageIndex
-import com.riffle.feature.settings.ui.readersettings.palette
-import com.riffle.app.feature.reader.rememberImmersiveModeState
-import com.riffle.core.data.comic.panel.PanelMaskEncoder
-import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.comic.ComicPageSource
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
-import com.riffle.core.domain.comic.panel.PanelBinaryMask
-import com.riffle.core.domain.comic.panel.PanelSource
+import com.riffle.feature.reader.ui.CbzReaderScreen
+import com.riffle.app.feature.reader.rememberImmersiveModeState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.riffle.app.feature.reader.chapterMapProgressLabelTemplates
-import com.riffle.feature.reader.ui.CbzPanelViewer
-import com.riffle.feature.reader.ui.ChapterMapOverlay
-import com.riffle.feature.reader.ui.readerThemeLabelColor
+import org.koin.androidx.compose.koinViewModel
+import com.riffle.core.data.comic.panel.PanelMaskEncoder
+import com.riffle.core.domain.comic.ComicPageSource
+import com.riffle.core.domain.comic.panel.PanelBinaryMask
+import com.riffle.core.domain.comic.panel.PanelSource
+
+private const val MAX_PAGE_DIMENSION = 4096
+private const val MAX_THUMB_DIMENSION = 256
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,32 +57,14 @@ fun CbzReaderScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val currentPage by viewModel.currentPage.collectAsState()
-    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
-    val panelViewOn by viewModel.panelViewOn.collectAsState()
-    val effectivePanels by viewModel.effectivePanels.collectAsState()
-    val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
-    val comicBackgroundTheme by viewModel.comicBackgroundTheme.collectAsState()
-    val railSegments by viewModel.railSegments.collectAsState()
-    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
-    val railCursorPosition by viewModel.railCursorPosition.collectAsState()
-    val hasComicOverrides by viewModel.hasComicOverrides.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
-    var formattingSheetOpen by remember { mutableStateOf(false) }
-    var reportSheetOpen by remember { mutableStateOf(false) }
-    var reportData by remember { mutableStateOf<Pair<PanelBinaryMask, ByteArray>?>(null) }
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val hasComicOverrides by viewModel.hasComicOverrides.collectAsState()
+
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
-
-    LaunchedEffect(state) {
-        if (state is CbzReaderState.Error || state is CbzReaderState.BookNotFound) immersiveState.show()
-    }
-
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onReaderClosed() }
-    }
 
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -146,249 +85,102 @@ fun CbzReaderScreen(
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(comicBackgroundTheme.palette.background)) {
-        when (val s = state) {
-            CbzReaderState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+    val ready = state as? CbzReaderState.Ready
+    val effectiveThumbnailSource = ready?.let { it.thumbnailSource ?: it.imageSource }
+    val thumbnailCache = remember(effectiveThumbnailSource) { LruCache<Int, Bitmap>(50) }
+
+    LaunchedEffect(effectiveThumbnailSource) {
+        if (effectiveThumbnailSource == null) return@LaunchedEffect
+        delay(2_000)
+        val startPage = currentPage
+        val source = effectiveThumbnailSource
+        val pageCount = ready?.pageCount ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            prewarmThumbnailCache(startPage, pageCount, thumbnailCache) { index ->
+                runCatching { decodeSampledBitmap(source, index, MAX_THUMB_DIMENSION) }.getOrNull()
             }
-            CbzReaderState.BookNotFound -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.reader_book_not_found),
-                    color = MaterialTheme.colorScheme.onSurface,
+        }
+    }
+
+    val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
+    val coroutineScope = rememberCoroutineScope()
+    var reportSheetOpen by remember { mutableStateOf(false) }
+    var reportData by remember { mutableStateOf<Pair<PanelBinaryMask, ByteArray>?>(null) }
+
+    CbzReaderScreen(
+        viewModel = viewModel,
+        onNavigateBack = onNavigateBack,
+        isImmersive = immersiveState.isImmersive,
+        onToggleImmersive = immersiveState::toggle,
+        pageContent = { modifier, page ->
+            if (ready != null) {
+                CbzAndroidPageContent(
+                    modifier = modifier,
+                    imageSource = ready.imageSource,
+                    page = page,
                 )
             }
-            is CbzReaderState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(s.message, color = MaterialTheme.colorScheme.onSurface)
-            }
-            is CbzReaderState.Ready -> {
-                if (panelViewOn) {
-                    val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
-                    val effectivePanelAnimMs = if (reduceMotion) 0 else effectiveComicFormatting.panelAnimationSpeedMs
-                    CbzPanelViewer(
-                        currentPage = currentPage,
-                        pagePanels = effectivePanels,
-                        panelIndex = currentPanelIndex,
-                        panelAnimationSpeedMs = effectivePanelAnimMs,
-                        onNextPanel = viewModel::nextPanel,
-                        onPrevPanel = viewModel::previousPanel,
-                        onSkipGuidedPage = viewModel::skipGuidedPanelsOnPage,
-                        onToggleImmersive = immersiveState::toggle,
-                        volumeNavEvents = viewModel.volumeNavEvents,
-                        onViewportSizeChanged = viewModel::setViewportSize,
-                    ) { modifier, page ->
-                        CbzAndroidPanelPageContent(
-                            modifier = modifier,
-                            imageSource = s.imageSource,
-                            page = page,
-                        )
-                    }
-                } else {
-                    CbzPager(
-                        state = s,
-                        currentPage = currentPage,
-                        onPageChanged = { viewModel.jumpToPage(it) },
-                        onToggleImmersive = immersiveState::toggle,
-                        volumeNavEvents = viewModel.volumeNavEvents,
-                        onNext = viewModel::nextPage,
-                        onPrev = viewModel::previousPage,
-                    )
-                }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = !immersiveState.isImmersive,
-            enter = slideInVertically { -it },
-            exit = slideOutVertically { -it },
-            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
-        ) {
-            TopAppBar(
-                title = {
-                    val title = (state as? CbzReaderState.Ready)?.title.orEmpty()
-                    Text(title, maxLines = 1)
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.testTag(TestTags.CBZ_READER_BACK),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
-                    }
-                },
-                actions = {
-                    if (state is CbzReaderState.Ready) {
-                        IconButton(
-                            onClick = { formattingSheetOpen = true },
-                            modifier = Modifier.testTag(TestTags.CBZ_READER_SETTINGS),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Tune,
-                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_formatting),
-                            )
-                        }
-                        if (developerModeEnabled) {
-                            var menuOpen by remember { mutableStateOf(false) }
-                            IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_more_options))
-                            }
-                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_report_panel_detection_issue)) },
-                                    onClick = {
-                                        menuOpen = false
-                                        coroutineScope.launch(Dispatchers.IO) {
-                                            val result = viewModel.generateMaskPng(currentPage)
-                                            if (result != null) {
-                                                reportData = result
-                                                reportSheetOpen = true
-                                            }
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                    }
-                },
+        },
+        formattingSheet = { onDismiss ->
+            ComicFormattingSheet(
+                formatting = effectiveComicFormatting,
+                hasBookOverrides = hasComicOverrides,
+                onUpdate = viewModel::updateComicFormatting,
+                onReset = viewModel::resetComicFormattingToDefaults,
+                onDismiss = onDismiss,
             )
-        }
-
-        val ready = state as? CbzReaderState.Ready
-        if (ready != null) {
-            var chapterMapContentPx by remember { mutableStateOf(0) }
-            val density = LocalDensity.current
-            val effectiveThumbnailSource = ready.thumbnailSource ?: ready.imageSource
-            // Cache scoped to the book session — survives immersive mode toggles so thumbnails
-            // that were decoded before entering immersive are served instantly on re-exit.
-            val thumbnailCache = remember(effectiveThumbnailSource) { LruCache<Int, Bitmap>(50) }
-
-            // Pre-warm the cache ~2 s after the comic opens so the initial page render
-            // claims the full IO budget first. Radiates outward from the current reading
-            // position so the pages the user is most likely to scroll to are cached first.
-            // Stops once the cache is full — loading beyond capacity evicts earlier entries
-            // and leaves the reading neighbourhood uncached.
-            // Keyed only on effectiveThumbnailSource — runs once per book, not per page turn.
-            LaunchedEffect(effectiveThumbnailSource) {
-                delay(2_000)
-                val startPage = currentPage
-                val source = effectiveThumbnailSource
-                val pageCount = ready.pageCount
-                withContext(Dispatchers.IO) {
-                    prewarmThumbnailCache(startPage, pageCount, thumbnailCache) { index ->
-                        runCatching { decodeSampledBitmap(source, index, MAX_THUMB_DIMENSION) }.getOrNull()
-                    }
-                }
+        },
+        thumbnailContent = { modifier, page ->
+            if (effectiveThumbnailSource != null) {
+                CbzAndroidThumbnailContent(
+                    modifier = modifier,
+                    imageSource = effectiveThumbnailSource,
+                    page = page,
+                    cache = thumbnailCache,
+                )
             }
-
-            // Thumbnail strip — animated, sits above the chapter map
-            AnimatedVisibility(
-                visible = !immersiveState.isImmersive,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(bottom = with(density) { chapterMapContentPx.toDp() }),
-                ) {
-                    CbzThumbnailStrip(
-                        currentPage = currentPage,
-                        pageCount = ready.pageCount,
-                        imageSource = effectiveThumbnailSource,
-                        thumbnailCache = thumbnailCache,
-                        onSeek = { viewModel.jumpToPage(it) },
+        },
+        extraTopBarActions = {
+            if (developerModeEnabled && state is CbzReaderState.Ready) {
+                var menuOpen by remember { mutableStateOf(false) }
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(RiffleIcons.MoreVert, contentDescription = context.getString(com.riffle.app.R.string.ui_more_options))
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(context.getString(com.riffle.app.R.string.ui_report_panel_detection_issue)) },
+                        onClick = {
+                            menuOpen = false
+                            coroutineScope.launch(Dispatchers.IO) {
+                                val result = viewModel.generateMaskPng(currentPage)
+                                if (result != null) {
+                                    reportData = result
+                                    reportSheetOpen = true
+                                }
+                            }
+                        },
                     )
                 }
             }
-
-            // Chapter map — static, always at bottom, never animated.
-            // No navigationBarsPadding: the system nav bar overlays this column without
-            // shifting it up, matching how EpubReaderScreen anchors its chapter rail.
-            if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
-                val labelColor = readerThemeLabelColor(ReaderTheme.Dark)
-                val labelStyle = MaterialTheme.typography.labelSmall
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onSizeChanged { chapterMapContentPx = it.height },
-                    ) {
-                        if (effectiveComicFormatting.showPageProgress) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(ReaderTheme.Dark.palette.background)
-                                    .padding(horizontal = 14.dp, vertical = 2.dp),
-                            ) {
-                                Text(
-                                    text = "${currentPage + 1}",
-                                    style = labelStyle,
-                                    color = labelColor,
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                                Text(
-                                    text = "-${ready.pageCount - currentPage - 1}",
-                                    style = labelStyle,
-                                    color = labelColor,
-                                )
-                            }
-                        }
-                        ChapterMapOverlay(
-                            segments = railSegments,
-                            activeIndex = activeRailSegmentIndex,
-                            cursorPosition = railCursorPosition,
-                            totalProgress = railCursorPosition,
-                            readerTheme = ReaderTheme.Dark,
-                            showRail = true,
-                            coloredChapterMap = true,
-                            showCurrentChapterLabel = false,
-                            showProgressLabels = false,
-                            showReadingTimeEstimate = false,
-                            templates = chapterMapProgressLabelTemplates(),
-                            onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (formattingSheetOpen) {
-        ComicFormattingSheet(
-            formatting = effectiveComicFormatting,
-            hasBookOverrides = hasComicOverrides,
-            onUpdate = viewModel::updateComicFormatting,
-            onReset = viewModel::resetComicFormattingToDefaults,
-            onDismiss = { formattingSheetOpen = false },
-        )
-    }
+        },
+        isReduceMotion = reduceMotion,
+    )
 
     val data = reportData
     if (reportSheetOpen && data != null) {
         val (mask, maskPng) = data
-        val selectFailureTypeMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_select_failure_type)
-        val markFalsePanelMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_mark_false_panel)
+        val selectFailureTypeMessage = context.getString(com.riffle.app.R.string.error_select_failure_type)
+        val markFalsePanelMessage = context.getString(com.riffle.app.R.string.error_mark_false_panel)
         val maskBitmap = remember(mask) {
             val pixels = PanelMaskEncoder.toArgbPixels(mask)
             android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
                 .asImageBitmap()
         }
-        // Report the DETECTOR's raw output (currentPagePanels), never effectivePanels: the
-        // latter is post-PanelOverflowTransform, so with Panel Overflow = SPLIT/SMART_SPLIT the
-        // report would list viewport-dependent split halves the detector never produced, and a
-        // regression test written from that issue would chase a nonexistent detection bug.
         val rawPanels = viewModel.currentPagePanels.collectAsState().value
         val panelReportVm = remember(currentPage, selectFailureTypeMessage) {
             PanelReportViewModel(
                 bookId = viewModel.bookId,
                 pageIndex = currentPage,
-                // Use original image dimensions from the detected panels, not the mask bitmap
-                // dimensions — the mask may be decoded at a different DPI-scaled size.
                 imageWidth = rawPanels?.imageWidth ?: mask.width,
                 imageHeight = rawPanels?.imageHeight ?: mask.height,
                 detectedPanels = rawPanels?.panels ?: emptyList(),
@@ -405,209 +197,15 @@ fun CbzReaderScreen(
             onSubmit = { panelReportVm.submit(maskPng) },
             onDismiss = { reportSheetOpen = false },
         )
-
     }
 }
 
-// --- Whole-page pager (Panel View OFF) ---
+// ── Android-specific page content slots ───────────────────────────────────────
 
 @Composable
-private fun CbzPager(
-    state: CbzReaderState.Ready,
-    currentPage: Int,
-    onPageChanged: (Int) -> Unit,
-    onToggleImmersive: () -> Unit,
-    volumeNavEvents: kotlinx.coroutines.flow.SharedFlow<VolumeNavEvent>,
-    onNext: () -> Unit,
-    onPrev: () -> Unit,
-) {
-    val pagerState = rememberPagerState(initialPage = currentPage) { state.pageCount }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-
-    LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage != currentPage) onPageChanged(pagerState.currentPage)
-    }
-    LaunchedEffect(currentPage) {
-        if (currentPage != pagerState.currentPage) {
-            pagerState.scrollToPage(currentPage)
-        }
-    }
-
-    LaunchedEffect(volumeNavEvents) {
-        volumeNavEvents.collect { event ->
-            when (event) {
-                VolumeNavEvent.Forward -> onNext()
-                VolumeNavEvent.Backward -> onPrev()
-            }
-        }
-    }
-
-    HorizontalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxSize().testTag(TestTags.CBZ_PAGER),
-    ) { pageIndex ->
-        CbzPage(
-            source = state.imageSource,
-            pageIndex = pageIndex,
-            onTapZone = { zone ->
-                when (zone) {
-                    TapZone.Left -> scope.launch { pagerState.animateScrollToPage((pageIndex - 1).coerceAtLeast(0)) }
-                    TapZone.Right -> scope.launch { pagerState.animateScrollToPage((pageIndex + 1).coerceAtMost(state.pageCount - 1)) }
-                    TapZone.Center -> onToggleImmersive()
-                }
-            },
-        )
-    }
-}
-
-@Composable
-private fun CbzPage(
-    source: ComicPageSource,
-    pageIndex: Int,
-    onTapZone: (TapZone) -> Unit,
-) {
-    var scale by remember(pageIndex) { mutableStateOf(1f) }
-    var offsetX by remember(pageIndex) { mutableStateOf(0f) }
-    var offsetY by remember(pageIndex) { mutableStateOf(0f) }
-    val scope = rememberCoroutineScope()
-    var zoomAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = pageIndex, key2 = source) {
-        val result = decodeWithRetry(attempts = decodeAttemptsFor(source)) {
-            withContext(Dispatchers.IO) {
-                runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
-            }
-        }
-        value = CbzPageDecodeState(bitmap = result, settled = true, forPage = pageIndex)
-    }
-    // Each pager slot has a fixed pageIndex so this gate is currently a no-op, but applying it
-    // keeps the "decode must belong to the page it renders for" contract enforced everywhere
-    // CbzPageDecodeState is consumed, not just in CbzPanelViewer.
-    val decode = decodeForPage(rawDecode, pageIndex)
-    val bitmap = decode.bitmap
-    val context = LocalContext.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(pageIndex) {
-                detectTapGestures(
-                    onDoubleTap = { tapOffset ->
-                        zoomAnimJob?.cancel()
-                        if (scale > 1f) {
-                            val fromScale = scale
-                            val fromX = offsetX
-                            val fromY = offsetY
-                            zoomAnimJob = scope.launch {
-                                launch { animate(fromScale, 1f) { v, _ -> scale = v } }
-                                launch { animate(fromX, 0f) { v, _ -> offsetX = v } }
-                                animate(fromY, 0f) { v, _ -> offsetY = v }
-                            }
-                        } else {
-                            val targetScale = 2.5f
-                            val (tx, ty) = doubleTapZoomTranslation(
-                                tapX = tapOffset.x,
-                                tapY = tapOffset.y,
-                                containerWidth = size.width.toFloat(),
-                                containerHeight = size.height.toFloat(),
-                                targetScale = targetScale,
-                            )
-                            val fromScale = scale
-                            val fromX = offsetX
-                            val fromY = offsetY
-                            zoomAnimJob = scope.launch {
-                                launch { animate(fromScale, targetScale) { v, _ -> scale = v } }
-                                launch { animate(fromX, tx) { v, _ -> offsetX = v } }
-                                animate(fromY, ty) { v, _ -> offsetY = v }
-                            }
-                        }
-                    },
-                    onTap = { pos ->
-                        val third = size.width / 3f
-                        val zone = when {
-                            pos.x < third -> TapZone.Left
-                            pos.x > 2 * third -> TapZone.Right
-                            else -> TapZone.Center
-                        }
-                        onTapZone(zone)
-                    },
-                )
-            }
-            .pointerInput(pageIndex) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    do {
-                        val event = awaitPointerEvent()
-                        val pointerCount = event.changes.count { it.pressed }
-                        when (cbzPageGestureAction(pointerCount, scale)) {
-                            CbzPageGestureAction.Zoom -> {
-                                zoomAnimJob?.cancel()
-                                val zoom = event.calculateZoom()
-                                val pan = event.calculatePan()
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                if (scale > 1f) {
-                                    offsetX += pan.x
-                                    offsetY += pan.y
-                                } else {
-                                    offsetX = 0f
-                                    offsetY = 0f
-                                }
-                                event.changes.forEach { it.consume() }
-                            }
-                            CbzPageGestureAction.PanZoomed -> {
-                                zoomAnimJob?.cancel()
-                                val pan = event.calculatePan()
-                                offsetX += pan.x
-                                offsetY += pan.y
-                                event.changes.forEach { it.consume() }
-                            }
-                            CbzPageGestureAction.Ignore -> Unit
-                        }
-                    } while (event.changes.any { it.pressed })
-                }
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        // A null bitmap must render the Loading branch explicitly: feeding null data to Coil
-        // resolves to the (empty) error state immediately, so the streaming-phase fetch would
-        // otherwise show a fully blank page with no feedback until the download completes.
-        // Once the decode has settled without a bitmap (retry budget spent, or an undecodable
-        // page in a local archive), show an error instead of an infinite spinner.
-        when (cbzPageContent(bitmap != null, decode.settled)) {
-            CbzPageContent.Loading -> CircularProgressIndicator()
-            CbzPageContent.Error -> Text(
-                text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            CbzPageContent.Image -> SubcomposeAsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(bitmap)
-                    .build(),
-                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_number, pageIndex + 1),
-                loading = { CircularProgressIndicator() },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offsetX,
-                        translationY = offsetY,
-                    ),
-            )
-        }
-    }
-}
-
-// --- Panel View page content (Android-specific bitmap loading and Coil rendering) ---
-
-/**
- * Android implementation of the panel page content slot. Decodes the CBZ page bitmap
- * and renders it with Coil, applying the [modifier] (which carries the panel's graphicsLayer
- * transform from the shared [CbzPanelViewer]).
- */
-@Composable
-private fun CbzAndroidPanelPageContent(
+private fun CbzAndroidPageContent(
     modifier: Modifier,
-    imageSource: com.riffle.core.domain.comic.ComicPageSource,
+    imageSource: ComicPageSource,
     page: Int,
 ) {
     val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = page, key2 = imageSource) {
@@ -625,26 +223,65 @@ private fun CbzAndroidPanelPageContent(
     val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
     when (cbzPageContent(bitmap != null, decode.settled)) {
         CbzPageContent.Loading -> CircularProgressIndicator()
-        CbzPageContent.Error -> Text(
-            text = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.error_comic_page_load_failed),
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        CbzPageContent.Error -> Text(context.getString(com.riffle.app.R.string.error_comic_page_load_failed))
         CbzPageContent.Image -> SubcomposeAsyncImage(
             model = imageRequest,
-            contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_comic_page_panel, page + 1, 1),
+            contentDescription = context.getString(com.riffle.app.R.string.ui_comic_page_number, page + 1),
             loading = { CircularProgressIndicator() },
             modifier = modifier,
         )
     }
 }
 
-private enum class TapZone { Left, Center, Right }
+@Composable
+private fun CbzAndroidThumbnailContent(
+    modifier: Modifier,
+    imageSource: ComicPageSource,
+    page: Int,
+    cache: LruCache<Int, Bitmap>,
+) {
+    val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = page, key2 = imageSource) {
+        val cached = cache.get(page)
+        if (cached != null) {
+            value = CbzPageDecodeState(bitmap = cached, settled = true, forPage = page)
+            return@produceState
+        }
+        val result = decodeWithRetry(attempts = decodeAttemptsFor(imageSource)) {
+            withContext(Dispatchers.IO) {
+                runCatching { decodeSampledBitmap(imageSource, page, MAX_THUMB_DIMENSION) }.getOrNull()
+            }
+        }
+        result?.let { cache.put(page, it) }
+        value = CbzPageDecodeState(bitmap = result, settled = true, forPage = page)
+    }
+    val decode = decodeForPage(rawDecode, page)
+    val bitmap = decode.bitmap
+    val context = LocalContext.current
+    val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
+    when (cbzPageContent(bitmap != null, decode.settled)) {
+        CbzPageContent.Loading -> CircularProgressIndicator()
+        CbzPageContent.Error -> Unit
+        CbzPageContent.Image -> SubcomposeAsyncImage(
+            model = imageRequest,
+            contentDescription = null,
+            loading = { CircularProgressIndicator() },
+            modifier = modifier,
+        )
+    }
+}
 
-/**
- * Honour the OS Reduce Motion setting. When any of the animation scales is 0 the user has asked
- * the platform to skip transition animations; we collapse Panel View's Matrix interpolation to
- * an instant snap.
- */
+/** Android implementation of panel page content — decoded via BitmapFactory, rendered via Coil. */
+@Composable
+internal fun CbzAndroidPanelPageContent(
+    modifier: Modifier,
+    imageSource: ComicPageSource,
+    page: Int,
+) {
+    CbzAndroidPageContent(modifier = modifier, imageSource = imageSource, page = page)
+}
+
+// ── Android-only decode helpers ────────────────────────────────────────────────
+
 private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
     val cr = context.contentResolver
     fun getScale(name: String): Float = try {
@@ -661,35 +298,15 @@ internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 
 internal enum class CbzPageContent { Loading, Image, Error }
 
-/** Result of a page decode attempt: [settled] flips true once the retry budget is spent. */
 internal data class CbzPageDecodeState(
     val bitmap: Bitmap? = null,
     val settled: Boolean = false,
-    /** The page this decode belongs to; -1 until a decode settles. */
     val forPage: Int = -1,
 )
 
-/**
- * Returns [decode] only when it belongs to [currentPage]; otherwise an empty (loading) state.
- *
- * CbzPanelViewer is a single composable reused across pages, and produceState keeps its last
- * value while the restarted producer decodes the new page. Without this gate the previous
- * page's bitmap is briefly rendered through the NEW page's panel transform — an unnecessary
- * zoom flash right before every page change.
- */
 internal fun decodeForPage(decode: CbzPageDecodeState, currentPage: Int): CbzPageDecodeState =
     if (decode.forPage == currentPage) decode else CbzPageDecodeState()
 
-/**
- * What a comic page slot should render. A missing bitmap with the decode still running must show
- * a loading indicator, never a blank page; a missing bitmap after the decode settled (retry
- * budget spent, or an undecodable page) must show an error, never an infinite spinner.
- *
- * [panelsReady] is the Panel View gate: while panel detection is still resolving, a decoded
- * bitmap must NOT render — it would appear at Identity (whole-page) and then jump to the
- * panel-focused transform when detection lands (the "spurious pan"). The panel viewer passes
- * `pagePanels != null`; the plain pager always passes true.
- */
 internal fun cbzPageContent(
     hasBitmap: Boolean,
     decodeSettled: Boolean,
@@ -701,21 +318,8 @@ internal fun cbzPageContent(
     else -> CbzPageContent.Loading
 }
 
-/**
- * Retries only make sense when a decode failure can be transient — i.e. the streaming phase,
- * where the bytes come over the network. A local archive decode fails deterministically
- * (corrupt page), so retrying just delays the error state.
- */
 internal fun decodeAttemptsFor(source: ComicPageSource): Int = source.decodeRetries
 
-/**
- * Runs [decode] until it yields a bitmap, retrying a failure (null) up to [attempts] total
- * tries with [retryDelayMs] between them. A streaming-phase page decode is a network fetch
- * under the hood; a single transient failure (timeout while the background full-file download
- * hogs the link) previously left the page stuck on a permanently-null bitmap with no retry.
- * Bounded rather than infinite so a genuinely undecodable page settles instead of spinning
- * the network forever.
- */
 internal suspend fun <T : Any> decodeWithRetry(
     attempts: Int = 3,
     retryDelayMs: Long = 2_000,
@@ -728,10 +332,6 @@ internal suspend fun <T : Any> decodeWithRetry(
     return decode()
 }
 
-// Large BMPs can exceed 274MB decoded. Subsample to this max dimension to keep the Bitmap
-// allocation under the app heap limit.
-private const val MAX_PAGE_DIMENSION = 4096
-
 internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
     var sampleSize = 1
     while (maxOf(width, height) / sampleSize > maxDimension) sampleSize *= 2
@@ -739,16 +339,11 @@ internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): 
 }
 
 internal fun decodeSampledBitmap(source: ComicPageSource, pageIndex: Int, maxDimension: Int): Bitmap? {
-    // Fetch the page bytes once (a network fetch during streaming, a zip read locally) and decode
-    // from the byte array — bounds pass then sampled pass — so we never double-fetch.
     val bytes = try {
         source.imageBytes(pageIndex)
     } catch (_: Throwable) {
         return null
     }
-    // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
-    // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
-    // data internally), so catch that and fall back to starting at 1.
     val startSampleSize = try {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
@@ -770,46 +365,6 @@ internal fun decodeSampledBitmap(source: ComicPageSource, pageIndex: Int, maxDim
     return null
 }
 
-/**
- * Returns the graphicsLayer (translationX, translationY) that keeps the tapped pixel
- * stationary after scaling by [targetScale] around the composable center.
- *
- * graphicsLayer scales around center, so a point (tapX, tapY) moves to
- *   center + (tapX - center) * targetScale + translation
- * Setting that equal to tapX gives: translation = (tapX - center) * (1 - targetScale).
- */
-internal fun doubleTapZoomTranslation(
-    tapX: Float,
-    tapY: Float,
-    containerWidth: Float,
-    containerHeight: Float,
-    targetScale: Float,
-): Pair<Float, Float> =
-    (tapX - containerWidth / 2f) * (1f - targetScale) to
-    (tapY - containerHeight / 2f) * (1f - targetScale)
-
-/**
- * Decides how the per-page pointer handler should react to an event.
- *
- * The critical case is [Ignore]: a single-finger drag at scale=1 must NOT consume
- * pointer events, so `HorizontalPager` receives the swipe and turns the page.
- */
-internal fun cbzPageGestureAction(pointerCount: Int, scale: Float): CbzPageGestureAction = when {
-    pointerCount >= 2 -> CbzPageGestureAction.Zoom
-    pointerCount == 1 && scale > 1f -> CbzPageGestureAction.PanZoomed
-    else -> CbzPageGestureAction.Ignore
-}
-
-/**
- * Fills [cache] with decoded thumbnails, radiating outward from [startPage].
- *
- * Stops as soon as [cache] is full — loading beyond capacity would evict nearby entries
- * and leave the reading neighbourhood uncached (the "cache lost on page turn" bug).
- *
- * [decode] is called with a page index and must return a [Bitmap] or null on failure.
- * Production callers pass `{ decodeSampledBitmap(source, it, MAX_THUMB_DIMENSION) }`.
- * Tests pass a stub that creates a cheap 1×1 Bitmap.
- */
 internal fun prewarmThumbnailCache(
     startPage: Int,
     pageCount: Int,
