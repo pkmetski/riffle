@@ -40,6 +40,7 @@ import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_back
+import com.riffle.feature.settings.ui.generated.resources.ui_clear
 import com.riffle.feature.settings.ui.generated.resources.ui_crash_report_count
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_logs
 import com.riffle.feature.settings.ui.generated.resources.ui_developer_options
@@ -196,7 +197,7 @@ private fun IosDiagnosticsSection(
             headlineContent = { Text(stringResource(Res.string.ui_crash_report_count, crashReports.size)) },
             supportingContent = { Text(stringResource(Res.string.ui_newest_first)) },
             trailingContent = {
-                TextButton(onClick = onClearCrashReports) { Text("Clear") }
+                TextButton(onClick = onClearCrashReports) { Text(stringResource(Res.string.ui_clear)) }
             },
         )
         crashReports.forEach { item ->

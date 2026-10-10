@@ -55,6 +55,8 @@ import com.riffle.feature.library.ui.filteredBooksLabels
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
+import com.riffle.shared.generated.resources.Res as SharedRes
+import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
@@ -670,7 +672,7 @@ internal fun ElidedReaderLoader(
     when {
         loadedItem != null -> EpubReaderScreen(item = loadedItem, onBack = onBack, source = ReaderSource.Highlights)
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Text("Book not found")
+            Text(stringResource(SharedRes.string.ui_book_not_found))
         }
         else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()

@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
  */
 class PlayerChromeDerivationsTest {
 
-    private val labels = PlayerChromeLabels.English
+    private val labels = testPlayerChromeLabels
 
     // ── time labels ─────────────────────────────────────────────────────────────
 

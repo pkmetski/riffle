@@ -105,12 +105,4 @@ data class FilteredBooksLabels(
     /** Back-arrow content description. */
     val back: String,
     val noBooksFound: String,
-) {
-    companion object {
-        /** Verbatim from `app/src/main/res/values/strings.xml`; used by the iOS host. */
-        val English = FilteredBooksLabels(
-            back = "Back",
-            noBooksFound = "No books found",
-        )
-    }
-}
+)

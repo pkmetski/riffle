@@ -43,28 +43,6 @@ data class ChapterMapProgressLabelTemplates(
     /** `"Active rail segment: %1$s. Progress %2$d%%"` */
     val activeRailSegmentProgress: String,
 ) {
-    companion object {
-        /**
-         * The English catalogue, verbatim from `app/src/main/res/values/strings.xml`. Used by the
-         * iOS host, which has no string-resource mechanism yet (#1072's i18n item). Keep the two
-         * in step: these are the same keys, not a second wording.
-         */
-        val English = ChapterMapProgressLabelTemplates(
-            chapterCount = "Chapter %1\$d of %2\$d",
-            durationMinutes = "%1\$d min",
-            durationHoursMinutes = "%1\$dh %2\$dmin",
-            chapterRemainingExact = "%1\$s chapter",
-            chapterRemainingEstimated = "~%1\$s chapter",
-            chapterRemainingLessThanMinute = "< 1min chapter",
-            bookRemainingExact = "%1\$s total",
-            bookRemainingEstimated = "~%1\$s total",
-            bookRemainingLessThanMinute = "< 1min total",
-            readingProgressValue = "Reading progress: %1\$s",
-            currentChapterValue = "Current chapter: %1\$s",
-            totalProgressValue = "Total progress: %1\$s",
-            activeRailSegmentProgress = "Active rail segment: %1\$s. Progress %2\$d%%",
-        )
-    }
 }
 
 /**

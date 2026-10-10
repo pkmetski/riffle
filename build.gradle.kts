@@ -2,6 +2,7 @@ import com.riffle.buildlogic.AndroidImportLint
 import com.riffle.buildlogic.CheckTranslationsTask
 import com.riffle.buildlogic.CreateTranslationTask
 import com.riffle.buildlogic.DatabaseImplLeakLint
+import com.riffle.buildlogic.HardcodedStringLiteralLint
 import com.riffle.buildlogic.LocalizationResourceLint
 import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
@@ -615,6 +616,33 @@ tasks.register("checkSharedCommonMainComposables") {
     }
 }
 
+// Enforces that user-visible strings are not hard-coded: Text("…") / BasicText("…") /
+// contentDescription = "…" must reference a stringResource, not a literal.
+// Detection logic lives in buildSrc/.../HardcodedStringLiteralLint.kt.
+tasks.register("checkHardcodedStringLiterals") {
+    group = "verification"
+    description = "Fails if any production Compose UI passes a hard-coded string literal to Text() or contentDescription."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val offenders = HardcodedStringLiteralLint.findOffenders(
+            scanRoots = listOf(
+                layout.projectDirectory.dir("feature").asFile,
+                layout.projectDirectory.dir("shared/src/iosMain").asFile,
+                layout.projectDirectory.dir("shared/src/commonMain").asFile,
+            ),
+            projectRoot = projectRoot,
+        )
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Hard-coded string literals found in Compose UI. Use stringResource(Res.string.*) instead:\n" +
+                    offenders.joinToString("\n") { it.render(projectRoot) },
+            )
+        }
+    }
+}
+
 // Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
@@ -633,6 +661,7 @@ tasks.register("riffleChecks") {
         "checkTestGuardrails",
         "checkParityMirror",
         "checkSharedCommonMainComposables",
+        "checkHardcodedStringLiterals",
     )
 }
 
@@ -650,5 +679,6 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkTestGuardrails"))
         dependsOn(rootProject.tasks.named("checkParityMirror"))
         dependsOn(rootProject.tasks.named("checkSharedCommonMainComposables"))
+        dependsOn(rootProject.tasks.named("checkHardcodedStringLiterals"))
     }
 }

@@ -21,7 +21,7 @@ import kotlin.test.assertEquals
  */
 class PlayerChromeRenderTest {
 
-    private val labels = PlayerChromeLabels.English
+    private val labels = testPlayerChromeLabels
 
     private val chapters = listOf(
         AudiobookChapter(index = 0, startSec = 0.0, endSec = 600.0, title = "Prologue"),

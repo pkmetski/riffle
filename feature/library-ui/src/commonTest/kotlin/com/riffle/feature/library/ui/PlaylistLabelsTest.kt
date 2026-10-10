@@ -15,13 +15,13 @@ class PlaylistLabelsTest {
 
     @Test
     fun oneItemUsesTheSingularForm() {
-        assertEquals("1 item", playlistItemCountLabel(1, PlaylistLabels.English))
+        assertEquals("1 item", playlistItemCountLabel(1, testPlaylistLabels))
     }
 
     @Test
     fun otherCountsExpandThePositionalTemplate() {
-        assertEquals("0 items", playlistItemCountLabel(0, PlaylistLabels.English))
-        assertEquals("4 items", playlistItemCountLabel(4, PlaylistLabels.English))
+        assertEquals("0 items", playlistItemCountLabel(0, testPlaylistLabels))
+        assertEquals("4 items", playlistItemCountLabel(4, testPlaylistLabels))
     }
 
     /**
@@ -31,7 +31,7 @@ class PlaylistLabelsTest {
      */
     @Test
     fun theExpandedPluralNeverLeaksTheTemplateToken() {
-        val label = playlistItemCountLabel(12, PlaylistLabels.English)
+        val label = playlistItemCountLabel(12, testPlaylistLabels)
 
         assertEquals(false, label.contains('%'), "template token leaked into the rendered label")
         assertEquals("12 items", label)

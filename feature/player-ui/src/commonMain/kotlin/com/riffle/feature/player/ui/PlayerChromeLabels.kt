@@ -72,55 +72,6 @@ data class PlayerChromeLabels(
     /** The compact `%1$dh %2$dm` templates that facts line's duration segment is built from. */
     val compactDuration: CompactDurationLabelTemplates,
 ) {
-    companion object {
-        /**
-         * The English catalogue, verbatim from `app/src/main/res/values/strings.xml` (and, where
-         * Android still inlines a literal, from the literal). Used by the iOS host, which has no
-         * string-resource mechanism yet. Keep the two in step: these are the same keys, not a
-         * second wording.
-         */
-        val English = PlayerChromeLabels(
-            back = "Back",
-            cannotPlay = "This audiobook can't be played right now.",
-            play = "Play",
-            pause = "Pause",
-            previousChapter = "Previous chapter",
-            nextChapter = "Next chapter",
-            chapters = "Chapters",
-            bookmarks = "Bookmarks",
-            bookmarkCountOne = "1 bookmark",
-            bookmarkCountOther = "%1\$d bookmarks",
-            addBookmark = "Add bookmark",
-            removeBookmark = "Remove bookmark",
-            newBookmark = "New bookmark",
-            renameBookmark = "Rename bookmark",
-            bookmarkOptions = "Bookmark options",
-            rename = "Rename",
-            delete = "Delete",
-            save = "Save",
-            cancel = "Cancel",
-            noBookmarksYet = "No bookmarks yet.",
-            offlineBookmarksWillSync = "Offline — bookmarks will sync",
-            nowPlaying = "Now playing",
-            chapterNumber = "Chapter %1\$d",
-            playbackSpeed = "Playback Speed",
-            sleepTimerSheetTitle = "Sleep Timer",
-            sleepTimer = "Sleep timer",
-            sleepPillIdle = "Sleep",
-            sleepPillEndOfChapter = "End of ch.",
-            endOfChapter = "End of chapter",
-            sleepingIn = "Sleeping in %1\$s",
-            sleepingAtEndOfChapter = "Sleeping at end of chapter",
-            cancelTimer = "Cancel timer",
-            minutesShort = "%1\$d min",
-            audiobook = "Audiobook",
-            compactDuration = CompactDurationLabelTemplates(
-                minutes = "%1\$dmin",
-                hours = "%1\$dh",
-                hoursMinutes = "%1\$dh %2\$dmin",
-            ),
-        )
-    }
 }
 
 /** `"1 bookmark"` / `"4 bookmarks"`. */

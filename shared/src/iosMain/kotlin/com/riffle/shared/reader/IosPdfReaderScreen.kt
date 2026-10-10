@@ -27,6 +27,11 @@ import com.riffle.feature.reader.PdfLocatorCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import com.riffle.shared.generated.resources.Res
+import com.riffle.shared.generated.resources.ui_could_not_download_pdf
+import com.riffle.shared.generated.resources.ui_error
+import com.riffle.shared.generated.resources.ui_opening_pdf
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 /**
@@ -42,6 +47,9 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val downloader = koinInject<IosPdfDownloader>()
     val positionStore = koinInject<ReadingPositionStore>()
     val sessionRepository = koinInject<ReadingSessionRepository>()
+    val couldNotDownloadPdf = stringResource(Res.string.ui_could_not_download_pdf)
+    val errorText = stringResource(Res.string.ui_error)
+    val openingPdfText = stringResource(Res.string.ui_opening_pdf)
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     val bridge = remember { bridgeFactory.create() }
@@ -50,7 +58,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     LaunchedEffect(item.id) {
         val path = downloader.localPath(item)
         if (path == null) {
-            loadError = "Could not download PDF"
+            loadError = couldNotDownloadPdf
             return@LaunchedEffect
         }
         localPath = path
@@ -91,10 +99,10 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         when {
             loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText(loadError ?: "Error")
+                BasicText(loadError ?: errorText)
             }
             localPath == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText("Opening PDF…")
+                BasicText(openingPdfText)
             }
             else -> UIKitViewController(
                 factory = { bridge.viewController() },

@@ -131,4 +131,21 @@
     <string name="ui_sort_recently_opened">Recently Opened</string>
     <!-- Library items — offline banner -->
     <string name="ui_offline_banner">Offline — showing cached data</string>
+    <!-- Library items — series / collections empty states -->
+    <string name="ui_no_series">No series</string>
+    <string name="ui_no_collections">No collections</string>
+    <!-- Item detail — upload preflight dialogs -->
+    <string name="ui_upload_conflict_title">Upload conflict</string>
+    <string name="ui_upload_conflict_message">An item with the same title already exists in %1$s. Overwrite it?</string>
+    <string name="ui_overwrite">Overwrite</string>
+    <string name="ui_cannot_upload_title">Cannot upload</string>
+    <string name="ui_ok">OK</string>
+    <!-- Item detail — Ko-fi nudge -->
+    <string name="ui_enjoying_riffle">Enjoying Riffle? Consider supporting development. ☕</string>
+    <string name="ui_dismiss">Dismiss</string>
+    <!-- Unbounded browse — navigation bar item content descriptions -->
+    <string name="ui_open_menu">Open menu</string>
+    <string name="ui_home">Home</string>
+    <string name="ui_annotations">Annotations</string>
+    <string name="ui_library">Library</string>
 </resources>

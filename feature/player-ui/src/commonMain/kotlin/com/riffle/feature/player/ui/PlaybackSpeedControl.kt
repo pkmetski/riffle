@@ -29,7 +29,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.PlaybackSpeed
+import com.riffle.feature.player.ui.generated.resources.Res
+import com.riffle.feature.player.ui.generated.resources.ui_speed_decrease
+import com.riffle.feature.player.ui.generated.resources.ui_speed_increase
 import kotlin.math.abs
+import org.jetbrains.compose.resources.stringResource
 
 /** The presets the sheet offers, on top of the ± nudge buttons. */
 internal val SPEED_SHEET_PRESETS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f, 3f)
@@ -110,7 +114,7 @@ private fun SpeedSheet(
                     modifier = Modifier.size(48.dp).testTag(TestTags.playerSpeedMinus(tagPrefix)),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("−", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Light)
+                        Text(stringResource(Res.string.ui_speed_decrease), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Light)
                     }
                 }
                 Text(
@@ -128,7 +132,7 @@ private fun SpeedSheet(
                     modifier = Modifier.size(48.dp).testTag(TestTags.playerSpeedPlus(tagPrefix)),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("+", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Light)
+                        Text(stringResource(Res.string.ui_speed_increase), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Light)
                     }
                 }
             }

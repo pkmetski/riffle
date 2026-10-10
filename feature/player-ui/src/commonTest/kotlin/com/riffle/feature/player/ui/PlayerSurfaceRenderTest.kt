@@ -35,7 +35,7 @@ import kotlin.test.assertTrue
  */
 class PlayerSurfaceRenderTest {
 
-    private val labels = PlayerChromeLabels.English
+    private val labels = testPlayerChromeLabels
 
     private fun state(
         positionSec: Double = 600.0,

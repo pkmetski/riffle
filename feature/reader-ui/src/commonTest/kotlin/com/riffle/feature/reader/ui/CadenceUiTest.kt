@@ -10,6 +10,7 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.cadence.CadenceState
 import com.riffle.core.domain.cadence.PauseCause
+import com.riffle.feature.reader.ui.testCadenceHudLabels
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -26,7 +27,7 @@ class CadenceUiTest {
         setContent {
             CadenceHudPill(
                 state = CadenceState.Idle,
-                labels = SpeedHudLabels.EnglishCadence,
+                labels = testCadenceHudLabels,
                 onPause = {},
                 onResume = {},
                 onSlower = {},
@@ -43,7 +44,7 @@ class CadenceUiTest {
         setContent {
             CadenceHudPill(
                 state = CadenceState.Running(AutoScrollSpeed.of(320)),
-                labels = SpeedHudLabels.EnglishCadence,
+                labels = testCadenceHudLabels,
                 onPause = { events += "pause" },
                 onResume = { events += "resume" },
                 onSlower = { events += "slower" },
@@ -68,7 +69,7 @@ class CadenceUiTest {
         setContent {
             CadenceHudPill(
                 state = CadenceState.Paused(AutoScrollSpeed.of(250), PauseCause.PanelOpen),
-                labels = SpeedHudLabels.EnglishCadence,
+                labels = testCadenceHudLabels,
                 onPause = {},
                 onResume = { resumed = true },
                 onSlower = {},
@@ -76,7 +77,7 @@ class CadenceUiTest {
             )
         }
         onNodeWithTag("cadence_hud_pill").assertIsDisplayed()
-        onNodeWithContentDescription(SpeedHudLabels.EnglishCadence.resume).performClick()
+        onNodeWithContentDescription(testCadenceHudLabels.resume).performClick()
         assertEquals(true, resumed)
     }
 

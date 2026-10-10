@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class AnnotationSearchResultsRenderTest {
 
-    private val labels = AnnotationSearchLabels.English
+    private val labels = testAnnotationSearchLabels
 
     private fun annotation(
         id: String = "a1",

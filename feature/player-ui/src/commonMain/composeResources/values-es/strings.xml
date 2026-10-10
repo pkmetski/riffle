@@ -37,4 +37,6 @@
     <string name="ui_compact_duration_minutes">%1$d min</string>
     <string name="ui_compact_duration_hours">%1$dh</string>
     <string name="ui_compact_duration_hours_minutes">%1$dh %2$d min</string>
+    <string name="ui_speed_decrease">−</string>
+    <string name="ui_speed_increase">+</string>
 </resources>

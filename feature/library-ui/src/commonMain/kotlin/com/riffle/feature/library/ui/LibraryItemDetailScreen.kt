@@ -115,6 +115,14 @@ import com.riffle.feature.library.ui.generated.resources.ui_show_less
 import com.riffle.feature.library.ui.generated.resources.ui_show_more
 import com.riffle.feature.library.ui.generated.resources.ui_summary
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
+import com.riffle.feature.library.ui.generated.resources.ui_annotations
+import com.riffle.feature.library.ui.generated.resources.ui_cannot_upload_title
+import com.riffle.feature.library.ui.generated.resources.ui_dismiss
+import com.riffle.feature.library.ui.generated.resources.ui_enjoying_riffle
+import com.riffle.feature.library.ui.generated.resources.ui_ok
+import com.riffle.feature.library.ui.generated.resources.ui_overwrite
+import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
+import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_title
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
@@ -259,10 +267,10 @@ fun LibraryItemDetailScreen(
     when (val pf = uploadPreflight) {
         is UploadPreflight.ExistingItem -> AlertDialog(
             onDismissRequest = { vm.dismissUploadPreflight() },
-            title = { Text("Upload conflict") },
-            text = { Text("An item with the same title already exists in ${pf.destination.label}. Overwrite it?") },
+            title = { Text(stringResource(Res.string.ui_upload_conflict_title)) },
+            text = { Text(stringResource(Res.string.ui_upload_conflict_message, pf.destination.label)) },
             confirmButton = {
-                TextButton(onClick = { vm.importToDestination(pf.destination, pf.library) }) { Text("Overwrite") }
+                TextButton(onClick = { vm.importToDestination(pf.destination, pf.library) }) { Text(stringResource(Res.string.ui_overwrite)) }
             },
             dismissButton = {
                 TextButton(onClick = { vm.dismissUploadPreflight() }) { Text(stringResource(Res.string.ui_cancel)) }
@@ -270,10 +278,10 @@ fun LibraryItemDetailScreen(
         )
         is UploadPreflight.Blocked -> AlertDialog(
             onDismissRequest = { vm.dismissUploadPreflight() },
-            title = { Text("Cannot upload") },
+            title = { Text(stringResource(Res.string.ui_cannot_upload_title)) },
             text = { Text(pf.reason) },
             confirmButton = {
-                TextButton(onClick = { vm.dismissUploadPreflight() }) { Text("OK") }
+                TextButton(onClick = { vm.dismissUploadPreflight() }) { Text(stringResource(Res.string.ui_ok)) }
             },
         )
         else -> Unit
@@ -1175,8 +1183,8 @@ private fun KoFiNudge(onDismiss: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Enjoying Riffle? Consider supporting development. ☕", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        TextButton(onClick = onDismiss) { Text("Dismiss") }
+        Text(stringResource(Res.string.ui_enjoying_riffle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_dismiss)) }
     }
 }
 

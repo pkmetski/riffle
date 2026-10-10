@@ -124,6 +124,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import com.riffle.shared.generated.resources.Res
+import com.riffle.shared.generated.resources.ui_could_not_download_book
+import com.riffle.shared.generated.resources.ui_error
+import com.riffle.shared.generated.resources.ui_no_highlights_to_show
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
@@ -167,6 +172,9 @@ fun EpubReaderScreen(
         )
     }
     var bookOverrides by remember { mutableStateOf(BookFormattingOverrides()) }
+    val noHighlightsText = stringResource(Res.string.ui_no_highlights_to_show)
+    val couldNotDownloadBook = stringResource(Res.string.ui_could_not_download_book)
+    val errorText = stringResource(Res.string.ui_error)
     var localPath by remember { mutableStateOf<String?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var isLazyPublication by remember { mutableStateOf(false) }
@@ -260,7 +268,7 @@ fun EpubReaderScreen(
             val chapters = buildChapterElisionsFromAnnotations(annotations)
             val dirPath = IosElidedEpubAssembler.assemble(item, chapters)
             if (dirPath == null) {
-                loadError = "No highlights to show"
+                loadError = noHighlightsText
                 return@LaunchedEffect
             }
             navigator.openSyntheticEpub(dirPath, null)
@@ -290,7 +298,7 @@ fun EpubReaderScreen(
         // Normal file-based path.
         val path = downloader.localPath(item)
         if (path == null) {
-            loadError = "Could not download book"
+            loadError = couldNotDownloadBook
             return@LaunchedEffect
         }
         localPath = path
@@ -887,7 +895,7 @@ fun EpubReaderScreen(
     Box(Modifier.fillMaxSize().onSizeChanged { viewportWidthPx = it.width }) {
         when {
             loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText(loadError ?: "Error")
+                BasicText(loadError ?: errorText)
             }
             localPath == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()

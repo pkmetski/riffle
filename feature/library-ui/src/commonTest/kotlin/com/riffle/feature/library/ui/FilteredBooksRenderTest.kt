@@ -71,7 +71,7 @@ class FilteredBooksRenderTest {
                         item("b", "Other Book", listOf("Romance")),
                     ),
                 ),
-                labels = FilteredBooksLabels.English,
+                labels = testFilteredBooksLabels,
                 minCellSize = 120.dp,
                 onItemSelected = {},
                 onNavigateBack = {},
@@ -90,7 +90,7 @@ class FilteredBooksRenderTest {
         setContent {
             FilteredBooksScreen(
                 viewModel = vm(items = listOf(item("a", "Matching Book", listOf("Sci-Fi")))),
-                labels = FilteredBooksLabels.English,
+                labels = testFilteredBooksLabels,
                 minCellSize = 120.dp,
                 onItemSelected = { opened = it },
                 onNavigateBack = {},
@@ -108,7 +108,7 @@ class FilteredBooksRenderTest {
         setContent {
             FilteredBooksScreen(
                 viewModel = vm(items = listOf(item("b", "Other Book", listOf("Romance")))),
-                labels = FilteredBooksLabels.English,
+                labels = testFilteredBooksLabels,
                 minCellSize = 120.dp,
                 onItemSelected = {},
                 onNavigateBack = {},
@@ -116,7 +116,7 @@ class FilteredBooksRenderTest {
             )
         }
 
-        onNodeWithText(FilteredBooksLabels.English.noBooksFound).assertIsDisplayed()
+        onNodeWithText(testFilteredBooksLabels.noBooksFound).assertIsDisplayed()
     }
 
     /**
@@ -135,7 +135,7 @@ class FilteredBooksRenderTest {
                     online = false,
                     offlineItemIds = setOf("a"),
                 ),
-                labels = FilteredBooksLabels.English,
+                labels = testFilteredBooksLabels,
                 minCellSize = 120.dp,
                 onItemSelected = {},
                 onNavigateBack = {},
@@ -153,7 +153,7 @@ class FilteredBooksRenderTest {
         setContent {
             FilteredBooksScreen(
                 viewModel = vm(),
-                labels = FilteredBooksLabels.English,
+                labels = testFilteredBooksLabels,
                 minCellSize = 120.dp,
                 onItemSelected = {},
                 onNavigateBack = { back = true },
@@ -161,7 +161,7 @@ class FilteredBooksRenderTest {
             )
         }
 
-        onNodeWithContentDescription(FilteredBooksLabels.English.back).performClick()
+        onNodeWithContentDescription(testFilteredBooksLabels.back).performClick()
 
         assertEquals(true, back)
     }
