@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -102,9 +102,9 @@ import com.riffle.feature.reader.highlights.mimeForHref
 import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.feature.reader.highlights.shouldShowShareHighlights
-import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.spineIndexOfHref
+import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.toReadiumTextStyling
 import com.riffle.feature.reader.ui.AnnotationActionsSheet
 import com.riffle.feature.reader.ui.AutoScrollHudPill

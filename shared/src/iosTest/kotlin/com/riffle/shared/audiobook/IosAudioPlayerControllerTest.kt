@@ -671,8 +671,10 @@ class IosAudioPlayerControllerTest {
         val controller = prepared(bridge)
         controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 300_000L))
         assertNotNull(bridge.remoteCommandCallback).onPause()
-        assertEquals(SleepTimerMode.None, controller.sleepTimer.value,
-            "lock-screen pause must cancel the sleep timer via the Kotlin controller")
+        assertEquals(
+            SleepTimerMode.None, controller.sleepTimer.value,
+            "lock-screen pause must cancel the sleep timer via the Kotlin controller"
+        )
     }
 
     @Test
@@ -681,7 +683,9 @@ class IosAudioPlayerControllerTest {
         val controller = prepared(bridge)
         controller.setSleepTimer(SleepTimerMode.CountDown(remainingMs = 300_000L))
         assertNotNull(bridge.remoteCommandCallback).onPlay()
-        assertTrue(controller.sleepTimer.value is SleepTimerMode.CountDown,
-            "lock-screen play must not retire the sleep timer")
+        assertTrue(
+            controller.sleepTimer.value is SleepTimerMode.CountDown,
+            "lock-screen play must not retire the sleep timer"
+        )
     }
 }
