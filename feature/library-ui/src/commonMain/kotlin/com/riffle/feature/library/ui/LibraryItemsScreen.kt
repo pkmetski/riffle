@@ -101,7 +101,10 @@ import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
+import com.riffle.feature.library.ui.generated.resources.ui_loading
+import com.riffle.feature.library.ui.generated.resources.ui_no_collections
 import com.riffle.feature.library.ui.generated.resources.ui_no_results_for
+import com.riffle.feature.library.ui.generated.resources.ui_no_series
 import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
 import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
@@ -113,9 +116,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_sort_oldest_first
 import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_added
 import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_opened
 import com.riffle.feature.library.ui.generated.resources.ui_sort_title_az
-import com.riffle.feature.library.ui.generated.resources.ui_loading
-import com.riffle.feature.library.ui.generated.resources.ui_no_collections
-import com.riffle.feature.library.ui.generated.resources.ui_no_series
 import com.riffle.feature.library.ui.generated.resources.ui_sort_title_za
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import org.jetbrains.compose.resources.stringResource
@@ -870,7 +870,11 @@ private fun CollectionsTabContent(
 ) {
     if (collections.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(LibRes.string.ui_no_collections), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(LibRes.string.ui_no_collections),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         return
     }

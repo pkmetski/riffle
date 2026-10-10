@@ -16,5 +16,4 @@ data class SpeedHudLabels(
     val wordsPerMinute: String,
     val pause: String,
     val resume: String,
-) {
-}
+)

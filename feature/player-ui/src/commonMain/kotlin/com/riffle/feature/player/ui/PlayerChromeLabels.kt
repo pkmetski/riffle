@@ -71,8 +71,7 @@ data class PlayerChromeLabels(
     val audiobook: String,
     /** The compact `%1$dh %2$dm` templates that facts line's duration segment is built from. */
     val compactDuration: CompactDurationLabelTemplates,
-) {
-}
+)
 
 /** `"1 bookmark"` / `"4 bookmarks"`. */
 fun bookmarkCountLabel(count: Int, labels: PlayerChromeLabels): String =

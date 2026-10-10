@@ -32,8 +32,8 @@ import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.ui.generated.resources.Res
 import com.riffle.feature.player.ui.generated.resources.ui_speed_decrease
 import com.riffle.feature.player.ui.generated.resources.ui_speed_increase
-import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 
 /** The presets the sheet offers, on top of the ± nudge buttons. */
 internal val SPEED_SHEET_PRESETS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f, 3f)

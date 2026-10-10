@@ -115,6 +115,10 @@ import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
+import com.riffle.shared.generated.resources.Res
+import com.riffle.shared.generated.resources.ui_could_not_download_book
+import com.riffle.shared.generated.resources.ui_error
+import com.riffle.shared.generated.resources.ui_no_highlights_to_show
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -124,10 +128,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
-import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.ui_could_not_download_book
-import com.riffle.shared.generated.resources.ui_error
-import com.riffle.shared.generated.resources.ui_no_highlights_to_show
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource

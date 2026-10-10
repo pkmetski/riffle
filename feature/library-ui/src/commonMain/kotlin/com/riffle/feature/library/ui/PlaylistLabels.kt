@@ -42,8 +42,7 @@ data class PlaylistLabels(
     val itemCountOne: String,
     /** `"%1$d items"` */
     val itemCountOther: String,
-) {
-}
+)
 
 /**
  * `"1 item"` / `"7 items"` — the count line under a playlist's name.

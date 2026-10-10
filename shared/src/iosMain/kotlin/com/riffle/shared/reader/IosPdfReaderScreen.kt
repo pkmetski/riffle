@@ -24,13 +24,13 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.PdfLocatorCodec
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_could_not_download_pdf
 import com.riffle.shared.generated.resources.ui_error
 import com.riffle.shared.generated.resources.ui_opening_pdf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 

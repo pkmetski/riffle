@@ -28,6 +28,12 @@ import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
+import com.riffle.feature.library.ui.generated.resources.Res
+import com.riffle.feature.library.ui.generated.resources.ui_annotations
+import com.riffle.feature.library.ui.generated.resources.ui_home
+import com.riffle.feature.library.ui.generated.resources.ui_library
+import com.riffle.feature.library.ui.generated.resources.ui_open_menu
+import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
@@ -42,12 +48,6 @@ import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
 import com.riffle.feature.source.ui.websource.isAudioRoot
 import com.riffle.feature.source.ui.websource.unboundedLocalTabToLibraryTabIndex
-import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_annotations
-import com.riffle.feature.library.ui.generated.resources.ui_home
-import com.riffle.feature.library.ui.generated.resources.ui_library
-import com.riffle.feature.library.ui.generated.resources.ui_open_menu
-import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf

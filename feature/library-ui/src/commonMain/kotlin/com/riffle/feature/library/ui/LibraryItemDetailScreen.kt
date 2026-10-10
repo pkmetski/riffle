@@ -88,10 +88,13 @@ import com.riffle.feature.library.ui.generated.resources.ui_audiobook_duration_l
 import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.library.ui.generated.resources.ui_by
 import com.riffle.feature.library.ui.generated.resources.ui_cancel
+import com.riffle.feature.library.ui.generated.resources.ui_cannot_upload_title
 import com.riffle.feature.library.ui.generated.resources.ui_chapters_count
+import com.riffle.feature.library.ui.generated.resources.ui_dismiss
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total_remaining
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
+import com.riffle.feature.library.ui.generated.resources.ui_enjoying_riffle
 import com.riffle.feature.library.ui.generated.resources.ui_genres
 import com.riffle.feature.library.ui.generated.resources.ui_in_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_language
@@ -99,6 +102,8 @@ import com.riffle.feature.library.ui.generated.resources.ui_listen
 import com.riffle.feature.library.ui.generated.resources.ui_mark_as_read
 import com.riffle.feature.library.ui.generated.resources.ui_mark_as_unread
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_to_read_or_listen
+import com.riffle.feature.library.ui.generated.resources.ui_ok
+import com.riffle.feature.library.ui.generated.resources.ui_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_pages
 import com.riffle.feature.library.ui.generated.resources.ui_pages_read
 import com.riffle.feature.library.ui.generated.resources.ui_progress_listened
@@ -115,12 +120,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_show_less
 import com.riffle.feature.library.ui.generated.resources.ui_show_more
 import com.riffle.feature.library.ui.generated.resources.ui_summary
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
-import com.riffle.feature.library.ui.generated.resources.ui_annotations
-import com.riffle.feature.library.ui.generated.resources.ui_cannot_upload_title
-import com.riffle.feature.library.ui.generated.resources.ui_dismiss
-import com.riffle.feature.library.ui.generated.resources.ui_enjoying_riffle
-import com.riffle.feature.library.ui.generated.resources.ui_ok
-import com.riffle.feature.library.ui.generated.resources.ui_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_title
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to

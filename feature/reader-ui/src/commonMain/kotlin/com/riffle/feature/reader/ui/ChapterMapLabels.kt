@@ -42,8 +42,7 @@ data class ChapterMapProgressLabelTemplates(
     val totalProgressValue: String,
     /** `"Active rail segment: %1$s. Progress %2$d%%"` */
     val activeRailSegmentProgress: String,
-) {
-}
+)
 
 /**
  * Expand an Android-style positional template: `%N$s` / `%N$d` are replaced by `args[N - 1]`, and

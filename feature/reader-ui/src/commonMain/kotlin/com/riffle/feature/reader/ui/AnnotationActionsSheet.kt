@@ -64,8 +64,7 @@ data class AnnotationSheetLabels(
     val delete: String,
     val bookmark: String,
     val removeBookmark: String,
-) {
-}
+)
 
 /**
  * A row of the four highlight swatches plus the `∅` "no colour" swatch.

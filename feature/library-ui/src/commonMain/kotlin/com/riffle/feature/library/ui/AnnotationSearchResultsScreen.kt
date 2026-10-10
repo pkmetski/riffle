@@ -272,5 +272,4 @@ data class AnnotationSearchLabels(
     val bookmarkFallbackTitle: String,
     /** Shown for an audiobook bookmark the user never named. */
     val audiobookBookmarkFallbackTitle: String,
-) {
-}
+)

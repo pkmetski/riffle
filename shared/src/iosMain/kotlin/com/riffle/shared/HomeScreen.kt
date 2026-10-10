@@ -55,8 +55,6 @@ import com.riffle.feature.library.ui.filteredBooksLabels
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
-import com.riffle.shared.generated.resources.Res as SharedRes
-import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
@@ -76,6 +74,7 @@ import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
+import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
@@ -88,6 +87,7 @@ import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSBundle
+import com.riffle.shared.generated.resources.Res as SharedRes
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
