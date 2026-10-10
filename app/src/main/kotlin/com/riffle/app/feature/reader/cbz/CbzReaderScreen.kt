@@ -12,6 +12,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -144,11 +145,11 @@ fun CbzReaderScreen(
             if (developerModeEnabled && state is CbzReaderState.Ready) {
                 var menuOpen by remember { mutableStateOf(false) }
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(RiffleIcons.MoreVert, contentDescription = context.getString(com.riffle.app.R.string.ui_more_options))
+                    Icon(RiffleIcons.MoreVert, contentDescription = stringResource(com.riffle.app.R.string.ui_more_options))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text(context.getString(com.riffle.app.R.string.ui_report_panel_detection_issue)) },
+                        text = { Text(stringResource(com.riffle.app.R.string.ui_report_panel_detection_issue)) },
                         onClick = {
                             menuOpen = false
                             coroutineScope.launch(Dispatchers.IO) {
@@ -169,8 +170,8 @@ fun CbzReaderScreen(
     val data = reportData
     if (reportSheetOpen && data != null) {
         val (mask, maskPng) = data
-        val selectFailureTypeMessage = context.getString(com.riffle.app.R.string.error_select_failure_type)
-        val markFalsePanelMessage = context.getString(com.riffle.app.R.string.error_mark_false_panel)
+        val selectFailureTypeMessage = stringResource(com.riffle.app.R.string.error_select_failure_type)
+        val markFalsePanelMessage = stringResource(com.riffle.app.R.string.error_mark_false_panel)
         val maskBitmap = remember(mask) {
             val pixels = PanelMaskEncoder.toArgbPixels(mask)
             android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
@@ -223,10 +224,10 @@ private fun CbzAndroidPageContent(
     val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
     when (cbzPageContent(bitmap != null, decode.settled)) {
         CbzPageContent.Loading -> CircularProgressIndicator()
-        CbzPageContent.Error -> Text(context.getString(com.riffle.app.R.string.error_comic_page_load_failed))
+        CbzPageContent.Error -> Text(stringResource(com.riffle.app.R.string.error_comic_page_load_failed))
         CbzPageContent.Image -> SubcomposeAsyncImage(
             model = imageRequest,
-            contentDescription = context.getString(com.riffle.app.R.string.ui_comic_page_number, page + 1),
+            contentDescription = stringResource(com.riffle.app.R.string.ui_comic_page_number, page + 1),
             loading = { CircularProgressIndicator() },
             modifier = modifier,
         )

@@ -40,7 +40,7 @@ fun CbzThumbnailStrip(
 
     LaunchedEffect(currentPage) {
         val offsetPx = with(density) { (-(THUMB_WIDTH * 2)).roundToPx() }
-        listState.animateScrollToItem(index = currentPage, scrollOffset = offsetPx)
+        listState.scrollToItem(index = currentPage, scrollOffset = offsetPx)
     }
 
     LazyRow(

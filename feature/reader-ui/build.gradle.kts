@@ -101,6 +101,9 @@ tasks.withType<Test>().configureEach {
         // FigureZoomOverlay: same constraint — runs on iOS sim; Android renders the overlay
         // on-device via EpubReaderScreen (harness coverage comes from existing reader flow tests).
         excludeTestsMatching("com.riffle.feature.reader.ui.FigureZoomOverlayTest")
+        // CbzThumbnailStrip: same constraint — runs on iOS sim; Android renders the strip
+        // on-device in `app/src/androidTest` (`CbzThumbnailStripTest` prewarm tests).
+        excludeTestsMatching("com.riffle.feature.reader.ui.CbzThumbnailStripTest")
         isFailOnNoMatchingTests = false
     }
 }
