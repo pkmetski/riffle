@@ -249,6 +249,7 @@ import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudioPlayerController
+import com.riffle.shared.audiobook.IosBundleAudioExtractor
 import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
@@ -650,7 +651,7 @@ private fun iosLibraryModule(
             val bridge: IosReadaloudBridge = get<IosReadaloudBridgeFactory>().create()
             val controller = IosReadaloudController(
                 bridge = bridge,
-                bundleAudioExtractor = get(),
+                bundleAudioExtractor = IosBundleAudioExtractor(),
                 readaloudHandoff = get(),
             )
             IosReadaloudSession(
