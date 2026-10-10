@@ -17,13 +17,14 @@ import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.logging.RecordingLogger
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ToReadRepositoryTest {
 
@@ -60,8 +61,6 @@ class ToReadRepositoryTest {
 
     @Test
     fun `refreshForSource returns false only when server is genuinely offline`() = runTest {
-        // CatalogException.Offline = network unreachable → should propagate as false so the
-        // Riffle hub offline banner appears.
         val cap = FakeCatalog(
             findError = CatalogException.Offline(RuntimeException("connection refused")),
         )
@@ -71,8 +70,6 @@ class ToReadRepositoryTest {
 
     @Test
     fun `refreshForSource returns true when server returns a non-network error`() = runTest {
-        // CatalogException.Auth (403 — readlist permission not granted) means the server IS
-        // reachable. The offline banner must not appear in this case.
         val cap = FakeCatalog(findError = CatalogException.Auth())
         val repo = makeRepo(cap)
         assertTrue(repo.refreshForSource("src-1", "lib-1"))
@@ -113,25 +110,17 @@ class ToReadRepositoryTest {
     }
 
     @Test
-    fun `addToToRead creates playlist seeded with the item when cache is empty + no playlist on source`() = runTest {
+    fun `addToToRead creates playlist seeded with the item when cache is empty and no playlist on source`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to emptyList()))
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
         assertTrue(repo.addToToRead("item-1", "lib-1"))
         assertEquals(listOf("lib-1" to "To Read"), cap.createCalls)
-        // Item is passed as initialItemId in the same request — no separate addItemToPlaylist
-        // call. This is what makes the flow work on Komga (whose POST /readlists requires a
-        // non-empty bookIds array); a revert to the two-step flow would fail on Komga backends.
-        assertEquals(listOf("item-1"), cap.createSeeds)
+        assertEquals(listOf<String?>("item-1"), cap.createSeeds)
         assertEquals(emptyList<Pair<String, String>>(), cap.addCalls)
         assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
-    /**
-     * When there is no server-side [PlaylistsCapability], the repository falls back to
-     * [LocalToReadStore] — the operation now succeeds and the id is observable. Pre-fallback this
-     * test asserted `assertFalse` (the whole point of the fallback change).
-     */
     @Test
     fun `addToToRead uses local fallback when no PlaylistsCapability for active source`() = runTest {
         val repo = makeRepo(catalog = null)
@@ -148,26 +137,16 @@ class ToReadRepositoryTest {
         assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
     }
 
-    // The cache-hit branch of addToToRead now self-heals a stale playlistId (Komga's server-wide
-    // readlist can be DELETEd by a sibling library's remove-last-item while another library's
-    // snapshot still points at it — see the A5 fix). On addItemToPlaylist failure, the repo
-    // falls back to create-with-seed. So a transient add-fail no longer reverts if the recovery
-    // create succeeds — it only reverts when BOTH paths fail.
     @Test
     fun `addToToRead falls back to create when addItemToPlaylist fails on a stale playlistId`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-A", "To Read", emptyList()))), addFails = true)
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
-        assertTrue("recovery create should heal the tap", repo.addToToRead("item-1", "lib-1"))
+        assertTrue(repo.addToToRead("item-1", "lib-1"), "recovery create should heal the tap")
         assertEquals(listOf("lib-1" to "To Read"), cap.createCalls)
         assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
-    // The branch changed addWithCap to a local-first strategy: when all server paths fail,
-    // the item is persisted in localStore and true is returned. This replaces the old behaviour
-    // (revert cache, return false) that conflicted with the cross-source union. The semantic
-    // claims being retired: "addToToRead returns false when server rejects" and "cache is reverted
-    // to empty on total server failure."
     @Test
     fun `addToToRead falls back to local store when both add and recovery-create fail`() = runTest {
         val cap = FakeCatalog(
@@ -220,11 +199,6 @@ class ToReadRepositoryTest {
         assertTrue(cap.removeCalls.isEmpty())
     }
 
-    // The branch changed removeFromToRead to a local-first strategy: the optimistic remove is
-    // kept even if the server DELETE fails (returns true, item stays gone from the local view).
-    // The old behaviour (revert cache, return false) pinned a pessimistic approach that conflicts
-    // with the cross-source union observeToReadItemIds now uses. The semantic claim being retired
-    // is "a server failure surfaces to callers as a false return + item reappearance."
     @Test
     fun `removeFromToRead keeps optimistic remove when DELETE fails`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-A", "To Read", listOf("item-1")))), removeFails = true)
@@ -236,34 +210,23 @@ class ToReadRepositoryTest {
 
     @Test
     fun `removeFromToRead cleans local store even when item is absent from server cache`() = runTest {
-        // Bug: early-return `if (itemId !in before.itemIds) return true` skipped localStore.remove,
-        // leaving items added via the local-fallback permanently visible in the union.
         val cap = FakeCatalog(mapOf("lib-1" to emptyList()))
-        val repo = makeRepo(cap)
-        // Add via local fallback (no cap active at add time — simulate by calling with null cap path).
-        // Use the overload that bypasses cap resolution to populate localStore directly.
         val localStore = FakeLocalToReadStore()
         localStore.add("lib-1", "item-local")
-        // Build a repo whose localStore already has the item but server cache is empty after refresh.
         val repoWithLocal = makeRepo(cap, localStore)
         repoWithLocal.refresh("lib-1")
-        // cache is empty after refresh (server has no playlist), but union shows the item
         assertEquals(setOf("item-local"), repoWithLocal.observeToReadItemIds("lib-1").first())
-        // Remove must clean localStore even though item is not in the server cache
         assertTrue(repoWithLocal.removeFromToRead("item-local", "lib-1"))
         assertEquals(emptySet<String>(), repoWithLocal.observeToReadItemIds("lib-1").first())
     }
 
     @Test
     fun `removeFromToRead cleans local store on server success when item was in both cache and local store`() = runTest {
-        // Bug: server-success path did not call localStore.remove. Items added via the fallback
-        // path and later present in both cache and localStore would persist in the union.
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-A", "To Read", listOf("item-1")))))
         val localStore = FakeLocalToReadStore()
         localStore.add("lib-1", "item-1")
         val repo = makeRepo(cap, localStore)
         repo.refresh("lib-1")
-        // Now item-1 is in both cache and localStore
         assertTrue(repo.removeFromToRead("item-1", "lib-1"))
         assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
     }
@@ -281,7 +244,6 @@ class ToReadRepositoryTest {
     private class FakeCatalog(
         val playlistsByLibrary: Map<String, List<CatalogPlaylist>> = emptyMap(),
         val listFails: Boolean = false,
-        /** When non-null, [findPlaylist] throws this instead of [listFails]. */
         val findError: Throwable? = null,
         val createFails: Boolean = false,
         val addFails: Boolean = false,
@@ -336,14 +298,9 @@ class ToReadRepositoryTest {
         }
     }
 
-    /**
-     * Trivial in-memory fake for the local fallback. These tests exercise the ABS path (Catalog is
-     * PlaylistsCapability), so this fake never gets touched — it exists only to satisfy the
-     * [ToReadRepositoryImpl] constructor.
-     */
     private class FakeLocalToReadStore : LocalToReadStore {
         private val map = mutableMapOf<String, Set<String>>()
-        private val flow = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+        private val flow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
         override fun observeItemIds(libraryId: String) =
             flow.map { it[libraryId].orEmpty() }
         override suspend fun isInToRead(libraryId: String, libraryItemId: String) =

@@ -9,15 +9,12 @@ import com.riffle.feature.reader.AudioLedCycleResult
 import com.riffle.feature.reader.AudiobookFollowInterface
 import com.riffle.feature.reader.ReaderSyncCoordinatorInterface
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
-import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AudiobookReconciliationCoordinatorTest {
 
@@ -52,6 +49,34 @@ class AudiobookReconciliationCoordinatorTest {
         override suspend fun clear(sourceId: String, itemId: String) {}
     }
 
+    private class FakeReaderSyncFactory(
+        private val syncCoordinator: ReaderSyncCoordinatorInterface? = null,
+        private val follow: AudiobookFollowInterface? = null,
+    ) : ReaderSyncFactoryInterface {
+        override suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinatorInterface? = syncCoordinator
+        override suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollowInterface? = follow
+    }
+
+    private class FakeAudiobookFollow(
+        override val ebookItemId: String? = null,
+        private val locatorBySeconds: Map<Double, String?> = emptyMap(),
+        private val anchorBySeconds: Map<Double, ReadaloudResumePosition?> = emptyMap(),
+    ) : AudiobookFollowInterface {
+        override fun ebookLocatorForAudioSeconds(seconds: Double): String? = locatorBySeconds[seconds]
+        override fun readaloudAnchorForAudioSeconds(seconds: Double): ReadaloudResumePosition? = anchorBySeconds[seconds]
+    }
+
+    private class FakeReaderSyncCoordinator(
+        override val ebookItemId: String? = null,
+        private val cycleResults: Map<Pair<Double, Long>, AudioLedCycleResult> = emptyMap(),
+    ) : ReaderSyncCoordinatorInterface {
+        override suspend fun runAudioLedCycle(currentAudioSec: Double, localUpdatedAt: Long): AudioLedCycleResult =
+            cycleResults[currentAudioSec to localUpdatedAt]
+                ?: AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = localUpdatedAt)
+        override fun canonicalForAudioSeconds(seconds: Double): String? = null
+        override fun readaloudAnchorForAudioSeconds(seconds: Double): ReadaloudResumePosition? = null
+    }
+
     private data class MirrorCall<P>(
         val sourceId: String,
         val itemId: String,
@@ -61,7 +86,7 @@ class AudiobookReconciliationCoordinatorTest {
     )
 
     private fun coordinator(
-        factory: ReaderSyncFactoryInterface = mockk(relaxed = true),
+        factory: ReaderSyncFactoryInterface = FakeReaderSyncFactory(),
         targets: OpenReconcileTargets = OpenReconcileTargets(),
         audio: FakeAudioSyncStore = FakeAudioSyncStore(),
         reading: FakeReadingSyncStore = FakeReadingSyncStore(),
@@ -79,11 +104,8 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `attach with factory returning null fallback follow marked open not attached`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val follow = mockk<AudiobookFollowInterface>()
-        every { follow.ebookItemId } returns "ebook-x"
-        coEvery { factory.createIfApplicable("book") } returns null
-        coEvery { factory.createAudiobookFollowIfApplicable("book") } returns follow
+        val follow = FakeAudiobookFollow(ebookItemId = "ebook-x")
+        val factory = FakeReaderSyncFactory(syncCoordinator = null, follow = follow)
         val targets = OpenReconcileTargets()
         val (coord, _) = coordinator(factory = factory, targets = targets)
 
@@ -92,18 +114,17 @@ class AudiobookReconciliationCoordinatorTest {
         assertFalse(result.readerSyncAttached)
         assertNull(result.jumpToAudioSec)
         assertEquals(42L, result.canonicalLastUpdate)
-        assertTrue("fallback ebook item marked open", targets.isOpen("srv", "ebook-x"))
+        assertTrue(targets.isOpen("srv", "ebook-x"), "fallback ebook item marked open")
         assertEquals("ebook-x", coord.ebookItemIdForMarkClosed)
     }
 
     @Test
     fun `attach with factory returning coordinator runs cycle marks ebook open adopts result`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        every { rs.ebookItemId } returns "ebook-y"
-        coEvery { rs.runAudioLedCycle(15.0, 100L) } returns
-            AudioLedCycleResult(jumpToAudioSec = 200.0, canonicalLastUpdate = 500L)
-        coEvery { factory.createIfApplicable("book") } returns rs
+        val rs = FakeReaderSyncCoordinator(
+            ebookItemId = "ebook-y",
+            cycleResults = mapOf((15.0 to 100L) to AudioLedCycleResult(jumpToAudioSec = 200.0, canonicalLastUpdate = 500L)),
+        )
+        val factory = FakeReaderSyncFactory(syncCoordinator = rs)
         val targets = OpenReconcileTargets()
         val (coord, _) = coordinator(factory = factory, targets = targets)
 
@@ -119,18 +140,20 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `attach is idempotent once attached`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        every { rs.ebookItemId } returns "ebook-y"
-        coEvery { rs.runAudioLedCycle(any(), any()) } returns
-            AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 1L)
-        coEvery { factory.createIfApplicable(any()) } returns rs
+        val rs = FakeReaderSyncCoordinator(
+            ebookItemId = "ebook-y",
+            cycleResults = mapOf(
+                (15.0 to 100L) to AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 1L),
+                (20.0 to 200L) to AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 1L),
+            ),
+        )
+        val factory = FakeReaderSyncFactory(syncCoordinator = rs)
         val (coord, _) = coordinator(factory = factory)
 
         coord.attach("srv", "book", 15.0, 100L)
         val second = coord.attach("srv", "book", 20.0, 200L)
 
-        assertFalse("second attach returns not-newly-attached", second.readerSyncAttached)
+        assertFalse(second.readerSyncAttached, "second attach returns not-newly-attached")
         assertEquals(200L, second.canonicalLastUpdate)
     }
 
@@ -143,12 +166,11 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `mirrorListeningToReading with fallback follow writes locator with audio row stamps`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val follow = mockk<AudiobookFollowInterface>()
-        every { follow.ebookItemId } returns "ebook-z"
-        coEvery { follow.ebookLocatorForAudioSeconds(50.0) } returns "cfi:/at/50"
-        coEvery { factory.createIfApplicable(any()) } returns null
-        coEvery { factory.createAudiobookFollowIfApplicable(any()) } returns follow
+        val follow = FakeAudiobookFollow(
+            ebookItemId = "ebook-z",
+            locatorBySeconds = mapOf(50.0 to "cfi:/at/50"),
+        )
+        val factory = FakeReaderSyncFactory(syncCoordinator = null, follow = follow)
         val audio = FakeAudioSyncStore(PositionSnapshot(null, 999L, 888L))
         val (coord, deps) = coordinator(factory = factory, audio = audio)
         coord.attach("srv", "book", 0.0, 0L)
@@ -166,13 +188,12 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `writeListeningToReadaloud persists anchor under ebook item id`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val follow = mockk<AudiobookFollowInterface>()
         val anchor = ReadaloudResumePosition(href = "ch1.xhtml", progression = 0.5, fragmentRef = "ch1#s7")
-        every { follow.ebookItemId } returns "ebook-w"
-        coEvery { follow.readaloudAnchorForAudioSeconds(75.0) } returns anchor
-        coEvery { factory.createIfApplicable(any()) } returns null
-        coEvery { factory.createAudiobookFollowIfApplicable(any()) } returns follow
+        val follow = FakeAudiobookFollow(
+            ebookItemId = "ebook-w",
+            anchorBySeconds = mapOf(75.0 to anchor),
+        )
+        val factory = FakeReaderSyncFactory(syncCoordinator = null, follow = follow)
         val (coord, deps) = coordinator(factory = factory)
         coord.attach("srv", "book", 0.0, 0L)
 
@@ -186,12 +207,11 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `writeListeningToReadaloud with no anchor is a no-op`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val follow = mockk<AudiobookFollowInterface>()
-        every { follow.ebookItemId } returns "ebook-w"
-        coEvery { follow.readaloudAnchorForAudioSeconds(any()) } returns null
-        coEvery { factory.createIfApplicable(any()) } returns null
-        coEvery { factory.createAudiobookFollowIfApplicable(any()) } returns follow
+        val follow = FakeAudiobookFollow(
+            ebookItemId = "ebook-w",
+            anchorBySeconds = mapOf(50.0 to null),
+        )
+        val factory = FakeReaderSyncFactory(syncCoordinator = null, follow = follow)
         val (coord, deps) = coordinator(factory = factory)
         coord.attach("srv", "book", 0.0, 0L)
 
@@ -202,12 +222,11 @@ class AudiobookReconciliationCoordinatorTest {
 
     @Test
     fun `ebookItemIdForMarkClosed prefers readerSync over fallback follow`() = runTest {
-        val factory = mockk<ReaderSyncFactoryInterface>()
-        val rs = mockk<ReaderSyncCoordinatorInterface>(relaxed = true)
-        every { rs.ebookItemId } returns "ebook-from-rs"
-        coEvery { rs.runAudioLedCycle(any(), any()) } returns
-            AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 0L)
-        coEvery { factory.createIfApplicable(any()) } returns rs
+        val rs = FakeReaderSyncCoordinator(
+            ebookItemId = "ebook-from-rs",
+            cycleResults = mapOf((0.0 to 0L) to AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = 0L)),
+        )
+        val factory = FakeReaderSyncFactory(syncCoordinator = rs)
         val (coord, _) = coordinator(factory = factory)
         coord.attach("srv", "book", 0.0, 0L)
 

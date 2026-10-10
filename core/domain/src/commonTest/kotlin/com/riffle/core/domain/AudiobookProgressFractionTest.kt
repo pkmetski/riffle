@@ -1,9 +1,8 @@
-package com.riffle.app.feature.audiobook
+package com.riffle.core.domain
 
-import com.riffle.core.domain.AUDIOBOOK_FINISHED_EPS_SEC
-import com.riffle.core.domain.audiobookProgressFraction
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The audiobook player maps the live listen position into the unified 0..1 `readingProgress` the
@@ -46,6 +45,6 @@ class AudiobookProgressFractionTest {
     fun `just outside finished-eps stays below one`() {
         val duration = 12345.0
         val fraction = audiobookProgressFraction(positionSec = duration - AUDIOBOOK_FINISHED_EPS_SEC - 0.01, durationSec = duration)
-        assertEquals(true, fraction < 1f)
+        assertTrue(fraction < 1f)
     }
 }

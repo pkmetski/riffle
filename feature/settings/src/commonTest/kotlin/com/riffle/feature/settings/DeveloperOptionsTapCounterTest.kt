@@ -1,8 +1,7 @@
-package com.riffle.app.feature.settings
+package com.riffle.feature.settings
 
-import com.riffle.feature.settings.DeveloperOptionsTapCounter
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class DeveloperOptionsTapCounterTest {
 
@@ -11,9 +10,9 @@ class DeveloperOptionsTapCounterTest {
         var unlockCalls = 0
         val counter = DeveloperOptionsTapCounter(requiredTaps = 7, onUnlock = { unlockCalls++ })
         repeat(6) { counter.onTap() }
-        assertEquals("not yet unlocked", 0, unlockCalls)
+        assertEquals(0, unlockCalls, "not yet unlocked")
         counter.onTap()
-        assertEquals("unlocked on 7th tap", 1, unlockCalls)
+        assertEquals(1, unlockCalls, "unlocked on 7th tap")
     }
 
     @Test
@@ -22,7 +21,7 @@ class DeveloperOptionsTapCounterTest {
         val counter = DeveloperOptionsTapCounter(requiredTaps = 7, onUnlock = { unlockCalls++ })
         repeat(7) { counter.onTap() }
         repeat(7) { counter.onTap() }
-        assertEquals("unlocked twice", 2, unlockCalls)
+        assertEquals(2, unlockCalls, "unlocked twice")
     }
 
     @Test

@@ -1,10 +1,9 @@
-package com.riffle.app.feature.server
+package com.riffle.core.domain
 
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
-import com.riffle.core.domain.WebSourceDescriptors
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Pins the ABS-variant and Storyteller AddSource copy after the descriptor-driven refactor.
@@ -32,7 +31,7 @@ class AddSourceCopyTest {
     }
 
     @Test
-    fun `Storyteller strings unchanged (kept for #441)`() {
+    fun `Storyteller strings unchanged kept for issue 441`() {
         val copy = absDescriptor.addSourceCopyFor(ServerType.STORYTELLER_SERVICE)!!
         assertEquals("Add Storyteller", copy.addTitle)
         assertEquals("Edit Storyteller", copy.editTitle)
