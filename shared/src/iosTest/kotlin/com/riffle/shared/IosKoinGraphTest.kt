@@ -64,6 +64,7 @@ import com.riffle.shared.audiobook.IosAudioPlayerBridge
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.readaloud.IosReadaloudBridge
 import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
+import com.riffle.shared.readaloud.IosReadaloudSession
 import com.riffle.shared.reader.IosEpubNavigatorBridge
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfNavigatorBridge
@@ -203,6 +204,7 @@ class IosKoinGraphTest {
         assertNotNull(koin.get<ReadaloudSidecarDownloads>())
         assertNotNull(koin.get<ReadaloudOfflineDownloader>())
         assertNotNull(koin.get<ReadaloudHandoff>())
+        assertNotNull(koin.get<IosReadaloudSession.Factory>())
         assertNotNull(koin.get<CrossEpubIndexStore>())
         assertNotNull(koin.get<CrossEpubIndexBuildTrigger>())
         assertNotNull(koin.get<ReaderSyncFactoryInterface>())
