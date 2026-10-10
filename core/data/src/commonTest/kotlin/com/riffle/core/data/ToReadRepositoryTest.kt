@@ -110,7 +110,7 @@ class ToReadRepositoryTest {
     }
 
     @Test
-    fun `addToToRead creates playlist seeded with the item when cache is empty and no playlist on source`() = runTest {
+    fun `addToToRead creates playlist seeded with the item when cache is empty + no playlist on source`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to emptyList()))
         val repo = makeRepo(cap)
         repo.refresh("lib-1")

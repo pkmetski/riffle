@@ -30,7 +30,7 @@ class ProgressFlushScopeTest {
     // own scope is torn down the instant after — the "press X / pause, then leave the book right away"
     // case where the in-flight ABS PATCH was being cancelled mid-network-write.
     @Test
-    fun `a flush completes even when the callers scope is cancelled immediately after submitting`() = runTest {
+    fun `a flush completes even when the caller's scope is cancelled immediately after submitting`() = runTest {
         val flusher = ProgressFlushScope(TestApplicationScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob())))
         var completed = false
 
@@ -53,7 +53,7 @@ class ProgressFlushScopeTest {
     // Documents the bug being fixed: the identical write launched directly on the (cancellable) caller
     // scope is lost when the screen tears down first.
     @Test
-    fun `the buggy pattern a write launched on the caller scope is lost when it is cancelled`() = runTest {
+    fun `the buggy pattern — a write launched on the caller scope is lost when it is cancelled`() = runTest {
         var completed = false
         val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
         viewModelScope.launch {
