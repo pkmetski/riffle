@@ -42,6 +42,15 @@ import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import com.riffle.app.feature.library.EditLocalFileMetadataDialog
+import com.riffle.feature.library.LibraryItemDetailUiState
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.net.URLDecoder
@@ -53,6 +62,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
     navController: NavController,
     drawerState: DrawerState,
     scope: CoroutineScope,
+    libBackEnabled: Boolean = false,
+    windowSizeClass: WindowSizeClass,
     onSetActiveLibrary: (String) -> Unit,
 ) {
     composable(RIFFLE) {
@@ -90,6 +101,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
     composable(DOWNLOADS) { backStackEntry ->
         DownloadsScreen(
             viewModel = koinViewModel<DownloadsViewModel>(),
+            isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onItemSelected = { item ->
                 navController.navigate(libraryItemDetailRoute(item))
@@ -124,6 +136,8 @@ internal fun NavGraphBuilder.libraryNavGraph(
             libraryName = libraryName,
             viewModel = koinViewModel<LibraryItemsViewModel>(parameters = { parametersOf(libraryId) }),
             annotationsViewModel = koinViewModel<AnnotationsListViewModel>(parameters = { parametersOf(libraryId) }),
+            backEnabled = libBackEnabled,
+            onNavigateBack = { navController.navigateAsRoot(HOME) },
             onOpenDrawer = { scope.launch { drawerState.open() } },
             onSeriesSelected = { series ->
                 navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
@@ -287,10 +301,14 @@ internal fun NavGraphBuilder.libraryNavGraph(
     ) { backStackEntry ->
         val itemId = backStackEntry.arguments?.getString("itemId").orEmpty()
         val sourceId = backStackEntry.arguments?.getString("sourceId")
+        val vm = koinViewModel<LibraryItemDetailViewModel>(parameters = { parametersOf(itemId, sourceId) })
+        val uiState by vm.uiState.collectAsState()
+        var showEditMetadataDialog by remember { mutableStateOf(false) }
+
         LibraryItemDetailScreen(
             itemId = itemId,
             sourceId = sourceId,
-            vm = koinViewModel<LibraryItemDetailViewModel>(parameters = { parametersOf(itemId, sourceId) }),
+            vm = vm,
             onBack = { navController.popBackStackIfTop(backStackEntry) },
             onRead = { item ->
                 readerRouteFor(item)?.let { navController.navigate(it) }
@@ -322,7 +340,23 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onNavigateToSeries = { libId, seriesId, seriesName ->
                 navController.navigate(seriesDetailRoute(libId, seriesId, seriesName))
             },
+            onEditMetadata = { showEditMetadataDialog = true },
         )
+
+        if (showEditMetadataDialog) {
+            val readyState = uiState as? LibraryItemDetailUiState.Ready
+            if (readyState != null) {
+                EditLocalFileMetadataDialog(
+                    item = readyState.item,
+                    originalItem = readyState.originalItem,
+                    onSave = { title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride ->
+                        vm.saveMetadataOverride(title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride)
+                        showEditMetadataDialog = false
+                    },
+                    onDismiss = { showEditMetadataDialog = false },
+                )
+            }
+        }
     }
     composable(
         route = FILTERED_BOOKS,

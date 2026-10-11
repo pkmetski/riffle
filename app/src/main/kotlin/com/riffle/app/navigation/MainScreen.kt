@@ -249,6 +249,8 @@ fun MainScreen(
                 navController = navController,
                 drawerState = drawerState,
                 scope = scope,
+                libBackEnabled = libBackEnabled,
+                windowSizeClass = windowSizeClass,
                 onSetActiveLibrary = { viewModel.setActiveLibrary(it) },
             )
             sourceNavGraph(

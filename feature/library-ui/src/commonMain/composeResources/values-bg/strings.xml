@@ -111,10 +111,13 @@
     <string name="ui_offline_banner">Офлайн — показват се кешираните данни</string>
     <string name="ui_no_series">No series</string>
     <string name="ui_no_collections">No collections</string>
-    <string name="ui_upload_conflict_title">Upload conflict</string>
-    <string name="ui_upload_conflict_message">An item with the same title already exists in %1$s. Overwrite it?</string>
+    <string name="ui_annotation_search_placeholder">Търсене на анотации</string>
+    <string name="ui_annotation_search_action">Търсене</string>
+    <string name="ui_upload_conflict_title">Конфликт при качване</string>
+    <string name="ui_upload_conflict_message">Елемент със същото заглавие вече съществува в %1$s. Да се презапише ли?</string>
+    <string name="ui_upload_conflict_cannot_overwrite">Презаписването е блокирано, докато дестинацията не може безопасно да замени файлове, без да анулира анотациите.</string>
     <string name="ui_overwrite">Презаписване</string>
-    <string name="ui_cannot_upload_title">Cannot upload</string>
+    <string name="ui_cannot_upload_title">Неуспешно качване</string>
     <string name="ui_ok">ОК</string>
     <string name="ui_enjoying_riffle">Enjoying Riffle? Consider supporting development. ☕</string>
     <string name="ui_dismiss">Отхвърляне</string>
