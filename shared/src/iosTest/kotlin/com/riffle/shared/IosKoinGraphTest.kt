@@ -181,6 +181,8 @@ class IosKoinGraphTest {
             totalProgression: Double,
             onResult: (locatorJson: String?) -> Unit,
         ) = onResult(null)
+
+        override fun readEpubResourceBase64(filePath: String, href: String, onResult: (String?) -> Unit) = onResult(null)
     }
 
     @Test

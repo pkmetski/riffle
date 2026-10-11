@@ -267,6 +267,20 @@ interface IosEpubNavigatorBridge {
 
     /** Cancel the in-progress search started by [startSearch]. No-op if idle. */
     fun cancelSearch()
+
+    /**
+     * Register a callback that fires when the Readium navigator encounters a `riffle://` URL —
+     * the tap-target scheme used by [ElidedChapterHtmlBuilder] accent bars in Highlights mode.
+     *
+     * Readium classifies these as external URLs and routes them through
+     * [EPUBNavigatorDelegate.navigator(_:presentExternalURL:)]. Without this seam the Swift
+     * implementation opens them in Safari. With it, the Swift bridge checks the scheme first;
+     * any `riffle://` URL is forwarded here instead of to the system URL opener.
+     *
+     * [url] is the raw URL string (e.g. `riffle://annotation-tap/<id>?l=&t=&r=&b=`).
+     * Pass `null` to unregister.
+     */
+    fun setRiffleUrlCallback(callback: ((url: String) -> Unit)?)
 }
 
 /** Factory so Koin can produce one bridge instance per reader open. */

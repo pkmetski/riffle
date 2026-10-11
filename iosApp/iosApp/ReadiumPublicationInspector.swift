@@ -18,6 +18,15 @@ import ReadiumStreamer
         }
     }
 
+    /// Read one resource from an EPUB by its href and return its bytes Base64-encoded.
+    /// Used by IosElidedEpubAssembler to embed figure data URIs in the synthetic EPUB HTML.
+    func readEpubResourceBase64(filePath: String, href: String, onResult: @escaping (String?) -> Void) {
+        Task {
+            let base64 = await Self.readResourceBase64(filePath: filePath, href: href)
+            await MainActor.run { onResult(base64) }
+        }
+    }
+
     /// Fallback inbound-sync path: resolve a whole-book progression to a Locator via Readium's
     /// `Publication.locate(progression:)`. iOS previously had no equivalent of Android's
     /// `locateProgression`, so a server position that arrived as a bare `ebookProgress` float with
@@ -27,6 +36,16 @@ import ReadiumStreamer
             let locatorJson = await Self.locate(filePath: filePath, totalProgression: totalProgression)
             await MainActor.run { onResult(locatorJson) }
         }
+    }
+
+    private static func readResourceBase64(filePath: String, href: String) async -> String? {
+        guard let publication = await openPublication(filePath: filePath) else { return nil }
+        let link = publication.readingOrder.first { $0.href == href }
+            ?? publication.resources.first { $0.href == href }
+        guard let link else { return nil }
+        guard let resource = publication.get(link) else { return nil }
+        guard case .success(let data) = await resource.read() else { return nil }
+        return data.base64EncodedString()
     }
 
     private static func locate(filePath: String, totalProgression: Double) async -> String? {

@@ -266,6 +266,7 @@ import com.riffle.shared.readaloud.IosReadaloudSession
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEbookCfiTranslatorFactory
+import com.riffle.shared.reader.IosElidedPdfBridge
 import com.riffle.shared.reader.IosEpubDownloader
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosEpubTocExtractor
@@ -293,6 +294,7 @@ private fun iosLibraryModule(
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
+    elidedPdfBridge: IosElidedPdfBridge,
 ) = module {
     single { createDefaultHttpClient() }
     single { AbsApiClient(get()) }
@@ -502,6 +504,7 @@ private fun iosLibraryModule(
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
     single { IosEpubDownloader(get(), get()) }
     single<IosPublicationInspector> { publicationInspector }
+    single<IosElidedPdfBridge> { elidedPdfBridge }
     single { TocRepositoryImpl(get(), get()) }
     single<TocRepository> { get<TocRepositoryImpl>() }
     single { PublicationMetricsRepositoryImpl(get(), get()) }
@@ -1364,12 +1367,14 @@ fun startKoin(
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
+    elidedPdfBridge: IosElidedPdfBridge,
 ) = startKoinWithDatabase(
     navigatorBridgeFactory = navigatorBridgeFactory,
     audioPlayerBridgeFactory = audioPlayerBridgeFactory,
     pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
     publicationInspector = publicationInspector,
     readaloudBridgeFactory = readaloudBridgeFactory,
+    elidedPdfBridge = elidedPdfBridge,
     databaseFile = RIFFLE_DATABASE_FILE,
 )
 
@@ -1384,6 +1389,7 @@ internal fun startKoinWithDatabase(
     pdfNavigatorBridgeFactory: IosPdfNavigatorBridgeFactory,
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
+    elidedPdfBridge: IosElidedPdfBridge = NoOpElidedPdfBridge,
     databaseFile: String,
 ) {
     val app = koinStartKoin {
@@ -1391,7 +1397,10 @@ internal fun startKoinWithDatabase(
             iosLoggingModule,
             iosDataModule,
             iosDatabaseModule(databaseFile),
-            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector, readaloudBridgeFactory),
+            iosLibraryModule(
+                navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory,
+                publicationInspector, readaloudBridgeFactory, elidedPdfBridge,
+            ),
         )
     }
 
@@ -1403,4 +1412,8 @@ internal fun startKoinWithDatabase(
         repository = app.koin.get<IosCrashReportRepositoryImpl>(),
         clock = app.koin.get<Clock>(),
     )
+}
+
+private object NoOpElidedPdfBridge : IosElidedPdfBridge {
+    override fun exportAndShare(html: String, fileName: String) = Unit
 }

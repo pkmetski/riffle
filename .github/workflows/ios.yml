@@ -403,15 +403,95 @@ jobs:
         #      failure) under memory pressure. The suite then serialises or fails spuriously.
         #   2. A contended runner runs every UI operation several times slower; the per-wait
         #      timeouts in the harness absorb that, but a clone death (mode 1) does not recover.
-        # -parallel-testing-worker-count 2 pins the clone count so xcodebuild never over-provisions
-        # the box. The wrapper retries ONCE, and only when the log carries a simulator-
+        # Tests run serially on the single pre-booted simulator (-parallel-testing-enabled NO):
+        # parallel mode buffers ALL per-test output until the whole suite finishes, so a run that
+        # hits the job timeout leaves a log with zero test lines and nothing to diagnose. Serial
+        # mode streams each result as it lands, so the uploaded log always shows how far the suite
+        # got and which test stalled. -test-timeouts-enabled caps any single test at 420 s (the
+        # heaviest healthy test, AddAbsSourceEndToEnd, takes ~190 s on CI) so a stalled test fails
+        # with its name in the log instead of silently consuming the whole job.
+        # The wrapper retries ONCE, and only when the log carries a simulator-
         # infrastructure signature (mode 1); a genuine test-assertion failure has no such
         # signature and fails the job on the first attempt without a retry.
         run: |
           set -o pipefail
-          run_harness() {
+          XCODEBUILD_COMMON=(
+            -project iosApp/iosApp.xcodeproj
+            -scheme Riffle
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID"
+            -clonedSourcePackagesDirPath "$HOME/spm-packages"
+            -derivedDataPath "$HOME/derived-data"
+          )
+          build_for_testing() {
             # Force a relink so a warm DerivedData cache cannot ship stale Kotlin (see unit-test step).
-            rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
+            # iosAppUnitTests.xctest is excluded: the Riffle scheme sets buildForTesting=NO for the
+            # unit-test bundle — only iosAppTests runs under this scheme. The unit-tests job (scheme
+            # iosApp) still builds and exercises it; keeping it out of the harness build saves ~10 min.
+            rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppTests-Runner.app}
+            xcodebuild build-for-testing "${XCODEBUILD_COMMON[@]}" 2>&1 | tee xcodebuild-harness.log
+          }
+          # Every harness test begins with XCUIApplication.launch(). When the app dies during
+          # launch, XCUITest reports only "does not have a process ID" / "Failed to get background
+          # assertion for target app with pid 0" and each test burns its launch timeout on both
+          # iterations — a 46-test suite then runs for hours and says nothing useful. Launch the
+          # freshly built app once, the way the harness does, with its console attached: dyld
+          # errors, Kotlin exceptions and LaunchServices refusals all print here.
+          # dyld refuses to start the app when its binary strongly links a Swift overlay the
+          # runtime does not ship (e.g. libswiftWebKit.dylib, present from iOS 26, absent in 18).
+          # Xcode links the overlay as soon as a source file touches one of its APIs, so the
+          # build is green and the app dies before main(). Check every /usr/lib/swift dylib the
+          # app links against the selected runtime's root before trying to launch.
+          check_swift_overlays() {
+            local binary="$1"
+            local runtime_root
+            runtime_root=$(xcrun simctl list devices -j | python3 -c "
+          import json, subprocess, sys
+          udid = sys.argv[1]
+          devices = json.load(sys.stdin)['devices']
+          runtime_id = next(k for k, v in devices.items() if any(d['udid'] == udid for d in v))
+          runtimes = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'runtimes', '-j']))['runtimes']
+          print(next(r['runtimeRoot'] for r in runtimes if r['identifier'] == runtime_id))
+          " "$SIMULATOR_UDID")
+            echo "Runtime root: $runtime_root"
+            local missing=0
+            while read -r lib; do
+              if [ ! -e "$runtime_root$lib" ]; then
+                echo "::error::$binary links $lib, which does not exist in the selected simulator runtime — the app would abort in dyld at launch."
+                missing=1
+              fi
+            done < <(otool -L "$binary" | awk '/\/usr\/lib\/swift\/.*dylib/ && !/weak/ {print $1}')
+            return $missing
+          }
+          smoke_launch() {
+            local app="$HOME/derived-data/Build/Products/Debug-iphonesimulator/Riffle.app"
+            check_swift_overlays "$app/Riffle.debug.dylib" || return 1
+            xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
+            xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+            xcrun simctl install "$SIMULATOR_UDID" "$app"
+            xcrun simctl launch --console-pty "$SIMULATOR_UDID" com.riffle.iosApp --RIFFLE_RESET_FOR_TESTS \
+              > smoke-launch.log 2>&1 &
+            local launch_pid=$!
+            sleep 30
+            local alive=0
+            pgrep -f "Riffle.app/Riffle" > /dev/null && alive=1
+            xcrun simctl terminate "$SIMULATOR_UDID" com.riffle.iosApp 2>/dev/null || true
+            kill "$launch_pid" 2>/dev/null || true
+            wait "$launch_pid" 2>/dev/null || true
+            echo "--- smoke-launch: app alive after 30 s = $alive"
+            echo "--- smoke-launch console:"
+            cat smoke-launch.log
+            echo "--- crash reports:"
+            for f in "$HOME"/Library/Logs/DiagnosticReports/Riffle*; do
+              [ -e "$f" ] && { echo "== $f"; head -c 30000 "$f"; echo; }
+            done
+            echo "--- simulator log (Riffle / SpringBoard / runningboardd, last 3 min):"
+            xcrun simctl spawn "$SIMULATOR_UDID" log show --last 3m \
+              --predicate 'process == "Riffle" OR process == "SpringBoard" OR process == "runningboardd"' 2>/dev/null \
+              | grep -iE "riffle|crash|exit|terminat|fail|error" | tail -150 || true
+            xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
+            [ "$alive" = 1 ]
+          }
+          run_harness() {
             # -retry-tests-on-failure re-runs only the FAILED test (not the whole suite) up to
             # -test-iterations times. It absorbs transient per-test infra hiccups — e.g. an
             # app-launch that can't get a background assertion in time under CPU contention — for
@@ -419,18 +499,15 @@ jobs:
             # iteration, so nothing real is retried away. The whole-suite retry below stays for the
             # heavier case where a clone's runner dies outright and its tests can't run at all.
             rm -rf harness.xcresult
-            xcodebuild test \
-              -project iosApp/iosApp.xcodeproj \
-              -scheme Riffle \
-              -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-              -clonedSourcePackagesDirPath "$HOME/spm-packages" \
-              -derivedDataPath "$HOME/derived-data" \
+            xcodebuild test-without-building "${XCODEBUILD_COMMON[@]}" \
               -resultBundlePath "$PWD/harness.xcresult" \
-              -parallel-testing-enabled YES \
-              -parallel-testing-worker-count 2 \
+              -parallel-testing-enabled NO \
+              -test-timeouts-enabled YES \
+              -default-test-execution-time-allowance 420 \
+              -maximum-test-execution-time-allowance 420 \
               -retry-tests-on-failure \
               -test-iterations 2 \
-              2>&1 | tee xcodebuild-harness.log
+              2>&1 | tee -a xcodebuild-harness.log
           }
           # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
           # assertion. Keep this list narrow so real failures are never retried away.
@@ -443,6 +520,11 @@ jobs:
           # saturated runner the retry also runs slowly and still fails, so the retry only adds
           # time without improving reliability. Occasional slow-runner failures require a CI
           # re-run, which is preferable to systematic job timeouts.
+          build_for_testing
+          if ! smoke_launch; then
+            echo "::error::Riffle.app did not stay running for 30 s on the simulator — see the smoke-launch console above. Not running the suite."
+            exit 1
+          fi
           if run_harness; then
             exit 0
           fi
@@ -481,5 +563,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ios-harness-log
-          path: xcodebuild-harness.log
+          path: |
+            xcodebuild-harness.log
+            smoke-launch.log
           if-no-files-found: ignore
