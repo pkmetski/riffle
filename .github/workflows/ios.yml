@@ -411,7 +411,10 @@ jobs:
           set -o pipefail
           run_harness() {
             # Force a relink so a warm DerivedData cache cannot ship stale Kotlin (see unit-test step).
-            rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
+            # iosAppUnitTests.xctest is excluded: the Riffle scheme sets buildForTesting=NO for the
+            # unit-test bundle — only iosAppTests runs under this scheme. The unit-tests job (scheme
+            # iosApp) still builds and exercises it; keeping it out of the harness build saves ~10 min.
+            rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppTests-Runner.app}
             # -retry-tests-on-failure re-runs only the FAILED test (not the whole suite) up to
             # -test-iterations times. It absorbs transient per-test infra hiccups — e.g. an
             # app-launch that can't get a background assertion in time under CPU contention — for
