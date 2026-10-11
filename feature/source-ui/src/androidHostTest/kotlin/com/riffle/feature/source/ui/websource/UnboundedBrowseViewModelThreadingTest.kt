@@ -186,10 +186,12 @@ class UnboundedBrowseViewModelThreadingTest {
             "ownedItemIndex map ran on collector (Main) thread $collectorThread — got $buildThreads",
             buildThreads.any { it == collectorThread },
         )
-        // Cancel viewModelScope to prevent UncompletedCoroutinesError: the ViewModel's
+        // Cancel viewModelScope and join to prevent UncompletedCoroutinesError: the ViewModel's
         // SharingStarted.Eagerly stateIn flows keep coroutines active in viewModelScope
         // indefinitely, which runTest detects as uncompleted after the test body finishes.
+        // join() waits for the Dispatchers.Default coroutines to reach a terminal cancelled state.
         vm.viewModelScope.cancel()
+        vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
     }
 
     @Test
