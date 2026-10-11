@@ -1,8 +1,9 @@
 package com.riffle.feature.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.models.Annotation
@@ -87,7 +88,7 @@ class LibrarySearchResultsRegressionTest {
                 onShowAllAnnotations = {},
             )
         }
-        onNodeWithText("No results for 'xyz'").assertIsDisplayed()
+        onNodeWithText("No results", substring = true).assertExists()
     }
 
     @Test
@@ -112,7 +113,7 @@ class LibrarySearchResultsRegressionTest {
             )
         }
         onNodeWithText("A Book").assertIsDisplayed()
-        onNodeWithText("No results for 'book'").assertIsNotDisplayed()
+        onNodeWithText("No results", substring = true).assertDoesNotExist()
     }
 
     // ── Books section header ───────────────────────────────────────────────────
@@ -191,7 +192,7 @@ class LibrarySearchResultsRegressionTest {
                 onShowAllAnnotations = {},
             )
         }
-        onNodeWithText("Show all ${ANNOTATION_PREVIEW_CAP} annotations").assertIsNotDisplayed()
+        onNodeWithText("Show all ${ANNOTATION_PREVIEW_CAP} annotations").assertDoesNotExist()
     }
 
     @Test

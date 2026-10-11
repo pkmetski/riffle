@@ -1,8 +1,8 @@
 package com.riffle.feature.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.catalog.CatalogRoot
@@ -48,7 +48,7 @@ class UploadPreflightDialogTest {
                 onConfirmOverwrite = { _, _ -> },
             )
         }
-        onNodeWithText("Overwrite").assertIsNotDisplayed()
+        onNodeWithText("Overwrite").assertDoesNotExist()
     }
 
     @Test
@@ -96,7 +96,7 @@ class UploadPreflightDialogTest {
                 onConfirmOverwrite = { _, _ -> },
             )
         }
-        onNodeWithText("Upload conflict").assertIsNotDisplayed()
-        onNodeWithText("Cannot upload").assertIsNotDisplayed()
+        onNodeWithText("Upload conflict").assertDoesNotExist()
+        onNodeWithText("Cannot upload").assertDoesNotExist()
     }
 }
