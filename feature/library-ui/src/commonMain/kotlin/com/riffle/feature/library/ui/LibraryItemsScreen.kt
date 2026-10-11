@@ -51,9 +51,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -472,8 +472,11 @@ internal fun SearchResultsContent(
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
     onShowAllAnnotations: () -> Unit,
 ) {
-    val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() &&
-        filteredItems.isEmpty() && annotations.isEmpty() && audiobookBookmarks.isEmpty()
+    val allEmpty = filteredSeries.isEmpty() &&
+        filteredCollections.isEmpty() &&
+        filteredItems.isEmpty() &&
+        annotations.isEmpty() &&
+        audiobookBookmarks.isEmpty()
     if (allEmpty) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -559,7 +562,14 @@ private fun SearchSeriesListRow(series: Series, coverUrl: String?, token: String
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
-            CoverImage(url = coverUrl, token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKey = series.id)
+            CoverImage(
+                url = coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = false,
+                modifier = Modifier.fillMaxSize(),
+                instrumentationKey = series.id,
+            )
         }
         Text(series.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp))
     }
@@ -582,7 +592,14 @@ private fun SearchBookListRow(item: LibraryItem, token: String, onClick: () -> U
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
-            CoverImage(url = item.coverUrl, token = token, contentDescription = null, isAudiobook = item.isAudiobookOnly, modifier = Modifier.fillMaxSize(), instrumentationKey = item.id)
+            CoverImage(
+                url = item.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = item.isAudiobookOnly,
+                modifier = Modifier.fillMaxSize(),
+                instrumentationKey = item.id,
+            )
         }
         Column(Modifier.padding(start = 12.dp)) {
             Text(item.title, style = MaterialTheme.typography.bodyLarge)
@@ -810,13 +827,21 @@ internal fun AnnotationsTabContent(
 ) {
     if (state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(LibRes.string.ui_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(LibRes.string.ui_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         return
     }
     if (state.books.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(LibRes.string.ui_no_highlights_yet), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(LibRes.string.ui_no_highlights_yet),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         return
     }
