@@ -1397,7 +1397,10 @@ internal fun startKoinWithDatabase(
             iosLoggingModule,
             iosDataModule,
             iosDatabaseModule(databaseFile),
-            iosLibraryModule(navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory, publicationInspector, readaloudBridgeFactory, elidedPdfBridge),
+            iosLibraryModule(
+                navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory,
+                publicationInspector, readaloudBridgeFactory, elidedPdfBridge,
+            ),
         )
     }
 
