@@ -1,14 +1,15 @@
 package com.riffle.feature.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.feature.library.UploadDestination
 import com.riffle.feature.library.UploadPreflight
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Regression tests for UploadPreflightDialog.
@@ -48,7 +49,7 @@ class UploadPreflightDialogTest {
                 onConfirmOverwrite = { _, _ -> },
             )
         }
-        onNodeWithText("Overwrite").assertDoesNotExist()
+        assertEquals(0, onAllNodesWithText("Overwrite").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -96,7 +97,7 @@ class UploadPreflightDialogTest {
                 onConfirmOverwrite = { _, _ -> },
             )
         }
-        onNodeWithText("Upload conflict").assertDoesNotExist()
-        onNodeWithText("Cannot upload").assertDoesNotExist()
+        assertEquals(0, onAllNodesWithText("Upload conflict").fetchSemanticsNodes().size)
+        assertEquals(0, onAllNodesWithText("Cannot upload").fetchSemanticsNodes().size)
     }
 }

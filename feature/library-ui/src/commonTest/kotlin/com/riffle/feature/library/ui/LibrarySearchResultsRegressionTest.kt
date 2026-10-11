@@ -1,9 +1,8 @@
 package com.riffle.feature.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.models.Annotation
@@ -12,6 +11,8 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.feature.library.AnnotationSearchResult
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Regression tests for SearchResultsContent, which was dropped when the shared screen swap
@@ -88,7 +89,7 @@ class LibrarySearchResultsRegressionTest {
                 onShowAllAnnotations = {},
             )
         }
-        onNodeWithText("No results", substring = true).assertExists()
+        assertTrue(onAllNodesWithText("No results", substring = true).fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test
@@ -113,7 +114,7 @@ class LibrarySearchResultsRegressionTest {
             )
         }
         onNodeWithText("A Book").assertIsDisplayed()
-        onNodeWithText("No results", substring = true).assertDoesNotExist()
+        assertEquals(0, onAllNodesWithText("No results", substring = true).fetchSemanticsNodes().size)
     }
 
     // ── Books section header ───────────────────────────────────────────────────
@@ -192,7 +193,7 @@ class LibrarySearchResultsRegressionTest {
                 onShowAllAnnotations = {},
             )
         }
-        onNodeWithText("Show all ${ANNOTATION_PREVIEW_CAP} annotations").assertDoesNotExist()
+        assertEquals(0, onAllNodesWithText("Show all ${ANNOTATION_PREVIEW_CAP} annotations").fetchSemanticsNodes().size)
     }
 
     @Test
