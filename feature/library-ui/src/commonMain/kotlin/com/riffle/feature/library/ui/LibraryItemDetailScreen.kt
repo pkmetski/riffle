@@ -120,6 +120,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_show_less
 import com.riffle.feature.library.ui.generated.resources.ui_show_more
 import com.riffle.feature.library.ui.generated.resources.ui_summary
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
+import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_cannot_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_title
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to
@@ -263,28 +264,11 @@ fun LibraryItemDetailScreen(
     }
 
     // Upload preflight dialogs (existing item / blocked)
-    when (val pf = uploadPreflight) {
-        is UploadPreflight.ExistingItem -> AlertDialog(
-            onDismissRequest = { vm.dismissUploadPreflight() },
-            title = { Text(stringResource(Res.string.ui_upload_conflict_title)) },
-            text = { Text(stringResource(Res.string.ui_upload_conflict_message, pf.destination.label)) },
-            confirmButton = {
-                TextButton(onClick = { vm.importToDestination(pf.destination, pf.library) }) { Text(stringResource(Res.string.ui_overwrite)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { vm.dismissUploadPreflight() }) { Text(stringResource(Res.string.ui_cancel)) }
-            },
-        )
-        is UploadPreflight.Blocked -> AlertDialog(
-            onDismissRequest = { vm.dismissUploadPreflight() },
-            title = { Text(stringResource(Res.string.ui_cannot_upload_title)) },
-            text = { Text(pf.reason) },
-            confirmButton = {
-                TextButton(onClick = { vm.dismissUploadPreflight() }) { Text(stringResource(Res.string.ui_ok)) }
-            },
-        )
-        else -> Unit
-    }
+    UploadPreflightDialog(
+        preflight = uploadPreflight,
+        onDismiss = { vm.dismissUploadPreflight() },
+        onConfirmOverwrite = { destination, library -> vm.importToDestination(destination, library) },
+    )
 
     val isExpandedWidth = with(LocalDensity.current) {
         LocalWindowInfo.current.containerSize.width.toDp() >= EXPANDED_WIDTH_BREAKPOINT_DP.dp
@@ -377,6 +361,60 @@ fun LibraryItemDetailScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Shows the upload preflight dialog for [preflight].
+ *
+ * When [UploadPreflight.ExistingItem.canOverwrite] is true, the dialog offers an Overwrite action
+ * so the user can replace the existing item. When it is false, overwriting is blocked (the
+ * destination cannot safely replace files without invalidating annotations), so only an OK dismiss
+ * is offered — matching the original Android behaviour before the parity refactor.
+ */
+@Composable
+internal fun UploadPreflightDialog(
+    preflight: UploadPreflight,
+    onDismiss: () -> Unit,
+    onConfirmOverwrite: (destination: com.riffle.feature.library.UploadDestination, library: com.riffle.core.catalog.CatalogRoot) -> Unit,
+) {
+    when (preflight) {
+        is UploadPreflight.ExistingItem -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(Res.string.ui_upload_conflict_title)) },
+            text = {
+                Text(
+                    if (preflight.canOverwrite) {
+                        stringResource(Res.string.ui_upload_conflict_message, preflight.destination.label)
+                    } else {
+                        stringResource(Res.string.ui_upload_conflict_cannot_overwrite)
+                    },
+                )
+            },
+            confirmButton = {
+                if (preflight.canOverwrite) {
+                    TextButton(onClick = { onConfirmOverwrite(preflight.destination, preflight.library) }) {
+                        Text(stringResource(Res.string.ui_overwrite))
+                    }
+                } else {
+                    TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_ok)) }
+                }
+            },
+            dismissButton = if (preflight.canOverwrite) {
+                { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } }
+            } else {
+                null
+            },
+        )
+        is UploadPreflight.Blocked -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(Res.string.ui_cannot_upload_title)) },
+            text = { Text(preflight.reason) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_ok)) }
+            },
+        )
+        else -> Unit
     }
 }
 

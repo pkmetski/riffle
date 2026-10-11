@@ -53,6 +53,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.backhandler.BackHandler
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -101,8 +103,12 @@ import com.riffle.feature.library.shouldClampSelectedTab
 import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
+import com.riffle.feature.library.ui.generated.resources.ui_annotation_search_action
+import com.riffle.feature.library.ui.generated.resources.ui_annotation_search_placeholder
+import com.riffle.feature.library.ui.generated.resources.ui_books
 import com.riffle.feature.library.ui.generated.resources.ui_loading
 import com.riffle.feature.library.ui.generated.resources.ui_no_collections
+import com.riffle.feature.library.ui.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.library.ui.generated.resources.ui_no_results_for
 import com.riffle.feature.library.ui.generated.resources.ui_no_series
 import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
@@ -131,7 +137,7 @@ private const val SECTION_CELL_WIDTH = 120
 // `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used
 // to exist as a byte-identical private copy in each screen.
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun LibraryItemsScreen(
     libraryId: String,
@@ -148,6 +154,11 @@ fun LibraryItemsScreen(
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit = {},
     onShowAllAnnotations: (String) -> Unit = {},
     showRecentlyAdded: Boolean = true,
+    // Whether the layered-back handler (clear search → home tab → exit) should intercept Back.
+    // False by default so iOS callers, which manage their own back stack, need no change.
+    // Android passes the result of libraryItemsBackEnabled() from MainScreen.
+    backEnabled: Boolean = false,
+    onNavigateBack: () -> Unit = {},
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
@@ -157,11 +168,11 @@ fun LibraryItemsScreen(
         viewModel.onScreenResumed()
     }
 
-    val containerWidthPx = LocalWindowInfo.current.containerSize.width
+    val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     SideEffect {
         viewModel.setScreenDimensionBucket(
             com.riffle.core.models.ScreenDimensionBucket.PhonePortrait.copy(
-                wider = if (containerWidthPx > 1400) {
+                wider = if (containerWidthDp >= 840.dp) {
                     com.riffle.core.models.ScreenDimensionBucket.SizeClass.Expanded
                 } else {
                     com.riffle.core.models.ScreenDimensionBucket.SizeClass.Medium
@@ -189,6 +200,16 @@ fun LibraryItemsScreen(
     // Clamp to Home when the previously-selected tab's data has disappeared.
     LaunchedEffect(tabVisibility) {
         if (shouldClampSelectedTab("", tabVisibility, selectedTab)) selectedTab = 0
+    }
+
+    // Layered back: clear search → reset to Home tab → exit (via onNavigateBack).
+    // Disabled by default (backEnabled = false) so iOS, which manages its own back stack, is unaffected.
+    BackHandler(enabled = backEnabled) {
+        when {
+            searchQuery.isNotBlank() -> viewModel.onSearchQueryChange("")
+            selectedTab != 0 -> selectedTab = 0
+            else -> onNavigateBack()
+        }
     }
 
     Scaffold(
@@ -234,9 +255,17 @@ fun LibraryItemsScreen(
                 } else if (searchQuery.isNotBlank()) {
                     SearchResultsContent(
                         query = searchQuery,
+                        filteredSeries = projection.series,
+                        filteredCollections = projection.collections,
+                        filteredItems = projection.ungrouped,
                         annotations = projection.annotations,
                         audiobookBookmarks = projection.audiobookBookmarks,
+                        seriesCoverUrls = seriesCoverUrls,
                         token = viewModel.authToken,
+                        linkedItemIds = linkedItemIds,
+                        onSeriesSelected = onSeriesSelected,
+                        onCollectionSelected = onCollectionSelected,
+                        onItemSelected = onItemSelected,
                         onAnnotationSelected = onAnnotationSelected,
                         onAudiobookBookmarkSelected = onAudiobookBookmarkSelected,
                         onShowAllAnnotations = { onShowAllAnnotations(searchQuery) },
@@ -416,55 +445,149 @@ private fun LibraryTabBar(
     }
 }
 
+internal const val ANNOTATION_PREVIEW_CAP = 5
+
 /**
- * Shows inline annotation and audiobook-bookmark search results for a non-blank [query].
- * Mirrors the SearchResultsContent in Android's LibraryItemsScreen.
+ * Shows inline search results for books, series, collections, and annotations when the query is non-blank.
+ *
+ * Series, collections, and books are shown without a cap. Annotation results are capped at
+ * [ANNOTATION_PREVIEW_CAP] with a "Show all" footer linking to the full results screen — the same
+ * behaviour as the original Android LibraryItemsScreen before the parity refactor deleted this content.
  */
 @Composable
-private fun SearchResultsContent(
+internal fun SearchResultsContent(
     query: String,
+    filteredSeries: List<Series>,
+    filteredCollections: List<com.riffle.core.models.Collection>,
+    filteredItems: List<LibraryItem>,
     annotations: List<AnnotationSearchResult>,
     audiobookBookmarks: List<AudiobookBookmarkSearchResult>,
+    seriesCoverUrls: Map<String, String>,
     token: String,
+    linkedItemIds: Set<String>,
+    onSeriesSelected: (Series) -> Unit,
+    onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
+    onItemSelected: (LibraryItem) -> Unit,
     onAnnotationSelected: (AnnotationSearchResult) -> Unit,
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
     onShowAllAnnotations: () -> Unit,
 ) {
-    val labels = annotationSearchLabels()
-    val noResultsText = stringResource(LibRes.string.ui_no_results_for, query)
-    val showAllText = stringResource(LibRes.string.ui_show_all_annotations, annotations.size + audiobookBookmarks.size)
-    val total = annotations.size + audiobookBookmarks.size
-    if (total == 0) {
+    val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() &&
+        filteredItems.isEmpty() && annotations.isEmpty() && audiobookBookmarks.isEmpty()
+    if (allEmpty) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(noResultsText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(LibRes.string.ui_no_results_for, query),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         return
     }
+
+    val labels = annotationSearchLabels()
+    val totalAnnotations = annotations.size + audiobookBookmarks.size
+    val halfCap = (ANNOTATION_PREVIEW_CAP + 1) / 2
+    val annoPreview = annotations.take(if (audiobookBookmarks.isEmpty()) ANNOTATION_PREVIEW_CAP else halfCap)
+    val bmPreview = audiobookBookmarks.take(ANNOTATION_PREVIEW_CAP - annoPreview.size)
+    val seriesLabel = stringResource(Res.string.ui_series)
+    val collectionsLabel = stringResource(Res.string.ui_collections)
+    val booksLabel = stringResource(LibRes.string.ui_books)
+    val annotationsLabel = stringResource(Res.string.ui_annotations)
+
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-        items(annotations, key = { "ann_${it.annotation.id}" }) { result ->
-            AnnotationResultRow(
-                result = result,
-                token = token,
-                labels = labels,
-                onClick = { onAnnotationSelected(result) },
-            )
+        if (filteredSeries.isNotEmpty()) {
+            item { SectionHeader(title = seriesLabel) }
+            items(filteredSeries, key = { "series_${it.id}" }) { s ->
+                SearchSeriesListRow(
+                    series = s,
+                    coverUrl = seriesCoverUrls[s.id] ?: s.coverUrl,
+                    token = token,
+                    onClick = { onSeriesSelected(s) },
+                )
+            }
         }
-        items(audiobookBookmarks, key = { "bm_${it.bookmark.id}" }) { result ->
-            AudiobookBookmarkResultRow(
-                result = result,
-                token = token,
-                labels = labels,
-                onClick = { onAudiobookBookmarkSelected(result) },
-            )
+        if (filteredCollections.isNotEmpty()) {
+            item { SectionHeader(title = collectionsLabel) }
+            items(filteredCollections, key = { "col_${it.id}" }) { col ->
+                SearchCollectionListRow(collection = col, onClick = { onCollectionSelected(col) })
+            }
         }
-        if (total > 0) {
-            item {
-                TextButton(
-                    onClick = onShowAllAnnotations,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                ) {
-                    Text(showAllText)
+        if (filteredItems.isNotEmpty()) {
+            item { SectionHeader(title = booksLabel) }
+            items(filteredItems, key = { "item_${it.id}" }) { item ->
+                SearchBookListRow(item = item, token = token, onClick = { onItemSelected(item) })
+            }
+        }
+        if (totalAnnotations > 0) {
+            item { SectionHeader(title = annotationsLabel) }
+            items(annoPreview, key = { "ann_${it.annotation.id}" }) { result ->
+                AnnotationResultRow(
+                    result = result,
+                    token = token,
+                    labels = labels,
+                    onClick = { onAnnotationSelected(result) },
+                )
+            }
+            items(bmPreview, key = { "bm_${it.bookmark.id}" }) { result ->
+                AudiobookBookmarkResultRow(
+                    result = result,
+                    token = token,
+                    labels = labels,
+                    onClick = { onAudiobookBookmarkSelected(result) },
+                )
+            }
+            if (totalAnnotations > ANNOTATION_PREVIEW_CAP) {
+                item {
+                    val showAllText = stringResource(LibRes.string.ui_show_all_annotations, totalAnnotations)
+                    TextButton(
+                        onClick = onShowAllAnnotations,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    ) {
+                        Text(showAllText)
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchSeriesListRow(series: Series, coverUrl: String?, token: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
+            CoverImage(url = coverUrl, token = token, contentDescription = null, isAudiobook = false, modifier = Modifier.fillMaxSize(), instrumentationKey = series.id)
+        }
+        Text(series.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp))
+    }
+}
+
+@Composable
+private fun SearchCollectionListRow(collection: com.riffle.core.models.Collection, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(collection.name, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@Composable
+private fun SearchBookListRow(item: LibraryItem, token: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))) {
+            CoverImage(url = item.coverUrl, token = token, contentDescription = null, isAudiobook = item.isAudiobookOnly, modifier = Modifier.fillMaxSize(), instrumentationKey = item.id)
+        }
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(item.title, style = MaterialTheme.typography.bodyLarge)
+            if (item.author.isNotEmpty()) {
+                Text(item.author, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -671,9 +794,6 @@ private fun SimpleItemList(
     }
 }
 
-/** Empty-state copy for the Annotations tab. Mirrors Android's `ui_no_highlights_yet`. */
-internal const val ANNOTATIONS_EMPTY_LABEL = "No highlights yet."
-
 /**
  * Grid of books with at least one live highlight, mirroring Android's `AnnotationsListScreen`.
  * [state] comes from `AnnotationsListViewModel`; tapping a book opens its detail sheet, which is
@@ -696,7 +816,7 @@ internal fun AnnotationsTabContent(
     }
     if (state.books.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(ANNOTATIONS_EMPTY_LABEL, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(LibRes.string.ui_no_highlights_yet), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -717,12 +837,6 @@ internal fun AnnotationsTabContent(
     }
 }
 
-/** Placeholder copy of the annotation search field, matched on by the iOS harness. */
-internal const val ANNOTATION_SEARCH_PLACEHOLDER = "Search annotations"
-
-/** The submit button's label. */
-internal const val ANNOTATION_SEARCH_ACTION = "Search"
-
 /**
  * The Annotations tab's search box.
  *
@@ -733,19 +847,21 @@ internal const val ANNOTATION_SEARCH_ACTION = "Search"
 @Composable
 private fun AnnotationSearchField(onSearch: (String) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
+    val placeholder = stringResource(LibRes.string.ui_annotation_search_placeholder)
+    val actionLabel = stringResource(LibRes.string.ui_annotation_search_action)
     OutlinedTextField(
         value = query,
         onValueChange = { query = it },
         singleLine = true,
-        placeholder = { Text(ANNOTATION_SEARCH_PLACEHOLDER) },
+        placeholder = { Text(placeholder) },
         trailingIcon = {
             TextButton(
                 onClick = { if (query.isNotBlank()) onSearch(query) },
                 modifier = Modifier
-                    .semantics { contentDescription = ANNOTATION_SEARCH_PLACEHOLDER }
+                    .semantics { contentDescription = placeholder }
                     .testTag(TestTags.ANNOTATION_SEARCH_SUBMIT),
             ) {
-                Text(ANNOTATION_SEARCH_ACTION)
+                Text(actionLabel)
             }
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),

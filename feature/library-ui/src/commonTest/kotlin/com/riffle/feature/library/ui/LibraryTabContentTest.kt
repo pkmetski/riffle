@@ -126,7 +126,7 @@ class LibraryTabContentTest {
             )
         }
 
-        onNodeWithText(ANNOTATIONS_EMPTY_LABEL).assertIsDisplayed()
+        onNodeWithText("No highlights yet.").assertIsDisplayed()
     }
 
     /**
