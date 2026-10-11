@@ -1,12 +1,21 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -61,7 +70,9 @@ import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -116,9 +127,19 @@ import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.shared.generated.resources.Res
+import com.riffle.shared.generated.resources.ui_cancel
+import com.riffle.shared.generated.resources.ui_close_readaloud
 import com.riffle.shared.generated.resources.ui_could_not_download_book
+import com.riffle.shared.generated.resources.ui_download
+import com.riffle.shared.generated.resources.ui_download_readaloud_audio
 import com.riffle.shared.generated.resources.ui_error
+import com.riffle.shared.generated.resources.ui_forward
+import com.riffle.shared.generated.resources.ui_next_chapter
 import com.riffle.shared.generated.resources.ui_no_highlights_to_show
+import com.riffle.shared.generated.resources.ui_previous_chapter
+import com.riffle.shared.generated.resources.ui_readaloud
+import com.riffle.shared.generated.resources.ui_rewind
+import com.riffle.shared.readaloud.IosReadaloudSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -161,6 +182,7 @@ fun EpubReaderScreen(
     val readingSpeedStore = koinInject<ReadingSpeedStore>()
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
+    val readaloudSessionFactory = koinInject<IosReadaloudSession.Factory>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
     val isLandscape = containerSize.width > containerSize.height
@@ -232,6 +254,18 @@ fun EpubReaderScreen(
         )
     }
     val selection by navigator.selectionFlow.collectAsState()
+    val readaloudSession = remember(item.sourceId, item.id) {
+        readaloudSessionFactory.create(item.sourceId, item.id)
+    }
+    DisposableEffect(item.sourceId, item.id) {
+        onDispose { readaloudSession.onDestroy() }
+    }
+    val readaloudOpen by readaloudSession.readaloudOpen.collectAsState()
+    val readaloudPlayback by readaloudSession.playbackState.collectAsState()
+    val readaloudAvailable by readaloudSession.readaloudAvailable.collectAsState()
+    val readaloudDownloadPromptBytes by readaloudSession.downloadPromptBytes.collectAsState()
+    val readaloudDownloadProgress by readaloudSession.downloadProgress.collectAsState()
+    val readaloudBarMessage by readaloudSession.barMessage.collectAsState()
     // The annotation whose actions sheet is open, or null. Set by a decoration tap and by a
     // fresh create so the sheet switches from "annotate this selection" to "edit this
     // annotation" without the user having to tap the new highlight.
@@ -946,7 +980,7 @@ fun EpubReaderScreen(
                                     currentRunning = currentRunningFeature(
                                         cadenceRunning = cadenceState is CadenceState.Running,
                                         autoScrollRunning = false,
-                                        readaloudPlaying = false,
+                                        readaloudPlaying = readaloudPlayback.isPlaying,
                                     ),
                                     starting = Feature.AutoScroll,
                                     stopAutoScroll = { autoScroll.dispatch(AutoScrollEvent.Stop) },
@@ -970,7 +1004,7 @@ fun EpubReaderScreen(
                                     currentRunning = currentRunningFeature(
                                         cadenceRunning = false,
                                         autoScrollRunning = autoScrollState is AutoScrollState.Running,
-                                        readaloudPlaying = false,
+                                        readaloudPlaying = readaloudPlayback.isPlaying,
                                     ),
                                     starting = Feature.Cadence,
                                     stopAutoScroll = { autoScroll.dispatch(AutoScrollEvent.Stop) },
@@ -980,6 +1014,24 @@ fun EpubReaderScreen(
                             }
                         },
                     )
+                }
+                if (source != ReaderSource.Highlights) {
+                    IconButton(
+                        onClick = {
+                            if (readaloudOpen) {
+                                readaloudSession.closeReadaloud()
+                            } else {
+                                scope.launch { readaloudSession.openReadaloud() }
+                            }
+                        },
+                        enabled = readaloudAvailable,
+                        modifier = Modifier.testTag(TestTags.READER_READALOUD),
+                    ) {
+                        Icon(
+                            imageVector = RiffleIcons.PlayArrow,
+                            contentDescription = stringResource(Res.string.ui_readaloud),
+                        )
+                    }
                 }
             },
         )
@@ -1220,6 +1272,37 @@ fun EpubReaderScreen(
             onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
         )
 
+        // Readaloud mini-player — shown when the session is open, docked to the bottom.
+        if (readaloudOpen && source != ReaderSource.Highlights) {
+            IosReadaloudMiniPlayer(
+                isPlaying = readaloudPlayback.isPlaying,
+                speed = readaloudPlayback.speed,
+                canPreviousChapter = readaloudPlayback.currentChapterIndex > 0,
+                canNextChapter = readaloudPlayback.currentChapterIndex < readaloudPlayback.chapterCount - 1,
+                barMessage = readaloudBarMessage,
+                downloadProgress = readaloudDownloadProgress,
+                onPlayPause = readaloudSession::togglePlayPause,
+                onRewind = readaloudSession::skipBackward,
+                onForward = readaloudSession::skipForward,
+                onPreviousChapter = readaloudSession::previousChapter,
+                onNextChapter = readaloudSession::nextChapter,
+                onSpeedChange = readaloudSession::setSpeed,
+                onClose = readaloudSession::closeReadaloud,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+            )
+        }
+
+        // Readaloud download confirmation dialog.
+        readaloudDownloadPromptBytes?.let { bytes ->
+            IosReadaloudDownloadDialog(
+                sizeBytes = bytes,
+                onConfirm = { readaloudSession.startDownload() },
+                onDismiss = readaloudSession::dismissDownloadPrompt,
+            )
+        }
+
         // On-screen info: the chapter map and the reading-progress labels, gated by the same five
         // FormattingPreferences flags Android's EpubReaderScreen gates them with. The composable
         // itself is the shared one in :feature:reader-ui, so the two platforms cannot drift.
@@ -1392,4 +1475,111 @@ internal suspend fun startCadenceFromCurrentPage(
     } else {
         cadence.onPageTopResolved(href, navigator.cadenceStartSpanId())
     }
+}
+
+@Suppress("ktlint:standard:function-naming")
+@Composable
+private fun IosReadaloudMiniPlayer(
+    isPlaying: Boolean,
+    speed: Float,
+    canPreviousChapter: Boolean,
+    canNextChapter: Boolean,
+    barMessage: String?,
+    downloadProgress: Float?,
+    onPlayPause: () -> Unit,
+    onRewind: () -> Unit,
+    onForward: () -> Unit,
+    onPreviousChapter: () -> Unit,
+    onNextChapter: () -> Unit,
+    onSpeedChange: (Float) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        modifier = modifier.testTag(TestTags.READALOUD_MINI_PLAYER),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            when {
+                barMessage != null -> Text(
+                    text = barMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                        .testTag(TestTags.READALOUD_OFFLINE_MESSAGE),
+                )
+                downloadProgress != null -> Text(
+                    text = "Downloading… ${(downloadProgress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                        .testTag(TestTags.READALOUD_DOWNLOADING),
+                )
+                else -> {
+                    val nextSpeed = speeds.firstOrNull { it > speed } ?: speeds.first()
+                    TextButton(
+                        onClick = { onSpeedChange(nextSpeed) },
+                        modifier = Modifier.testTag(TestTags.READALOUD_SPEED),
+                    ) { Text(PlaybackSpeed.label(speed)) }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onRewind, modifier = Modifier.testTag(TestTags.READALOUD_REWIND)) {
+                        Icon(RiffleIcons.FastRewind, contentDescription = stringResource(Res.string.ui_rewind))
+                    }
+                    IconButton(
+                        onClick = onPreviousChapter,
+                        enabled = canPreviousChapter,
+                        modifier = Modifier.testTag(TestTags.READALOUD_PREV_CHAPTER),
+                    ) { Icon(RiffleIcons.SkipPrevious, contentDescription = stringResource(Res.string.ui_previous_chapter)) }
+                    IconButton(onClick = onPlayPause, modifier = Modifier.testTag(TestTags.READALOUD_PLAY_PAUSE)) {
+                        Icon(
+                            imageVector = if (isPlaying) RiffleIcons.Pause else RiffleIcons.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                        )
+                    }
+                    IconButton(
+                        onClick = onNextChapter,
+                        enabled = canNextChapter,
+                        modifier = Modifier.testTag(TestTags.READALOUD_NEXT_CHAPTER),
+                    ) { Icon(RiffleIcons.SkipNext, contentDescription = stringResource(Res.string.ui_next_chapter)) }
+                    IconButton(onClick = onForward, modifier = Modifier.testTag(TestTags.READALOUD_FORWARD)) {
+                        Icon(RiffleIcons.FastForward, contentDescription = stringResource(Res.string.ui_forward))
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+            IconButton(onClick = onClose, modifier = Modifier.testTag(TestTags.READALOUD_CLOSE)) {
+                Icon(RiffleIcons.Close, contentDescription = stringResource(Res.string.ui_close_readaloud))
+            }
+        }
+    }
+}
+
+@Suppress("ktlint:standard:function-naming")
+@Composable
+private fun IosReadaloudDownloadDialog(
+    sizeBytes: Long,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sizeLabel = when {
+        sizeBytes >= 1_000_000_000L -> "${sizeBytes / 1_000_000_000} GB"
+        sizeBytes >= 1_000_000L -> "${sizeBytes / 1_000_000} MB"
+        else -> "${sizeBytes / 1_000} KB"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag(TestTags.READALOUD_DOWNLOAD_DIALOG),
+        title = { Text(stringResource(Res.string.ui_download_readaloud_audio, sizeLabel)) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(Res.string.ui_download)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } },
+    )
 }

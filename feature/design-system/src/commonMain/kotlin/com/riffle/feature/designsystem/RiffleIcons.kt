@@ -135,6 +135,24 @@ object RiffleIcons {
         )
     }
 
+    /** `Icons.Filled.PlayArrow` */
+    val PlayArrow: ImageVector = materialIcon("PlayArrow") { listOf("M8 5v14l11-7z") }
+
+    /** `Icons.Filled.Pause` */
+    val Pause: ImageVector = materialIcon("Pause") { listOf("M6 19h4V5H6v14zm8-14v14h4V5h-4z") }
+
+    /** `Icons.Filled.SkipNext` */
+    val SkipNext: ImageVector = materialIcon("SkipNext") { listOf("M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z") }
+
+    /** `Icons.Filled.SkipPrevious` */
+    val SkipPrevious: ImageVector = materialIcon("SkipPrevious") { listOf("M6 6h2v12H6zm3.5 6l8.5 6V6z") }
+
+    /** `Icons.Filled.FastRewind` */
+    val FastRewind: ImageVector = materialIcon("FastRewind") { listOf("M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z") }
+
+    /** `Icons.Filled.FastForward` */
+    val FastForward: ImageVector = materialIcon("FastForward") { listOf("M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z") }
+
     /** `Icons.Filled.Folder` */
     val Folder: ImageVector = materialIcon("Folder") {
         listOf("M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z")

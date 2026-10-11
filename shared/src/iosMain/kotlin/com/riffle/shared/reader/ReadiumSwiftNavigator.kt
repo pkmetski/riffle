@@ -273,8 +273,12 @@ class ReadiumSwiftNavigator(
         evaluateJs(patchJson)
     }
 
-    override suspend fun followReadaloudSentence(text: String): NavigatorFollowResult =
-        NavigatorFollowResult.Unavailable
+    override suspend fun followReadaloudSentence(text: String): NavigatorFollowResult {
+        val columns = measureReadaloudColumns(text)
+        if (columns.isEmpty()) return NavigatorFollowResult.Unavailable
+        snapReadaloudColumn(text, 0)
+        return NavigatorFollowResult.Snapped
+    }
 
     /**
      * Bring Cadence's `cd-N` span onto the page.

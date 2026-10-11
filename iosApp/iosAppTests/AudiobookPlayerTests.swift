@@ -89,8 +89,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         // after the reader screen opens. On Clone 1 after 5+ min of sequential heavy tests the
         // tree can take >90 s to settle; raised from 150 s after observing exact 150 s timeout
         // hits (150.6 s total test time) on contended CI runners — the player was still loading
-        // at the limit. 200 s remains well under the 600 s per-test execution allowance.
-        XCTAssertTrue(playPause.waitForExistence(timeout: 200), "Player must finish loading")
+        // at the limit. Raised to 300 s after observing 243 s total test times on Clone 2 when
+        // it runs after a heavy sequential test sequence (~292 s of prior testing). 300 s remains
+        // well under the 600 s per-test execution allowance.
+        XCTAssertTrue(playPause.waitForExistence(timeout: 300), "Player must finish loading")
 
         // All four pills render together when loading=false, but the CMP iOS accessibility bridge
         // populates the tree incrementally, so a pill can be visible before its node lands. Wait
@@ -110,13 +112,15 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         let allPillsPresent = NSPredicate { _, _ in
             self.chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
         }
-        // 240 s: playPause appeared but the CMP tree can still be settling under CI load; the old
+        // 300 s: playPause appeared but the CMP tree can still be settling under CI load; the old
         // 60 s cap caused a spurious fail, raised to 120 s, then to 180 s after observing ~149 s
         // total test times on Clone 1, then raised again to 240 s after observing 223 s total test
         // times on Clone 2 under heavy runner contention (both retry iterations timed out at 180 s).
+        // Raised to 300 s after observing 286 s total test times when both previous iterations
+        // timed out at 240 s under extreme runner contention (~292 s of prior sequential testing).
         let pillsResult = XCTWaiter.wait(
             for: [XCTNSPredicateExpectation(predicate: allPillsPresent, object: nil)],
-            timeout: 240
+            timeout: 300
         )
         XCTAssertEqual(pillsResult, .completed,
                        "Player must offer Chapters, bookmarks, sleep-timer and speed controls")

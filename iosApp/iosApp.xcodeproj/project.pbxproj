@@ -32,6 +32,7 @@
 		B1002012 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1002003 /* ReadiumNavigator */; };
 		B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
 		B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
+		B1061020 /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
 		B1004010 /* AudiobookPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1004020 /* AudiobookPlayerTests.swift */; };
 		B1005020 /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1006010 /* PdfReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1006020 /* PdfReaderTests.swift */; };
@@ -48,7 +49,9 @@
 		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
 		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
 		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
+		B106101A /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
 		B1054010 /* AudioPlayerBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1054020 /* AudioPlayerBridgeTests.swift */; };
+		B1061021 /* ReadaloudBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061031 /* ReadaloudBridgeTests.swift */; };
 		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
 		B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1057020 /* IosPlatformSettingsHooksTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
@@ -105,6 +108,7 @@
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
 		B1002030 /* ReadiumEpubNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadiumEpubNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1003030 /* IosAudioPlayerBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosAudioPlayerBridgeImpl.swift; sourceTree = "<group>"; };
+		B1061030 /* IosReadaloudBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReadaloudBridgeImpl.swift; sourceTree = "<group>"; };
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
@@ -129,6 +133,7 @@
 		B1056020 /* LibraryItemDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemDetailTests.swift; sourceTree = "<group>"; };
 		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
 		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
+		B1061031 /* ReadaloudBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadaloudBridgeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
 		B1057020 /* IosPlatformSettingsHooksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPlatformSettingsHooksTests.swift; sourceTree = "<group>"; };
 		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
@@ -201,6 +206,7 @@
 				B1000022 /* Assets.xcassets */,
 				B1002030 /* ReadiumEpubNavigatorBridge.swift */,
 				B1003030 /* IosAudioPlayerBridgeImpl.swift */,
+				B1061030 /* IosReadaloudBridgeImpl.swift */,
 				B1005030 /* PdfKitNavigatorBridge.swift */,
 				B1010030 /* OReillyLazyContainer.swift */,
 				B1011030 /* OReillyPublicationBuilder.swift */,
@@ -237,6 +243,7 @@
 				B1056020 /* LibraryItemDetailTests.swift */,
 				B1053020 /* EpubProgressionLocatorTests.swift */,
 				B1054020 /* AudioPlayerBridgeTests.swift */,
+				B1061031 /* ReadaloudBridgeTests.swift */,
 				A1EL1D020001 /* ElidedAnnotationsViewTests.swift */,
 				B100E020 /* LibraryTabVisibilityTests.swift */,
 				B100F020 /* OnboardingNavIconTests.swift */,
@@ -465,6 +472,7 @@
 				B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */,
 				A1C0DE040001 /* ReadiumDecorationTemplates.swift in Sources */,
 				B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */,
+				B1061020 /* IosReadaloudBridgeImpl.swift in Sources */,
 				B1005020 /* PdfKitNavigatorBridge.swift in Sources */,
 				B1010020 /* OReillyLazyContainer.swift in Sources */,
 				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
@@ -530,7 +538,9 @@
 				A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */,
 				B1053010 /* EpubProgressionLocatorTests.swift in Sources */,
 				B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */,
+				B106101A /* IosReadaloudBridgeImpl.swift in Sources */,
 				B1054010 /* AudioPlayerBridgeTests.swift in Sources */,
+				B1061021 /* ReadaloudBridgeTests.swift in Sources */,
 				A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */,
 				B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */,
 				B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */,
