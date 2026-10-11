@@ -403,8 +403,14 @@ jobs:
         #      failure) under memory pressure. The suite then serialises or fails spuriously.
         #   2. A contended runner runs every UI operation several times slower; the per-wait
         #      timeouts in the harness absorb that, but a clone death (mode 1) does not recover.
-        # -parallel-testing-worker-count 2 pins the clone count so xcodebuild never over-provisions
-        # the box. The wrapper retries ONCE, and only when the log carries a simulator-
+        # Tests run serially on the single pre-booted simulator (-parallel-testing-enabled NO):
+        # parallel mode buffers ALL per-test output until the whole suite finishes, so a run that
+        # hits the job timeout leaves a log with zero test lines and nothing to diagnose. Serial
+        # mode streams each result as it lands, so the uploaded log always shows how far the suite
+        # got and which test stalled. -test-timeouts-enabled caps any single test at 420 s (the
+        # heaviest healthy test, AddAbsSourceEndToEnd, takes ~190 s on CI) so a stalled test fails
+        # with its name in the log instead of silently consuming the whole job.
+        # The wrapper retries ONCE, and only when the log carries a simulator-
         # infrastructure signature (mode 1); a genuine test-assertion failure has no such
         # signature and fails the job on the first attempt without a retry.
         run: |
@@ -429,8 +435,10 @@ jobs:
               -clonedSourcePackagesDirPath "$HOME/spm-packages" \
               -derivedDataPath "$HOME/derived-data" \
               -resultBundlePath "$PWD/harness.xcresult" \
-              -parallel-testing-enabled YES \
-              -parallel-testing-worker-count 2 \
+              -parallel-testing-enabled NO \
+              -test-timeouts-enabled YES \
+              -default-test-execution-time-allowance 420 \
+              -maximum-test-execution-time-allowance 420 \
               -retry-tests-on-failure \
               -test-iterations 2 \
               2>&1 | tee xcodebuild-harness.log
