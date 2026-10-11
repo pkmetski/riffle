@@ -54,6 +54,8 @@
 		B1054010 /* AudioPlayerBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1054020 /* AudioPlayerBridgeTests.swift */; };
 		B1061021 /* ReadaloudBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061031 /* ReadaloudBridgeTests.swift */; };
 		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
+		A1EL2D010001 /* ElidedPdfBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL2D020001 /* ElidedPdfBridgeTests.swift */; };
+		A1EL2D010002 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
 		B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1057020 /* IosPlatformSettingsHooksTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
@@ -136,6 +138,7 @@
 		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
 		B1061031 /* ReadaloudBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadaloudBridgeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
+		A1EL2D020001 /* ElidedPdfBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridgeTests.swift; sourceTree = "<group>"; };
 		B1057020 /* IosPlatformSettingsHooksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPlatformSettingsHooksTests.swift; sourceTree = "<group>"; };
 		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B100F020 /* OnboardingNavIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNavIconTests.swift; sourceTree = "<group>"; };
@@ -248,6 +251,7 @@
 				B1054020 /* AudioPlayerBridgeTests.swift */,
 				B1061031 /* ReadaloudBridgeTests.swift */,
 				A1EL1D020001 /* ElidedAnnotationsViewTests.swift */,
+				A1EL2D020001 /* ElidedPdfBridgeTests.swift */,
 				B100E020 /* LibraryTabVisibilityTests.swift */,
 				B100F020 /* OnboardingNavIconTests.swift */,
 				B1058020 /* LibraryNavStackTests.swift */,
@@ -546,6 +550,8 @@
 				B1054010 /* AudioPlayerBridgeTests.swift in Sources */,
 				B1061021 /* ReadaloudBridgeTests.swift in Sources */,
 				A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */,
+				A1EL2D010001 /* ElidedPdfBridgeTests.swift in Sources */,
+				A1EL2D010002 /* ElidedPdfBridge.swift in Sources */,
 				B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */,
 				B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */,
 			);

@@ -436,8 +436,35 @@ jobs:
           # iterations — a 46-test suite then runs for hours and says nothing useful. Launch the
           # freshly built app once, the way the harness does, with its console attached: dyld
           # errors, Kotlin exceptions and LaunchServices refusals all print here.
+          # dyld refuses to start the app when its binary strongly links a Swift overlay the
+          # runtime does not ship (e.g. libswiftWebKit.dylib, present from iOS 26, absent in 18).
+          # Xcode links the overlay as soon as a source file touches one of its APIs, so the
+          # build is green and the app dies before main(). Check every /usr/lib/swift dylib the
+          # app links against the selected runtime's root before trying to launch.
+          check_swift_overlays() {
+            local binary="$1"
+            local runtime_root
+            runtime_root=$(xcrun simctl list devices -j | python3 -c "
+          import json, subprocess, sys
+          udid = sys.argv[1]
+          devices = json.load(sys.stdin)['devices']
+          runtime_id = next(k for k, v in devices.items() if any(d['udid'] == udid for d in v))
+          runtimes = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'runtimes', '-j']))['runtimes']
+          print(next(r['runtimeRoot'] for r in runtimes if r['identifier'] == runtime_id))
+          " "$SIMULATOR_UDID")
+            echo "Runtime root: $runtime_root"
+            local missing=0
+            while read -r lib; do
+              if [ ! -e "$runtime_root$lib" ]; then
+                echo "::error::$binary links $lib, which does not exist in the selected simulator runtime — the app would abort in dyld at launch."
+                missing=1
+              fi
+            done < <(otool -L "$binary" | awk '/\/usr\/lib\/swift\/.*dylib/ && !/weak/ {print $1}')
+            return $missing
+          }
           smoke_launch() {
             local app="$HOME/derived-data/Build/Products/Debug-iphonesimulator/Riffle.app"
+            check_swift_overlays "$app/Riffle.debug.dylib" || return 1
             xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl bootstatus "$SIMULATOR_UDID" -b
             xcrun simctl install "$SIMULATOR_UDID" "$app"

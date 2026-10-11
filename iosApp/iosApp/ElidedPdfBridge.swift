@@ -20,7 +20,7 @@ import Riffle
     }
 
     @MainActor
-    private static func renderPdf(html: String) async -> Data? {
+    static func renderPdf(html: String) async -> Data? {
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 595, height: 842))
         webView.isHidden = true
 
@@ -34,9 +34,18 @@ import Riffle
 
         await webView.loadHtmlAndWait(html: html)
 
+        // Call the Objective-C `createPDFWithConfiguration:completionHandler:` through its
+        // NS_REFINED_FOR_SWIFT import, not the Swift overlay's `pdf(configuration:)` /
+        // `createPDF(configuration:)` / `WKPDFConfiguration.rect`: those live in
+        // libswiftWebKit.dylib, which iOS 18 runtimes do not ship, so linking them makes dyld
+        // abort the app before main() on every iOS 18 device and simulator. The default (null)
+        // rect captures the displayed page bounds, which is the A4 frame set above.
         let config = WKPDFConfiguration()
-        config.rect = CGRect(x: 0, y: 0, width: 595, height: 842)
-        return try? await webView.pdf(configuration: config)
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Data?, Never>) in
+            webView.__createPDF(with: config) { data, _ in
+                continuation.resume(returning: data)
+            }
+        }
     }
 
     private static func writeTempFile(data: Data, fileName: String) -> URL? {
