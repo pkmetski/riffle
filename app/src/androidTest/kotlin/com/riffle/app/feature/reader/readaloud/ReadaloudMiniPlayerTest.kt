@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -117,7 +118,7 @@ class ReadaloudMiniPlayerTest {
     @Test
     fun switchToAudiobook_isAbsentWhenCallbackIsNull() {
         setPlayer()
-        rule.onNodeWithTag("readaloud_switch_to_audiobook").assertDoesNotExist()
+        rule.onNodeWithTag(TestTags.READALOUD_SWITCH_TO_AUDIOBOOK).assertDoesNotExist()
     }
 
     @Test
@@ -145,7 +146,7 @@ class ReadaloudMiniPlayerTest {
                 onSwitchToAudiobook = { switched = true },
             )
         }
-        rule.onNodeWithTag("readaloud_switch_to_audiobook").performClick()
+        rule.onNodeWithTag(TestTags.READALOUD_SWITCH_TO_AUDIOBOOK).performClick()
         assertEquals(true, switched)
     }
 

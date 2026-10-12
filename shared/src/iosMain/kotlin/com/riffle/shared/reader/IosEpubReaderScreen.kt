@@ -951,9 +951,12 @@ fun EpubReaderScreen(
     // changes — quote-map growth (new chapter tokenised) re-emits without yanking the user.
     LaunchedEffect(readaloudSession, navigator) {
         var followedRef: String? = null
-        combine(readaloudSession.activeFragmentRef, readaloudSession.sentenceQuotes) { ref, quotes ->
-            ref to quotes
-        }.collect { (ref, quotes) ->
+        combine(
+            readaloudSession.activeFragmentRef,
+            readaloudSession.sentenceQuotes,
+            readaloudSession.readaloudHighlightColor,
+        ) { ref, quotes, color -> Triple(ref, quotes, color) }
+        .collect { (ref, quotes, color) ->
             if (ref == null) {
                 navigator.applyDecorations(DECORATION_GROUP_READALOUD, emptyList())
                 followedRef = null
@@ -961,7 +964,7 @@ fun EpubReaderScreen(
             }
             navigator.applyDecorations(
                 DECORATION_GROUP_READALOUD,
-                listOf(readaloudDecoration(fragmentRef = ref, quote = quotes[ref], color = readaloudHighlightColor)),
+                listOf(readaloudDecoration(fragmentRef = ref, quote = quotes[ref], color = color)),
             )
             if (ref == followedRef) return@collect
             followedRef = ref

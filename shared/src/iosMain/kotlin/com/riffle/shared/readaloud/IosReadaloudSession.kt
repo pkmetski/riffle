@@ -281,10 +281,9 @@ internal class IosReadaloudSession(
      * timeline.  Used when the audiobook player hands off to readaloud ("Switch to Read Aloud").
      */
     suspend fun startReadaloudAtSecond(globalSec: Double) {
-        _readaloudOpen.value = true
         val bundlePath = bundleReader.bundlePath(sourceId, itemId) ?: return
         val t = withContext(dispatchers.io) { bundleReader.readTrack(sourceId, itemId) } ?: return
-        if (!_readaloudOpen.value) return
+        _readaloudOpen.value = true
         track = t
         // Find the closest audio position for the given global second.
         val position = t.seekTarget(globalSec)

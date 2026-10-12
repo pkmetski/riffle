@@ -477,7 +477,6 @@ fun HomeScreen() {
                         onPlaylistAdvance = { _, _ -> },
                     )
                     is LibraryNav.ReaderDestination -> {
-                        val libraryObserver = koinInject<LibraryObserver>()
                         ReaderHost(
                             destination = current,
                             onBack = ::rifflePop,
