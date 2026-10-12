@@ -156,7 +156,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 scope.launch { runCatching { coordinator.onChanged(locatorJson) } }
             }
         })
-        bridge.setTapCallback(object : IosPdfTapCallback {
+        bridge.setTapCallback(handler = object : IosPdfTapCallback {
             override fun onTap() {
                 chromeVisible = !chromeVisible
             }
@@ -176,7 +176,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     DisposableEffect(item.id) {
         onDispose {
             bridge.setPageChangeCallback(null)
-            bridge.setTapCallback(null)
+            bridge.setTapCallback(handler = null)
             val page = lastTrackedPage.takeIf { it > 0 } ?: bridge.currentPage()
             val count = totalPages.takeIf { it > 0 } ?: bridge.pageCount()
             if (page > 0 || count > 0) {

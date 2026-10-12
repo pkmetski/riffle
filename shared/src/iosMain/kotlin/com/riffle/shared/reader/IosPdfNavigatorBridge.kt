@@ -38,7 +38,7 @@ interface IosPdfNavigatorBridge {
     fun setPageChangeCallback(callback: IosPdfPageChangeCallback?)
 
     /** Register a callback invoked on a single tap on the PDF view. Pass null to clear. */
-    fun setTapCallback(callback: IosPdfTapCallback?)
+    fun setTapCallback(handler: IosPdfTapCallback?)
 
     /** Returns the PDF outline tree, or an empty list if the document has no outline. */
     fun outline(): List<PdfOutlineNode>

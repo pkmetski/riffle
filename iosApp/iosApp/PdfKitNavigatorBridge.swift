@@ -44,8 +44,8 @@ import Riffle
         pageChangeCallback = callback
     }
 
-    func setTapCallback(callback_: (any IosPdfTapCallback)?) {
-        tapCallback = callback_
+    func setTapCallback(handler: (any IosPdfTapCallback)?) {
+        tapCallback = handler
     }
 
     func outline() -> [PdfOutlineNode] {
@@ -65,8 +65,8 @@ import Riffle
 
     private func buildOutlineNodes(from node: PDFOutline) -> [PdfOutlineNode] {
         var result: [PdfOutlineNode] = []
-        for i in 0..<node.numberOfChildren {
-            guard let child = node.child(at: i) else { continue }
+        for idx in 0..<node.numberOfChildren {
+            guard let child = node.child(at: idx) else { continue }
             guard let destination = child.destination,
                   let page = destination.page,
                   let document = pdfViewController.pdfDocument else { continue }
