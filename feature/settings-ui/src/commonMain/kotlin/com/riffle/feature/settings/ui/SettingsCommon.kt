@@ -77,7 +77,6 @@ internal fun DrillInChevron() {
 internal enum class SettingsPanel {
     Formatting,
     Display,
-    Behavior,
     AutoScroll,
     Cadence,
     Listening,

@@ -100,6 +100,10 @@ internal fun NavGraphBuilder.settingsNavGraph(
             onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
             onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
             onNavigateToChangelog = { navController.navigate(CHANGELOG) },
+            onNavigateToReadaloudMatches = { sourceId ->
+                val encoded = URLEncoder.encode(sourceId, "UTF-8")
+                navController.navigate("readaloud_matches/$encoded")
+            },
             platformHooks = platformHooks,
         )
     }
