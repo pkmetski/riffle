@@ -25,8 +25,10 @@ abstract class TimestampedPositionStore<P>(
     protected open fun now(): Long = clock.nowMs()
 
     protected abstract suspend fun writePayload(sourceId: String, itemId: String, payload: P, updatedAt: Long)
+
     /** Overwrite the row with [payload] and set BOTH `localUpdatedAt` and `lastSyncedAt` to [stamp]. */
     protected abstract suspend fun writeCleanAtStamp(sourceId: String, itemId: String, payload: P, stamp: Long)
+
     /** Set BOTH `localUpdatedAt` and `lastSyncedAt` to [stamp] without touching the payload. */
     protected abstract suspend fun writeStampsOnly(sourceId: String, itemId: String, stamp: Long)
     protected abstract suspend fun readPayload(sourceId: String, itemId: String): P?

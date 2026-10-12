@@ -2,8 +2,8 @@ package com.riffle.core.data.localfiles
 
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
-import com.riffle.core.models.SourceType
 import com.riffle.core.logging.NoopLogger
+import com.riffle.core.models.SourceType
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -91,14 +91,19 @@ class LocalFilesSourceInstallerTest {
 
         override fun observeAll(): Flow<List<SourceEntity>> = flowOf(rows.values.toList())
         override suspend fun getActive(): SourceEntity? = rows.values.firstOrNull { it.isActive }
-        override suspend fun upsert(source: SourceEntity) { rows[source.id] = source }
+        override suspend fun upsert(source: SourceEntity) {
+            rows[source.id] = source
+        }
         override suspend fun clearActiveFlag() {
             for ((id, entity) in rows.toMap()) rows[id] = entity.copy(isActive = false)
         }
         override suspend fun setActive(id: String) {
             rows[id]?.let { rows[id] = it.copy(isActive = true) }
         }
-        override suspend fun setActiveAtomic(id: String) { clearActiveFlag(); setActive(id) }
+        override suspend fun setActiveAtomic(id: String) {
+            clearActiveFlag()
+            setActive(id)
+        }
         override suspend fun upsertAsFirstIfNoActive(source: SourceEntity): SourceEntity {
             val toInsert = source.copy(isActive = getActive() == null)
             upsert(toInsert)
@@ -107,7 +112,9 @@ class LocalFilesSourceInstallerTest {
         override suspend fun getById(id: String): SourceEntity? = rows[id]
         override suspend fun getByType(type: String): SourceEntity? =
             rows.values.firstOrNull { it.type == type }
-        override suspend fun deleteById(id: String) { rows.remove(id) }
+        override suspend fun deleteById(id: String) {
+            rows.remove(id)
+        }
         override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
         override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
         override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit

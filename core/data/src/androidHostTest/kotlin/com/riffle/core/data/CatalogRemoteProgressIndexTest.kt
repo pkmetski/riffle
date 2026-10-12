@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
-import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadingPositionDao
@@ -9,6 +9,7 @@ import com.riffle.core.database.ReadingPositionEntity
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.Source
@@ -16,7 +17,6 @@ import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.sources.webdav.EnumeratedProgress
 import com.riffle.core.sources.webdav.WebDavProgressEnumerator
-import com.riffle.core.domain.DefaultDispatcherProvider
 import io.ktor.client.HttpClient
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -199,8 +199,8 @@ class CatalogRemoteProgressIndexTest {
         // book/12073 was once synced (lastSyncedAt=100>0) but has no file on the server.
         // The reconciler's re-sync branch will push it back; the index must surface it.
         val idx = makeIndex(
-            ebookSafeIds = emptyList(),         // PROPFIND returns nothing
-            localEbookIds = listOf("book/12073-title"),  // local row with lastSyncedAt=100>0
+            ebookSafeIds = emptyList(), // PROPFIND returns nothing
+            localEbookIds = listOf("book/12073-title"), // local row with lastSyncedAt=100>0
         )
         assertEquals(listOf("book/12073-title"), idx.remoteEbookItems(chitankaSourceId))
     }

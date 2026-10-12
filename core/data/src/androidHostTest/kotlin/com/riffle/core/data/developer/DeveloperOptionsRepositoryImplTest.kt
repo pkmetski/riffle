@@ -75,5 +75,7 @@ class DeveloperOptionsRepositoryImplTest {
 private class InMemoryPatStore : PatStore {
     private var value: String? = null
     override fun get(): String? = value
-    override fun set(pat: String?) { value = pat }
+    override fun set(pat: String?) {
+        value = pat
+    }
 }

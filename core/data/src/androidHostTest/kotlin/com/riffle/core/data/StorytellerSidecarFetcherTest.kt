@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
 import com.riffle.core.network.NetworkResult
-
 import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleStream
 import kotlinx.coroutines.test.runTest
@@ -85,14 +84,18 @@ class StorytellerSidecarFetcherTest {
     fun `non-standard ordering — SMIL after audio is captured via full-download fallback`() = runTest {
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(nonStandardBundle),
-                ))
+                NetworkResult.Success(
+                    StorytellerBundleStream(
+                        ByteArrayInputStream(nonStandardBundle),
+                    )
+                )
             },
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(nonStandardBundle),
-                ))
+                NetworkResult.Success(
+                    StorytellerBundleStream(
+                        ByteArrayInputStream(nonStandardBundle),
+                    )
+                )
             },
         ).fetch("http://st", "42", "tok", false)
 
@@ -110,14 +113,18 @@ class StorytellerSidecarFetcherTest {
         // ZipFile confirms no SMIL exists anywhere → definitively unaligned.
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(smilLessBundle),
-                ))
+                NetworkResult.Success(
+                    StorytellerBundleStream(
+                        ByteArrayInputStream(smilLessBundle),
+                    )
+                )
             },
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(smilLessBundle),
-                ))
+                NetworkResult.Success(
+                    StorytellerBundleStream(
+                        ByteArrayInputStream(smilLessBundle),
+                    )
+                )
             },
         ).fetch("http://st", "42", "tok", false)
 
@@ -136,7 +143,8 @@ class StorytellerSidecarFetcherTest {
     }
 
     private class CountingInputStream(stream: InputStream) : FilterInputStream(stream) {
-        var bytesRead = 0L; private set
+        var bytesRead = 0L
+            private set
         override fun read(): Int = super.read().also { if (it >= 0) bytesRead++ }
         override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) bytesRead += it }
     }
@@ -144,7 +152,11 @@ class StorytellerSidecarFetcherTest {
     private fun zipOf(vararg entries: Pair<String, ByteArray>): ByteArray {
         val bos = ByteArrayOutputStream()
         ZipOutputStream(bos).use { zos ->
-            for ((name, bytes) in entries) { zos.putNextEntry(ZipEntry(name)); zos.write(bytes); zos.closeEntry() }
+            for ((name, bytes) in entries) {
+                zos.putNextEntry(ZipEntry(name))
+                zos.write(bytes)
+                zos.closeEntry()
+            }
         }
         return bos.toByteArray()
     }
@@ -153,7 +165,10 @@ class StorytellerSidecarFetcherTest {
         val names = mutableSetOf<String>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zis ->
             var e = zis.nextEntry
-            while (e != null) { names += e.name; e = zis.nextEntry }
+            while (e != null) {
+                names += e.name
+                e = zis.nextEntry
+            }
         }
         return names
     }

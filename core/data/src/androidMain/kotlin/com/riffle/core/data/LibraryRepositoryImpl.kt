@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.common.Clock
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
@@ -13,20 +13,20 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
-import com.riffle.core.common.Clock
-import com.riffle.core.models.Collection
-import com.riffle.core.models.EbookFormat
-import com.riffle.core.models.Library
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
-import com.riffle.core.models.Series
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.logging.LogChannel
-import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.logging.Logger
+import com.riffle.core.models.Collection
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.Series
+import com.riffle.core.sync.DirtyProgressLedger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -58,8 +58,11 @@ class LibraryRepositoryImpl constructor(
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
             .flatMapLatest { sourceId ->
-                if (sourceId == null) flowOf(emptyList())
-                else libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
+                if (sourceId == null) {
+                    flowOf(emptyList())
+                } else {
+                    libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
+                }
             }
 
     override fun observeLibraries(sourceId: String): Flow<List<Library>> =
@@ -81,8 +84,11 @@ class LibraryRepositoryImpl constructor(
         query: (String) -> Flow<List<LibraryItemEntity>>,
     ): Flow<List<LibraryItem>> =
         activeServerId.flatMapLatest { sourceId ->
-            if (sourceId == null) flowOf(emptyList())
-            else query(sourceId).map { list -> list.map { it.toDomain() } }
+            if (sourceId == null) {
+                flowOf(emptyList())
+            } else {
+                query(sourceId).map { list -> list.map { it.toDomain() } }
+            }
         }
 
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
@@ -146,8 +152,11 @@ class LibraryRepositoryImpl constructor(
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
             .flatMapLatest { sourceId ->
-                if (sourceId == null) flowOf(null)
-                else libraryItemDao.observeById(sourceId, itemId).map { it?.toDomain() }
+                if (sourceId == null) {
+                    flowOf(null)
+                } else {
+                    libraryItemDao.observeById(sourceId, itemId).map { it?.toDomain() }
+                }
             }
 
     override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? =
@@ -314,8 +323,10 @@ class LibraryRepositoryImpl constructor(
             // supersedes the older `lastOpenedAt == null` gate (#528): "opened locally" is not
             // proof of a pending local edit; only a dirty position row is.
             val dirtyIds =
-                (dirtyProgressLedger.dirtyEbookItems(source.id) +
-                    dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
+                (
+                    dirtyProgressLedger.dirtyEbookItems(source.id) +
+                        dirtyProgressLedger.dirtyAudioItems(source.id)
+                    ).toSet()
             for (item in items) {
                 if (item.id in dirtyIds) continue
                 val sp = serverProgressMap[item.id] ?: continue
@@ -346,8 +357,10 @@ class LibraryRepositoryImpl constructor(
         val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
         if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
         val progressPeer = catalog as? ProgressPeerCapability ?: return LibraryRefreshResult.Success
-        val dirty = (dirtyProgressLedger.dirtyEbookItems(source.id) +
-            dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
+        val dirty = (
+            dirtyProgressLedger.dirtyEbookItems(source.id) +
+                dirtyProgressLedger.dirtyAudioItems(source.id)
+            ).toSet()
         if (itemId in dirty) return LibraryRefreshResult.Success
         val sp = try {
             progressPeer.pullProgress(itemId)
@@ -470,5 +483,4 @@ class LibraryRepositoryImpl constructor(
         com.riffle.core.catalog.BookFormat.Audiobook -> EbookFormat.Unsupported
         com.riffle.core.catalog.BookFormat.Unsupported -> EbookFormat.Unsupported
     }
-
 }

@@ -3,10 +3,10 @@ package com.riffle.core.data
 import android.content.Context
 import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AppUpdateRepository
-import com.riffle.core.domain.ReleaseCandidate
 import com.riffle.core.domain.AppUpdateVersions
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.ReleaseCandidate
 import com.riffle.core.domain.ReleaseInfo
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState

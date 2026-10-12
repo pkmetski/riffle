@@ -3,8 +3,8 @@ package com.riffle.core.data
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.core.models.AudiobookTrackSpan
 
 /**
  * Maps a bundle's Media Overlay [ReadaloudTrack] to a playable [AudiobookSession]: one span per

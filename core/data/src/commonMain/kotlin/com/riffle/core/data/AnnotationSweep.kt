@@ -86,8 +86,10 @@ class AnnotationSweep(
         val outcome: CycleOutcome = try {
             val deviceId = deviceIdStore.getOrCreate()
             for ((sourceId, itemId) in dirtyLedger.dirtySourceItems()) {
-                val namespace = (sourceRepository.ensureSyncNamespace(sourceId)
-                    as? SyncNamespace.Configured)?.value ?: continue
+                val namespace = (
+                    sourceRepository.ensureSyncNamespace(sourceId)
+                        as? SyncNamespace.Configured
+                    )?.value ?: continue
                 val bookTitle = bookTitleProvider(sourceId, itemId)
                 // Hold the per-book lock across the read-then-write so the live
                 // [AnnotationSyncController] cannot interleave on the same device file

@@ -33,11 +33,14 @@ class AudiobookBookmarkStoreImplTest {
             rows.map { list -> list.count { it.sourceId == sourceId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt } }
         override suspend fun confirmPushedIfUnchanged(id: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
         override suspend fun hardDeleteIfUnchanged(id: String, ifLocalUpdatedAt: Long) = 0
-        override suspend fun hardDelete(id: String) { rows.value = rows.value.filterNot { it.id == id } }
+        override suspend fun hardDelete(id: String) {
+            rows.value = rows.value.filterNot { it.id == id }
+        }
     }
 
     @Test fun addCreatesDirtyRow() = runTest {
-        val dao = FakeDao(); val store = AudiobookBookmarkStoreImpl(dao)
+        val dao = FakeDao()
+        val store = AudiobookBookmarkStoreImpl(dao)
         val id = store.add("s1", "i1", 765.0, "The Egg · 12:45", now = 1000L)
         val row = dao.getById(id)!!
         assertEquals(765.0, row.positionSec, 0.0001)
@@ -48,27 +51,33 @@ class AudiobookBookmarkStoreImplTest {
     }
 
     @Test fun renameBumpsDirtyStamp() = runTest {
-        val dao = FakeDao(); val store = AudiobookBookmarkStoreImpl(dao)
+        val dao = FakeDao()
+        val store = AudiobookBookmarkStoreImpl(dao)
         val id = store.add("s1", "i1", 10.0, "old", now = 1000L)
         store.rename(id, "new", now = 2000L)
         val row = dao.getById(id)!!
-        assertEquals("new", row.title); assertEquals(2000L, row.localUpdatedAt)
+        assertEquals("new", row.title)
+        assertEquals(2000L, row.localUpdatedAt)
         assertTrue(row.localUpdatedAt > row.lastSyncedAt)
     }
 
     @Test fun deleteTombstonesNotHardRemoves() = runTest {
-        val dao = FakeDao(); val store = AudiobookBookmarkStoreImpl(dao)
+        val dao = FakeDao()
+        val store = AudiobookBookmarkStoreImpl(dao)
         val id = store.add("s1", "i1", 10.0, "x", now = 1000L)
         store.delete(id, now = 3000L)
         val row = dao.getById(id)!!
-        assertEquals(true, row.deleted); assertEquals(3000L, row.localUpdatedAt)
+        assertEquals(true, row.deleted)
+        assertEquals(3000L, row.localUpdatedAt)
         assertTrue(row.localUpdatedAt > row.lastSyncedAt, "tombstone must be dirty")
     }
 
     @Test fun observeMapsToDomain() = runTest {
-        val dao = FakeDao(); val store = AudiobookBookmarkStoreImpl(dao)
+        val dao = FakeDao()
+        val store = AudiobookBookmarkStoreImpl(dao)
         store.add("s1", "i1", 10.0, "a", now = 1000L)
         val list = store.observe("s1", "i1").first()
-        assertEquals(1, list.size); assertEquals("a", list[0].title)
+        assertEquals(1, list.size)
+        assertEquals("a", list[0].title)
     }
 }

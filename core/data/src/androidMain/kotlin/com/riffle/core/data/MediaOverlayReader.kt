@@ -44,7 +44,10 @@ object MediaOverlayReader {
     /** Opens a stream for an audio resource named by its full zip-internal path. */
     fun openAudio(epub: File, audioPath: String): InputStream? {
         val zip = ZipFile(epub)
-        val entry = zip.getEntry(audioPath) ?: run { zip.close(); return null }
+        val entry = zip.getEntry(audioPath) ?: run {
+            zip.close()
+            return null
+        }
         // The caller closes the returned stream; closing it closes the ZipFile too.
         return ClosingInputStream(zip.getInputStream(entry), zip)
     }

@@ -13,7 +13,9 @@ import kotlin.test.assertEquals
 private class FakePreferenceStore<T>(initial: T) : PreferenceStore<T> {
     private val _state = MutableStateFlow(initial)
     override val flow: Flow<T> = _state
-    override suspend fun update(value: T) { _state.value = value }
+    override suspend fun update(value: T) {
+        _state.value = value
+    }
 }
 
 class PreferenceBackedStoresTest {

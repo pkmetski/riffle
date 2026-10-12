@@ -15,7 +15,9 @@ class ReadaloudResumeStoreTest {
     private class FakeReadaloudResumePositionDao : ReadaloudResumePositionDao {
         private val entities: MutableMap<Pair<String, String>, ReadaloudResumePositionEntity> = mutableMapOf()
         val store: Map<Pair<String, String>, ReadaloudResumePositionEntity> get() = entities
-        fun seed(entity: ReadaloudResumePositionEntity) { entities[entity.sourceId to entity.itemId] = entity }
+        fun seed(entity: ReadaloudResumePositionEntity) {
+            entities[entity.sourceId to entity.itemId] = entity
+        }
         override suspend fun upsert(entity: ReadaloudResumePositionEntity) {
             entities[entity.sourceId to entity.itemId] = entity
         }

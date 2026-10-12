@@ -1,11 +1,8 @@
 package com.riffle.core.data
 
-import com.riffle.core.sources.webdav.AnnotationSyncException
-import com.riffle.core.sync.AnnotationSyncStatusStore
-import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -13,6 +10,9 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
+import com.riffle.core.sources.webdav.AnnotationSyncException
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
@@ -312,8 +312,11 @@ class AnnotationSyncControllerLifecycleTest {
         advanceUntilIdle()
 
         assertTrue("expected no write when local is empty, got ${target.writes}", target.writes.isEmpty())
-        assertTrue("must not DELETE either — Room-already-empty is not a sweep transition, " +
-            "got ${target.deletes}", target.deletes.isEmpty())
+        assertTrue(
+            "must not DELETE either — Room-already-empty is not a sweep transition, " +
+                "got ${target.deletes}",
+            target.deletes.isEmpty()
+        )
     }
 
     // ===== ADR 0045 — tomb sweep + empty-file DELETE =====
@@ -322,7 +325,7 @@ class AnnotationSyncControllerLifecycleTest {
     fun `pushPending sweeps aged synced tombstones before deciding what to write`() = runTest {
         // now = 1_000_000. TTL = 90 days ≈ 7.776e9 ms — so any updatedAt < now-TTL is aged.
         // We set clock to a value >> TTL so a tomb with updatedAt=1 is aged.
-        val nowMs = 100L * 24L * 60L * 60L * 1000L  // 100 days
+        val nowMs = 100L * 24L * 60L * 60L * 1000L // 100 days
         val agedTombSyncedAt = 1L
         // Aged + synced tomb → should be purged by sweep.
         dao.localAnnotations += highlightEntity("tomb-aged", updatedAt = 1L, deleted = true)
@@ -350,8 +353,10 @@ class AnnotationSyncControllerLifecycleTest {
 
         val payload = target.writes.single().content
         val ids = AnnotationW3CCodec.w3cFileToAnnotations(payload).map { it.id }.toSet()
-        assertEquals("unsynced tomb must survive sweep and reach the file",
-            setOf("tomb-unsynced"), ids)
+        assertEquals(
+            "unsynced tomb must survive sweep and reach the file",
+            setOf("tomb-unsynced"), ids
+        )
     }
 
     @Test
@@ -406,8 +411,10 @@ class AnnotationSyncControllerLifecycleTest {
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
         val delete = target.deletes.singleOrNull { it.filename == ownFile }
-        assertTrue("expected own-file DELETE fired from syncOnOpen sweep, got ${target.deletes}",
-            delete != null)
+        assertTrue(
+            "expected own-file DELETE fired from syncOnOpen sweep, got ${target.deletes}",
+            delete != null
+        )
         assertEquals(NS, delete!!.namespace)
         assertEquals(ITEM, delete.itemId)
     }
@@ -425,8 +432,10 @@ class AnnotationSyncControllerLifecycleTest {
 
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
-        assertTrue("must not DELETE when own file isn't present, got ${target.deletes}",
-            target.deletes.none { it.filename == "annotations-$DEVICE_ID.jsonld" })
+        assertTrue(
+            "must not DELETE when own file isn't present, got ${target.deletes}",
+            target.deletes.none { it.filename == "annotations-$DEVICE_ID.jsonld" }
+        )
     }
 
     @Test
@@ -448,17 +457,23 @@ class AnnotationSyncControllerLifecycleTest {
 
         // Room must still hold the aged tomb — the sweep was NOT committed because DELETE threw.
         val stillHasTomb = dao.localAnnotations.any { it.id == "tomb-aged" && it.deleted }
-        assertTrue("aged tomb must remain in Room when DELETE fails so retry sees the transition",
-            stillHasTomb)
+        assertTrue(
+            "aged tomb must remain in Room when DELETE fails so retry sees the transition",
+            stillHasTomb
+        )
 
         // Clear the fault; the next syncOnOpen must retry the DELETE and succeed.
         target.deleteException = null
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
-        assertTrue("second attempt must actually DELETE the file",
-            target.deletes.any { it.filename == ownFile })
-        assertTrue("second attempt must finally purge the tomb from Room",
-            dao.localAnnotations.none { it.id == "tomb-aged" })
+        assertTrue(
+            "second attempt must actually DELETE the file",
+            target.deletes.any { it.filename == ownFile }
+        )
+        assertTrue(
+            "second attempt must finally purge the tomb from Room",
+            dao.localAnnotations.none { it.id == "tomb-aged" }
+        )
     }
 
     @Test
@@ -472,8 +487,10 @@ class AnnotationSyncControllerLifecycleTest {
 
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
-        assertTrue("stale orphan must not be upserted — resurrection blocked, got ${dao.upserts}",
-            dao.upserts.none { it.id == "uuid-ghost" })
+        assertTrue(
+            "stale orphan must not be upserted — resurrection blocked, got ${dao.upserts}",
+            dao.upserts.none { it.id == "uuid-ghost" }
+        )
     }
 
     @Test
@@ -990,7 +1007,9 @@ class AnnotationSyncControllerLifecycleTest {
 
     private class RecordingEnqueuer : AnnotationSweepEnqueuer {
         var enqueueCalls = 0
-        override fun enqueue() { enqueueCalls++ }
+        override fun enqueue() {
+            enqueueCalls++
+        }
     }
 
     private companion object {
@@ -1071,8 +1090,12 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
     override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> =
         localAnnotations.filter { it.sourceId == sourceId && it.itemId == itemId }
 
-    override suspend fun upsert(entity: AnnotationEntity) { upserts += entity }
-    override suspend fun upsertAll(annotations: List<AnnotationEntity>) { upserts += annotations }
+    override suspend fun upsert(entity: AnnotationEntity) {
+        upserts += entity
+    }
+    override suspend fun upsertAll(annotations: List<AnnotationEntity>) {
+        upserts += annotations
+    }
 
     override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
@@ -1147,7 +1170,6 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
         updatedAt: Long,
         deviceId: String,
     ): Int = 0
-
 
     override fun observeBooksWithHighlights(sourceId: String) =
         kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())

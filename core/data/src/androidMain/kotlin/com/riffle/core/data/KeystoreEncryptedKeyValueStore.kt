@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
-import com.riffle.core.common.EncryptedKeyValueStore
 import androidx.security.crypto.MasterKeys
+import com.riffle.core.common.EncryptedKeyValueStore
 
 /**
  * Android-Keystore-backed [EncryptedKeyValueStore] used for credentials such as the

@@ -1,15 +1,15 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.DirtySourceItem
-import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
+import com.riffle.core.sync.AnnotationSyncStatusStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
