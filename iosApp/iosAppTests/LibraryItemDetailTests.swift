@@ -49,6 +49,45 @@ final class LibraryItemDetailTests: AbsHarnessTestCase {
         XCTAssertFalse(stillPresent, "Back button must dismiss the item detail screen")
     }
 
+    // MARK: - Localisation — TOC row (issue #1220)
+
+    /// Regression for issue #1220: on a Bulgarian device the TOC row showed "9 sections" in English
+    /// instead of the translated "9 раздела". Root cause: Info.plist lacked CFBundleLocalizations so
+    /// NSBundle.main.preferredLocalizations always returned "en"; Compose Multiplatform then loaded
+    /// the default (English) strings regardless of the system language.
+    ///
+    /// Fix: add CFBundleLocalizations to Info.plist. This test verifies the fix by launching the app
+    /// with Bulgarian locale arguments and asserting the translated string appears on the item detail.
+    func testTocRowShownInBulgarianWhenLocaleIsBulgarian() throws {
+        // Terminate the default English app and relaunch with Bulgarian locale so CMP picks
+        // values-bg/strings.xml instead of the default English strings.
+        app.terminate()
+        let bgApp = XCUIApplication()
+        bgApp.launchArguments += [
+            "--RIFFLE_RESET_FOR_TESTS",
+            seedSourceArgument(type: "ABS", url: absServer.baseUrl, username: "testuser", password: "test"),
+            "-AppleLanguages", "(bg)",
+            "-AppleLocale", "bg_BG",
+        ]
+        bgApp.launch()
+        waitForSeededLibraryHome(in: bgApp, sourceName: "Audiobookshelf")
+
+        // Navigate to the EPUB item detail — the stub serves test.epub which has 9 TOC entries.
+        let tile = bgApp.buttons[StubAbsServer.testItemTitle].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 30), "Cover tile for the EPUB test item must appear")
+        tile.tap()
+
+        let readButton = bgApp.buttons["book_detail_open"].firstMatch
+        XCTAssertTrue(readButton.waitForExistence(timeout: 15), "Read button must appear on the EPUB item detail")
+
+        // The translated string is "%1$d раздела" so "9 раздела" must be visible.
+        // If Info.plist is missing CFBundleLocalizations this would show "9 sections" instead.
+        let tocLabel = bgApp.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "раздела")).firstMatch
+        XCTAssertTrue(tocLabel.exists, "TOC row must show Bulgarian text ('раздела') on a Bulgarian locale, not English 'sections'")
+
+        bgApp.terminate()
+    }
+
     // MARK: - Audiobook item detail
 
     /// Verifies gap 4.1 from issue #1145: the Listen button was missing on iOS.

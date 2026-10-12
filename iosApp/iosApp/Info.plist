@@ -13,6 +13,15 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- Declare every language whose translations are bundled in composeResources so that
+	     NSBundle.main.preferredLocalizations returns the user's actual language when it is
+	     one of these — otherwise iOS falls back to the development language (English) and
+	     Compose Multiplatform loads English strings on non-English devices. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>bg</string>
+		<string>es</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Riffle</string>
 	<key>CFBundleExecutable</key>
