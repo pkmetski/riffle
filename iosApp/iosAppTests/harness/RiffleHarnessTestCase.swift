@@ -218,11 +218,16 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
     // The first tap may have been swallowed (reader still visible), or the reader may have popped
     // to item-detail which itself needs one more back to reach library home (two-level nav).
     // Re-query with a fresh reference and a settle wait to cover both scenarios reliably.
+    // 20 s for the retry button: under heavy CI clone load the ItemDetail screen can take longer
+    // than 5 s to settle after the reader pops — and if the button isn't found, the second back
+    // never fires, leaving us on the reader and the final 90 s wait also times out.
     let retryBack = app.buttons.matching(
         NSPredicate(format: "label == '← Back' OR label == 'Back'")
     ).firstMatch
-    if retryBack.waitForExistence(timeout: 5) { retryBack.tap() }
-    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 45),
+    if retryBack.waitForExistence(timeout: 20) { retryBack.tap() }
+    // 90 s: two-level navigation (reader → ItemDetail → library) under CI clone contention can
+    // take well past 45 s for the library home sections to render after the second back tap.
+    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 90),
                   "Tapping back from the reader should return to library home", file: file, line: line)
 }
 
