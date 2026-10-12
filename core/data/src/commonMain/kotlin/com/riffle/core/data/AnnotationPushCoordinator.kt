@@ -1,14 +1,14 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.toFailedCycleOutcome
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.models.AnnotationFileHeader
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.models.AnnotationFileHeader
 import com.riffle.core.sync.AnnotationLockPort
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
-import com.riffle.core.data.toFailedCycleOutcome
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -134,5 +134,4 @@ internal class AnnotationPushCoordinator(
         statusStore.report(CycleOutcome.Success(now))
         return true
     }
-
 }

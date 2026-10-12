@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
-import com.riffle.core.catalog.CatalogCollection
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth

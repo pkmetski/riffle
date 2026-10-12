@@ -22,6 +22,7 @@ import com.riffle.core.data.IosDeviceLabelResolver
 import com.riffle.core.data.IosDeviceLabelStoreImpl
 import com.riffle.core.data.IosFileStore
 import com.riffle.core.data.IosFormattingPreferencesStoreImpl
+import com.riffle.core.data.IosHighlightsResumeStore
 import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
@@ -72,6 +73,7 @@ import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryOrderPreferencesStore
@@ -130,6 +132,7 @@ val iosDataModule = module {
     single<OpenInImporter> { SharedOpenInImporter(importsFolder = get(), installer = get()) }
     single { OpenInImportFeed() }
     single<DeviceIdStore> { IosDeviceIdStoreImpl() }
+    single<HighlightsResumeStore> { IosHighlightsResumeStore() }
     single<ColorPageDecoder> { IosColorPageDecoder() }
     single<PageImageDecoder> { IosPageImageDecoder() }
     single<PanelStore> { InMemoryPanelStore() }

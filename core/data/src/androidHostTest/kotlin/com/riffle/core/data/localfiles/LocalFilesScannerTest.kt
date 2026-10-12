@@ -1,5 +1,6 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.common.Clock
 import com.riffle.core.data.FakeLibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
@@ -7,7 +8,6 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.common.Clock
 import com.riffle.core.domain.NoOpPdfMetadataExtractor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -225,7 +225,7 @@ class LocalFilesScannerTest {
         h.configureFolder("f1", files = listOf(sharedFile("content://f1/shared.epub")))
         h.configureFolder("f2", files = listOf(sharedFile("content://f2/shared.epub")))
         val first = h.scanner.scan(sourceId)
-        assertEquals(1, first.added)     // same identity hash ⇒ one file row.
+        assertEquals(1, first.added) // same identity hash ⇒ one file row.
         assertEquals(1, first.refreshed) // touched again by folder f2's walk.
         assertEquals(1, h.files.rows.size)
         // Both folder-memberships are recorded — this is what makes the book appear in both
@@ -311,7 +311,9 @@ class LocalFilesScannerTest {
 
     private class MutableClock : Clock {
         private var t = 1_000L
-        fun advanceMs(by: Long) { t += by }
+        fun advanceMs(by: Long) {
+            t += by
+        }
         override fun nowMs(): Long = t
         override fun nowNs(): Long = t * 1_000_000
     }
@@ -395,7 +397,9 @@ class LocalFilesScannerTest {
             entries[treeUri] = files
             failing.remove(treeUri)
         }
-        fun throwFor(treeUri: String) { failing += treeUri }
+        fun throwFor(treeUri: String) {
+            failing += treeUri
+        }
         override suspend fun walk(treeUri: String): List<WalkedFile> {
             if (treeUri in failing) throw IllegalStateException("boom")
             return entries[treeUri].orEmpty()
@@ -461,12 +465,22 @@ private fun buildEpub(
     """.trimIndent()
     val out = ByteArrayOutputStream()
     ZipOutputStream(out).use { zip ->
-        zip.putNextEntry(ZipEntry("mimetype")); zip.write("application/epub+zip".toByteArray()); zip.closeEntry()
-        zip.putNextEntry(ZipEntry("META-INF/container.xml")); zip.write(container.toByteArray()); zip.closeEntry()
-        zip.putNextEntry(ZipEntry("OEBPS/content.opf")); zip.write(opf.toByteArray(Charsets.UTF_8)); zip.closeEntry()
-        zip.putNextEntry(ZipEntry("OEBPS/chap1.xhtml")); zip.write("<html/>".toByteArray()); zip.closeEntry()
+        zip.putNextEntry(ZipEntry("mimetype"))
+        zip.write("application/epub+zip".toByteArray())
+        zip.closeEntry()
+        zip.putNextEntry(ZipEntry("META-INF/container.xml"))
+        zip.write(container.toByteArray())
+        zip.closeEntry()
+        zip.putNextEntry(ZipEntry("OEBPS/content.opf"))
+        zip.write(opf.toByteArray(Charsets.UTF_8))
+        zip.closeEntry()
+        zip.putNextEntry(ZipEntry("OEBPS/chap1.xhtml"))
+        zip.write("<html/>".toByteArray())
+        zip.closeEntry()
         for ((name, bytes) in extraZipEntries) {
-            zip.putNextEntry(ZipEntry("OEBPS/$name")); zip.write(bytes); zip.closeEntry()
+            zip.putNextEntry(ZipEntry("OEBPS/$name"))
+            zip.write(bytes)
+            zip.closeEntry()
         }
     }
     return out.toByteArray()

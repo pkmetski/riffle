@@ -4,23 +4,23 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CatalogFileHandle
-import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
-import com.riffle.core.models.SourceType
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RemoteItemFreshnessEntity
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.TestClock
+import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.Series
-import com.riffle.core.domain.TestClock
-import com.riffle.core.logging.RecordingLogger
+import com.riffle.core.models.SourceType
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 

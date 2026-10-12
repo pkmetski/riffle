@@ -74,6 +74,7 @@ import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
+import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.settings.IosPlatformSettingsHooks
@@ -197,6 +198,7 @@ fun HomeScreen() {
         onServerSelected = { source ->
             scope.launch { drawerState.close() }
             appSection = AppSection.Library
+            activeLibraryId = null
             drawerViewModel.setActiveServer(source.id)
             scope.launch {
                 withTimeoutOrNull(5_000) {
@@ -388,6 +390,9 @@ fun HomeScreen() {
                         onOpenBook = { sourceId, itemId ->
                             rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                         },
+                        onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
+                            rifflePush(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
+                        },
                     )
                     is LibraryNav.SeriesDetail -> SeriesDetailScreen(
                         seriesId = current.seriesId,
@@ -406,6 +411,13 @@ fun HomeScreen() {
                             rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
                         },
                         onNavigateBack = ::rifflePop,
+                    )
+                    is LibraryNav.AudiobookBookmark -> AudiobookBookmarkLoader(
+                        itemId = current.itemId,
+                        sourceId = current.sourceId,
+                        startAtSec = current.startAtSec,
+                        onBack = ::rifflePop,
+                        onPlaylistAdvance = { _, _ -> },
                     )
                     is LibraryNav.ReaderDestination -> ReaderHost(
                         destination = current,
@@ -594,6 +606,9 @@ private fun LibraryHost(
             onOpenBook = { sourceId, itemId ->
                 push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
             },
+            onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
+                push(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
+            },
         )
         is LibraryNav.ElidedReader -> ElidedReaderLoader(
             itemId = current.itemId,
@@ -650,6 +665,13 @@ private fun LibraryHost(
             // AudiobookPlayerViewModel's end-of-book auto-advance reachable on iOS at all.
             onPlayItem = { item -> push(playlistPlayerNav(item, current)) },
         )
+        is LibraryNav.AudiobookBookmark -> AudiobookBookmarkLoader(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            startAtSec = current.startAtSec,
+            onBack = ::pop,
+            onPlaylistAdvance = { _, _ -> },
+        )
     }
 }
 
@@ -689,6 +711,52 @@ internal fun ElidedReaderLoader(
             onOpenInBook = onOpenInBook?.let { cb ->
                 { locatorJson -> cb(loadedItem, locatorJson) }
             },
+        )
+        loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(SharedRes.string.ui_book_not_found))
+        }
+        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
+}
+
+/**
+ * Loads a [LibraryItem] by [itemId]/[sourceId] and opens the audiobook player at [startAtSec].
+ *
+ * The audiobook bookmark search result only carries ids and a position — no [LibraryItem] — so this
+ * loader bridges the gap exactly as [ElidedReaderLoader] does for EPUB highlights. Once the item
+ * arrives it is pushed into [AudiobookPlayerScreen] with the bookmark position wired to `startAtSec`.
+ */
+@Composable
+internal fun AudiobookBookmarkLoader(
+    itemId: String,
+    sourceId: String?,
+    startAtSec: Float,
+    onBack: () -> Unit,
+    onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+) {
+    val libraryObserver = koinInject<LibraryObserver>()
+    var item by remember { mutableStateOf<LibraryItem?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(itemId, sourceId) {
+        item =
+            if (sourceId != null) {
+                libraryObserver.getItem(sourceId, itemId)
+            } else {
+                libraryObserver.getItem(itemId)
+            }
+        loaded = true
+    }
+    val loadedItem = item
+    when {
+        loadedItem != null -> AudiobookPlayerScreen(
+            item = loadedItem,
+            playlistId = null,
+            playlistLibraryId = null,
+            startAtSec = startAtSec,
+            onBack = onBack,
+            onPlaylistAdvance = onPlaylistAdvance,
         )
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(SharedRes.string.ui_book_not_found))
@@ -752,6 +820,7 @@ internal fun AnnotationSearchHost(
     destination: LibraryNav.AnnotationSearch,
     onBack: () -> Unit,
     onOpenBook: (sourceId: String, itemId: String) -> Unit,
+    onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Float) -> Unit,
 ) {
     val koin = getKoin()
     val key = "${destination.searchLibraryId}/${destination.query}"
@@ -765,7 +834,9 @@ internal fun AnnotationSearchHost(
         labels = annotationSearchLabels(),
         onNavigateBack = onBack,
         onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
-        onAudiobookBookmarkSelected = { result -> onOpenBook(result.bookmark.sourceId, result.bookmark.itemId) },
+        onAudiobookBookmarkSelected = { result ->
+            onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec.toFloat())
+        },
     )
 }
 

@@ -107,20 +107,26 @@ class ReadingSessionRepositoryImplTest {
     private class FakeAudiobookPositionStore : AudiobookPositionStore {
         val saved: MutableMap<Pair<String, String>, Double> = mutableMapOf()
         val syncedAt: MutableMap<Pair<String, String>, Long> = mutableMapOf()
-        override suspend fun save(sourceId: String, itemId: String, payload: Double) { saved[sourceId to itemId] = payload }
+        override suspend fun save(sourceId: String, itemId: String, payload: Double) {
+            saved[sourceId to itemId] = payload
+        }
         override suspend fun load(sourceId: String, itemId: String): Double? = saved[sourceId to itemId]
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
         override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) {}
-        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { syncedAt[sourceId to itemId] = stamp }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {
+            syncedAt[sourceId to itemId] = stamp
+        }
     }
 
     private class FakeReadaloudResumeStore : ReadaloudResumeStore {
         var cleared: Boolean = false
         override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) {}
         override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
-        override suspend fun clear(sourceId: String, itemId: String) { cleared = true }
+        override suspend fun clear(sourceId: String, itemId: String) {
+            cleared = true
+        }
     }
 
     /** Implements both Catalog and ProgressPeerCapability so the impl's `catalog as? ProgressPeerCapability` succeeds. */
@@ -198,6 +204,7 @@ class ReadingSessionRepositoryImplTest {
             readingProgressMap[itemId] = progress
         }
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
+
         // Stub all other abstract DAO methods
         override fun observeByLibraryId(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()
         override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> = emptyList()
@@ -481,6 +488,7 @@ class ReadingSessionRepositoryImplTest {
         assertEquals(1, peer.pushed.size, "real reading of a finished book must push its fraction")
         assertEquals(0.4f, peer.pushed.single().third)
     }
+
     @Test
     fun runSyncCycleWithholdsServerJumpForFinishedServerRecordWithoutLocation() = runTest {
         // Regression: mark-as-read leaves ABS with location="" + ebookProgress=1.0. Surfacing that
@@ -520,6 +528,7 @@ class ReadingSessionRepositoryImplTest {
         assertTrue(result is ProgressSyncCycleResult.ServerWins)
         assertEquals("locator-last-page", posStore.load("src-1", "item-1"))
     }
+
     @Test
     fun runSyncCycleStillSurfacesServerWinsForUnfinishedServerRecord() = runTest {
         val posStore = FakeReadingPositionStore().also {

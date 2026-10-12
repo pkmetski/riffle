@@ -67,7 +67,10 @@ class CatalogProgressRemoteFactoryTest {
         override suspend fun locatorJsonToCfi(locatorJson: String) = locatorResult(locatorJson)
     }
 
-    private val clock = object : Clock { override fun nowMs() = 1800L; override fun nowNs() = 0L }
+    private val clock = object : Clock {
+        override fun nowMs() = 1800L
+        override fun nowNs() = 0L
+    }
     private val locatorJson = """{"href":"OPS/ch1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.5}}"""
 
     private fun ebookRemote(peer: ProgressPeerCapability, translator: EbookCfiTranslator?, progress: Float = 0.5f) =
@@ -420,8 +423,12 @@ class CatalogProgressRemoteFactoryTest {
                 webDavBaseUrl?.let { com.riffle.core.domain.AnnotationSyncConfig(it, "user", "pass") }
             )
             override fun observe() = flow
-            override suspend fun save(config: com.riffle.core.domain.AnnotationSyncConfig) { flow.value = config }
-            override suspend fun clear() { flow.value = null }
+            override suspend fun save(config: com.riffle.core.domain.AnnotationSyncConfig) {
+                flow.value = config
+            }
+            override suspend fun clear() {
+                flow.value = null
+            }
         }
         val fakeSourceRepository = object : com.riffle.core.domain.SourceRepository {
             override fun observeAll() = kotlinx.coroutines.flow.flowOf(listOf(fakeSource))

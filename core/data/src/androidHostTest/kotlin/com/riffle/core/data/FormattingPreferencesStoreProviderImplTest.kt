@@ -4,8 +4,8 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlin.test.assertSame
 import kotlin.test.Test
+import kotlin.test.assertSame
 
 /**
  * Pins that FormattingPreferencesStoreProviderImpl returns the same store instance every time

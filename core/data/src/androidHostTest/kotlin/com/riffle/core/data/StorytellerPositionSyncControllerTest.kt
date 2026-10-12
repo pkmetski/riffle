@@ -1,17 +1,14 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-import com.riffle.core.network.StorytellerPosition
-
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.ServerType
-import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.StorytellerPosition
 import com.riffle.core.network.StorytellerPositionApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -26,13 +23,18 @@ class StorytellerPositionSyncControllerTest {
     private class FakePositionStore(var ts: Long) : ReadingPositionStore {
         var saved: String? = null
         var savedTs: Long? = null
-        override suspend fun save(sourceId: String, itemId: String, payload: String) { saved = payload }
+        override suspend fun save(sourceId: String, itemId: String, payload: String) {
+            saved = payload
+        }
         override suspend fun load(sourceId: String, itemId: String): String? = saved
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = ts
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = ts
         override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
         override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
-        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) { savedTs = millis; ts = millis }
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
+            savedTs = millis
+            ts = millis
+        }
     }
 
     private class FakePositionApi(
@@ -41,7 +43,8 @@ class StorytellerPositionSyncControllerTest {
         var putCount = 0
         override suspend fun getPosition(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean) = get
         override suspend fun putPosition(baseUrl: String, bookId: String, locatorJson: String, timestampMillis: Long, token: String, insecureAllowed: Boolean): NetworkResult<Unit> {
-            putCount++; return NetworkResult.Success(Unit)
+            putCount++
+            return NetworkResult.Success(Unit)
         }
     }
 

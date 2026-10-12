@@ -15,7 +15,10 @@ class LocalStoreMigratorTest {
     val tmp = TemporaryFolder()
 
     private fun writeFlat(dir: File, name: String, content: String): File =
-        dir.resolve(name).apply { parentFile?.mkdirs(); writeText(content) }
+        dir.resolve(name).apply {
+            parentFile?.mkdirs()
+            writeText(content)
+        }
 
     @Test
     fun migrate_relocatesFlatFilesUnderOwningServer() = runTest {
@@ -81,7 +84,10 @@ class LocalStoreMigratorTest {
         var resolverCalls = 0
         val migrator = LocalStoreMigrator(
             stores = listOf(epubDir to ".epub"),
-            resolveServerId = { resolverCalls++; "serverB" },
+            resolveServerId = {
+                resolverCalls++
+                "serverB"
+            },
             dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 

@@ -588,6 +588,16 @@ class AudiobookPlayerViewModel constructor(
         controller.stop()
     }
 
+    /**
+     * iOS-only: stops the audio controller immediately before the Koin factory creates a fresh
+     * bridge for the next playlist item. Without this, both AVQueuePlayers run simultaneously
+     * until [onCleared] fires — which may be several frames later on iOS since the old
+     * composition lingers.
+     */
+    fun stopPlayerBridgeForPlaylistAdvance() {
+        controller.stop()
+    }
+
     private fun clearAudiobookNowPlaying() {
         nowPlayingStore.clearIf { it is NowPlaying.Audiobook && it.sourceId == sourceId && it.itemId == itemId }
     }

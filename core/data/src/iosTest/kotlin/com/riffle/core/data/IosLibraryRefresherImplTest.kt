@@ -20,8 +20,6 @@ import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.database.LibraryItemMetadata
-import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
@@ -95,7 +93,12 @@ class IosLibraryRefresherImplTest {
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
+        override suspend fun <T> withFileStream(
+            itemId: String,
+            format: BookFormat,
+            handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck(): CatalogHealth = throw UnsupportedOperationException()
         override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long): Long? = null
         override suspend fun pullProgress(itemId: String): CatalogProgress = progress
@@ -113,7 +116,9 @@ class IosLibraryRefresherImplTest {
         val finishedAtUpdates = mutableListOf<Triple<String, String, Long?>>()
         private val rows = mutableMapOf<String, LibraryItemEntity>()
 
-        fun seed(entity: LibraryItemEntity) { rows[entity.id] = entity }
+        fun seed(entity: LibraryItemEntity) {
+            rows[entity.id] = entity
+        }
         fun getById(itemId: String): LibraryItemEntity? = rows[itemId]
 
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
@@ -181,12 +186,22 @@ class IosLibraryRefresherImplTest {
     private object NoopAbsLibraryApi : AbsLibraryApi {
         override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
             throw UnsupportedOperationException()
-        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-            throw UnsupportedOperationException()
+        override suspend fun getLibraryItems(
+            baseUrl: String,
+            libraryId: String,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<List<NetworkLibraryItem>> = throw UnsupportedOperationException()
+
         override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
             throw UnsupportedOperationException()
-        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
-            throw UnsupportedOperationException()
+
+        override suspend fun getCollections(
+            baseUrl: String,
+            libraryId: String,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<List<NetworkCollection>> = throw UnsupportedOperationException()
     }
 
     private object NoopKomgaLibraryApi : KomgaLibraryApi {

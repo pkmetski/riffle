@@ -23,8 +23,11 @@ class PanelViewPreferencesStoreImpl constructor(
 
     override suspend fun setPanelViewOn(bookId: String, on: Boolean) {
         dataStore.edit { prefs ->
-            if (on) prefs[toggleKey(bookId)] = true
-            else prefs.remove(toggleKey(bookId))
+            if (on) {
+                prefs[toggleKey(bookId)] = true
+            } else {
+                prefs.remove(toggleKey(bookId))
+            }
         }
     }
 

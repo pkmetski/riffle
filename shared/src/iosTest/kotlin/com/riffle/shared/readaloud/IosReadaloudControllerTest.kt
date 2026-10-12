@@ -225,6 +225,27 @@ class IosReadaloudControllerTest {
     }
 
     @Test
+    fun prepareAfterStopCallsPrepareAudioSrcsAgain() = runTest {
+        // Regression (#1208 Bug 1): IosReadaloudBridgeImpl.isDisposed was set to true on stop/dispose
+        // and never reset, so re-opening a readaloud session silently did nothing after the first stop.
+        // The controller must call prepareAudioSrcs() on every prepare() call — including after stop().
+        val bridge = FakeBridge()
+        val (controller) = prepared(bridge)
+        controller.stop()
+        val preparedCountAfterFirstStop = bridge.preparedUrls.size
+
+        // Re-prepare with the same track (simulates re-opening the same book)
+        controller.prepare("/tmp/bundle.zip", track, null, 0.0)
+        // prepareAudioSrcs must have been called again — if the bridge silently guards with
+        // isDisposed=true, preparedUrls would still be empty after the second prepare().
+        assertEquals(
+            listOf("file:///extracted/audio/ch01.mp3", "file:///extracted/audio/ch02.mp3"),
+            bridge.preparedUrls,
+            "prepare() after stop() must call prepareAudioSrcs() on the bridge again",
+        )
+    }
+
+    @Test
     fun prepareRegistersTrackOnHandoff() = runTest {
         val bridge = FakeBridge()
         val handoff = IosReadaloudHandoff()

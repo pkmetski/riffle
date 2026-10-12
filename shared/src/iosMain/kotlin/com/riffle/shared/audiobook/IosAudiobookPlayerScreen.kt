@@ -37,6 +37,7 @@ fun AudiobookPlayerScreen(
     item: LibraryItem,
     playlistId: String?,
     playlistLibraryId: String?,
+    startAtSec: Float = -1f,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
     onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
@@ -53,7 +54,7 @@ fun AudiobookPlayerScreen(
         // absent. Passing nothing would make `params.get(2)` throw for every non-playlist open.
         host.adopt(
             koin.get {
-                parametersOf(item.id, item.sourceId, playlistId.orEmpty(), playlistLibraryId.orEmpty())
+                parametersOf(item.id, item.sourceId, playlistId.orEmpty(), playlistLibraryId.orEmpty(), startAtSec)
             },
         )
     }
@@ -73,8 +74,13 @@ fun AudiobookPlayerScreen(
                 // Reachable since PlaylistDetailScreen's Play carries the playlist context in
                 // (#1072 §1). Same handling as Android's ReaderNavGraph: hop into the next
                 // item's player rather than closing.
-                is AudiobookPlayerEvent.PlaylistAdvance ->
+                is AudiobookPlayerEvent.PlaylistAdvance -> {
+                    // iOS creates a fresh AVQueuePlayer bridge for the next item, so the
+                    // outgoing bridge must be stopped here. Without this, both the old and new
+                    // players run simultaneously until the old VM's onCleared fires.
+                    vm.stopPlayerBridgeForPlaylistAdvance()
                     latestOnPlaylistAdvance.value(event.sourceId, event.nextItemId)
+                }
             }
         }
     }

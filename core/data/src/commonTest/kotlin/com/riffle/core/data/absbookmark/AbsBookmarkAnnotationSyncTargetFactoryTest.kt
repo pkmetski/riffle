@@ -66,9 +66,13 @@ class AbsBookmarkAnnotationSyncTargetFactoryTest {
 
 private class InMemoryTokenStorage : TokenStorage {
     val savedTokens: MutableMap<String, String> = mutableMapOf()
-    override suspend fun saveToken(sourceId: String, token: String) { savedTokens[sourceId] = token }
+    override suspend fun saveToken(sourceId: String, token: String) {
+        savedTokens[sourceId] = token
+    }
     override suspend fun getToken(sourceId: String): String? = savedTokens[sourceId]
-    override suspend fun deleteToken(sourceId: String) { savedTokens.remove(sourceId) }
+    override suspend fun deleteToken(sourceId: String) {
+        savedTokens.remove(sourceId)
+    }
 }
 
 private object NoopApi : AbsBookmarkApi {

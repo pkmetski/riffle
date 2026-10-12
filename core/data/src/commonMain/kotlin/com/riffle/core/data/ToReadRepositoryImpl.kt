@@ -9,9 +9,6 @@ import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 
 /**
  * In-memory To Read snapshot for a single library.
@@ -96,10 +93,12 @@ class ToReadRepositoryImpl constructor(
             return error !is CatalogException.Offline
         }
         val match = result.getOrNull()
-        cache.value = cache.value + (libraryId to ToReadSnapshot(
-            playlistId = match?.id,
-            itemIds = match?.itemIds?.toSet() ?: emptySet(),
-        ))
+        cache.value = cache.value + (
+            libraryId to ToReadSnapshot(
+                playlistId = match?.id,
+                itemIds = match?.itemIds?.toSet() ?: emptySet(),
+            )
+            )
         return true
     }
 
@@ -150,7 +149,10 @@ class ToReadRepositoryImpl constructor(
                 false
             }
         } else {
-            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse { addErr ->
+            runCatching {
+                cap.addItemToPlaylist(playlistId, libraryItemId)
+                true
+            }.getOrElse { addErr ->
                 logger.d(LogChannel.ToRead) { "addWithCap($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
                 runCatching {
                     val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
@@ -199,7 +201,10 @@ class ToReadRepositoryImpl constructor(
             before.copy(itemIds = remainingIds)
         }
         cache.value = cache.value + (libraryId to optimistic)
-        val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrElse {
+        val ok = runCatching {
+            cap.removeItemFromPlaylist(playlistId, libraryItemId)
+            true
+        }.getOrElse {
             logger.d(LogChannel.ToRead) { "removeWithCap($libraryId, $libraryItemId) failed: $it" }
             false
         }

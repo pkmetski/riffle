@@ -52,10 +52,16 @@ class ComicFormattingPreferencesStoreImpl constructor(
             } else {
                 data[PANEL_ANIMATION_SPEED_MS] = prefs.panelAnimationSpeedMs
             }
-            if (!prefs.showChapterMap) data.remove(SHOW_CHAPTER_MAP)
-            else data[SHOW_CHAPTER_MAP] = true
-            if (!prefs.showPageProgress) data.remove(SHOW_PAGE_PROGRESS)
-            else data[SHOW_PAGE_PROGRESS] = true
+            if (!prefs.showChapterMap) {
+                data.remove(SHOW_CHAPTER_MAP)
+            } else {
+                data[SHOW_CHAPTER_MAP] = true
+            }
+            if (!prefs.showPageProgress) {
+                data.remove(SHOW_PAGE_PROGRESS)
+            } else {
+                data[SHOW_PAGE_PROGRESS] = true
+            }
         }
     }
 

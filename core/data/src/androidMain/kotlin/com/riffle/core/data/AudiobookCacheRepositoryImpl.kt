@@ -1,9 +1,9 @@
 package com.riffle.core.data
 
 import com.riffle.core.data.AudiobookFilenames.MANIFEST
-import com.riffle.core.domain.JvmAudiobookCacheRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.JvmAudiobookCacheRepository
 import com.riffle.core.domain.LocalAvailabilityEvents
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
@@ -64,8 +64,11 @@ class AudiobookCacheRepositoryImpl constructor(
         try {
             val noop: (Long, Long) -> Unit = { _, _ -> }
             val progress = CumulativeDownloadProgress(0L, noop)
-            val interTrackDelay = if (minInterTrackDelayMs >= maxInterTrackDelayMs) minInterTrackDelayMs
-            else minInterTrackDelayMs + kotlin.random.Random.nextLong(maxInterTrackDelayMs - minInterTrackDelayMs + 1)
+            val interTrackDelay = if (minInterTrackDelayMs >= maxInterTrackDelayMs) {
+                minInterTrackDelayMs
+            } else {
+                minInterTrackDelayMs + kotlin.random.Random.nextLong(maxInterTrackDelayMs - minInterTrackDelayMs + 1)
+            }
             val manifestTracks = trackDownloader.download(downloadSession, dir, progress, interTrackDelay)
             val manifest = AudiobookDownloadManifest.from(session, manifestTracks)
             // Written last → atomic completion marker (same pattern as AudiobookDownloadRepositoryImpl).
