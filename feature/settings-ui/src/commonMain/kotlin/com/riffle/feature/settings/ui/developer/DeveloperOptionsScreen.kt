@@ -245,7 +245,7 @@ internal fun DiagnosticsSection(
                 trailingContent = {
                     Row {
                         if (onShareSingleCrashReport != null) {
-                            TextButton(onClick = { onShareSingleCrashReport(item, crashReportShareSubject(item.id), shareSingleTitle) }) {
+                            TextButton(onClick = { onShareSingleCrashReport(item, crashReportShareSubject(timestamp), shareSingleTitle) }) {
                                 Text(stringResource(Res.string.ui_share))
                             }
                         }

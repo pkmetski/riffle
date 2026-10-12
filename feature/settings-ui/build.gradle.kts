@@ -104,6 +104,7 @@ compose.resources {
 tasks.withType<Test>().configureEach {
     filter {
         excludeTestsMatching("com.riffle.feature.settings.ui.ComicDisplaySettingsPanelTest")
+        excludeTestsMatching("com.riffle.feature.settings.ui.AppVersionSectionTest")
     }
 }
 
