@@ -224,16 +224,36 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
     let retryBack = app.buttons.matching(
         NSPredicate(format: "label == '← Back' OR label == 'Back'")
     ).firstMatch
-    if retryBack.waitForExistence(timeout: 20) { retryBack.tap() }
-    // 90 s: two-level navigation (reader → ItemDetail → library) under CI clone contention can
-    // take well past 45 s for the library home sections to render after the second back tap.
-    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 90),
+    // 30 s: under CI clone memory pressure the ItemDetail screen can take >20 s to settle after
+    // the reader pops — if the button isn't found the second back never fires.
+    if retryBack.waitForExistence(timeout: 30) { retryBack.tap() }
+    // 120 s: two-level navigation (reader → ItemDetail → library) under CI clone contention.
+    // waitForLibraryHome now checks the burger button first (fast path, data-independent), so
+    // the full budget is rarely consumed; the cap guards against extreme load spikes.
+    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 120),
                   "Tapping back from the reader should return to library home", file: file, line: line)
 }
 
-// True once any library-home section header is on screen.
-// Uses BEGINSWITH so the count suffix added in #1140 ("In Progress (3)") still matches.
+// True once the app is back on the library home screen.
+//
+// Two-phase detection:
+// 1. Fast path: the "Open menu" burger button is part of the library's top-bar composition and
+//    appears as soon as the screen renders, well before the network response populates any section.
+//    Under CI clone memory pressure the section headers can take >90 s to appear even after the
+//    screen is visible — waiting for them exclusively causes reliable false-timeouts. The burger
+//    button is absent on item-detail, readers, and settings screens so it is a safe discriminator.
+// 2. Section headers: the pre-existing check kept as a fallback for cases where the burger button
+//    label doesn't match (locale/accessibility overrides). Uses BEGINSWITH so the count suffix
+//    added in #1140 ("In Progress (3)") still matches.
 func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) -> Bool {
+    // Fast path: burger button visible = we are on a library tab.
+    let burger = app.buttons["Open menu"].firstMatch
+    let fastTimeout = min(timeout, 15)
+    if burger.waitForExistence(timeout: fastTimeout) { return true }
+
+    // Fallback: wait for any section header for the remainder of the timeout budget.
+    let remaining = max(timeout - fastTimeout, 0)
+    guard remaining > 0 else { return false }
     let sectionPrefixes = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series", "Collections"]
     let anySection = NSPredicate { _, _ in
         sectionPrefixes.contains { prefix in
@@ -242,7 +262,7 @@ func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) ->
     }
     let result = XCTWaiter.wait(
         for: [XCTNSPredicateExpectation(predicate: anySection, object: nil)],
-        timeout: timeout
+        timeout: remaining
     )
     return result == .completed
 }
