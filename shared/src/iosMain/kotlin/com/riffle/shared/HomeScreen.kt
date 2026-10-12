@@ -807,7 +807,7 @@ internal fun ElidedReaderLoader(
 internal fun AudiobookBookmarkLoader(
     itemId: String,
     sourceId: String?,
-    startAtSec: Float,
+    startAtSec: Double,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
 ) {
@@ -895,7 +895,7 @@ internal fun AnnotationSearchHost(
     destination: LibraryNav.AnnotationSearch,
     onBack: () -> Unit,
     onOpenBook: (sourceId: String, itemId: String) -> Unit,
-    onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Float) -> Unit,
+    onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Double) -> Unit,
 ) {
     val koin = getKoin()
     val key = "${destination.searchLibraryId}/${destination.query}"
@@ -910,7 +910,7 @@ internal fun AnnotationSearchHost(
         onNavigateBack = onBack,
         onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
         onAudiobookBookmarkSelected = { result ->
-            onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec.toFloat())
+            onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec)
         },
     )
 }

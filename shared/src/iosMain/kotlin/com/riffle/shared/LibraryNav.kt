@@ -114,7 +114,7 @@ internal sealed interface LibraryNav {
     data class AudiobookBookmark(
         val itemId: String,
         val sourceId: String?,
-        val startAtSec: Float,
+        val startAtSec: Double,
     ) : LibraryNav
 }
 
