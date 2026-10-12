@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -111,6 +113,41 @@ class ReadaloudMiniPlayerTest {
     fun nextChapter_isDisabledAtTheLastChapter() {
         setPlayer(canNextChapter = false)
         rule.onNodeWithTag("readaloud_next_chapter").assertIsNotEnabled()
+    }
+
+    @Test
+    fun switchToAudiobook_isAbsentWhenCallbackIsNull() {
+        setPlayer()
+        rule.onNodeWithTag(TestTags.READALOUD_SWITCH_TO_AUDIOBOOK).assertDoesNotExist()
+    }
+
+    @Test
+    fun switchToAudiobook_isShownAndFiresCallbackWhenNonNull() {
+        var switched = false
+        rule.setContent {
+            ReadaloudMiniPlayer(
+                isPlaying = false,
+                speed = 1f,
+                barMessage = null,
+                downloadProgress = null,
+                canPreviousChapter = true,
+                canNextChapter = true,
+                containerColor = Color.LightGray,
+                contentColor = Color.Black,
+                onPlayPause = {},
+                onSpeedChange = {},
+                onRewind = {},
+                onForward = {},
+                onPreviousChapter = {},
+                onNextChapter = {},
+                skipIntervalSeconds = 30,
+                rewindIntervalSeconds = 15,
+                onClose = {},
+                onSwitchToAudiobook = { switched = true },
+            )
+        }
+        rule.onNodeWithTag(TestTags.READALOUD_SWITCH_TO_AUDIOBOOK).performClick()
+        assertEquals(true, switched)
     }
 
     @Test

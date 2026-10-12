@@ -39,4 +39,11 @@
     <string name="ui_compact_duration_hours_minutes">%1$dh %2$d min</string>
     <string name="ui_speed_decrease">−</string>
     <string name="ui_speed_increase">+</string>
+    <!-- Readaloud mini-player -->
+    <string name="ui_close_readaloud">Cerrar lectura en voz alta</string>
+    <string name="ui_downloading_percent">Descargando… %1$d%%</string>
+    <string name="ui_download_readaloud_audio_size">¿Descargar audio de lectura en voz alta (%1$s)?</string>
+    <string name="ui_wi_fi_only">Solo Wi-Fi</string>
+    <string name="ui_download">Descargar</string>
+    <string name="ui_switch_to_audiobook">Cambiar a audiolibro</string>
 </resources>

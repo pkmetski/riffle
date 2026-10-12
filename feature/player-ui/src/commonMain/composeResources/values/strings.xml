@@ -45,4 +45,11 @@
     <!-- Playback speed control buttons -->
     <string name="ui_speed_decrease">−</string>
     <string name="ui_speed_increase">+</string>
+    <!-- Readaloud mini-player -->
+    <string name="ui_close_readaloud">Close readaloud</string>
+    <string name="ui_downloading_percent">Downloading… %1$d%%</string>
+    <string name="ui_download_readaloud_audio_size">Download readaloud audio (%1$s)?</string>
+    <string name="ui_wi_fi_only">Wi-Fi only</string>
+    <string name="ui_download">Download</string>
+    <string name="ui_switch_to_audiobook">Switch to audiobook</string>
 </resources>

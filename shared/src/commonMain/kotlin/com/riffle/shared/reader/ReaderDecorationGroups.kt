@@ -36,6 +36,9 @@ object ReaderDecorationGroups {
     /** Cadence's "now reading" sentence. */
     val cadence: String = DECORATION_GROUP_CADENCE
 
+    /** Readaloud's "currently narrated" sentence. */
+    val readaloud: String = DECORATION_GROUP_READALOUD
+
     /** Every group whose decorations must respond to a tap. */
     val activable: List<String> = listOf(highlights, bookmarks, noteGlyphs)
 }

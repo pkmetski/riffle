@@ -39,4 +39,11 @@
     <string name="ui_compact_duration_hours_minutes">%1$d ч %2$d мин</string>
     <string name="ui_speed_decrease">−</string>
     <string name="ui_speed_increase">+</string>
+    <!-- Readaloud mini-player -->
+    <string name="ui_close_readaloud">Затвори четене на глас</string>
+    <string name="ui_downloading_percent">Изтегляне… %1$d%%</string>
+    <string name="ui_download_readaloud_audio_size">Изтегляне на аудио за четене на глас (%1$s)?</string>
+    <string name="ui_wi_fi_only">Само Wi-Fi</string>
+    <string name="ui_download">Изтегли</string>
+    <string name="ui_switch_to_audiobook">Превключване към аудиокнига</string>
 </resources>

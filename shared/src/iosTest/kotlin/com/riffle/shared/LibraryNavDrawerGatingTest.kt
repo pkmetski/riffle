@@ -18,8 +18,10 @@ import kotlin.test.assertTrue
 class LibraryNavDrawerGatingTest {
 
     private fun isEbookReader(nav: LibraryNav): Boolean =
-        nav is LibraryNav.Reader || nav is LibraryNav.PdfReader ||
-            nav is LibraryNav.CbzReader || nav is LibraryNav.ElidedReader
+        nav is LibraryNav.Reader ||
+            nav is LibraryNav.PdfReader ||
+            nav is LibraryNav.CbzReader ||
+            nav is LibraryNav.ElidedReader
 
     private val stubItem = LibraryItem(
         id = "item-1",

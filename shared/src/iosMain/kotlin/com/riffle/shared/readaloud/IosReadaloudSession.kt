@@ -2,14 +2,18 @@ package com.riffle.shared.readaloud
 
 import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.IosEpubContentExtractor
+import com.riffle.core.domain.IosSentenceSpanReader
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudBundleReader
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
+import com.riffle.core.domain.ReadaloudTextQuotes
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.player.AudiobookHandoffState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -46,6 +50,7 @@ internal class IosReadaloudSession(
     private val bundleReader: ReadaloudBundleReader,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val resumeStore: ReadaloudResumeStore,
+    private val audiobookHandoffState: AudiobookHandoffState,
     private val dispatchers: DispatcherProvider,
     parentScope: CoroutineScope,
 ) {
@@ -63,12 +68,15 @@ internal class IosReadaloudSession(
     private val _activeFragmentRef = MutableStateFlow<String?>(null)
     val activeFragmentRef: StateFlow<String?> = _activeFragmentRef
 
+    /** Sentence quotes for text-anchored page-follow, built from the EPUB chapters in the bundle. */
+    private val _sentenceQuotes = MutableStateFlow<Map<String, SentenceQuote>>(emptyMap())
+    val sentenceQuotes: StateFlow<Map<String, SentenceQuote>> = _sentenceQuotes.asStateFlow()
+
     /**
-     * Sentence quotes for text-anchored page-follow. Always empty in this iteration; a future PR
-     * populates it by parsing the EPUB chapter HTML via [IosEpubNavigatorBridge.getChapterBytes].
+     * The linked audiobook item id, if any. Set when the reader detects an audiobook counterpart
+     * for this ebook — used to signal the handoff target when switching back to the audiobook player.
      */
-    val sentenceQuotes: StateFlow<Map<String, SentenceQuote>> =
-        MutableStateFlow<Map<String, SentenceQuote>>(emptyMap()).asStateFlow()
+    var audiobookItemId: String? = null
 
     val readaloudHighlightColor: StateFlow<HighlightColor> =
         readaloudPreferencesStore.preferences
@@ -89,6 +97,9 @@ internal class IosReadaloudSession(
 
     val playbackState: StateFlow<IosReadaloudController.PlaybackState>
         get() = controller.state
+
+    val skipIntervalSeconds: Int get() = IosReadaloudController.FORWARD_SEC.toInt()
+    val rewindIntervalSeconds: Int get() = IosReadaloudController.REWIND_SEC.toInt()
 
     // ── Internal state ───────────────────────────────────────────────────────────
 
@@ -161,8 +172,14 @@ internal class IosReadaloudSession(
 
     fun playFromFragment(fragmentRef: String) = controller.playFromFragment(fragmentRef)
 
-    /** Initiates a bundle download. Call after the user confirms the download dialog. */
-    fun startDownload() {
+    /**
+     * Initiates a bundle download. Call after the user confirms the download dialog.
+     *
+     * [wifiOnly] is accepted for API parity with Android but not yet enforced — iOS does not
+     * currently have a Wi-Fi-only download constraint in [ReadaloudAudioRepository].
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun startDownload(wifiOnly: Boolean = false) {
         if (downloadJob?.isActive == true) return
         _downloadPromptBytes.value = null
         downloadJob = scope.launch {
@@ -236,6 +253,47 @@ internal class IosReadaloudSession(
         controller.prepare(bundlePath, t, resumeAudioSrc, resumeOffsetSec)
         controller.play()
         _barMessage.value = null
+
+        // Build sentence quotes from the bundle so the highlight decoration can be text-anchored.
+        // Runs after play() so narration starts immediately; the quotes arrive shortly after.
+        scope.launch(dispatchers.io) {
+            val extracted = IosEpubContentExtractor.extract(bundlePath) ?: return@launch
+            _sentenceQuotes.value = ReadaloudTextQuotes.build(extracted.chapters, IosSentenceSpanReader)
+        }
+    }
+
+    /**
+     * Pauses readaloud, records the current position to [audiobookHandoffState] so the audiobook
+     * player can resume at the matching time, and returns the global audio second.
+     *
+     * Call when the user taps "Switch to audiobook" from the readaloud mini-player.
+     */
+    fun prepareAudiobookHandoff(): Double {
+        val sec = controller.state.value.positionGlobalSec
+        val abId = audiobookItemId
+        controller.releaseForHandoff()
+        if (abId != null) audiobookHandoffState.signal(abId, sec)
+        return sec
+    }
+
+    /**
+     * Opens readaloud and seeks to the sentence that begins at [globalSec] in the audiobook
+     * timeline.  Used when the audiobook player hands off to readaloud ("Switch to Read Aloud").
+     */
+    suspend fun startReadaloudAtSecond(globalSec: Double) {
+        val bundlePath = bundleReader.bundlePath(sourceId, itemId) ?: return
+        val t = withContext(dispatchers.io) { bundleReader.readTrack(sourceId, itemId) } ?: return
+        _readaloudOpen.value = true
+        track = t
+        // Find the closest audio position for the given global second.
+        val position = t.seekTarget(globalSec)
+        controller.prepare(bundlePath, t, position.audioSrc, position.positionSec)
+        controller.play()
+        _barMessage.value = null
+        scope.launch(dispatchers.io) {
+            val extracted = IosEpubContentExtractor.extract(bundlePath) ?: return@launch
+            _sentenceQuotes.value = ReadaloudTextQuotes.build(extracted.chapters, IosSentenceSpanReader)
+        }
     }
 
     private fun saveResumePosition() {

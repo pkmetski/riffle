@@ -482,11 +482,24 @@ fun HomeScreen() {
                         onBack = ::rifflePop,
                         onPlaylistAdvance = { _, _ -> },
                     )
-                    is LibraryNav.ReaderDestination -> ReaderHost(
-                        destination = current,
-                        onBack = ::rifflePop,
-                        onPlaylistAdvance = { _, _ -> },
-                    )
+                    is LibraryNav.ReaderDestination -> {
+                        ReaderHost(
+                            destination = current,
+                            onBack = ::rifflePop,
+                            onPlaylistAdvance = { _, _ -> },
+                            onSwitchToReadaloud = { ebookItemId, atSec ->
+                                scope.launch {
+                                    val item = libraryObserver.getItem(ebookItemId) ?: return@launch
+                                    rifflePush(LibraryNav.Reader(item, startReadaloudAtSec = atSec))
+                                }
+                            },
+                            onSwitchToAudiobook = {
+                                val readerDest = current as? LibraryNav.Reader ?: return@ReaderHost
+                                rifflePop()
+                                rifflePush(LibraryNav.AudiobookPlayer(readerDest.item))
+                            },
+                        )
+                    }
                     else -> RiffleScreen(
                         viewModel = riffleViewModel,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -557,6 +570,7 @@ private fun LibraryHost(
     // Keyed on libraryId so switching libraries via the drawer resets the stack — avoiding the
     // wrong library's detail screen staying visible when the user switches.
     var navStack by remember(libraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
+    val scope = rememberCoroutineScope()
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
@@ -731,6 +745,16 @@ private fun LibraryHost(
                 destination = current,
                 onBack = ::pop,
                 onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
+                onSwitchToReadaloud = { ebookItemId, atSec ->
+                    scope.launch {
+                        val item = libraryObserver.getItem(ebookItemId) ?: return@launch
+                        navStack = navStack + LibraryNav.Reader(item, startReadaloudAtSec = atSec)
+                    }
+                },
+                onSwitchToAudiobook = {
+                    val readerDest = current as? LibraryNav.Reader ?: return@ReaderHost
+                    navStack = navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item)
+                },
             )
         }
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
