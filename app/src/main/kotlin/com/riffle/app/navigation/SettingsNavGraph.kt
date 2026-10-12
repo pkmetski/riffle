@@ -178,7 +178,20 @@ internal fun NavGraphBuilder.settingsNavGraph(
         )
     }
     composable(DEBUG_LOGS) { backStackEntry ->
-        DebugLogScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
+        val context = LocalContext.current
+        val shareTitle = org.jetbrains.compose.resources.stringResource(
+            com.riffle.feature.settings.ui.generated.resources.Res.string.ui_share_debug_log,
+        )
+        val debugLogVm: com.riffle.feature.settings.ui.debug.DebugLogViewModel = koinViewModel()
+        DebugLogScreen(
+            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+            onShare = { channels ->
+                val intent = debugLogVm.buildShareIntent(channels)
+                if (intent != null) {
+                    context.startActivity(android.content.Intent.createChooser(intent, shareTitle))
+                }
+            },
+        )
     }
     composable(
         route = READALOUD_MATCHES,

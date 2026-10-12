@@ -46,6 +46,7 @@ import com.riffle.feature.settings.ui.generated.resources.ui_debug_entries_count
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_logs
 import com.riffle.feature.settings.ui.generated.resources.ui_no_entries_match_current_filter
 import com.riffle.feature.settings.ui.generated.resources.ui_no_log_entries_yet
+import com.riffle.feature.settings.ui.generated.resources.ui_share
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -53,17 +54,18 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 /**
- * In-app viewer for [InMemoryLogBuffer] on iOS. Reverse-chronological (newest first),
- * channel-filter chips, and a Clear action. Unlike the Android version there is no Share
- * action — sharing via UIActivityViewController requires UIKit interop that is deferred.
+ * In-app viewer for [InMemoryLogBuffer]. Reverse-chronological (newest first), channel-filter
+ * chips, and an optional Share action delegated to the host via [onShare].
  *
- * Reads [InMemoryLogBuffer] directly rather than through an AndroidViewModel because
- * AndroidViewModel is not available in iosMain.
+ * [onShare] receives the active channel filter set (null = no filter) so the host can write the
+ * filtered snapshot to a platform-specific share mechanism (FileProvider on Android, share sheet
+ * on iOS). Pass null to suppress the Share button entirely.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IosDebugLogScreen(
+fun DebugLogScreen(
     onNavigateBack: () -> Unit,
+    onShare: ((Set<LogChannel>?) -> Unit)? = null,
     logBuffer: InMemoryLogBuffer = koinInject(),
 ) {
     val entries by logBuffer.entries.collectAsState()
@@ -83,6 +85,13 @@ fun IosDebugLogScreen(
                     }
                 },
                 actions = {
+                    if (onShare != null) {
+                        TextButton(onClick = {
+                            onShare(activeChannels.value.takeIf { it.isNotEmpty() })
+                        }) {
+                            Text(stringResource(Res.string.ui_share))
+                        }
+                    }
                     TextButton(onClick = { logBuffer.clear() }) {
                         Text(stringResource(Res.string.ui_clear))
                     }
@@ -135,7 +144,7 @@ fun IosDebugLogScreen(
                 }
             } else {
                 val listState = rememberLazyListState()
-                val newestFirst = remember(filtered) { filtered.asReversed() }
+                val newestFirst = remember(filtered) { debugLogDisplayOrder(filtered) }
                 LaunchedEffect(newestFirst.size) {
                     if (listState.firstVisibleItemIndex <= 1) listState.animateScrollToItem(0)
                 }
@@ -144,7 +153,7 @@ fun IosDebugLogScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(newestFirst, key = { it.seq }) { entry ->
-                        IosLogRow(entry)
+                        LogEntryRow(entry)
                         HorizontalDivider(color = Color(0x11000000))
                     }
                 }
@@ -154,7 +163,7 @@ fun IosDebugLogScreen(
 }
 
 @Composable
-private fun IosLogRow(entry: InMemoryLogBuffer.Entry) {
+private fun LogEntryRow(entry: InMemoryLogBuffer.Entry) {
     val time = remember(entry.timestampMs) {
         val dt = Instant.fromEpochMilliseconds(entry.timestampMs)
             .toLocalDateTime(TimeZone.currentSystemDefault())
