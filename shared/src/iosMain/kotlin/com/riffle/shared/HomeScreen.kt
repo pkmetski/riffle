@@ -73,7 +73,7 @@ import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScre
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.debug.DebugLogScreen
-import com.riffle.feature.settings.ui.developer.IosDeveloperOptionsScreen
+import com.riffle.feature.settings.ui.developer.DeveloperOptionsScreen
 import com.riffle.feature.settings.ui.dictionary.IosDictionaryPacksScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
@@ -305,11 +305,9 @@ fun HomeScreen() {
                         )
                     }
                     IosSettingsSubScreen.DeveloperOptions -> {
-                        val settingsViewModel = koinInject<SettingsViewModel>()
-                        IosDeveloperOptionsScreen(
+                        DeveloperOptionsScreen(
                             onNavigateBack = { settingsSubScreen = null },
                             onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
-                            viewModel = settingsViewModel,
                         )
                     }
                     IosSettingsSubScreen.DebugLogs -> DebugLogScreen(
