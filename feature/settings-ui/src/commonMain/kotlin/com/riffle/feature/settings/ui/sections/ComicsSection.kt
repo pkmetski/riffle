@@ -1,8 +1,11 @@
 package com.riffle.feature.settings.ui.sections
 import androidx.compose.runtime.Composable
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.settings.label
 import com.riffle.feature.settings.ui.SettingsDrillInRow
 import com.riffle.feature.settings.ui.SettingsPanel
 import com.riffle.feature.settings.ui.generated.resources.*
@@ -11,7 +14,13 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun localizedComicDisplaySummary(prefs: ComicFormattingPreferences): String {
+    val backgroundTheme = prefs.backgroundTheme.asComicBackgroundTheme()
     val parts = mutableListOf(
+        if (backgroundTheme == ReaderTheme.Auto) {
+            "Auto background"
+        } else {
+            "${backgroundTheme.label()} background"
+        },
         if (prefs.panelViewOn) {
             when (prefs.panelOverflow) {
                 // TODO: migrate to Res.string.ui_panel_view_split
