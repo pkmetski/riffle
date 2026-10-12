@@ -84,6 +84,8 @@ internal sealed interface LibraryNav {
         override val item: LibraryItem,
         val initialLocatorJson: String? = null,
         val startHref: String? = null,
+        /** When ≥ 0, the readaloud mini-player opens automatically at this global second. */
+        val startReadaloudAtSec: Double = -1.0,
     ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination
@@ -242,6 +244,8 @@ internal fun ReaderHost(
     destination: LibraryNav.ReaderDestination,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+    onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
+    onSwitchToAudiobook: (() -> Unit)? = null,
 ) {
     when (destination) {
         is LibraryNav.Reader -> EpubReaderScreen(
@@ -249,6 +253,8 @@ internal fun ReaderHost(
             onBack = onBack,
             initialLocatorJson = destination.initialLocatorJson,
             startHref = destination.startHref,
+            startReadaloudAtSec = destination.startReadaloudAtSec,
+            onSwitchToAudiobook = if (destination.item.isListenable) onSwitchToAudiobook else null,
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = onBack)
@@ -259,6 +265,7 @@ internal fun ReaderHost(
             startAtSec = destination.startAtSec,
             onBack = onBack,
             onPlaylistAdvance = onPlaylistAdvance,
+            onSwitchToReadaloud = onSwitchToReadaloud,
         )
     }
 }

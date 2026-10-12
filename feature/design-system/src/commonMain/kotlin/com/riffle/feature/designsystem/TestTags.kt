@@ -87,6 +87,7 @@ object TestTags {
     const val READALOUD_DOWNLOADING = "readaloud_downloading"
     const val READALOUD_DOWNLOAD_DIALOG = "readaloud_download_dialog"
     const val READALOUD_WIFI_ONLY = "readaloud_wifi_only"
+    const val READALOUD_SWITCH_TO_AUDIOBOOK = "readaloud_switch_to_audiobook"
 
     // ── PDF reader ────────────────────────────────────────────────────────────
     const val PDF_READER_BACK = "pdf_reader_back"

@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.skipBackwardLabel
@@ -44,6 +45,7 @@ import com.riffle.feature.player.ui.generated.resources.ui_downloading_percent
 import com.riffle.feature.player.ui.generated.resources.ui_next_chapter
 import com.riffle.feature.player.ui.generated.resources.ui_playback_speed
 import com.riffle.feature.player.ui.generated.resources.ui_previous_chapter
+import com.riffle.feature.player.ui.generated.resources.ui_switch_to_audiobook
 import com.riffle.feature.player.ui.generated.resources.ui_wi_fi_only
 import org.jetbrains.compose.resources.stringResource
 
@@ -73,6 +75,8 @@ fun ReadaloudMiniPlayer(
     onPreviousChapter: () -> Unit,
     onNextChapter: () -> Unit,
     onClose: () -> Unit,
+    /** When non-null, a "Switch to audiobook" button is shown and this callback fires on tap. */
+    onSwitchToAudiobook: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -136,6 +140,14 @@ fun ReadaloudMiniPlayer(
                     ReadaloudSkipIcon(seconds = skipIntervalSeconds, forward = true, tint = contentColor)
                 }
                 Spacer(modifier = Modifier.weight(1f))
+            }
+            if (onSwitchToAudiobook != null) {
+                IconButton(
+                    onClick = onSwitchToAudiobook,
+                    modifier = Modifier.testTag(TestTags.READALOUD_SWITCH_TO_AUDIOBOOK),
+                ) {
+                    Icon(RiffleIcons.Headphones, contentDescription = stringResource(Res.string.ui_switch_to_audiobook))
+                }
             }
             IconButton(onClick = onClose, modifier = Modifier.testTag(TestTags.READALOUD_CLOSE)) {
                 Icon(PlayerGlyphs.Close, contentDescription = stringResource(Res.string.ui_close_readaloud))

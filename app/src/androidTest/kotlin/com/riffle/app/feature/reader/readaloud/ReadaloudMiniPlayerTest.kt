@@ -115,6 +115,41 @@ class ReadaloudMiniPlayerTest {
     }
 
     @Test
+    fun switchToAudiobook_isAbsentWhenCallbackIsNull() {
+        setPlayer()
+        rule.onNodeWithTag("readaloud_switch_to_audiobook").assertDoesNotExist()
+    }
+
+    @Test
+    fun switchToAudiobook_isShownAndFiresCallbackWhenNonNull() {
+        var switched = false
+        rule.setContent {
+            ReadaloudMiniPlayer(
+                isPlaying = false,
+                speed = 1f,
+                barMessage = null,
+                downloadProgress = null,
+                canPreviousChapter = true,
+                canNextChapter = true,
+                containerColor = Color.LightGray,
+                contentColor = Color.Black,
+                onPlayPause = {},
+                onSpeedChange = {},
+                onRewind = {},
+                onForward = {},
+                onPreviousChapter = {},
+                onNextChapter = {},
+                skipIntervalSeconds = 30,
+                rewindIntervalSeconds = 15,
+                onClose = {},
+                onSwitchToAudiobook = { switched = true },
+            )
+        }
+        rule.onNodeWithTag("readaloud_switch_to_audiobook").performClick()
+        assertEquals(true, switched)
+    }
+
+    @Test
     fun skipButtons_areAbsentWhileOffline() {
         rule.setContent {
             ReadaloudMiniPlayer(

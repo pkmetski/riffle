@@ -45,4 +45,5 @@
     <string name="ui_download_readaloud_audio_size">¿Descargar audio de lectura en voz alta (%1$s)?</string>
     <string name="ui_wi_fi_only">Solo Wi-Fi</string>
     <string name="ui_download">Descargar</string>
+    <string name="ui_switch_to_audiobook">Cambiar a audiolibro</string>
 </resources>

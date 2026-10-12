@@ -69,6 +69,7 @@ import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ic_readaloud
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
@@ -149,10 +150,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
+import com.riffle.feature.designsystem.generated.resources.Res as DesignRes
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via
@@ -168,6 +171,9 @@ fun EpubReaderScreen(
     source: ReaderSource = ReaderSource.FullBook,
     initialLocatorJson: String? = null,
     startHref: String? = null,
+    startReadaloudAtSec: Double = -1.0,
+    /** Called when the user taps "Switch to audiobook" in the readaloud mini-player. */
+    onSwitchToAudiobook: (() -> Unit)? = null,
     onOpenInBook: ((locatorJson: String) -> Unit)? = null,
 ) {
     KeepReaderScreenOn()
@@ -260,7 +266,10 @@ fun EpubReaderScreen(
     }
     val selection by navigator.selectionFlow.collectAsState()
     val readaloudSession = remember(item.sourceId, item.id) {
-        readaloudSessionFactory.create(item.sourceId, item.id)
+        readaloudSessionFactory.create(item.sourceId, item.id).also { session ->
+            // For combined ebook+audio items, the same item id is the audiobook counterpart.
+            if (item.isListenable) session.audiobookItemId = item.id
+        }
     }
     DisposableEffect(item.sourceId, item.id) {
         onDispose { readaloudSession.onDestroy() }
@@ -970,6 +979,13 @@ fun EpubReaderScreen(
             if (!open) navigator.applyDecorations(DECORATION_GROUP_READALOUD, emptyList())
         }
     }
+    // Handoff from audiobook player: open readaloud at the given global second once the reader
+    // is ready (navigator non-null). Fires exactly once per screen open.
+    if (startReadaloudAtSec >= 0.0) {
+        LaunchedEffect(readaloudSession) {
+            readaloudSession.startReadaloudAtSecond(startReadaloudAtSec)
+        }
+    }
 
     DisposableEffect(cadenceController) {
         onDispose {
@@ -1139,7 +1155,7 @@ fun EpubReaderScreen(
                         modifier = Modifier.testTag(TestTags.READER_READALOUD),
                     ) {
                         Icon(
-                            imageVector = RiffleIcons.PlayArrow,
+                            painter = painterResource(DesignRes.drawable.ic_readaloud),
                             contentDescription = stringResource(Res.string.ui_readaloud),
                         )
                     }
@@ -1418,6 +1434,14 @@ fun EpubReaderScreen(
                 onNextChapter = readaloudSession::nextChapter,
                 onSpeedChange = readaloudSession::setSpeed,
                 onClose = readaloudSession::closeReadaloud,
+                onSwitchToAudiobook = if (onSwitchToAudiobook != null && readaloudSession.audiobookItemId != null) {
+                    {
+                        readaloudSession.prepareAudiobookHandoff()
+                        onSwitchToAudiobook()
+                    }
+                } else {
+                    null
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
