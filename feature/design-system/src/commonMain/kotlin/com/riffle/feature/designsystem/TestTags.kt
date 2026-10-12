@@ -47,6 +47,7 @@ object TestTags {
     const val BOOK_DETAIL_MARK_READ = "book_detail_mark_read"
     const val BOOK_DETAIL_PROGRESS = "book_detail_progress"
     const val BOOK_DETAIL_OVERFLOW = "book_detail_overflow"
+    const val BOOK_DETAIL_COVER = "book_detail_cover"
 
     // ── EPUB reader (Android) ─────────────────────────────────────────────────
     const val READER_BACK = "reader_back"

@@ -9,13 +9,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -797,12 +796,12 @@ private fun DetailContentTablet(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modifier) {
+internal fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 280.dp)
-            .aspectRatio(if (item.isAudiobookOnly) 1f else 2f / 3f)
+            .height(280.dp)
+            .testTag(TestTags.BOOK_DETAIL_COVER)
             .clip(RoundedCornerShape(4.dp)),
     ) {
         CoverImage(
@@ -812,6 +811,7 @@ private fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modi
             isAudiobook = item.isAudiobookOnly,
             instrumentationKind = "detail",
             instrumentationKey = item.id,
+            modifier = Modifier.fillMaxWidth().requiredHeight(280.dp),
         )
     }
 }

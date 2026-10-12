@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 
 /**
@@ -42,14 +43,19 @@ fun DefaultCoverPlaceholder(isAudiobook: Boolean, modifier: Modifier = Modifier)
         glyphColor = if (dark) Color(0xFFCDB8FF) else Color(0xFF5B3FA0)
     }
     Canvas(modifier = modifier.fillMaxSize()) {
-        drawRect(
-            brush = Brush.linearGradient(
-                colors = listOf(gradientStart, gradientEnd),
-                start = Offset(0f, 0f),
-                end = Offset(size.width, size.height),
+        // clipRect bounds drawing to the canvas's measured size. On iOS CMP the Skia surface can
+        // extend beyond layout bounds when the canvas is inside a vertically-scrollable column;
+        // this explicit clip prevents the gradient from overflowing onto sibling composables.
+        clipRect {
+            drawRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(gradientStart, gradientEnd),
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width, size.height),
+                )
             )
-        )
-        if (isAudiobook) drawWaveformGlyph(glyphColor) else drawShelfGlyph(glyphColor)
+            if (isAudiobook) drawWaveformGlyph(glyphColor) else drawShelfGlyph(glyphColor)
+        }
     }
 }
 

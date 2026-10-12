@@ -3,11 +3,13 @@ package com.riffle.feature.library.ui
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.TestTags
@@ -43,6 +45,20 @@ class LibraryItemDetailParityTest {
         seriesName = seriesName,
         description = description,
     )
+
+    // ── Cover box ──────────────────────────────────────────────────────────
+
+    @Test
+    fun coverBoxHeightIs280DpForEpub() = runComposeUiTest {
+        // Regression: on iOS CMP, fillMaxSize() inside a verticalScroll Column resolves to the
+        // scroll viewport height rather than the parent Box's height(280dp) constraint. This causes
+        // DefaultCoverPlaceholder's Canvas to draw ~viewport-height of gradient, covering the items
+        // below (PublicationFactsLine, ActionRow, title). Fix: CoverBox must pass
+        // requiredHeight(280.dp) to CoverImage so the DrawScope.size is forced to 280dp regardless
+        // of what constraints the verticalScroll propagates.
+        setContent { CoverBox(item = item(), token = "") }
+        onNodeWithTag(TestTags.BOOK_DETAIL_COVER).assertHeightIsEqualTo(280.dp)
+    }
 
     // ── Reading progress ────────────────────────────────────────────────────
 
