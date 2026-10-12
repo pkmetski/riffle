@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.RecordItemOpened
@@ -244,6 +246,7 @@ fun HomeScreen() {
             AppSection.Settings -> {
                 val folderPicker = koinInject<FolderPickerInterface>()
                 val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
+                val localFilesLogger = koinInject<Logger>()
                 when (val sub = settingsSubScreen) {
                     IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
                         onFinished = { settingsSubScreen = null },
@@ -327,7 +330,10 @@ fun HomeScreen() {
                         onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
                         onNavigateToAddLocalFolder = {
                             folderPicker.pickFolder { uri ->
-                                if (uri != null) scope.launch { runCatching { localFilesInstaller.installFolder(uri) } }
+                                if (uri != null) scope.launch {
+                                    runCatching { localFilesInstaller.installFolder(uri) }
+                                        .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                                }
                             }
                         },
                         onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
