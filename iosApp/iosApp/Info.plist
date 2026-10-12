@@ -159,6 +159,13 @@
 	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- UIViewControllerBasedStatusBarAppearance=NO lets the app-level UIApplication
+	     control the status bar, overriding any child UIViewController (e.g. Readium's
+	     EPUBNavigatorViewController) that would otherwise take precedence when embedded
+	     as a child VC. This enables IosStatusBarBridge to show/hide the bar during
+	     immersive-reader mode without fighting the Readium navigator hierarchy. -->
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

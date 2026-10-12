@@ -1,10 +1,15 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
@@ -151,7 +156,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -631,11 +635,14 @@ fun EpubReaderScreen(
         navigator.positionFlow.collect { position -> locatorHref = position.href }
     }
 
-    // Mirror Android's scroll → immersive behaviour: any position change after the initial
-    // restore (hence drop(1)) hides the chrome, matching EpubReaderScreen's onPositionChanged
-    // → ImmersiveModeState.dismissOverlay() path.
+    // Mirror Android's scroll → immersive behaviour: hide chrome on any position change.
+    // Wait for the first page-load event before collecting so that Readium's initial
+    // position-restore emissions (which arrive before the page finishes rendering) don't
+    // immediately hide chrome the moment the reader opens — mirrors Android's
+    // ImmersiveModeState.dismissOverlay() which is tied to user scroll, not position restore.
     LaunchedEffect(navigator) {
-        navigator.positionFlow.drop(1).collect {
+        navigator.pageLoadEvents.first()
+        navigator.positionFlow.collect {
             if (!inhibitAutoHide) chromeVisible = false
         }
     }
@@ -1332,11 +1339,18 @@ fun EpubReaderScreen(
             // derivation Android's popup reads.
             val readerBackground = (resolvedPrefs ?: FormattingPreferences()).readerSwatchBackdropColor
             // Position: near selection rect when a live selection is present; bottom otherwise.
-            // Rect coordinates are in the navigator view's dp space (same origin as this Box).
+            // Rect coordinates are in the navigator view's dp space (same origin as this Box, y=0
+            // at the physical screen top). minAboveY accounts for the status-bar safe-area so
+            // the sheet never slides behind the system chrome.
+            val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
             val annotationSheetModifier = run {
                 val selRect = liveSelection?.rect
                 if (selRect != null && editTarget == null) {
-                    val targetY = annotationSheetTargetY(selRect.y, selRect.height)
+                    val targetY = annotationSheetTargetY(
+                        selectionY = selRect.y,
+                        selectionHeight = selRect.height,
+                        minAboveY = statusBarTopDp.value + 8f,
+                    )
                     Modifier
                         .align(Alignment.TopStart)
                         .padding(top = targetY.dp)

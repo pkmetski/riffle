@@ -52,4 +52,23 @@ class AnnotationSheetPositionTest {
         val y = annotationSheetTargetY(selectionY = 0f, selectionHeight = 5f)
         assertTrue(y >= 0f, "targetY must never be negative (expected ≥ 0, got $y)")
     }
+
+    /**
+     * minAboveY (safe-area top) prevents the sheet from landing behind the status bar.
+     * Selection at y=100, sheetEst=80, margin=8 → aboveY=12 which is < minAboveY=50 →
+     * falls to below at 100+20+8=128.
+     */
+    @Test
+    fun minAboveYPreventsHidingBehindStatusBar() {
+        val y = annotationSheetTargetY(selectionY = 100f, selectionHeight = 20f, minAboveY = 50f)
+        assertEquals(128f, y, "sheet should go below when aboveY would land behind the status bar")
+    }
+
+    /** When aboveY >= minAboveY the sheet still goes above. */
+    @Test
+    fun minAboveYAllowsAboveWhenEnoughRoom() {
+        // selectionY=200, aboveY=112, minAboveY=50 → 112 ≥ 50 → above at 112.
+        val y = annotationSheetTargetY(selectionY = 200f, selectionHeight = 20f, minAboveY = 50f)
+        assertEquals(112f, y, "sheet should still go above when there is enough room")
+    }
 }
