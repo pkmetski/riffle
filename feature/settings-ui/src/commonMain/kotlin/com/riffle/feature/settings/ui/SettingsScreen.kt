@@ -201,7 +201,12 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
 
-                ListeningSection(onOpenPanel = { openPanel = it })
+                ListeningSection(
+                    defaultPlaybackSpeed = defaultPlaybackSpeed,
+                    skipIntervalSeconds = skipIntervalSeconds,
+                    rewindIntervalSeconds = rewindIntervalSeconds,
+                    onOpenPanel = { openPanel = it },
+                )
                 HorizontalDivider()
 
                 ReadaloudSection(

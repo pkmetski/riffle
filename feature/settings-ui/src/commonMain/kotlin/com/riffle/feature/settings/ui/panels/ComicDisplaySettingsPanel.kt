@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.comic.ComicBackgroundThemeChoices
 import com.riffle.core.domain.comic.ComicFormattingPreferences
-import com.riffle.core.domain.comic.asComicBackgroundTheme
+import com.riffle.feature.settings.ui.comicBackgroundChipSelection
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_background
@@ -43,7 +43,7 @@ internal fun ComicDisplaySettingsPanel(
             modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
         )
         ThemeChipRows(
-            selected = prefs.backgroundTheme.asComicBackgroundTheme(),
+            selected = comicBackgroundChipSelection(prefs.backgroundTheme),
             onSelect = { onPrefsChange(prefs.copy(backgroundTheme = it)) },
             includeAuto = true,
             swatchStyle = ThemeSwatchStyle.BackgroundOnly,
