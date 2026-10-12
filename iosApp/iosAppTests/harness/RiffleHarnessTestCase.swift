@@ -215,7 +215,13 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
                       file: StaticString = #filePath, line: UInt = #line) {
     back.tap()
     if waitForLibraryHome(in: app, timeout: 45) { return }
-    if back.exists { back.tap() }
+    // The first tap may have been swallowed (reader still visible), or the reader may have popped
+    // to item-detail which itself needs one more back to reach library home (two-level nav).
+    // Re-query with a fresh reference and a settle wait to cover both scenarios reliably.
+    let retryBack = app.buttons.matching(
+        NSPredicate(format: "label == '← Back' OR label == 'Back'")
+    ).firstMatch
+    if retryBack.waitForExistence(timeout: 5) { retryBack.tap() }
     XCTAssertTrue(waitForLibraryHome(in: app, timeout: 45),
                   "Tapping back from the reader should return to library home", file: file, line: line)
 }

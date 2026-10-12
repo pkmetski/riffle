@@ -110,12 +110,14 @@ fun SourceOnboardingHost(
         is OnboardingStep.Credentials -> {
             // Keyed by SourceType so backing out and picking a different source builds a fresh
             // ViewModel with the right `type` route param (mirrors Android's nav-arg behaviour).
-            // Always show the navigation icon so the user can return to the Picker even when
-            // canNavigateBack=false (first-run onboarding where the picker itself has no back).
+            // Show the nav icon only when the picker itself is navigable (canNavigateBack=true or
+            // we arrived here via edit-source routing). During first-run onboarding the picker has
+            // no back and neither does AddSource — the user must complete or use the system back.
+            val isEditRouting = initialBackend != null
             val viewModel = remember(current.type) { addSourceViewModel(current.type, editId) }
             AddSourceScreen(
                 isExpandedWidth = expandedWidth,
-                showNavigationIcon = true,
+                showNavigationIcon = canNavigateBack || isEditRouting,
                 onNavigateBack = { step = OnboardingStep.Picker },
                 onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending) },
                 onAutoCompleted = onFinished,
