@@ -235,6 +235,7 @@ fun SettingsScreen(
                     canInstallUpdate = platformHooks.canInstallUpdate(),
                     onCheckForUpdate = viewModel::checkForUpdate,
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
+                    onViewReleaseUrl = platformHooks::onViewReleaseUrl,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
                     onVersionTap = viewModel::onVersionTap,

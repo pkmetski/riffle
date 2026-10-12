@@ -30,6 +30,7 @@ internal fun AppVersionSection(
     canInstallUpdate: Boolean = true,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
+    onViewReleaseUrl: (String) -> Unit = {},
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
     onNavigateToChangelog: () -> Unit,
     onVersionTap: () -> Unit = {},
@@ -67,7 +68,9 @@ internal fun AppVersionSection(
                     if (canInstallUpdate) {
                         Button(onClick = onInstallUpdate) { Text(stringResource(Res.string.ui_update)) }
                     } else {
-                        TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_check_for_updates)) }
+                        TextButton(onClick = { onViewReleaseUrl(state.update.downloadUrl) }) {
+                            Text(stringResource(Res.string.ui_release_page))
+                        }
                     }
                 is AppUpdateUiState.Failed ->
                     TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_retry)) }

@@ -14,9 +14,11 @@ import com.riffle.feature.settings.ui.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSBundle
+import platform.Foundation.NSURL
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSUserDefaults
+import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationWillEnterForegroundNotification
 
 /**
@@ -34,6 +36,11 @@ object IosPlatformSettingsHooks : PlatformSettingsHooks {
     }
 
     override fun canInstallUpdate(): Boolean = false
+
+    override fun onViewReleaseUrl(url: String) {
+        val nsUrl = NSURL.URLWithString(url) ?: return
+        UIApplication.sharedApplication.openURL(nsUrl, options = emptyMap<Any?, Any?>(), completionHandler = null)
+    }
 
     override fun supportsVolumeKeyNavigation(): Boolean = false
 

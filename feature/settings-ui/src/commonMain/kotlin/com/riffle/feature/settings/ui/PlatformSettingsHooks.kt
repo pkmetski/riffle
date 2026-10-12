@@ -20,6 +20,12 @@ interface PlatformSettingsHooks {
      */
     fun canInstallUpdate(): Boolean
 
+    /**
+     * Open the release page URL in a browser. Called on iOS when an update is available
+     * but cannot be installed directly. No-op on Android (the Update button handles it).
+     */
+    fun onViewReleaseUrl(url: String) = Unit
+
     /** Returns the currently active app language. Returns [AppLanguage.System] on iOS until #1151. */
     fun currentLanguage(): AppLanguage
 
