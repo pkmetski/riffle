@@ -522,8 +522,13 @@ jobs:
           # re-run, which is preferable to systematic job timeouts.
           build_for_testing
           if ! smoke_launch; then
-            echo "::error::Riffle.app did not stay running for 30 s on the simulator — see the smoke-launch console above. Not running the suite."
-            exit 1
+            echo "::warning::First smoke-launch failed — rebooting simulator and retrying once."
+            xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
+            xcrun simctl erase "$SIMULATOR_UDID" 2>/dev/null || true
+            if ! smoke_launch; then
+              echo "::error::Riffle.app did not stay running for 30 s on the simulator — see the smoke-launch console above. Not running the suite."
+              exit 1
+            fi
           fi
           if run_harness; then
             exit 0
