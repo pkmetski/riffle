@@ -920,6 +920,18 @@ fun EpubReaderScreen(
             navigator.injectTableFitScript()
         }
     }
+    // Typography overrides: force user-controlled properties (justify, line-height, font-family)
+    // to win against hostile publisher stylesheets. Readium's own after.css uses
+    // `text-align: inherit !important` with high specificity (0,2,4), which means a publisher
+    // rule setting text-align on a div ancestor of `p` beats Readium even when the user has
+    // chosen justify. The injected CSS uses triple [style*="--USER__textAlign"] repetition to
+    // reach (0,3,2) — same gate as Android's DefaultRendererBridge and ContinuousStyleInjector.
+    LaunchedEffect(navigator, localPath) {
+        if (localPath == null) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            navigator.injectTypographyOverrideScript()
+        }
+    }
     LaunchedEffect(navigator) {
         navigator.figureTapPayloads.collect { payload ->
             figureZoomState = FigureTapMessageParser.parse(payload)

@@ -444,6 +444,21 @@ class ReadiumSwiftNavigator(
         evaluateJs(com.riffle.feature.reader.TableFit.INSTALL_SCRIPT)
     }
 
+    /**
+     * Inject the typography override CSS into the current page.
+     *
+     * Mirrors Android's [DefaultRendererBridge] and [ContinuousStyleInjector] typography-override
+     * injection. Readium's own `after.css` forces `text-align: inherit !important` on `p`/`li`
+     * with specificity (0,2,4), so a publisher rule setting `text-align: left` on any ancestor
+     * div wins the cascade even when the user has chosen justify. The injected CSS uses triple
+     * `[style*="--USER__textAlign"]` repetition on `:root` to reach (0,3,2) and beat Readium.
+     * The same high-specificity gate is used for line-height and font-family, ensuring all three
+     * user-controlled typography properties take effect on books with hostile publisher stylesheets.
+     */
+    internal suspend fun injectTypographyOverrideScript() {
+        evaluateJs(com.riffle.feature.reader.TYPOGRAPHY_OVERRIDE_INSTALL_SCRIPT)
+    }
+
     private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->
         bridge.evaluateJavaScript(script) { result -> if (cont.isActive) cont.resume(result) }
     }
