@@ -956,25 +956,25 @@ fun EpubReaderScreen(
             readaloudSession.sentenceQuotes,
             readaloudSession.readaloudHighlightColor,
         ) { ref, quotes, color -> Triple(ref, quotes, color) }
-        .collect { (ref, quotes, color) ->
-            if (ref == null) {
-                navigator.applyDecorations(DECORATION_GROUP_READALOUD, emptyList())
-                followedRef = null
-                return@collect
+            .collect { (ref, quotes, color) ->
+                if (ref == null) {
+                    navigator.applyDecorations(DECORATION_GROUP_READALOUD, emptyList())
+                    followedRef = null
+                    return@collect
+                }
+                navigator.applyDecorations(
+                    DECORATION_GROUP_READALOUD,
+                    listOf(readaloudDecoration(fragmentRef = ref, quote = quotes[ref], color = color)),
+                )
+                if (ref == followedRef) return@collect
+                followedRef = ref
+                val spanId = ref.substringAfter('#', "")
+                if (spanId.isNotEmpty() &&
+                    navigator.followCadenceSpan(spanId) == NavigatorFollowResult.OffPage
+                ) {
+                    goTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
+                }
             }
-            navigator.applyDecorations(
-                DECORATION_GROUP_READALOUD,
-                listOf(readaloudDecoration(fragmentRef = ref, quote = quotes[ref], color = color)),
-            )
-            if (ref == followedRef) return@collect
-            followedRef = ref
-            val spanId = ref.substringAfter('#', "")
-            if (spanId.isNotEmpty() &&
-                navigator.followCadenceSpan(spanId) == NavigatorFollowResult.OffPage
-            ) {
-                goTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
-            }
-        }
     }
     // Clear readaloud decoration when session closes so no stale highlight lingers.
     LaunchedEffect(readaloudSession, navigator) {
