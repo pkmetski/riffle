@@ -17,20 +17,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
-import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.PdfLocatorCodec
+import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.buildPdfRailSegments
 import com.riffle.feature.reader.findActivePdfSegmentIndex
@@ -38,13 +36,13 @@ import com.riffle.feature.reader.pdfActiveHref
 import com.riffle.feature.reader.pdfOutlineToFlatRailEntries
 import com.riffle.feature.reader.pdfOutlineToTocEntries
 import com.riffle.feature.reader.pdfProgressionWithinActiveSegment
-import com.riffle.feature.reader.weightedRailCursorPosition
 import com.riffle.feature.reader.ui.ChapterNavigationRail
 import com.riffle.feature.reader.ui.ReaderTopBar
 import com.riffle.feature.reader.ui.SharedAnnotationsPanel
 import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.chapterRailProgressPercent
 import com.riffle.feature.reader.ui.formatTemplate
+import com.riffle.feature.reader.weightedRailCursorPosition
 import com.riffle.feature.settings.ui.readersettings.ReaderSettingsSheet
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
@@ -115,14 +113,18 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     val activeRailSegmentIndex by remember {
         derivedStateOf {
-            if (railSegments.isEmpty()) -1
-            else findActivePdfSegmentIndex(railSegments, lastTrackedPage.coerceAtLeast(0))
+            if (railSegments.isEmpty()) {
+                -1
+            } else {
+                findActivePdfSegmentIndex(railSegments, lastTrackedPage.coerceAtLeast(0))
+            }
         }
     }
     val cursorPosition by remember {
         derivedStateOf {
-            if (railSegments.isEmpty() || totalPages <= 0 || activeRailSegmentIndex < 0) 0f
-            else {
+            if (railSegments.isEmpty() || totalPages <= 0 || activeRailSegmentIndex < 0) {
+                0f
+            } else {
                 val withinSeg = pdfProgressionWithinActiveSegment(
                     segments = railSegments,
                     activeIndex = activeRailSegmentIndex,
@@ -228,7 +230,6 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 onDismiss = { tocOpen = false },
             )
         }
-
 
         if (annotationsPanelOpen) {
             SharedAnnotationsPanel(
