@@ -21,7 +21,7 @@ struct ContentView: View {
     var body: some View {
         ComposeView()
             .ignoresSafeArea(.all)
-            .statusBarHidden(statusBarHidden, animated: false)
+            .statusBarHidden(statusBarHidden)
             .onAppear {
                 statusBarListener.onHiddenChanged = { hidden in statusBarHidden = hidden }
                 IosStatusBarBridge.shared.setListener(listener: statusBarListener)
