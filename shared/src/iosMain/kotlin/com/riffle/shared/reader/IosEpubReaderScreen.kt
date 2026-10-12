@@ -151,6 +151,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -298,6 +299,9 @@ fun EpubReaderScreen(
     var annotationsPanelOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var chromeVisible by remember { mutableStateOf(true) }
+    // Prevents position-triggered auto-hide for 500 ms after the user taps to reveal chrome,
+    // matching Android's ImmersiveModeState.TOGGLE_COOLDOWN_MS guard.
+    var inhibitAutoHide by remember { mutableStateOf(false) }
     var searchResultIndex by remember { mutableStateOf(0) }
     var footnotePopupState by remember { mutableStateOf<com.riffle.feature.reader.FootnotePopupState?>(null) }
     var returnToPositionTarget by remember { mutableStateOf<String?>(null) }
@@ -604,6 +608,12 @@ fun EpubReaderScreen(
                     editTargetId = null
                     pendingStyles = emptySet()
                     chromeVisible = !chromeVisible
+                    // Suppress position-triggered auto-hide for 500 ms so a tap that reveals
+                    // chrome isn't immediately cancelled by the position event that often
+                    // follows a page-edge tap — mirrors Android's TOGGLE_COOLDOWN_MS.
+                    inhibitAutoHide = true
+                    delay(500)
+                    inhibitAutoHide = false
                 }
                 is NavigatorEvent.Footnote -> {
                     footnotePopupState = FootnotePopupState(FootnoteContent(event.contentHtml))
@@ -619,6 +629,26 @@ fun EpubReaderScreen(
     // Track the current spine-item href so the TOC can highlight the active entry.
     LaunchedEffect(navigator) {
         navigator.positionFlow.collect { position -> locatorHref = position.href }
+    }
+
+    // Mirror Android's scroll → immersive behaviour: any position change after the initial
+    // restore (hence drop(1)) hides the chrome, matching EpubReaderScreen's onPositionChanged
+    // → ImmersiveModeState.dismissOverlay() path.
+    LaunchedEffect(navigator) {
+        navigator.positionFlow.drop(1).collect {
+            if (!inhibitAutoHide) chromeVisible = false
+        }
+    }
+
+    // Hide / restore the system status bar in step with chrome visibility via the Swift host,
+    // matching Android's WindowInsetsControllerCompat.hide(systemBars()) in ImmersiveModeState.
+    // The host (ContentView.swift) registers a Listener and applies .statusBarHidden() on its
+    // SwiftUI view; from Kotlin we only signal the desired state.
+    LaunchedEffect(chromeVisible) {
+        IosStatusBarBridge.setHidden(!chromeVisible)
+    }
+    DisposableEffect(Unit) {
+        onDispose { IosStatusBarBridge.setHidden(false) }
     }
 
     // Keep the corner ribbon in step with the page. Recomputed on every position change and
@@ -1284,15 +1314,16 @@ fun EpubReaderScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .systemBarsPadding()
-                    .padding(top = 40.dp, end = 8.dp)
+                    .padding(end = 8.dp)
                     .testTag(TestTags.IOS_READER_BOOKMARK),
             )
         }
 
         // The annotate sheet. Shown for a live selection, or for the annotation the reader just
         // tapped. One sheet for both because the actions are the same — which is how Android's
-        // `HighlightActionsPopup` works too; only the anchoring differs (a Popup next to the
-        // tapped rect there, docked to the bottom here).
+        // `HighlightActionsPopup` works too. For live selections we anchor near the selection
+        // rect (above when there's room, below otherwise), matching Android's
+        // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
         val liveSelection = selection
         if (noteEditorFor == null && (editTarget != null || liveSelection != null)) {
@@ -1300,6 +1331,24 @@ fun EpubReaderScreen(
             // over the wrong backdrop previews a colour the book will never show. Same shared
             // derivation Android's popup reads.
             val readerBackground = (resolvedPrefs ?: FormattingPreferences()).readerSwatchBackdropColor
+            // Position: near selection rect when a live selection is present; bottom otherwise.
+            // Rect coordinates are in the navigator view's dp space (same origin as this Box).
+            val annotationSheetModifier = run {
+                val selRect = liveSelection?.rect
+                if (selRect != null && editTarget == null) {
+                    val targetY = annotationSheetTargetY(selRect.y, selRect.height)
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(top = targetY.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                } else {
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                }
+            }
             AnnotationActionsSheet(
                 selectedColor = editTarget?.let {
                     if (it.color.isEmpty()) null else HighlightColor.fromToken(it.color)
@@ -1371,10 +1420,7 @@ fun EpubReaderScreen(
                     editTargetId = null
                     onOpenInBook?.invoke(locatorJson)
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(12.dp),
+                modifier = annotationSheetModifier,
             )
         }
 
