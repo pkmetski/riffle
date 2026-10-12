@@ -83,6 +83,7 @@ internal sealed interface LibraryNav {
     data class Reader(
         override val item: LibraryItem,
         val initialLocatorJson: String? = null,
+        val startHref: String? = null,
     ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination
@@ -101,7 +102,7 @@ internal sealed interface LibraryNav {
         override val item: LibraryItem,
         val playlistId: String? = null,
         val playlistLibraryId: String? = null,
-        val startAtSec: Float = -1f,
+        val startAtSec: Double = -1.0,
     ) : ReaderDestination
 
     /**
@@ -247,6 +248,7 @@ internal fun ReaderHost(
             item = destination.item,
             onBack = onBack,
             initialLocatorJson = destination.initialLocatorJson,
+            startHref = destination.startHref,
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = onBack)

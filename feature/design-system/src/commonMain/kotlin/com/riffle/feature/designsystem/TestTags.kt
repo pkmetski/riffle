@@ -8,9 +8,21 @@ object TestTags {
     const val NAV_DRAWER_SOURCE_HEADER = "nav_drawer_source_header"
     const val NAV_DRAWER_DOWNLOADS = "nav_drawer_downloads"
     const val NAV_DRAWER_SETTINGS = "nav_drawer_settings"
+    const val NAV_DRAWER_RIFFLE = "nav_drawer_riffle"
     const val NAV_TAB_IN_PROGRESS = "nav_tab_in_progress"
     const val NAV_TAB_TO_READ = "nav_tab_to_read"
     const val NAV_TAB_ANNOTATIONS = "nav_tab_annotations"
+    const val NO_LIBRARIES_RETRY = "no_libraries_retry"
+    fun navDrawerLibrary(id: String) = "nav_drawer_library_$id"
+
+    // ── Library tab bar ───────────────────────────────────────────────────────
+    const val LIBRARY_TAB_HOME = "library_tab_home"
+    const val LIBRARY_TAB_TO_READ = "library_tab_to_read"
+    const val LIBRARY_TAB_ANNOTATIONS = "library_tab_annotations"
+    const val LIBRARY_TAB_SERIES = "library_tab_series"
+    const val LIBRARY_TAB_COLLECTIONS = "library_tab_collections"
+    const val LIBRARY_TAB_PLAYLISTS = "library_tab_playlists"
+    const val LIBRARY_TAB_ALL_BOOKS = "library_tab_all_books"
 
     // ── Library ───────────────────────────────────────────────────────────────
     const val SERIES_DETAIL_BACK = "series_detail_back"
@@ -21,6 +33,7 @@ object TestTags {
     const val LIBRARY_OVERFLOW_MENU = "library_overflow_menu"
     const val LIBRARY_SECTION_BACK = "library_section_back"
     fun libraryBookItem(index: Int) = "library_book_item_$index"
+    fun annotatedBookTile(itemId: String) = "annotated_book_tile_$itemId"
 
     // ── Library Item Detail ───────────────────────────────────────────────────
     const val LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG = "library_item_detail_left_pane"

@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.backhandler.BackHandler
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
@@ -41,12 +42,15 @@ import org.koin.mp.KoinPlatform
  * [onFinished] fires when a source has actually been committed, so the caller can refresh its
  * start destination; [onCancelled] fires when the user backs out without adding anything.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Suppress("ktlint:standard:function-naming")
 @Composable
 fun SourceOnboardingHost(
     onFinished: () -> Unit,
     onCancelled: () -> Unit,
     canNavigateBack: Boolean = true,
+    initialBackend: AddSourceBackend? = null,
+    editId: String? = null,
 ) {
     val pickerViewModel = koinInject<SourceTypePickerViewModel>()
     val installedTypes by pickerViewModel.installedTypes.collectAsState()
@@ -55,7 +59,21 @@ fun SourceOnboardingHost(
     val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
     val scope = rememberCoroutineScope()
 
-    var step by remember { mutableStateOf<OnboardingStep>(OnboardingStep.Picker) }
+    // When an initialBackend is provided (edit-source routing), skip the picker and go directly
+    // to the credentials step. The cast to Credentialed is safe: edit-source never routes through
+    // Webdav (which has its own WebdavOnboardingHost) and only ABS/Komga reach this path.
+    val startStep: OnboardingStep = remember(initialBackend) {
+        val credentialed = initialBackend as? AddSourceBackend.Credentialed
+        if (credentialed != null) OnboardingStep.Credentials(credentialed.sourceType) else OnboardingStep.Picker
+    }
+    var step by remember(initialBackend) { mutableStateOf(startStep) }
+
+    // Intercept the system / swipe-back gesture when the user is past the picker step, so that
+    // backing out within the flow returns to the picker rather than dismissing the host view
+    // controller. At the picker level with canNavigateBack=false (first-run onboarding) there is
+    // intentionally no BackHandler — the user must complete the flow.
+    val isSubStep = step != OnboardingStep.Picker
+    BackHandler(enabled = isSubStep) { step = OnboardingStep.Picker }
 
     // iOS used to hardcode `false` at all four of these call sites, so an iPad — in landscape, in
     // Split View, or a 12.9" in portrait — rendered the phone layout and stretched the credential
@@ -92,10 +110,12 @@ fun SourceOnboardingHost(
         is OnboardingStep.Credentials -> {
             // Keyed by SourceType so backing out and picking a different source builds a fresh
             // ViewModel with the right `type` route param (mirrors Android's nav-arg behaviour).
-            val viewModel = remember(current.type) { addSourceViewModel(current.type) }
+            // Always show the navigation icon so the user can return to the Picker even when
+            // canNavigateBack=false (first-run onboarding where the picker itself has no back).
+            val viewModel = remember(current.type) { addSourceViewModel(current.type, editId) }
             AddSourceScreen(
                 isExpandedWidth = expandedWidth,
-                showNavigationIcon = canNavigateBack,
+                showNavigationIcon = true,
                 onNavigateBack = { step = OnboardingStep.Picker },
                 onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending) },
                 onAutoCompleted = onFinished,
@@ -174,9 +194,9 @@ internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
  * identical backend on both platforms. ABS's ServerType discriminator is AUDIOBOOKSHELF here —
  * Storyteller is a Service, configured from Settings, not from the Add-Source picker.
  */
-private fun addSourceViewModel(type: SourceType): AddSourceViewModel {
+private fun addSourceViewModel(type: SourceType, editId: String? = null): AddSourceViewModel {
     val routeType = AddSourceBackend.Credentialed(type, ServerType.AUDIOBOOKSHELF).routeType
-    return KoinPlatform.getKoin().get { parametersOf(routeType) }
+    return KoinPlatform.getKoin().get { parametersOf(routeType, editId.orEmpty()) }
 }
 
 /**

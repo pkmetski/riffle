@@ -169,6 +169,7 @@ private fun DrawerSheetContent(
                         label = { Text(library.name) },
                         selected = library.id == activeLibraryId,
                         onClick = { onLibrarySelected(library) },
+                        modifier = Modifier.testTag(TestTags.navDrawerLibrary(library.id)),
                     )
                 }
             }
@@ -304,6 +305,7 @@ private fun DrawerHeader(
                         switcherExpanded = false
                         onRiffleSelected()
                     },
+                    modifier = Modifier.testTag(TestTags.NAV_DRAWER_RIFFLE),
                 )
                 HorizontalDivider()
             }

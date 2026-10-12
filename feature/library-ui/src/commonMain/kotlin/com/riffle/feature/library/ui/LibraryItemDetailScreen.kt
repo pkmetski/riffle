@@ -454,7 +454,10 @@ private fun DetailReadyScaffold(
                     actions = {
                         if (state.capabilities.canEditMetadata || state.capabilities.canUploadToConfiguredSource) {
                             Box {
-                                IconButton(onClick = onToggleOverflowMenu) {
+                                IconButton(
+                                    onClick = onToggleOverflowMenu,
+                                    modifier = Modifier.testTag(TestTags.BOOK_DETAIL_OVERFLOW),
+                                ) {
                                     Icon(LibraryUiGlyphs.MoreVert, contentDescription = null)
                                 }
                                 DropdownMenu(

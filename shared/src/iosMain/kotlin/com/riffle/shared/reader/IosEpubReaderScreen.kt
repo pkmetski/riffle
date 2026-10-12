@@ -178,6 +178,7 @@ fun EpubReaderScreen(
     onBack: () -> Unit,
     source: ReaderSource = ReaderSource.FullBook,
     initialLocatorJson: String? = null,
+    startHref: String? = null,
     onOpenInBook: ((locatorJson: String) -> Unit)? = null,
 ) {
     KeepReaderScreenOn()
@@ -391,6 +392,7 @@ fun EpubReaderScreen(
         // Readium's locate(progression:) so the book opens where the other device left off
         // instead of at page one. The primary CFI path, when present, still wins.
         val openAt = initialLocatorJson
+            ?: startHref?.let { href -> hrefLocatorJson(href) }
             ?: savedLocator
             ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
         navigator.open(path, openAt)
