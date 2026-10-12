@@ -47,6 +47,7 @@ import com.riffle.feature.settings.ui.generated.resources.ui_debug_logs
 import com.riffle.feature.settings.ui.generated.resources.ui_no_entries_match_current_filter
 import com.riffle.feature.settings.ui.generated.resources.ui_no_log_entries_yet
 import com.riffle.feature.settings.ui.generated.resources.ui_share
+import com.riffle.feature.settings.ui.generated.resources.ui_share_debug_log
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -57,15 +58,16 @@ import org.koin.compose.koinInject
  * In-app viewer for [InMemoryLogBuffer]. Reverse-chronological (newest first), channel-filter
  * chips, and an optional Share action delegated to the host via [onShare].
  *
- * [onShare] receives the active channel filter set (null = no filter) so the host can write the
- * filtered snapshot to a platform-specific share mechanism (FileProvider on Android, share sheet
- * on iOS). Pass null to suppress the Share button entirely.
+ * [onShare] receives the active channel filter set (null = no filter) and a resolved chooser
+ * title so the host can write the filtered snapshot to a platform-specific share mechanism
+ * (FileProvider on Android, share sheet on iOS) without needing CMP stringResource itself.
+ * Pass null to suppress the Share button entirely.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugLogScreen(
     onNavigateBack: () -> Unit,
-    onShare: ((Set<LogChannel>?) -> Unit)? = null,
+    onShare: ((channels: Set<LogChannel>?, chooserTitle: String) -> Unit)? = null,
     logBuffer: InMemoryLogBuffer = koinInject(),
 ) {
     val entries by logBuffer.entries.collectAsState()
@@ -86,8 +88,9 @@ fun DebugLogScreen(
                 },
                 actions = {
                     if (onShare != null) {
+                        val shareTitle = stringResource(Res.string.ui_share_debug_log)
                         TextButton(onClick = {
-                            onShare(activeChannels.value.takeIf { it.isNotEmpty() })
+                            onShare(activeChannels.value.takeIf { it.isNotEmpty() }, shareTitle)
                         }) {
                             Text(stringResource(Res.string.ui_share))
                         }

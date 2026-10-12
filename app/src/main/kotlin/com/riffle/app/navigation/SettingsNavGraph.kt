@@ -172,19 +172,10 @@ internal fun NavGraphBuilder.settingsNavGraph(
             navController.getBackStackEntry(SETTINGS)
         }
         val settingsVm: SettingsViewModel = koinViewModel(viewModelStoreOwner = settingsEntry)
-        val crashReportsSubjectTemplate = org.jetbrains.compose.resources.stringResource(
-            com.riffle.feature.settings.ui.generated.resources.Res.string.ui_crash_reports_subject,
-        )
-        val shareCrashReportsTitle = org.jetbrains.compose.resources.stringResource(
-            com.riffle.feature.settings.ui.generated.resources.Res.string.ui_share_crash_reports,
-        )
-        val shareCrashReportTitle = org.jetbrains.compose.resources.stringResource(
-            com.riffle.feature.settings.ui.generated.resources.Res.string.ui_share_crash_report,
-        )
         DeveloperOptionsScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
-            onShareAllCrashReports = {
+            onShareAllCrashReports = { subject, chooserTitle ->
                 val files = settingsVm.crashReportFilePaths().map { java.io.File(it) }
                 if (files.isNotEmpty()) {
                     val uris = ArrayList<android.net.Uri>(files.size)
@@ -196,35 +187,32 @@ internal fun NavGraphBuilder.settingsNavGraph(
                     val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
                         type = "text/plain"
                         putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
-                        putExtra(android.content.Intent.EXTRA_SUBJECT, String.format(crashReportsSubjectTemplate, files.size))
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(android.content.Intent.createChooser(intent, shareCrashReportsTitle))
+                    context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
                 }
             },
-            onShareSingleCrashReport = { report ->
+            onShareSingleCrashReport = { report, subject, chooserTitle ->
                 val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(android.content.Intent.EXTRA_SUBJECT, com.riffle.feature.settings.ui.crashReportShareSubject(report.id))
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
                     putExtra(android.content.Intent.EXTRA_TEXT, report.content)
                 }
-                context.startActivity(android.content.Intent.createChooser(intent, shareCrashReportTitle))
+                context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
             },
             viewModel = settingsVm,
         )
     }
     composable(DEBUG_LOGS) { backStackEntry ->
         val context = LocalContext.current
-        val shareTitle = org.jetbrains.compose.resources.stringResource(
-            com.riffle.feature.settings.ui.generated.resources.Res.string.ui_share_debug_log,
-        )
         val debugLogVm: com.riffle.feature.settings.ui.debug.DebugLogViewModel = koinViewModel()
         DebugLogScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-            onShare = { channels ->
+            onShare = { channels, chooserTitle ->
                 val intent = debugLogVm.buildShareIntent(channels)
                 if (intent != null) {
-                    context.startActivity(android.content.Intent.createChooser(intent, shareTitle))
+                    context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
                 }
             },
         )

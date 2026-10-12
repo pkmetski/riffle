@@ -41,6 +41,7 @@ import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.crashReportShareSubject
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_clear
@@ -56,6 +57,9 @@ import com.riffle.feature.settings.ui.generated.resources.ui_no_crashes_recorded
 import com.riffle.feature.settings.ui.generated.resources.ui_save
 import com.riffle.feature.settings.ui.generated.resources.ui_share
 import com.riffle.feature.settings.ui.generated.resources.ui_share_all
+import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_report
+import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_reports
+import com.riffle.feature.settings.ui.generated.resources.ui_crash_reports_subject
 import com.riffle.feature.settings.ui.generated.resources.ui_show
 import com.riffle.feature.settings.ui.generated.resources.ui_the_app_has_not_crashed_since_installation
 import com.riffle.feature.settings.ui.generated.resources.ui_used_to_submit_panel_detection_bug_reports_to_the_github_repository
@@ -70,17 +74,18 @@ import org.koin.compose.viewmodel.koinViewModel
  * Developer Options screen — GitHub PAT field and diagnostics (debug logs + crash inventory).
  *
  * Crash-report sharing is delegated to the host via hooks so platform-specific FileProvider /
- * UIActivityViewController code stays out of commonMain:
- * - [onShareAllCrashReports]: invoked when the user taps "Share all"; null hides the button.
- * - [onShareSingleCrashReport]: invoked with the tapped [CrashReport]; null hides per-report share.
+ * UIActivityViewController code stays out of commonMain. The screen resolves localized strings
+ * and passes them to the callbacks so the host never needs to call stringResource:
+ * - [onShareAllCrashReports]: (subject, chooserTitle) — null hides the button.
+ * - [onShareSingleCrashReport]: (report, chooserTitle) — null hides per-report share.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperOptionsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
-    onShareAllCrashReports: (() -> Unit)? = null,
-    onShareSingleCrashReport: ((CrashReport) -> Unit)? = null,
+    onShareAllCrashReports: ((subject: String, chooserTitle: String) -> Unit)? = null,
+    onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val githubPat by viewModel.githubPat.collectAsState()
@@ -183,8 +188,8 @@ internal fun DiagnosticsSection(
     expandedCrashes: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
     onClearCrashReports: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
-    onShareAllCrashReports: (() -> Unit)? = null,
-    onShareSingleCrashReport: ((CrashReport) -> Unit)? = null,
+    onShareAllCrashReports: ((subject: String, chooserTitle: String) -> Unit)? = null,
+    onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
 ) {
     SettingsSectionHeader(stringResource(Res.string.ui_diagnostics))
     ListItem(
@@ -201,13 +206,16 @@ internal fun DiagnosticsSection(
             supportingContent = { Text(stringResource(Res.string.ui_the_app_has_not_crashed_since_installation)) },
         )
     } else {
+        val shareAllSubject = if (onShareAllCrashReports != null) stringResource(Res.string.ui_crash_reports_subject, crashReports.size) else ""
+        val shareAllTitle = if (onShareAllCrashReports != null) stringResource(Res.string.ui_share_crash_reports) else ""
+        val shareSingleTitle = if (onShareSingleCrashReport != null) stringResource(Res.string.ui_share_crash_report) else ""
         ListItem(
             headlineContent = { Text(stringResource(Res.string.ui_crash_report_count, crashReports.size)) },
             supportingContent = { Text(stringResource(Res.string.ui_newest_first)) },
             trailingContent = {
                 Row {
                     if (onShareAllCrashReports != null) {
-                        TextButton(onClick = onShareAllCrashReports) {
+                        TextButton(onClick = { onShareAllCrashReports(shareAllSubject, shareAllTitle) }) {
                             Text(stringResource(Res.string.ui_share_all))
                         }
                     }
@@ -237,7 +245,7 @@ internal fun DiagnosticsSection(
                 trailingContent = {
                     Row {
                         if (onShareSingleCrashReport != null) {
-                            TextButton(onClick = { onShareSingleCrashReport(item) }) {
+                            TextButton(onClick = { onShareSingleCrashReport(item, crashReportShareSubject(item.id), shareSingleTitle) }) {
                                 Text(stringResource(Res.string.ui_share))
                             }
                         }

@@ -357,7 +357,7 @@ class EpubReaderViewModel constructor(
     private val pdfExporter: HighlightsPdfExporter,
     private val dictionaryRepository: com.riffle.core.dictionary.DictionaryRepository,
     private val packStore: com.riffle.core.dictionary.PackStore,
-    private val packDownloader: com.riffle.core.data.dictionary.PackDownloader,
+    private val packDownloader: com.riffle.core.dictionary.PackDownloaderInterface,
     private val downloadManager: com.riffle.app.feature.library.DownloadManager,
     private val progressSweep: com.riffle.core.sync.ProgressSweep,
 ) : AndroidViewModel(application) {
