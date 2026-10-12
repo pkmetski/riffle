@@ -95,8 +95,9 @@ import com.riffle.app.feature.reader.presenter.PageDirection
 import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
-import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
-import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
+import com.riffle.feature.downloads.formatBytesOrUnknown
+import com.riffle.feature.player.ui.ReadaloudDownloadDialog
+import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.feature.reader.renderer.DefaultRendererBridge
 import com.riffle.app.feature.reader.renderer.RendererBridge
@@ -847,7 +848,7 @@ fun EpubReaderScreen(
         if (showReadaloudUi) {
             downloadPromptBytes?.let { bytes ->
                 ReadaloudDownloadDialog(
-                    sizeBytes = bytes,
+                    sizeLabel = formatBytesOrUnknown(bytes),
                     onConfirm = { wifiOnly -> viewModel.confirmDownloadAudio(wifiOnly) },
                     onDismiss = viewModel::dismissDownloadPrompt,
                 )

@@ -2,6 +2,12 @@ package com.riffle.core.domain
 
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.parser.Parser
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
+import platform.Foundation.NSData
+import platform.Foundation.dataWithContentsOfFile
+import platform.posix.memcpy
 
 /**
  * iOS port of jvmMain's [EpubContentExtractor] (ADR 0023): EPUB bytes → spine chapters in reading
@@ -20,6 +26,25 @@ import com.fleeksoft.ksoup.parser.Parser
  * materialised; only the OPF, spine chapters and SMIL entries are inflated.
  */
 object IosEpubContentExtractor {
+
+    /**
+     * Reads the bundle at [bundlePath] into memory and extracts the EPUB spine.
+     *
+     * Convenience for [IosReadaloudSession] which only has a path, not bytes. The full file is
+     * materialized once; large audio entries are compressed in the zip and never inflated — only
+     * the HTML chapters and SMIL overlays are decoded.
+     */
+    @OptIn(ExperimentalForeignApi::class)
+    fun extract(bundlePath: String): ExtractedEpub? {
+        val data = NSData.dataWithContentsOfFile(bundlePath) ?: return null
+        val bytes = ByteArray(data.length.toInt())
+        if (bytes.isNotEmpty()) {
+            bytes.usePinned { pinned ->
+                memcpy(pinned.addressOf(0), data.bytes, data.length)
+            }
+        }
+        return extract(bytes)
+    }
 
     fun extract(epubBytes: ByteArray): ExtractedEpub? = try {
         val archive = IosZipArchive(epubBytes)

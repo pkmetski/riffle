@@ -672,6 +672,7 @@ private fun iosLibraryModule(
                 bundleReader = get(),
                 readaloudPreferencesStore = get(),
                 resumeStore = get(),
+                audiobookHandoffState = get(),
                 dispatchers = get(),
                 parentScope = get<ApplicationScope>().coroutineScope,
             )
