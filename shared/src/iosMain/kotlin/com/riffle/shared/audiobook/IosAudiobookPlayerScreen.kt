@@ -37,7 +37,7 @@ fun AudiobookPlayerScreen(
     item: LibraryItem,
     playlistId: String?,
     playlistLibraryId: String?,
-    startAtSec: Float = -1f,
+    startAtSec: Double = -1.0,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
     onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
@@ -49,12 +49,12 @@ fun AudiobookPlayerScreen(
     val koin = getKoin()
     val host = remember(item.id) { ScreenScopedViewModelHost() }
     val vm: AudiobookPlayerViewModel = remember(item.id) {
-        // The playlist context is positional (indices 2 and 3 of the Koin factory's params), so
-        // it is always supplied — "" where there is none, which the ViewModel already reads as
-        // absent. Passing nothing would make `params.get(2)` throw for every non-playlist open.
+        // Playlist context (indices 2–3) and start position (index 4) are always supplied
+        // positionally so `params.get(N)` never throws. Empty string for absent playlist;
+        // -1f for "no start position" (the ViewModel treats negative as absent).
         host.adopt(
             koin.get {
-                parametersOf(item.id, item.sourceId, playlistId.orEmpty(), playlistLibraryId.orEmpty(), startAtSec)
+                parametersOf(item.id, item.sourceId, playlistId.orEmpty(), playlistLibraryId.orEmpty(), startAtSec.toFloat())
             },
         )
     }

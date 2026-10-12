@@ -285,6 +285,7 @@ import kotlinx.coroutines.flow.map
 import org.koin.compose.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import org.koin.mp.KoinPlatform
 import platform.Foundation.NSBundle
 import org.koin.core.context.startKoin as koinStartKoin
 
@@ -495,7 +496,13 @@ private fun iosLibraryModule(
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
             devDefaults = get(),
-            savedStateHandle = SavedStateHandle(mapOf("type" to params.get<String>())),
+            savedStateHandle = SavedStateHandle(buildMap {
+                put("type", params.get<String>(0))
+                if (params.size() > 1) {
+                    val editId = params.get<String>(1).takeIf { it.isNotEmpty() }
+                    if (editId != null) put("editId", editId)
+                }
+            }),
         )
     }
     factory { SelectLibrariesViewModel(repository = get(), strings = get()) }
@@ -715,8 +722,9 @@ private fun iosLibraryModule(
             // ViewModel already treats "" as absent.
             navPlaylistId = params.get<String>(2),
             navPlaylistLibraryId = params.get<String>(3),
-            // startAtSec is -1f unless the player is opened from a bookmark search result.
-            navStartAtSec = params.values.getOrNull(4) as? Float ?: -1f,
+            // Start position from navigation (e.g. chapter tap in detail screen). Defaults to
+            // -1f (absent) so existing callers without a fifth param are unaffected.
+            navStartAtSec = if (params.size() > 4) params.get<Float>(4) else -1f,
             // iOS navigation is always an explicit user action; there is no automatic
             // now-playing-card path that bypasses user intent.
             navUserPlay = true,
@@ -1353,6 +1361,10 @@ private fun playlistSavedStateHandle(
         PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_NAME to playlistName.urlFormEncode(),
     ),
 )
+
+/** Returns the singleton [NowPlayingNavigator] — callable from Swift to trigger the open-player flow. */
+fun getNowPlayingNavigator(): com.riffle.feature.navigation.NowPlayingNavigator =
+    KoinPlatform.getKoin().get()
 
 /**
  * The Swift entry point. Its parameter list is the ObjC-exported surface, so it deliberately

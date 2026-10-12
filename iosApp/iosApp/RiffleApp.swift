@@ -4,6 +4,8 @@ import Riffle
 
 @main
 struct RiffleApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
         if CommandLine.arguments.contains("--RIFFLE_RESET_FOR_TESTS") {
             wipeAppState()
@@ -24,6 +26,14 @@ struct RiffleApp: App {
         WindowGroup {
             ContentView()
                 .onOpenURL { url in openIncomingDocument(url) }
+        }
+        // When the app returns to the foreground (e.g. via a media-notification tap), ask the
+        // navigation host to open whatever is currently playing. The Kotlin side guards against
+        // spurious calls by checking NowPlayingStore before actually navigating.
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                KoinKt.getNowPlayingNavigator().requestOpen()
+            }
         }
     }
 }

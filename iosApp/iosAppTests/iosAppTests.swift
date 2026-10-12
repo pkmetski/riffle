@@ -119,10 +119,15 @@ final class IosAppTests: AbsHarnessTestCase {
         )
         backArrow.tap()
 
-        let anySection = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Collections"].contains {
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", $0)).firstMatch.waitForExistence(timeout: 5)
-        }
-        XCTAssertTrue(anySection, "Navigating back from collection detail should return to library home")
+        // SaveableStateHolder preserves the tab that was active when CollectionDetail was pushed,
+        // so back lands on the Collections tab (not Home). Check that we're back in the library
+        // by waiting for the Collections tab button to be present — it's in the bottom nav bar
+        // on every library tab and is absent from the collection-detail screen.
+        let collectionsTabAfterBack = app.buttons["Collections"].firstMatch
+        XCTAssertTrue(
+            collectionsTabAfterBack.waitForExistence(timeout: 10),
+            "Navigating back from collection detail should return to the library (Collections tab visible)"
+        )
     }
 
     // MARK: - Scenario 4.5 — Item tap in Series detail opens item detail

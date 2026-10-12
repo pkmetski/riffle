@@ -401,12 +401,14 @@ private fun LibraryTabBar(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
             icon = { Icon(RiffleIcons.Home, contentDescription = homeLabel) },
+            modifier = Modifier.testTag(TestTags.LIBRARY_TAB_HOME),
         )
         if (visibility.toRead) {
             NavigationBarItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
                 icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = toReadLabel) },
+                modifier = Modifier.testTag(TestTags.LIBRARY_TAB_TO_READ),
             )
         }
         if (visibility.annotations) {
@@ -414,6 +416,7 @@ private fun LibraryTabBar(
                 selected = selectedTab == tabIndexForAnnotations(),
                 onClick = { onTabSelected(tabIndexForAnnotations()) },
                 icon = { Icon(RiffleIcons.Annotations, contentDescription = annotationsLabel) },
+                modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ANNOTATIONS),
             )
         }
         if (visibility.series) {
@@ -421,6 +424,7 @@ private fun LibraryTabBar(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
                 icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = seriesLabel) },
+                modifier = Modifier.testTag(TestTags.LIBRARY_TAB_SERIES),
             )
         }
         if (visibility.collections) {
@@ -428,6 +432,7 @@ private fun LibraryTabBar(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
                 icon = { Icon(RiffleIcons.Folder, contentDescription = collectionsLabel) },
+                modifier = Modifier.testTag(TestTags.LIBRARY_TAB_COLLECTIONS),
             )
         }
         if (visibility.playlists) {
@@ -435,12 +440,14 @@ private fun LibraryTabBar(
                 selected = selectedTab == tabIndexForPlaylists(),
                 onClick = { onTabSelected(tabIndexForPlaylists()) },
                 icon = { Icon(RiffleIcons.QueueMusic, contentDescription = playlistsLabel) },
+                modifier = Modifier.testTag(TestTags.LIBRARY_TAB_PLAYLISTS),
             )
         }
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
             icon = { Icon(RiffleIcons.GridView, contentDescription = allBooksLabel) },
+            modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ALL_BOOKS),
         )
     }
 }
@@ -905,6 +912,7 @@ internal fun AnnotatedBookTile(book: AnnotatedBook, token: String, onClick: () -
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag(TestTags.annotatedBookTile(book.itemId))
             .semantics(mergeDescendants = true) { contentDescription = title }
             .clickable(onClick = onClick),
     ) {
