@@ -5,25 +5,12 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -59,10 +45,11 @@ import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.ui.ChapterNavigationRail
+import com.riffle.feature.reader.ui.ReaderTopBar
+import com.riffle.feature.reader.ui.SharedAnnotationsPanel
 import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.chapterRailProgressPercent
 import com.riffle.feature.reader.ui.formatTemplate
@@ -87,7 +74,6 @@ import com.riffle.feature.source.ui.CornerBookmarkIndicator
 // FigureZoomState with an in-memory bitmap path (via svgMarkup=null + href pointing to a temp file
 // or a new data URI). Deferred from v1; do not implement without a decode-cost benchmark on a
 // large-page PDF.
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfReaderScreen(
     onNavigateBack: () -> Unit,
@@ -228,7 +214,7 @@ fun PdfReaderScreen(
                     }
 
                     if (annotationsPanelVisible) {
-                        AnnotationsPanel(
+                        SharedAnnotationsPanel(
                             annotations = annotations,
                             onNavigate = { id -> viewModel.navigateToAnnotation(id) },
                             onDelete = { id -> viewModel.deleteAnnotation(id) },
@@ -262,52 +248,16 @@ fun PdfReaderScreen(
             }
         }
 
-        AnimatedVisibility(
+        ReaderTopBar(
             visible = !immersiveState.isImmersive,
-            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
-            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
-        ) {
-            val formatContentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_format)
-            TopAppBar(
-                title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.testTag(TestTags.PDF_READER_BACK),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_back))
-                    }
-                },
-                actions = {
-                    if (state is ReaderState.Ready) {
-                        IconButton(
-                            onClick = viewModel::openToc,
-                            modifier = Modifier.testTag(TestTags.PDF_READER_TOC),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_table_of_contents))
-                        }
-                        IconButton(
-                            onClick = viewModel::openAnnotationsPanel,
-                            modifier = Modifier.testTag(TestTags.PDF_READER_ANNOTATIONS),
-                        ) {
-                            Icon(RiffleIcons.Annotations, contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotations))
-                        }
-                        IconButton(
-                            onClick = { showFormattingPanel = true },
-                            modifier = Modifier.testTag(TestTags.PDF_READER_SETTINGS),
-                        ) {
-                            Text(
-                                "Aa",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.semantics { contentDescription = formatContentDescription },
-                            )
-                        }
-                    }
-                },
-                colors = readerTopAppBarColors(),
-            )
-        }
+            title = title,
+            isReady = state is ReaderState.Ready,
+            onBack = onNavigateBack,
+            onSearch = {},
+            onToc = viewModel::openToc,
+            onAnnotations = viewModel::openAnnotationsPanel,
+            onFormat = { showFormattingPanel = true },
+        )
 
         if (showFormattingPanel) {
             ReaderSettingsSheet(

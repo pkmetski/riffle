@@ -533,7 +533,10 @@ jobs:
           if run_harness; then
             exit 0
           fi
-          if grep -qE "$CRASH_RE" xcodebuild-harness.log; then
+          # harness.xcresult is always created when xcodebuild runs test assertions, even failing
+          # ones. If it was not created at all, xcodebuild itself crashed (simulator death, runner
+          # memory pressure, etc.) before running any tests — always an infrastructure crash.
+          if [ ! -d harness.xcresult ] || grep -qE "$CRASH_RE" xcodebuild-harness.log; then
             echo "::warning::Simulator infrastructure failure detected — retrying once on a clean simulator."
           else
             echo "Harness failed with genuine test failures (no simulator-infrastructure signature) — not retrying."
