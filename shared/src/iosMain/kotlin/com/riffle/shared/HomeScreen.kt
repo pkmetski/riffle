@@ -398,8 +398,10 @@ fun HomeScreen() {
 
                 SideEffect {
                     val last = riffleNavStack.lastOrNull()
-                    isInReaderDestination = last is LibraryNav.Reader || last is LibraryNav.PdfReader ||
-                        last is LibraryNav.CbzReader || last is LibraryNav.ElidedReader
+                    isInReaderDestination = last is LibraryNav.Reader ||
+                        last is LibraryNav.PdfReader ||
+                        last is LibraryNav.CbzReader ||
+                        last is LibraryNav.ElidedReader
                 }
                 DisposableEffect(Unit) { onDispose { isInReaderDestination = false } }
 
@@ -507,7 +509,10 @@ fun HomeScreen() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(stringResource(Res.string.ui_unable_to_connect_to_source))
-                        Button(onClick = { refreshKey++ }, modifier = Modifier.testTag(TestTags.NO_LIBRARIES_RETRY)) { Text(stringResource(Res.string.ui_retry)) }
+                        Button(
+                            onClick = { refreshKey++ },
+                            modifier = Modifier.testTag(TestTags.NO_LIBRARIES_RETRY),
+                        ) { Text(stringResource(Res.string.ui_retry)) }
                     }
                     is HomeViewModel.StartDestination.Library -> {
                         LaunchedEffect(dest.libraryId) {
@@ -571,8 +576,10 @@ private fun LibraryHost(
     SideEffect {
         val last = navStack.last()
         onReaderActiveChanged(
-            last is LibraryNav.Reader || last is LibraryNav.PdfReader ||
-                last is LibraryNav.CbzReader || last is LibraryNav.ElidedReader
+            last is LibraryNav.Reader ||
+                last is LibraryNav.PdfReader ||
+                last is LibraryNav.CbzReader ||
+                last is LibraryNav.ElidedReader,
         )
     }
     DisposableEffect(Unit) { onDispose { onReaderActiveChanged(false) } }
@@ -607,7 +614,9 @@ private fun LibraryHost(
                         push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                     },
                     onAnnotationSelected = { result -> push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null })) },
-                    onAudiobookBookmarkSelected = { result -> push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null })) },
+                    onAudiobookBookmarkSelected = { result ->
+                        push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }))
+                    },
                     onSeriesSelected = { series ->
                         push(
                             LibraryNav.SeriesDetail(
