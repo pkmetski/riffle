@@ -715,9 +715,8 @@ private fun iosLibraryModule(
             // ViewModel already treats "" as absent.
             navPlaylistId = params.get<String>(2),
             navPlaylistLibraryId = params.get<String>(3),
-            // Bookmark jumps happen inside the open player through the VM, not through
-            // navigation, so iOS has no navigation-time start position (#1071 §17).
-            navStartAtSec = -1f,
+            // startAtSec is -1f unless the player is opened from a bookmark search result.
+            navStartAtSec = params.values.getOrNull(4) as? Float ?: -1f,
             // iOS navigation is always an explicit user action; there is no automatic
             // now-playing-card path that bypasses user intent.
             navUserPlay = true,

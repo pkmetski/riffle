@@ -38,7 +38,10 @@ import Riffle
         startSrcIndex: Int32,
         startOffsetSec: Double
     ) {
-        guard !isDisposed else { return }
+        // Resets disposed state so the bridge can be reused when readaloud is closed and
+        // reopened on the same book — dispose() sets isDisposed permanently, but prepareAudioSrcs
+        // rebuilds all state from scratch, making it safe to reuse.
+        isDisposed = false
 
         self.audioFileUrls = audioFileUrls
         configureAudioSession()

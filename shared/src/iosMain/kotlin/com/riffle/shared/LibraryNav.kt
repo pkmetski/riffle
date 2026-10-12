@@ -93,12 +93,28 @@ internal sealed interface LibraryNav {
      * to the next item at end-of-book, exactly as Android's `?playlistId=…&libraryId=…` query
      * args do. Before the playlist surfaces existed no iOS caller could supply them, so the
      * ViewModel's `navPlaylistId` was hard-wired to `null` and `PlaylistAdvance` was unreachable.
+     *
+     * [startAtSec] is `-1f` for most entry points; it is set to a bookmark's position when
+     * navigating from an audiobook-bookmark search result, matching Android's `?startAtSec=…` arg.
      */
     data class AudiobookPlayer(
         override val item: LibraryItem,
         val playlistId: String? = null,
         val playlistLibraryId: String? = null,
+        val startAtSec: Float = -1f,
     ) : ReaderDestination
+
+    /**
+     * Loads a [LibraryItem] by [itemId]/[sourceId] and opens the audiobook player at [startAtSec].
+     *
+     * Used when opening from an audiobook bookmark search result, where only ids and a position
+     * are available — a full [LibraryItem] must be loaded before the player can be created.
+     */
+    data class AudiobookBookmark(
+        val itemId: String,
+        val sourceId: String?,
+        val startAtSec: Float,
+    ) : LibraryNav
 }
 
 /**
@@ -238,6 +254,7 @@ internal fun ReaderHost(
             item = destination.item,
             playlistId = destination.playlistId,
             playlistLibraryId = destination.playlistLibraryId,
+            startAtSec = destination.startAtSec,
             onBack = onBack,
             onPlaylistAdvance = onPlaylistAdvance,
         )

@@ -39,6 +39,8 @@ object ServerReferenceLint {
         "core/domain/src/commonMain/kotlin/com/riffle/core/domain/ProgressReconciler.kt",
         "core/domain/src/commonMain/kotlin/com/riffle/core/domain/ProgressSyncController.kt",
         "core/domain/src/commonMain/kotlin/com/riffle/core/domain/HighlightsResumeStore.kt",
+        // iOS implementation overrides HighlightsResumeStore's grandfathered `serverId` parameters.
+        "core/data/src/iosMain/kotlin/com/riffle/core/data/IosHighlightsResumeStore.kt",
         // WebSourceDescriptor + its ABS/Storyteller subclasses branch on ServerType to pick the
         // right AddSource copy, icon URL, and namespace shape per credentialed web source (ADR
         // 0053). Same grandfathering rationale as SourceRepository / Source.

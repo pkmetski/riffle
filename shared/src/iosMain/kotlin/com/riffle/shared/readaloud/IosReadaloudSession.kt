@@ -146,6 +146,8 @@ internal class IosReadaloudSession(
         _downloadProgress.value = null
     }
 
+    fun pause() = controller.pause()
+
     fun togglePlayPause() {
         if (controller.state.value.isPlaying) controller.pause() else controller.play()
     }

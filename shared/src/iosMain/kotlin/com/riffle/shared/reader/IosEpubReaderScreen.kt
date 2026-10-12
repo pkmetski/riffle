@@ -38,6 +38,8 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
+import com.riffle.core.data.ItemProgressPuller
+import com.riffle.core.data.annotationLocatorJson
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
@@ -194,6 +196,7 @@ fun EpubReaderScreen(
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
     val readaloudSessionFactory = koinInject<IosReadaloudSession.Factory>()
+    val progressPuller = koinInject<ItemProgressPuller>()
     val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
@@ -314,6 +317,8 @@ fun EpubReaderScreen(
     val emphasisBarCss = MaterialTheme.colorScheme.onSurfaceVariant.toArgb().toCssRgba()
 
     LaunchedEffect(item.id) {
+        // Pull the latest server position before opening, matching Android's ReaderSessionLifecycle.
+        progressPuller.pullItem(item.sourceId, item.id)
         if (source == ReaderSource.Highlights) {
             // Elided Annotations View: build a synthetic EPUB from the book's highlights and
             // open it from a temp directory. No position restore — always opens at the start.
@@ -348,10 +353,10 @@ fun EpubReaderScreen(
                 return@LaunchedEffect
             }
             navigator.openSyntheticEpub(dirPath, null)
-            // The coordinator applies real annotation HREFs against the synthetic EPUB's
-            // highlights/chN.xhtml spine — decorations would never match. The synthetic EPUB's
-            // chapter HTML already bakes colors and accent bars in via renderChapterHtml, so no
-            // Readium decoration layer is needed in Highlights mode.
+            // Start the coordinator so coordinator.annotations is populated — the action sheet
+            // (AnnotationActionsSheet) uses it to resolve editTargetId to an Annotation.
+            // Decorations still won't match the synthetic EPUB's spine, but the data flow is live.
+            coordinator.start()
             localPath = dirPath
             return@LaunchedEffect
         }
@@ -1063,6 +1068,7 @@ fun EpubReaderScreen(
                                     starting = Feature.AutoScroll,
                                     stopAutoScroll = { autoScroll.dispatch(AutoScrollEvent.Stop) },
                                     pauseCadence = cadence::pauseFor,
+                                    pauseReadaloud = readaloudSession::pause,
                                 )
                                 autoScroll.dispatch(AutoScrollEvent.Start)
                             }
@@ -1087,6 +1093,7 @@ fun EpubReaderScreen(
                                     starting = Feature.Cadence,
                                     stopAutoScroll = { autoScroll.dispatch(AutoScrollEvent.Stop) },
                                     pauseCadence = cadence::pauseFor,
+                                    pauseReadaloud = readaloudSession::pause,
                                 )
                                 scope.launch { startCadenceFromCurrentPage(navigator, cadence) }
                             }
@@ -1243,7 +1250,7 @@ fun EpubReaderScreen(
                     val targetId = editTargetId ?: return@AnnotationActionsSheet
                     val annotation = highlightsAnnotations.firstOrNull { it.id == targetId }
                         ?: return@AnnotationActionsSheet
-                    val locatorJson = buildAnnotationLocatorJson(annotation.chapterHref, annotation.cfi)
+                    val locatorJson = annotationLocatorJson(annotation.chapterHref, annotation.cfi, annotation.progression)
                     editTargetId = null
                     onOpenInBook?.invoke(locatorJson)
                 },
@@ -1555,17 +1562,6 @@ private fun KoFiNudgeOverlay(
         onSupport = { shownFlow.value = false },
         modifier = modifier,
     )
-}
-
-/**
- * Builds a minimal Readium Locator JSON for "Open in Book" navigation from the Highlights/elided
- * reader. Readium-Swift's navigator.open() accepts this format to restore the exact chapter and
- * CFI position.
- */
-private fun buildAnnotationLocatorJson(chapterHref: String, cfi: String): String {
-    val escapedHref = chapterHref.replace("\"", "\\\"")
-    val escapedCfi = cfi.replace("\"", "\\\"")
-    return """{"href":"$escapedHref","type":"application/xhtml+xml","locations":{"fragments":["$escapedCfi"]}}"""
 }
 
 internal suspend fun startCadenceFromCurrentPage(

@@ -4,6 +4,7 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import platform.Foundation.NSUserDefaults
@@ -17,18 +18,19 @@ internal class IosComicFormattingPreferencesStoreImpl : ComicFormattingPreferenc
     override val preferences: Flow<ComicFormattingPreferences> = _preferences
 
     override suspend fun update(prefs: ComicFormattingPreferences) {
-        defaults.setObject(prefs.backgroundTheme.name, forKey = KEY_BACKGROUND_THEME)
-        defaults.setBool(prefs.panelViewOn, forKey = KEY_PANEL_VIEW_ON)
-        defaults.setObject(prefs.panelOverflow.name, forKey = KEY_PANEL_OVERFLOW)
-        defaults.setInteger(prefs.panelAnimationSpeedMs.toLong(), forKey = KEY_PANEL_ANIMATION_SPEED_MS)
-        defaults.setBool(prefs.showChapterMap, forKey = KEY_SHOW_CHAPTER_MAP)
-        defaults.setBool(prefs.showPageProgress, forKey = KEY_SHOW_PAGE_PROGRESS)
-        _preferences.value = prefs
+        val normalised = prefs.copy(backgroundTheme = prefs.backgroundTheme.asComicBackgroundTheme())
+        defaults.setObject(normalised.backgroundTheme.name, forKey = KEY_BACKGROUND_THEME)
+        defaults.setBool(normalised.panelViewOn, forKey = KEY_PANEL_VIEW_ON)
+        defaults.setObject(normalised.panelOverflow.name, forKey = KEY_PANEL_OVERFLOW)
+        defaults.setInteger(normalised.panelAnimationSpeedMs.toLong(), forKey = KEY_PANEL_ANIMATION_SPEED_MS)
+        defaults.setBool(normalised.showChapterMap, forKey = KEY_SHOW_CHAPTER_MAP)
+        defaults.setBool(normalised.showPageProgress, forKey = KEY_SHOW_PAGE_PROGRESS)
+        _preferences.value = normalised
     }
 
     private fun loadFromDefaults(): ComicFormattingPreferences = ComicFormattingPreferences(
         backgroundTheme = defaults.stringForKey(KEY_BACKGROUND_THEME)
-            ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+            ?.let { runCatching { ReaderTheme.valueOf(it).asComicBackgroundTheme() }.getOrNull() }
             ?: ReaderTheme.Dark,
         panelViewOn = boolOrDefault(KEY_PANEL_VIEW_ON, false),
         panelOverflow = defaults.stringForKey(KEY_PANEL_OVERFLOW)
