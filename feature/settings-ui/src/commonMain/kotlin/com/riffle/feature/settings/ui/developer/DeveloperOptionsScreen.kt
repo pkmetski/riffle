@@ -1,6 +1,7 @@
 package com.riffle.feature.settings.ui.developer
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,11 +26,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -38,10 +41,12 @@ import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
+import com.riffle.feature.settings.ui.crashReportShareSubject
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_clear
 import com.riffle.feature.settings.ui.generated.resources.ui_crash_report_count
+import com.riffle.feature.settings.ui.generated.resources.ui_crash_reports_subject
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_logs
 import com.riffle.feature.settings.ui.generated.resources.ui_developer_options
 import com.riffle.feature.settings.ui.generated.resources.ui_diagnostics
@@ -51,31 +56,41 @@ import com.riffle.feature.settings.ui.generated.resources.ui_hide
 import com.riffle.feature.settings.ui.generated.resources.ui_newest_first
 import com.riffle.feature.settings.ui.generated.resources.ui_no_crashes_recorded
 import com.riffle.feature.settings.ui.generated.resources.ui_save
+import com.riffle.feature.settings.ui.generated.resources.ui_share
+import com.riffle.feature.settings.ui.generated.resources.ui_share_all
+import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_report
+import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_reports
 import com.riffle.feature.settings.ui.generated.resources.ui_show
 import com.riffle.feature.settings.ui.generated.resources.ui_the_app_has_not_crashed_since_installation
 import com.riffle.feature.settings.ui.generated.resources.ui_used_to_submit_panel_detection_bug_reports_to_the_github_repository
 import com.riffle.feature.settings.ui.generated.resources.ui_view_share_the_in_app_log_buffer
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * iOS port of the Developer Options screen. Exposes:
- * - GitHub PAT field (for panel-detection bug reports).
- * - Diagnostics section: debug log drill-in + crash report inventory.
+ * Developer Options screen — GitHub PAT field and diagnostics (debug logs + crash inventory).
  *
- * Unlike the Android version, crash-report sharing uses the system share sheet via UIKit,
- * which is not yet wired here — the Share buttons are omitted until that bridge is in place.
+ * Crash-report sharing is delegated to the host via hooks so platform-specific FileProvider /
+ * UIActivityViewController code stays out of commonMain. The screen resolves localized strings
+ * and passes them to the callbacks so the host never needs to call stringResource:
+ * - [onShareAllCrashReports]: (subject, chooserTitle) — null hides the button.
+ * - [onShareSingleCrashReport]: (report, chooserTitle) — null hides per-report share.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IosDeveloperOptionsScreen(
+fun DeveloperOptionsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
-    viewModel: SettingsViewModel = koinInject(),
+    onShareAllCrashReports: ((subject: String, chooserTitle: String) -> Unit)? = null,
+    onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
+    viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val githubPat by viewModel.githubPat.collectAsState()
     val crashReports by viewModel.crashReports.collectAsState()
-    val expandedCrashes = remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
 
     Scaffold(
         topBar = {
@@ -103,31 +118,28 @@ fun IosDeveloperOptionsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
-            IosGithubPatField(
+            GithubPatField(
                 currentPat = githubPat,
                 onSaveGithubPat = viewModel::onSaveGithubPat,
             )
             HorizontalDivider()
-            IosDiagnosticsSection(
+            DiagnosticsSection(
                 crashReports = crashReports,
-                expandedCrashes = expandedCrashes.value,
-                onToggleCrashExpanded = { id ->
-                    expandedCrashes.value = expandedCrashes.value.toMutableMap().also {
-                        it[id] = !(it[id] ?: false)
-                    }
-                },
+                expandedCrashes = expandedCrashes,
                 onClearCrashReports = {
                     viewModel.clearCrashReports()
-                    expandedCrashes.value = emptyMap()
+                    expandedCrashes.clear()
                 },
                 onNavigateToDebugLogs = onNavigateToDebugLogs,
+                onShareAllCrashReports = onShareAllCrashReports,
+                onShareSingleCrashReport = onShareSingleCrashReport,
             )
         }
     }
 }
 
 @Composable
-private fun IosGithubPatField(
+private fun GithubPatField(
     currentPat: String,
     onSaveGithubPat: (String) -> Unit,
 ) {
@@ -156,7 +168,7 @@ private fun IosGithubPatField(
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
@@ -171,12 +183,13 @@ private fun IosGithubPatField(
 }
 
 @Composable
-private fun IosDiagnosticsSection(
+internal fun DiagnosticsSection(
     crashReports: List<CrashReport>,
-    expandedCrashes: Map<String, Boolean>,
-    onToggleCrashExpanded: (String) -> Unit,
+    expandedCrashes: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
     onClearCrashReports: () -> Unit,
     onNavigateToDebugLogs: () -> Unit,
+    onShareAllCrashReports: ((subject: String, chooserTitle: String) -> Unit)? = null,
+    onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
 ) {
     SettingsSectionHeader(stringResource(Res.string.ui_diagnostics))
     ListItem(
@@ -193,18 +206,35 @@ private fun IosDiagnosticsSection(
             supportingContent = { Text(stringResource(Res.string.ui_the_app_has_not_crashed_since_installation)) },
         )
     } else {
+        val shareAllSubject = if (onShareAllCrashReports != null) stringResource(Res.string.ui_crash_reports_subject, crashReports.size) else ""
+        val shareAllTitle = if (onShareAllCrashReports != null) stringResource(Res.string.ui_share_crash_reports) else ""
+        val shareSingleTitle = if (onShareSingleCrashReport != null) stringResource(Res.string.ui_share_crash_report) else ""
         ListItem(
             headlineContent = { Text(stringResource(Res.string.ui_crash_report_count, crashReports.size)) },
             supportingContent = { Text(stringResource(Res.string.ui_newest_first)) },
             trailingContent = {
-                TextButton(onClick = onClearCrashReports) { Text(stringResource(Res.string.ui_clear)) }
+                Row {
+                    if (onShareAllCrashReports != null) {
+                        TextButton(onClick = { onShareAllCrashReports(shareAllSubject, shareAllTitle) }) {
+                            Text(stringResource(Res.string.ui_share_all))
+                        }
+                    }
+                    TextButton(onClick = onClearCrashReports) {
+                        Text(stringResource(Res.string.ui_clear))
+                    }
+                }
             },
         )
         crashReports.forEach { item ->
+            val timestamp = remember(item.timestampMillis) {
+                val dt = Instant.fromEpochMilliseconds(item.timestampMillis)
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}-${dt.dayOfMonth.toString().padStart(2, '0')}" +
+                    " ${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
+            }
             val isOpen = expandedCrashes[item.id] == true
             ListItem(
-                modifier = Modifier.clickable { onToggleCrashExpanded(item.id) },
-                headlineContent = { Text(item.id) },
+                headlineContent = { Text(timestamp) },
                 supportingContent = {
                     Text(
                         item.content.lineSequence().firstOrNull {
@@ -213,15 +243,22 @@ private fun IosDiagnosticsSection(
                     )
                 },
                 trailingContent = {
-                    TextButton(onClick = { onToggleCrashExpanded(item.id) }) {
-                        Text(if (isOpen) stringResource(Res.string.ui_hide) else stringResource(Res.string.ui_show))
+                    Row {
+                        if (onShareSingleCrashReport != null) {
+                            TextButton(onClick = { onShareSingleCrashReport(item, crashReportShareSubject(timestamp), shareSingleTitle) }) {
+                                Text(stringResource(Res.string.ui_share))
+                            }
+                        }
+                        TextButton(onClick = { expandedCrashes[item.id] = !isOpen }) {
+                            Text(if (isOpen) stringResource(Res.string.ui_hide) else stringResource(Res.string.ui_show))
+                        }
                     }
                 },
             )
             if (isOpen) {
                 Text(
                     text = item.content,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),

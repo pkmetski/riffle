@@ -31,6 +31,8 @@ import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.RecordItemOpened
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
@@ -63,16 +65,15 @@ import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.reader.highlights.ReaderSource
-import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
-import com.riffle.feature.settings.ui.debug.IosDebugLogScreen
-import com.riffle.feature.settings.ui.developer.IosDeveloperOptionsScreen
-import com.riffle.feature.settings.ui.dictionary.IosDictionaryPacksScreen
+import com.riffle.feature.settings.ui.debug.DebugLogScreen
+import com.riffle.feature.settings.ui.developer.DeveloperOptionsScreen
+import com.riffle.feature.settings.ui.dictionary.DictionaryPacksScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
@@ -244,6 +245,7 @@ fun HomeScreen() {
             AppSection.Settings -> {
                 val folderPicker = koinInject<FolderPickerInterface>()
                 val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
+                val localFilesLogger = koinInject<Logger>()
                 when (val sub = settingsSubScreen) {
                     IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
                         onFinished = { settingsSubScreen = null },
@@ -302,17 +304,15 @@ fun HomeScreen() {
                         )
                     }
                     IosSettingsSubScreen.DeveloperOptions -> {
-                        val settingsViewModel = koinInject<SettingsViewModel>()
-                        IosDeveloperOptionsScreen(
+                        DeveloperOptionsScreen(
                             onNavigateBack = { settingsSubScreen = null },
                             onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
-                            viewModel = settingsViewModel,
                         )
                     }
-                    IosSettingsSubScreen.DebugLogs -> IosDebugLogScreen(
+                    IosSettingsSubScreen.DebugLogs -> DebugLogScreen(
                         onNavigateBack = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
                     )
-                    IosSettingsSubScreen.DictionaryPacks -> IosDictionaryPacksScreen(
+                    IosSettingsSubScreen.DictionaryPacks -> DictionaryPacksScreen(
                         onNavigateBack = { settingsSubScreen = null },
                     )
                     null -> SettingsScreen(
@@ -327,7 +327,12 @@ fun HomeScreen() {
                         onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
                         onNavigateToAddLocalFolder = {
                             folderPicker.pickFolder { uri ->
-                                if (uri != null) scope.launch { runCatching { localFilesInstaller.installFolder(uri) } }
+                                if (uri != null) {
+                                    scope.launch {
+                                        runCatching { localFilesInstaller.installFolder(uri) }
+                                            .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                                    }
+                                }
                             }
                         },
                         onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
@@ -336,6 +341,7 @@ fun HomeScreen() {
                         onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
                         onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
                         onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
+                        onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
                         platformHooks = IosPlatformSettingsHooks,
                     )
                 }

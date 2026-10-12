@@ -194,6 +194,8 @@ object TestTags {
     const val SETTINGS_COMIC_DISPLAY_PANEL_VIEW = "settings_comic_display_panel_view"
     const val SETTINGS_COMIC_DISPLAY_READING_PROGRESS = "settings_comic_display_reading_progress"
     const val SETTINGS_COMIC_DISPLAY_PAGE_NUMBERS = "settings_comic_display_page_numbers"
+    const val SETTINGS_APP_VERSION_INSTALL_UPDATE = "settings_app_version_install_update"
+    const val SETTINGS_APP_VERSION_RELEASE_PAGE = "settings_app_version_release_page"
 
     // ── Source management ─────────────────────────────────────────────────────
     const val SOURCE_TYPE_PICKER_CONFIRM = "source_type_picker_confirm"

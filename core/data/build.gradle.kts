@@ -82,6 +82,7 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.koin.core)
             implementation(project(":core:database"))
+            implementation(project(":core:dictionary"))
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
         }

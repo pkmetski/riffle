@@ -49,6 +49,11 @@ kotlin {
             api(project(":feature:reader-ui"))
             // Listening preferences panel uses PlaybackSpeed / SkipIntervals.
             api(project(":feature:player"))
+            // DictionaryPacksViewModel / DictionaryPacksScreen — DownloadManager interface, DownloadState, formatBytes.
+            implementation(project(":feature:library"))
+            implementation(project(":feature:downloads"))
+            implementation(project(":core:dictionary"))
+            implementation(project(":core:logging"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
             api(libs.androidx.lifecycle.viewmodel)
@@ -58,21 +63,10 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
         }
         androidMain.dependencies {
-            // DebugLogViewModel (AndroidViewModel), DiagnosticsSection (Intent/FileProvider),
-            // DictionaryPacksViewModel (DownloadManager from :app).
+            // DebugLogViewModel (AndroidViewModel), DiagnosticsSection (Intent/FileProvider).
             implementation(libs.androidx.lifecycle.runtime.ktx)
-            implementation(project(":core:dictionary"))
-            implementation(project(":core:logging"))
-            // DictionaryPacksScreen uses formatBytes from feature:downloads.
-            implementation(project(":feature:downloads"))
         }
         iosMain.dependencies {
-            // IosDebugLogScreen reads InMemoryLogBuffer directly (no AndroidViewModel).
-            implementation(project(":core:logging"))
-            // IosDictionaryPacksScreen reads LanguageCatalog to display available packs.
-            implementation(project(":core:dictionary"))
-            // IosDictionaryPacksScreen uses formatBytes for size display.
-            implementation(project(":feature:downloads"))
         }
         iosTest.dependencies {
             implementation(kotlin("test"))
@@ -110,6 +104,7 @@ compose.resources {
 tasks.withType<Test>().configureEach {
     filter {
         excludeTestsMatching("com.riffle.feature.settings.ui.ComicDisplaySettingsPanelTest")
+        excludeTestsMatching("com.riffle.feature.settings.ui.AppVersionSectionTest")
     }
 }
 

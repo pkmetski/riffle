@@ -20,13 +20,17 @@ import com.riffle.core.data.IosCoverGridDensityStoreImpl
 import com.riffle.core.data.IosDeviceIdStoreImpl
 import com.riffle.core.data.IosDeviceLabelResolver
 import com.riffle.core.data.IosDeviceLabelStoreImpl
+import com.riffle.core.data.IosEmphasisPreferencesStoreImpl
 import com.riffle.core.data.IosFileStore
 import com.riffle.core.data.IosFormattingPreferencesStoreImpl
+import com.riffle.core.data.IosHighlightColorPreferencesStoreImpl
 import com.riffle.core.data.IosHighlightsResumeStore
 import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
+import com.riffle.core.data.IosPackDownloaderImpl
+import com.riffle.core.data.IosPackStoreImpl
 import com.riffle.core.data.IosReadaloudPreferencesStoreImpl
 import com.riffle.core.data.IosSourceFilesCleaner
 import com.riffle.core.data.IosTokenStorage
@@ -62,6 +66,8 @@ import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.dictionary.PackDownloaderInterface
+import com.riffle.core.dictionary.PackStore
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.AudiobookPositionStore
@@ -72,7 +78,9 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.core.domain.EbookCfiTranslatorFactory
+import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
@@ -133,6 +141,10 @@ val iosDataModule = module {
     single { OpenInImportFeed() }
     single<DeviceIdStore> { IosDeviceIdStoreImpl() }
     single<HighlightsResumeStore> { IosHighlightsResumeStore() }
+    single<HighlightColorPreferencesStore> { IosHighlightColorPreferencesStoreImpl() }
+    single<EmphasisPreferencesStore> { IosEmphasisPreferencesStoreImpl() }
+    single<PackStore> { IosPackStoreImpl() }
+    single<PackDownloaderInterface> { IosPackDownloaderImpl() }
     single<ColorPageDecoder> { IosColorPageDecoder() }
     single<PageImageDecoder> { IosPageImageDecoder() }
     single<PanelStore> { InMemoryPanelStore() }

@@ -10,8 +10,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.AppUpdateUiState
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.generated.resources.*
@@ -30,6 +32,7 @@ internal fun AppVersionSection(
     canInstallUpdate: Boolean = true,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
+    onViewReleaseUrl: (String) -> Unit = {},
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
     onNavigateToChangelog: () -> Unit,
     onVersionTap: () -> Unit = {},
@@ -65,9 +68,17 @@ internal fun AppVersionSection(
                 is AppUpdateUiState.Installing -> {}
                 is AppUpdateUiState.UpdateAvailable ->
                     if (canInstallUpdate) {
-                        Button(onClick = onInstallUpdate) { Text(stringResource(Res.string.ui_update)) }
+                        Button(
+                            onClick = onInstallUpdate,
+                            modifier = Modifier.testTag(TestTags.SETTINGS_APP_VERSION_INSTALL_UPDATE),
+                        ) { Text(stringResource(Res.string.ui_update)) }
                     } else {
-                        TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_check_for_updates)) }
+                        TextButton(
+                            onClick = { onViewReleaseUrl(state.update.downloadUrl) },
+                            modifier = Modifier.testTag(TestTags.SETTINGS_APP_VERSION_RELEASE_PAGE),
+                        ) {
+                            Text(stringResource(Res.string.ui_release_page))
+                        }
                     }
                 is AppUpdateUiState.Failed ->
                     TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_retry)) }

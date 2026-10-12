@@ -1,4 +1,5 @@
 package com.riffle.feature.settings.ui.dictionary
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,21 +21,37 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.text.HtmlCompat
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.library.DownloadState
-import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.ui_all_packs_installed
+import com.riffle.feature.settings.ui.generated.resources.ui_approx_size
+import com.riffle.feature.settings.ui.generated.resources.ui_available
+import com.riffle.feature.settings.ui.generated.resources.ui_back
+import com.riffle.feature.settings.ui.generated.resources.ui_cancel
+import com.riffle.feature.settings.ui.generated.resources.ui_delete
+import com.riffle.feature.settings.ui.generated.resources.ui_dictionary_packs
+import com.riffle.feature.settings.ui.generated.resources.ui_dictionary_source_description
+import com.riffle.feature.settings.ui.generated.resources.ui_download
+import com.riffle.feature.settings.ui.generated.resources.ui_downloading_dictionary_name
+import com.riffle.feature.settings.ui.generated.resources.ui_installed
+import com.riffle.feature.settings.ui.generated.resources.ui_update
 import com.riffle.feature.source.ui.library.DownloadProgressIndicator
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+
+private val HTML_TAG_REGEX = Regex("<[^>]*>")
+
+/** Strip HTML tags from attribution text (replaces Android-only HtmlCompat.fromHtml). */
+private fun String.stripHtml(): String = replace(HTML_TAG_REGEX, "").trim()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,11 +68,9 @@ fun DictionaryPacksScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                // TODO: migrate to Res.string.ui_dictionary_packs
                 title = { Text(stringResource(Res.string.ui_dictionary_packs)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        // TODO: migrate to Res.string.ui_back
                         Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
                     }
                 },
@@ -70,7 +85,6 @@ fun DictionaryPacksScreen(
         ) {
             if (installedPacks.isNotEmpty()) {
                 Text(
-                    // TODO: migrate to Res.string.ui_installed
                     text = stringResource(Res.string.ui_installed),
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -86,14 +100,12 @@ fun DictionaryPacksScreen(
             }
 
             Text(
-                // TODO: migrate to Res.string.ui_available
                 text = stringResource(Res.string.ui_available),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
             Text(
-                // TODO: migrate to Res.string.ui_dictionary_source_description
                 text = stringResource(Res.string.ui_dictionary_source_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -102,7 +114,6 @@ fun DictionaryPacksScreen(
 
             if (availablePacks.isEmpty()) {
                 Text(
-                    // TODO: migrate to Res.string.ui_all_packs_installed
                     text = stringResource(Res.string.ui_all_packs_installed),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -128,7 +139,7 @@ private fun InstalledPackRow(
     onUpdate: () -> Unit,
 ) {
     val displayName = LanguageCatalog.entryFor(pack.languageTag)?.displayName ?: pack.languageTag
-    val attributionText = HtmlCompat.fromHtml(pack.attributionHtml, HtmlCompat.FROM_HTML_MODE_COMPACT).toString()
+    val attributionText = remember(pack.attributionHtml) { pack.attributionHtml.stripHtml() }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
             "$displayName · ${pack.packVersion} · ${formatBytes(pack.sizeBytes)}",
@@ -152,9 +163,7 @@ private fun InstalledPackRow(
         }
         Row {
             Spacer(modifier = Modifier.weight(1f))
-            // TODO: migrate to Res.string.ui_update
             TextButton(onClick = onUpdate) { Text(stringResource(Res.string.ui_update)) }
-            // TODO: migrate to Res.string.ui_delete
             TextButton(onClick = onDelete) { Text(stringResource(Res.string.ui_delete)) }
         }
     }
@@ -169,7 +178,6 @@ private fun AvailablePackRow(
 ) {
     ListItem(
         headlineContent = { Text(entry.displayName) },
-        // TODO: migrate to Res.string.ui_approx_size
         supportingContent = { Text(stringResource(Res.string.ui_approx_size, formatBytes(entry.approximateSizeBytes))) },
         trailingContent = {
             if (downloadState is DownloadState.InProgress) {
@@ -177,17 +185,14 @@ private fun AvailablePackRow(
                     DownloadProgressIndicator(
                         percent = downloadState.percent,
                         size = 36.dp,
-                        // TODO: migrate to Res.string.ui_downloading_dictionary_name
                         label = stringResource(Res.string.ui_downloading_dictionary_name, entry.displayName),
                         modifier = Modifier.padding(end = 4.dp),
                     )
                     IconButton(onClick = onCancel) {
-                        // TODO: migrate to Res.string.ui_cancel
                         Icon(RiffleIcons.Close, contentDescription = stringResource(Res.string.ui_cancel))
                     }
                 }
             } else {
-                // TODO: migrate to Res.string.ui_download
                 TextButton(onClick = onDownload) { Text(stringResource(Res.string.ui_download)) }
             }
         },

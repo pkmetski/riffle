@@ -206,6 +206,7 @@
     <string name="ui_no_release_notes">No hay notas de la versión.</string>
     <string name="ui_no_releases_found">No se han encontrado versiones.</string>
     <string name="ui_release_history">Historial de versiones</string>
+    <string name="ui_release_page">Página de la versión</string>
     <string name="ui_rename_this_device">Renombrar este dispositivo</string>
     <string name="ui_retry">Reintentar</string>
     <string name="ui_review_readaloud_matches">Revisar coincidencias de lectura en voz alta</string>

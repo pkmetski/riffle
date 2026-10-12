@@ -100,6 +100,10 @@ internal fun NavGraphBuilder.settingsNavGraph(
             onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
             onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
             onNavigateToChangelog = { navController.navigate(CHANGELOG) },
+            onNavigateToReadaloudMatches = { sourceId ->
+                val encoded = URLEncoder.encode(sourceId, "UTF-8")
+                navController.navigate("readaloud_matches/$encoded")
+            },
             platformHooks = platformHooks,
         )
     }
@@ -163,6 +167,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
         )
     }
     composable(DEVELOPER_OPTIONS) { backStackEntry ->
+        val context = LocalContext.current
         val settingsEntry = remember(backStackEntry) {
             navController.getBackStackEntry(SETTINGS)
         }
@@ -170,11 +175,47 @@ internal fun NavGraphBuilder.settingsNavGraph(
         DeveloperOptionsScreen(
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
             onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
+            onShareAllCrashReports = { subject, chooserTitle ->
+                val files = settingsVm.crashReportFilePaths().map { java.io.File(it) }
+                if (files.isNotEmpty()) {
+                    val uris = ArrayList<android.net.Uri>(files.size)
+                    files.forEach { f ->
+                        uris += androidx.core.content.FileProvider.getUriForFile(
+                            context, "${context.packageName}.fileprovider", f,
+                        )
+                    }
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                        type = "text/plain"
+                        putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
+                }
+            },
+            onShareSingleCrashReport = { report, subject, chooserTitle ->
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+                    putExtra(android.content.Intent.EXTRA_TEXT, report.content)
+                }
+                context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
+            },
             viewModel = settingsVm,
         )
     }
     composable(DEBUG_LOGS) { backStackEntry ->
-        DebugLogScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
+        val context = LocalContext.current
+        val debugLogVm: com.riffle.feature.settings.ui.debug.DebugLogViewModel = koinViewModel()
+        DebugLogScreen(
+            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+            onShare = { channels, chooserTitle ->
+                val intent = debugLogVm.buildShareIntent(channels)
+                if (intent != null) {
+                    context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
+                }
+            },
+        )
     }
     composable(
         route = READALOUD_MATCHES,

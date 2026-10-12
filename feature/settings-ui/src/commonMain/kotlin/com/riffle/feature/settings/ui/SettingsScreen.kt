@@ -75,6 +75,7 @@ fun SettingsScreen(
     onNavigateToDictionaryPacks: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
     onNavigateToChangelog: () -> Unit = {},
+    onNavigateToReadaloudMatches: (String) -> Unit = {},
     platformHooks: PlatformSettingsHooks = DefaultPlatformSettingsHooks,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
@@ -157,7 +158,7 @@ fun SettingsScreen(
                     expandedSources = expandedServers,
                     onNavigateToAddSourcePicker = onNavigateToAddSourcePicker,
                     onNavigateToAddLocalFolder = onNavigateToAddLocalFolder,
-                    onOpenReadaloudMatches = { },
+                    onOpenReadaloudMatches = onNavigateToReadaloudMatches,
                     onRemoveSource = viewModel::removeServer,
                     onRemoveLocalFolder = viewModel::removeLocalFolder,
                     onRemoveLocalFilesSource = viewModel::removeLocalFilesSource,
@@ -200,7 +201,12 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
 
-                ListeningSection(onOpenPanel = { openPanel = it })
+                ListeningSection(
+                    defaultPlaybackSpeed = defaultPlaybackSpeed,
+                    skipIntervalSeconds = skipIntervalSeconds,
+                    rewindIntervalSeconds = rewindIntervalSeconds,
+                    onOpenPanel = { openPanel = it },
+                )
                 HorizontalDivider()
 
                 ReadaloudSection(
@@ -234,6 +240,7 @@ fun SettingsScreen(
                     canInstallUpdate = platformHooks.canInstallUpdate(),
                     onCheckForUpdate = viewModel::checkForUpdate,
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
+                    onViewReleaseUrl = platformHooks::onViewReleaseUrl,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
                     onVersionTap = viewModel::onVersionTap,
@@ -254,7 +261,6 @@ fun SettingsScreen(
             onPrefsChange = viewModel::updateGlobalFormatting,
             onDismiss = { openPanel = null },
         )
-        SettingsPanel.Behavior -> {}
         SettingsPanel.AutoScroll -> AutoScrollSettingsPanel(
             prefs = globalFormatting,
             onPrefsChange = viewModel::updateGlobalFormatting,
