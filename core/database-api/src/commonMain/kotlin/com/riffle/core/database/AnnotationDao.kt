@@ -226,7 +226,7 @@ interface AnnotationDao {
      *  since a user may annotate figures without ever making a text highlight. Format-only
      *  highlight anchors (color="" + emphasis) count too — they represent a real user-created
      *  annotation ("just bold this text"); rendering swaps the yellow dot for a neutral marker,
-     *  handled by the UI layer (see [com.riffle.app.feature.reader.AnnotationsPanel]). */
+     *  handled by the UI layer (see [com.riffle.feature.reader.ui.SharedAnnotationsPanel]). */
     @Query(
         """
         SELECT itemId,

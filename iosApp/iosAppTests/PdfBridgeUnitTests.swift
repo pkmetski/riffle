@@ -40,11 +40,58 @@ final class PdfBridgeUnitTests: XCTestCase {
         XCTAssertEqual(callCount, 0,
                        "disposePdf must clear the page change callback")
     }
+
+    func testTapCallbackIsInvokedWhenRegistered() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        var tapCount = 0
+        let callback = FakePdfTapCallback { tapCount += 1 }
+        bridge.setTapCallback(callback: callback)
+        bridge.simulateTap()
+        XCTAssertEqual(tapCount, 1,
+                       "setTapCallback must fire when a tap is simulated")
+    }
+
+    func testTapCallbackIsNotInvokedAfterClear() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        var tapCount = 0
+        let callback = FakePdfTapCallback { tapCount += 1 }
+        bridge.setTapCallback(callback: callback)
+        bridge.setTapCallback(callback: nil)
+        bridge.simulateTap()
+        XCTAssertEqual(tapCount, 0,
+                       "Cleared tap callback must not fire on subsequent taps")
+    }
+
+    func testDisposePdfClearsTapCallback() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        var tapCount = 0
+        let callback = FakePdfTapCallback { tapCount += 1 }
+        bridge.setTapCallback(callback: callback)
+        bridge.disposePdf()
+        bridge.simulateTap()
+        XCTAssertEqual(tapCount, 0,
+                       "disposePdf must clear the tap callback")
+    }
+
+    func testOutlineReturnsEmptyForDocumentWithoutOutline() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        // No document opened — bridge should return an empty outline, not crash.
+        let outline = bridge.outline()
+        XCTAssertTrue(outline.isEmpty,
+                      "outline() must return empty list when no document is open")
+    }
 }
 
-// Minimal Riffle-protocol-conforming callback for unit tests.
+// Minimal Riffle-protocol-conforming callbacks for unit tests.
+
 private final class FakePdfPageChangeCallback: IosPdfPageChangeCallback {
     private let handler: (Int32) -> Void
     init(_ handler: @escaping (Int32) -> Void) { self.handler = handler }
     func onPageChanged(page: Int32) { handler(page) }
+}
+
+private final class FakePdfTapCallback: IosPdfTapCallback {
+    private let handler: () -> Void
+    init(_ handler: @escaping () -> Void) { self.handler = handler }
+    func onTap() { handler() }
 }

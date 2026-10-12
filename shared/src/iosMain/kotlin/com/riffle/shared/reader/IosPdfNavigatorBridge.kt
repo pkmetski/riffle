@@ -1,5 +1,6 @@
 package com.riffle.shared.reader
 
+import com.riffle.feature.reader.PdfOutlineNode
 import platform.UIKit.UIViewController
 
 /**
@@ -10,6 +11,11 @@ import platform.UIKit.UIViewController
  */
 interface IosPdfPageChangeCallback {
     fun onPageChanged(page: Int)
+}
+
+/** Callback fired when the user single-taps the PDF view (used to toggle reader chrome). */
+interface IosPdfTapCallback {
+    fun onTap()
 }
 
 interface IosPdfNavigatorBridge {
@@ -30,6 +36,12 @@ interface IosPdfNavigatorBridge {
 
     /** Register a callback invoked on every page change. Pass null to clear. */
     fun setPageChangeCallback(callback: IosPdfPageChangeCallback?)
+
+    /** Register a callback invoked on a single tap on the PDF view. Pass null to clear. */
+    fun setTapCallback(callback: IosPdfTapCallback?)
+
+    /** Returns the PDF outline tree, or an empty list if the document has no outline. */
+    fun outline(): List<PdfOutlineNode>
 
     /** Release PDFKit resources. Safe to call multiple times. */
     fun disposePdf()

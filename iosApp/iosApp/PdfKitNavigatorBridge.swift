@@ -8,6 +8,7 @@ import Riffle
 
     private let pdfViewController = PdfKitViewController()
     private var pageChangeCallback: (any IosPdfPageChangeCallback)?
+    private var tapCallback: (any IosPdfTapCallback)?
 
     // MARK: - IosPdfNavigatorBridge
 
@@ -21,6 +22,9 @@ import Riffle
         pdfViewController.load(document: document, initialPage: Int(initialPage))
         pdfViewController.onPageChanged = { [weak self] page in
             self?.pageChangeCallback?.onPageChanged(page: Int32(page))
+        }
+        pdfViewController.onTap = { [weak self] in
+            self?.tapCallback?.onTap()
         }
     }
 
@@ -40,10 +44,41 @@ import Riffle
         pageChangeCallback = callback
     }
 
+    func setTapCallback(callback: (any IosPdfTapCallback)?) {
+        tapCallback = callback
+    }
+
+    func outline() -> [PdfOutlineNode] {
+        guard let root = pdfViewController.documentOutline() else { return [] }
+        return buildOutlineNodes(from: root)
+    }
+
     func disposePdf() {
         pdfViewController.onPageChanged = nil
+        pdfViewController.onTap = nil
         pageChangeCallback = nil
+        tapCallback = nil
         pdfViewController.close()
+    }
+
+    // MARK: - Private
+
+    private func buildOutlineNodes(from node: PDFOutline) -> [PdfOutlineNode] {
+        var result: [PdfOutlineNode] = []
+        for i in 0..<node.numberOfChildren {
+            guard let child = node.child(at: i) else { continue }
+            guard let destination = child.destination,
+                  let page = destination.page,
+                  let document = pdfViewController.pdfDocument else { continue }
+            let pageIndex = document.index(for: page)
+            let children = buildOutlineNodes(from: child)
+            result.append(PdfOutlineNode(
+                title: child.label ?? "",
+                pageIndex: Int32(pageIndex),
+                children: children
+            ))
+        }
+        return result
     }
 }
 
@@ -70,6 +105,7 @@ extension PdfKitNavigatorBridgeImpl {
 final class PdfKitViewController: UIViewController {
 
     var onPageChanged: ((Int) -> Void)?
+    var onTap: (() -> Void)?
 
     private let pdfView: PDFView = {
         let view = PDFView()
@@ -78,6 +114,8 @@ final class PdfKitViewController: UIViewController {
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
+
+    var pdfDocument: PDFDocument? { pdfView.document }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -96,6 +134,11 @@ final class PdfKitViewController: UIViewController {
             name: .PDFViewPageChanged,
             object: pdfView,
         )
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        // cancelsTouchesInView = false so PDFKit's own tap handling still fires.
+        tap.cancelsTouchesInView = false
+        pdfView.addGestureRecognizer(tap)
     }
 
     deinit {
@@ -124,6 +167,10 @@ final class PdfKitViewController: UIViewController {
         pdfView.go(to: page)
     }
 
+    func documentOutline() -> PDFOutline? {
+        pdfView.document?.outlineRoot
+    }
+
     func close() {
         pdfView.document = nil
     }
@@ -132,9 +179,17 @@ final class PdfKitViewController: UIViewController {
         onPageChanged?(currentPageIndex())
     }
 
+    @objc private func handleTap() {
+        onTap?()
+    }
+
     // MARK: - Test helpers
 
     @objc func simulatePageChange(_ pageIndex: Int) {
         onPageChanged?(pageIndex)
+    }
+
+    @objc func simulateTap() {
+        onTap?()
     }
 }
