@@ -940,6 +940,13 @@ private fun iosLibraryModule(
         )
     }
     viewModel { ChangelogViewModel(appUpdateRepository = get()) }
+    viewModel {
+        com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel(
+            packStore = get(),
+            downloader = get(),
+            downloadManager = get(),
+        )
+    }
     single {
         val holder = get<AnnotationSyncTargetHolder>()
         AnnotationSyncMaintenance(targetProvider = { holder.current() })

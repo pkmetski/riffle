@@ -2,10 +2,10 @@ package com.riffle.feature.settings.ui.dictionary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
+import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.dictionary.PackStore
 import com.riffle.feature.library.DownloadManager
 import com.riffle.feature.library.DownloadState
@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 class DictionaryPacksViewModel constructor(
     private val packStore: PackStore,
-    private val downloader: PackDownloader,
+    private val downloader: PackDownloaderInterface,
     private val downloadManager: DownloadManager,
 ) : ViewModel() {
 

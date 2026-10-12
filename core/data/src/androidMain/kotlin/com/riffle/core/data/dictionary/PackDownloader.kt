@@ -5,6 +5,7 @@ import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.LanguageCatalogEntry
+import com.riffle.core.dictionary.PackDownloaderInterface
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
@@ -22,10 +23,10 @@ class PackDownloader constructor(
     private val dictionaryPackDao: DictionaryPackDao,
     private val clock: Clock,
     private val converter: JsonlToSqliteConverter,
-) {
-    suspend fun download(
+) : PackDownloaderInterface {
+    override suspend fun download(
         entry: LanguageCatalogEntry,
-        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
+        onProgress: (downloaded: Long, total: Long) -> Unit,
     ): Boolean {
         val dictsDir = File(filesDir, "dicts").also { it.mkdirs() }
         val tmpJsonFile = File(dictsDir, "${entry.languageTag}.tmp.json")

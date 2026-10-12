@@ -74,7 +74,7 @@ import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.debug.DebugLogScreen
 import com.riffle.feature.settings.ui.developer.DeveloperOptionsScreen
-import com.riffle.feature.settings.ui.dictionary.IosDictionaryPacksScreen
+import com.riffle.feature.settings.ui.dictionary.DictionaryPacksScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
@@ -313,7 +313,7 @@ fun HomeScreen() {
                     IosSettingsSubScreen.DebugLogs -> DebugLogScreen(
                         onNavigateBack = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
                     )
-                    IosSettingsSubScreen.DictionaryPacks -> IosDictionaryPacksScreen(
+                    IosSettingsSubScreen.DictionaryPacks -> DictionaryPacksScreen(
                         onNavigateBack = { settingsSubScreen = null },
                     )
                     null -> SettingsScreen(

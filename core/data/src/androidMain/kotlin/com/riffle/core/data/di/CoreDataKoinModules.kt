@@ -109,6 +109,7 @@ import com.riffle.core.data.developer.PatStore
 import com.riffle.core.data.dictionary.DictionaryPackSqliteStore
 import com.riffle.core.data.dictionary.KaikkiJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloader
+import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.data.localfiles.AndroidCopyInService
 import com.riffle.core.data.localfiles.AndroidManagedImportsFolder
@@ -1335,7 +1336,7 @@ private val coreDataMiscModule = module {
     single<PackStore> { get<WordLookupRepositoryImpl>() }
 
     single { DictionaryPackSqliteStore(androidContext().filesDir) }
-    single {
+    single<PackDownloaderInterface> {
         PackDownloader(
             filesDir = androidContext().filesDir,
             httpClient = get<JvmHttpClientPool>().fileTransferClient(),
