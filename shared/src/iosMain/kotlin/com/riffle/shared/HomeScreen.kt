@@ -28,11 +28,11 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
-import com.riffle.core.logging.LogChannel
-import com.riffle.core.logging.Logger
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.RecordItemOpened
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
@@ -65,7 +65,6 @@ import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.reader.highlights.ReaderSource
-import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
@@ -328,9 +327,11 @@ fun HomeScreen() {
                         onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
                         onNavigateToAddLocalFolder = {
                             folderPicker.pickFolder { uri ->
-                                if (uri != null) scope.launch {
-                                    runCatching { localFilesInstaller.installFolder(uri) }
-                                        .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                                if (uri != null) {
+                                    scope.launch {
+                                        runCatching { localFilesInstaller.installFolder(uri) }
+                                            .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                                    }
                                 }
                             }
                         },

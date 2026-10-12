@@ -55,10 +55,14 @@ class AppVersionSectionTest {
             }
         }
         onNodeWithTag(TestTags.SETTINGS_APP_VERSION_RELEASE_PAGE).performClick()
-        assertEquals(listOf(releaseUrl), viewedUrls,
-            "onViewReleaseUrl must be called with AvailableUpdate.downloadUrl when canInstallUpdate=false")
-        assertEquals(0, installedCount[0],
-            "onInstallUpdate must NOT be called when canInstallUpdate=false")
+        assertEquals(
+            listOf(releaseUrl), viewedUrls,
+            "onViewReleaseUrl must be called with AvailableUpdate.downloadUrl when canInstallUpdate=false"
+        )
+        assertEquals(
+            0, installedCount[0],
+            "onInstallUpdate must NOT be called when canInstallUpdate=false"
+        )
     }
 
     @Test

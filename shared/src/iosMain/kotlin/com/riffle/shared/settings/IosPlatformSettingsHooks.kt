@@ -14,9 +14,9 @@ import com.riffle.feature.settings.ui.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSBundle
-import platform.Foundation.NSURL
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
+import platform.Foundation.NSURL
 import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationWillEnterForegroundNotification

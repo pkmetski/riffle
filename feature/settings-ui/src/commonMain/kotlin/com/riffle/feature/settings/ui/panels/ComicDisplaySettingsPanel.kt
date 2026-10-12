@@ -12,8 +12,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.comic.ComicBackgroundThemeChoices
 import com.riffle.core.domain.comic.ComicFormattingPreferences
-import com.riffle.feature.settings.ui.comicBackgroundChipSelection
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.settings.ui.comicBackgroundChipSelection
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_background
 import com.riffle.feature.settings.ui.generated.resources.ui_current_page_and_remaining_pages

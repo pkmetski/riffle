@@ -11,6 +11,7 @@ import platform.Foundation.NSUserDefaults
 internal class IosEmphasisPreferencesStoreImpl : EmphasisPreferencesStore {
 
     private val defaults = NSUserDefaults.standardUserDefaults
+
     // MutableStateFlow to emit on writes so collectors see updates in-session.
     private val changeSignal = MutableStateFlow(0)
 

@@ -46,6 +46,7 @@ import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_clear
 import com.riffle.feature.settings.ui.generated.resources.ui_crash_report_count
+import com.riffle.feature.settings.ui.generated.resources.ui_crash_reports_subject
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_logs
 import com.riffle.feature.settings.ui.generated.resources.ui_developer_options
 import com.riffle.feature.settings.ui.generated.resources.ui_diagnostics
@@ -59,7 +60,6 @@ import com.riffle.feature.settings.ui.generated.resources.ui_share
 import com.riffle.feature.settings.ui.generated.resources.ui_share_all
 import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_report
 import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_reports
-import com.riffle.feature.settings.ui.generated.resources.ui_crash_reports_subject
 import com.riffle.feature.settings.ui.generated.resources.ui_show
 import com.riffle.feature.settings.ui.generated.resources.ui_the_app_has_not_crashed_since_installation
 import com.riffle.feature.settings.ui.generated.resources.ui_used_to_submit_panel_detection_bug_reports_to_the_github_repository
@@ -267,4 +267,3 @@ internal fun DiagnosticsSection(
         }
     }
 }
-

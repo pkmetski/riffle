@@ -3,9 +3,9 @@ import androidx.compose.runtime.Composable
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.ui.SettingsDrillInRow
 import com.riffle.feature.settings.ui.SettingsPanel
-import com.riffle.feature.settings.ui.listeningSummary
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.listeningSummary
 import org.jetbrains.compose.resources.stringResource
 
 /**
