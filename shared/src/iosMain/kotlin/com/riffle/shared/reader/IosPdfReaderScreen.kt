@@ -219,7 +219,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         if (tocOpen) {
             TocPanel(
                 entries = tocEntries,
-                activeHref = pdfActiveHref((lastTrackedPage - 1).coerceAtLeast(0)),
+                activeHref = pdfActiveHref(lastTrackedPage.coerceAtLeast(0)),
                 onEntryClick = { entry ->
                     val pageIdx = entry.href.removePrefix("page=").toIntOrNull() ?: -1
                     if (pageIdx >= 0) bridge.goToPage(pageIdx)
@@ -228,6 +228,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 onDismiss = { tocOpen = false },
             )
         }
+
 
         if (annotationsPanelOpen) {
             SharedAnnotationsPanel(
