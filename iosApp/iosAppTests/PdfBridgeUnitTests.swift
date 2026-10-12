@@ -45,7 +45,7 @@ final class PdfBridgeUnitTests: XCTestCase {
         let bridge = PdfKitNavigatorBridgeImpl()
         var tapCount = 0
         let callback = FakePdfTapCallback { tapCount += 1 }
-        bridge.setTapCallback(callback: callback)
+        bridge.setTapCallback(callback_: callback)
         bridge.simulateTap()
         XCTAssertEqual(tapCount, 1,
                        "setTapCallback must fire when a tap is simulated")
@@ -55,8 +55,8 @@ final class PdfBridgeUnitTests: XCTestCase {
         let bridge = PdfKitNavigatorBridgeImpl()
         var tapCount = 0
         let callback = FakePdfTapCallback { tapCount += 1 }
-        bridge.setTapCallback(callback: callback)
-        bridge.setTapCallback(callback: nil)
+        bridge.setTapCallback(callback_: callback)
+        bridge.setTapCallback(callback_: nil)
         bridge.simulateTap()
         XCTAssertEqual(tapCount, 0,
                        "Cleared tap callback must not fire on subsequent taps")
@@ -66,7 +66,7 @@ final class PdfBridgeUnitTests: XCTestCase {
         let bridge = PdfKitNavigatorBridgeImpl()
         var tapCount = 0
         let callback = FakePdfTapCallback { tapCount += 1 }
-        bridge.setTapCallback(callback: callback)
+        bridge.setTapCallback(callback_: callback)
         bridge.disposePdf()
         bridge.simulateTap()
         XCTAssertEqual(tapCount, 0,

@@ -44,8 +44,8 @@ import Riffle
         pageChangeCallback = callback
     }
 
-    func setTapCallback(callback: (any IosPdfTapCallback)?) {
-        tapCallback = callback
+    func setTapCallback(callback_: (any IosPdfTapCallback)?) {
+        tapCallback = callback_
     }
 
     func outline() -> [PdfOutlineNode] {
@@ -88,6 +88,11 @@ extension PdfKitNavigatorBridgeImpl {
     /// Simulate a page change as if PDFKit fired PDFViewPageChanged. Used in unit tests only.
     @objc func simulatePageChange(_ pageIndex: Int) {
         pageChangeCallback?.onPageChanged(page: Int32(pageIndex))
+    }
+
+    /// Simulate a single tap as if the user tapped the PDFView. Used in unit tests only.
+    @objc func simulateTap() {
+        tapCallback?.onTap()
     }
 }
 
