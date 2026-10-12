@@ -66,8 +66,10 @@ final class LibraryItemDetailTests: AbsHarnessTestCase {
         bgApp.launchArguments += [
             "--RIFFLE_RESET_FOR_TESTS",
             seedSourceArgument(type: "ABS", url: absServer.baseUrl, username: "testuser", password: "test"),
-            "-AppleLanguages", "(bg)",
-            "-AppleLocale", "bg_BG",
+            "-AppleLanguages",
+            "(bg)",
+            "-AppleLocale",
+            "bg_BG"
         ]
         bgApp.launch()
         waitForSeededLibraryHome(in: bgApp, sourceName: "Audiobookshelf")
