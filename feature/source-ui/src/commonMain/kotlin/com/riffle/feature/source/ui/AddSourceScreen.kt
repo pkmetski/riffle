@@ -168,6 +168,7 @@ fun AddSourceScreen(
             // shrinks the available height (iOS root applies safeDrawingPadding, which
             // includes the IME inset; a fixed-height Column clipped the Connect button).
             val focusManager = LocalFocusManager.current
+
             // On iOS, pressing Tab on a hardware keyboard injects a '\t' character into the
             // newly-focused field (a Compose Multiplatform / UIKit bridge quirk). Consuming
             // Tab via onPreviewKeyEvent before it reaches the text field's internal buffer is
