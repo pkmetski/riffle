@@ -153,6 +153,19 @@ interface IosEpubNavigatorBridge {
     fun setFootnoteCallback(callback: ((contentHtml: String) -> Unit)?)
 
     /**
+     * Register a callback that fires when the user taps an internal link (any `href` anchor that
+     * is within the same publication). The callback receives the target [href] and the
+     * [originLocatorJson] — the locator the reader was at before following the link — so the
+     * Kotlin layer can offer a "Back" card to return to the origin.
+     *
+     * Readium-Swift calls [EPUBNavigatorDelegate.navigator(_:shouldFollowInternalLink:)] for every
+     * internal-link tap. The Swift bridge implements the delegate, captures the origin locator,
+     * calls [callback], and returns `true` so Readium still follows the link. Pass `null` to
+     * unregister (called by [ReadiumSwiftNavigator.close]).
+     */
+    fun setInternalLinkCallback(callback: ((href: String, originLocatorJson: String) -> Unit)?)
+
+    /**
      * Called when Readium reports a navigator error (e.g. `copyForbidden`). Before #1071 §17 the
      * Swift delegate's `presentError` was an empty body, so these were silently discarded;
      * [ReadiumSwiftNavigator] now logs them on [com.riffle.core.logging.LogChannel.Reader].

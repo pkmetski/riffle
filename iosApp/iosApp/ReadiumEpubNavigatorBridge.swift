@@ -35,6 +35,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var decorationActivatedCallback: ((String) -> Void)?
     private var figureTapCallback: ((String) -> Void)?
     private var footnoteCallback: ((String) -> Void)?
+    private var internalLinkCallback: ((String, String) -> Void)?
     private var riffleUrlCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
@@ -135,7 +136,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private func attach(publication pub: Publication, initialLocator: Locator?) throws {
         let config = EPUBNavigatorViewController.Configuration(
             preferences: pendingPreferences,
-            decorationTemplates: RiffleDecorationTemplates.all()
+            decorationTemplates: RiffleDecorationTemplates.all(),
+            fontFamilyDeclarations: Self.bundledFontFamilyDeclarations
         )
         let navigator = try EPUBNavigatorViewController(
             publication: pub,
@@ -201,6 +203,19 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             .trimmingCharacters(in: .whitespacesAndNewlines)
         cb(plain.isEmpty ? content : plain)
         return false
+    }
+
+    func setInternalLinkCallback(callback: ((String, String) -> Void)?) {
+        internalLinkCallback = callback
+    }
+
+    /// Test seam: exercises the internal-link callback path without a live Readium Navigator.
+    /// Returns `true` (Readium follows the link) regardless of whether a callback is registered.
+    func simulateInternalLinkTap(href: String, originLocatorJson: String) -> Bool {
+        if let cb = internalLinkCallback {
+            cb(href, originLocatorJson)
+        }
+        return true
     }
 
     func setErrorCallback(callback: ((String) -> Void)?) {
@@ -459,6 +474,38 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             return []
         }
     }
+
+    // MARK: - Bundled font registration
+
+    /// Font families bundled in the app and registered with Readium so the WebView can load them
+    /// by name. The three names must match ReadiumFormattingMapping.kt exactly ("Literata",
+    /// "Merriweather", "OpenDyslexic"). UIAppFonts in Info.plist is also required; this covers
+    /// the Readium/WebView side.
+    static var bundledFontFamilyDeclarations: [AnyHTMLFontFamilyDeclaration] {
+        // Bundle(for:) finds resources in both the app bundle and the unit test bundle,
+        // whereas Bundle.main in a hostless XCTest points to the runner, not this class's bundle.
+        let bundle = Bundle(for: ReadiumEpubNavigatorBridge.self)
+        return [
+            ("Literata", "Literata-Regular.ttf"),
+            ("Merriweather", "Merriweather-Regular.ttf"),
+            ("OpenDyslexic", "OpenDyslexic-Regular.otf"),
+        ].compactMap { (familyName, fileName) -> AnyHTMLFontFamilyDeclaration? in
+            // Files are individual PBXFileReferences (not a folder reference), so Xcode copies
+            // them flat to the bundle root — no subdirectory argument needed.
+            // Split name and extension for Bundle.url(forResource:withExtension:) — passing the
+            // full filename with withExtension: nil is not reliable across all bundle layouts.
+            let baseName = (fileName as NSString).deletingPathExtension
+            let ext = (fileName as NSString).pathExtension
+            guard let url = bundle.url(forResource: baseName, withExtension: ext),
+                  let fileURL = FileURL(url: url) else { return nil }
+            let face = CSSFontFace(file: fileURL, preload: true)
+            let decl = CSSFontFamilyDeclaration(
+                fontFamily: FontFamily(rawValue: familyName),
+                fontFaces: [face]
+            )
+            return decl.eraseToAnyHTMLFontFamilyDeclaration()
+        }
+    }
 }
 
 // MARK: - EPUBNavigatorDelegate
@@ -559,6 +606,21 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         cb(plain.isEmpty ? content : plain)
         return false
+    }
+
+    /// Internal-link seam — captures the origin locator so the Kotlin layer can offer a
+    /// "Back" card after the user follows an internal cross-reference.
+    ///
+    /// Readium calls this delegate method before navigating to the target. The bridge captures
+    /// the current position from [cachedLocatorJson] as the origin, forwards both the target
+    /// href and the origin to [internalLinkCallback], then returns `true` so Readium still
+    /// follows the link. The Kotlin side captures it as [NavigatorEvent.InternalLink] and
+    /// shows the return-to-position card.
+    func navigator(_ navigator: Navigator, shouldFollowInternalLink link: Link, referrer: Locator?) -> Bool {
+        if let cb = internalLinkCallback, let origin = cachedLocatorJson {
+            cb(link.href, origin)
+        }
+        return true
     }
 
     /// The selection seam.

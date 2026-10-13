@@ -153,6 +153,9 @@ class ReadiumSwiftNavigator(
         bridge.setFootnoteCallback { contentHtml ->
             _eventFlow.tryEmit(NavigatorEvent.Footnote(contentHtml))
         }
+        bridge.setInternalLinkCallback { href, originLocatorJson ->
+            _eventFlow.tryEmit(NavigatorEvent.InternalLink(href, originLocatorJson))
+        }
         bridge.setRiffleUrlCallback { url ->
             _riffleUrls.tryEmit(url)
         }
@@ -189,6 +192,7 @@ class ReadiumSwiftNavigator(
         bridge.setDecorationActivatedCallback(null)
         bridge.setFigureTapCallback(null)
         bridge.setFootnoteCallback(null)
+        bridge.setInternalLinkCallback(null)
         bridge.setRiffleUrlCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()

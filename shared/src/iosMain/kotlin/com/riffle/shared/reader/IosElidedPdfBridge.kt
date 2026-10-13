@@ -4,11 +4,10 @@ package com.riffle.shared.reader
  * Obj-C-compatible seam for exporting the elided Annotations View as a PDF and presenting the
  * system share sheet. Implemented in Swift via WKWebView.createPDF + UIActivityViewController.
  *
- * [exportAndShare] must be called from the main thread. It is fire-and-forget: the Swift side
- * renders the PDF asynchronously, writes it to a temp file, then presents the share sheet from
- * the key window's root view controller. Errors are silently ignored (the share sheet simply
- * doesn't appear).
+ * [exportAndShare] must be called from the main thread. [onComplete] is invoked on the main
+ * thread after the share sheet has been presented (or if rendering failed). The caller uses this
+ * to reset the loading spinner.
  */
 interface IosElidedPdfBridge {
-    fun exportAndShare(html: String, fileName: String)
+    fun exportAndShare(html: String, fileName: String, onComplete: (() -> Unit)?)
 }

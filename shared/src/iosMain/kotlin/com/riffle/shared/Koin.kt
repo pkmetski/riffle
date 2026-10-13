@@ -1434,5 +1434,5 @@ internal fun startKoinWithDatabase(
 }
 
 private object NoOpElidedPdfBridge : IosElidedPdfBridge {
-    override fun exportAndShare(html: String, fileName: String) = Unit
+    override fun exportAndShare(html: String, fileName: String, onComplete: (() -> Unit)?) = Unit
 }
