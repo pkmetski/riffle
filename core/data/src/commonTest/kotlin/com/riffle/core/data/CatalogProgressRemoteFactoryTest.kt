@@ -6,21 +6,48 @@ import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.common.Clock
 import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.AudiobookPositionEntity
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.database.ReadingPositionEntity
+import com.riffle.core.domain.AnnotationSyncConfig
+import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookCfiTranslator
-import io.mockk.mockk
+import com.riffle.core.domain.EbookCfiTranslatorFactory
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.ProgressRemote
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 /**
- * Catalog-backed [com.riffle.core.domain.ProgressRemote] adapters (ADR 0036 / ADR 0013): translate
- * ABS `epubcfi(...)` ↔ Riffle Locator JSON at the Catalog boundary so the local store is never
- * polluted with a foreign format. A null translator defers (returns null) — row stays dirty for
- * the next sweep once the EPUB is cached. [CfiDialect.PAGE_NUMBER] short-circuits the translator
- * so page-based peers (Komga, #528) don't need CFI plumbing.
+ * Catalog-backed [ProgressRemote] adapters (ADR 0036 / ADR 0013): translate ABS `epubcfi(...)`
+ * ↔ Riffle Locator JSON at the Catalog boundary so the local store is never polluted with a
+ * foreign format. A null translator defers (returns null) — row stays dirty for the next sweep
+ * once the EPUB is cached. [CfiDialect.PAGE_NUMBER] short-circuits the translator so page-based
+ * peers (Komga, #528) don't need CFI plumbing.
+ *
+ * Also covers [CatalogProgressRemoteFactory]'s ADR-0063 WebDAV web-source fallback branch.
  */
 class CatalogProgressRemoteFactoryTest {
 
@@ -82,7 +109,7 @@ class CatalogProgressRemoteFactoryTest {
     // --- ebook get ---
 
     @Test
-    fun `ebook get - null translator returns null (EPUB not cached, defers row)`() = runTest {
+    fun ebookGetNullTranslatorReturnsNullEpubNotCached() = runTest {
         val peer = FakePeer(progress = CatalogProgress("item-1", ebookLocation = "epubcfi(/6/4!/4)", lastUpdate = 1700L))
         assertNull(ebookRemote(peer, translator = null).get())
     }
@@ -97,7 +124,7 @@ class CatalogProgressRemoteFactoryTest {
     }
 
     @Test
-    fun `ebook get - returns null when translation fails (CFI unresolvable)`() = runTest {
+    fun ebookGetReturnsNullWhenTranslationFailsCfiUnresolvable() = runTest {
         val peer = FakePeer(progress = CatalogProgress("item-1", ebookLocation = "epubcfi(/6/4!/4)", lastUpdate = 1700L))
         val translator = FakeTranslator(cfiResult = { null }, locatorResult = { null })
         assertNull(ebookRemote(peer, translator).get())
@@ -305,7 +332,7 @@ class CatalogProgressRemoteFactoryTest {
     }
 
     @Test
-    fun `audio get - zero duration yields 0f fraction (no NaN)`() = runTest {
+    fun audioGetZeroDurationYieldsZeroFractionNoNaN() = runTest {
         val peer = FakePeer(
             progress = CatalogProgress(
                 itemId = "item-1", audioCurrentTime = 42.0, audioDuration = 0.0,
@@ -327,11 +354,11 @@ class CatalogProgressRemoteFactoryTest {
      * MUST return null so the reconciler treats it as Offline and skips the UI mirror.
      */
     @Test
-    fun `audio get - returns null when payload has no audio dimension (ebook-only book)`() = runTest {
+    fun audioGetReturnsNullWhenPayloadHasNoAudioDimensionEbookOnlyBook() = runTest {
         val peer = FakePeer(
             progress = CatalogProgress(
                 itemId = "item-1",
-                ebookLocation = "epubcfi(/6/4)", ebookProgress = 0.42f, // real ebook progress
+                ebookLocation = "epubcfi(/6/4)", ebookProgress = 0.42f,
                 audioCurrentTime = 0.0, audioDuration = 0.0,
                 isFinished = false, lastUpdate = 1700L,
             ),
@@ -346,7 +373,7 @@ class CatalogProgressRemoteFactoryTest {
      * fraction=1f rather than swallowing to null.
      */
     @Test
-    fun `audio get - isFinished with zero duration still surfaces fraction=1f (not null)`() = runTest {
+    fun audioGetIsFinishedWithZeroDurationSurfacesFraction1f() = runTest {
         val peer = FakePeer(
             progress = CatalogProgress(
                 itemId = "item-1",
@@ -361,43 +388,50 @@ class CatalogProgressRemoteFactoryTest {
 
     // ── CatalogProgressRemoteFactory WebDAV branch (ADR 0063) ────────────────
 
+    private val testDispatchers = object : DispatcherProvider {
+        override val main: CoroutineDispatcher get() = Dispatchers.Unconfined
+        override val mainImmediate: CoroutineDispatcher get() = Dispatchers.Unconfined
+        override val io: CoroutineDispatcher get() = Dispatchers.Unconfined
+        override val default: CoroutineDispatcher get() = Dispatchers.Unconfined
+    }
+
     private fun buildFactory(
-        sourceType: com.riffle.core.models.SourceType = com.riffle.core.models.SourceType.CHITANKA,
+        sourceType: SourceType = SourceType.CHITANKA,
         sourceId: String = "source-1",
         webDavBaseUrl: String? = "https://dav.example.com/riffle/",
     ): CatalogProgressRemoteFactory {
         val fakeCatalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: Source): com.riffle.core.catalog.Catalog? = null
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         }
-        val fakeSource = com.riffle.core.models.Source(
+        val fakeSource = Source(
             id = sourceId,
-            url = com.riffle.core.models.SourceUrl.parse("https://source.example.com")!!,
+            url = SourceUrl.parse("https://source.example.com")!!,
             isActive = true,
             insecureConnectionAllowed = false,
             username = "u",
             type = sourceType,
         )
-        val fakeDaoItem = com.riffle.core.database.LibraryItemEntity(
+        val fakeDaoItem = LibraryItemEntity(
             sourceId = sourceId, id = "item-1", libraryId = "lib",
             title = "T", author = "A", coverUrl = null, readingProgress = 0.3f, addedAt = 0L,
         )
-        val fakeLibraryItemDao = object : com.riffle.core.database.LibraryItemDao {
+        val fakeLibraryItemDao = object : LibraryItemDao {
             override suspend fun getById(sourceId: String, itemId: String) = fakeDaoItem
-            override fun observeByLibraryId(sourceId: String, libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeInProgress(sourceId: String, libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeFinished(sourceId: String, libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeRecentlyAdded(sourceId: String, libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeAllBooks(sourceId: String, libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeBySource(sourceId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeById(sourceId: String, itemId: String) = kotlinx.coroutines.flow.flowOf(null as com.riffle.core.database.LibraryItemEntity?)
-            override suspend fun upsertAll(items: List<com.riffle.core.database.LibraryItemEntity>) = Unit
-            override suspend fun insertOrIgnore(items: List<com.riffle.core.database.LibraryItemEntity>) = Unit
+            override fun observeByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeInProgress(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeFinished(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeRecentlyAdded(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeAllBooks(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeBySource(sourceId: String) = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(null)
+            override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
+            override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
             override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
-            override suspend fun listByLibraryId(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LibraryItemEntity>()
-            override suspend fun listByIds(sourceId: String, itemIds: List<String>) = emptyList<com.riffle.core.database.LibraryItemEntity>()
+            override suspend fun listByLibraryId(sourceId: String, libraryId: String) = emptyList<LibraryItemEntity>()
+            override suspend fun listByIds(sourceId: String, itemIds: List<String>) = emptyList<LibraryItemEntity>()
             override suspend fun findSourceIdForItem(itemId: String): String? = null
             override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
             override suspend fun deleteById(sourceId: String, itemId: String) = Unit
@@ -412,36 +446,68 @@ class CatalogProgressRemoteFactoryTest {
             override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
             override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
             override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
-            override fun observeInProgressAllSources() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-            override fun observeAllSources() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+            override fun observeInProgressAllSources() = flowOf(emptyList<LibraryItemEntity>())
+            override fun observeAllSources() = flowOf(emptyList<LibraryItemEntity>())
         }
-        val fakeTranslatorFactory = object : com.riffle.core.domain.EbookCfiTranslatorFactory {
+        val fakeTranslatorFactory = object : EbookCfiTranslatorFactory {
             override fun forItem(sourceId: String, itemId: String) = null
         }
-        val fakeConfigStore = object : com.riffle.core.domain.AnnotationSyncConfigStore {
-            private val flow = kotlinx.coroutines.flow.MutableStateFlow(
-                webDavBaseUrl?.let { com.riffle.core.domain.AnnotationSyncConfig(it, "user", "pass") }
+        val fakeConfigStore = object : AnnotationSyncConfigStore {
+            private val flow = MutableStateFlow(
+                webDavBaseUrl?.let { AnnotationSyncConfig(it, "user", "pass") }
             )
-            override fun observe() = flow
-            override suspend fun save(config: com.riffle.core.domain.AnnotationSyncConfig) {
+            override fun observe(): StateFlow<AnnotationSyncConfig?> = flow
+            override suspend fun save(config: AnnotationSyncConfig) {
                 flow.value = config
             }
             override suspend fun clear() {
                 flow.value = null
             }
         }
-        val fakeSourceRepository = object : com.riffle.core.domain.SourceRepository {
-            override fun observeAll() = kotlinx.coroutines.flow.flowOf(listOf(fakeSource))
+        val fakeSourceRepository = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = flowOf(listOf(fakeSource))
             override suspend fun getById(sourceId: String) = if (sourceId == fakeSource.id) fakeSource else null
-            override suspend fun getActive(): com.riffle.core.models.Source? = fakeSource
-            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>): com.riffle.core.domain.CommitSourceResult = error("not used")
+            override suspend fun getActive(): Source? = fakeSource
+            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("not used")
             override suspend fun setActive(sourceId: String) = Unit
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
-        val fakeWebDavFactory = com.riffle.core.sources.webdav.WebDavProgressRemoteFactory(
-            httpClient = io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp),
-            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+        val fakeReadingPositionDao = object : ReadingPositionDao {
+            override suspend fun getByItemId(sourceId: String, itemId: String): ReadingPositionEntity? = null
+            override suspend fun upsert(entity: ReadingPositionEntity) = Unit
+            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
+            override suspend fun acceptServerIfUnchanged(
+                sourceId: String, itemId: String, position: String,
+                serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+            ) = 0
+            override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+            override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
+            override suspend fun dirtyForSource(sourceId: String) = emptyList<ReadingPositionEntity>()
+            override suspend fun sourcesWithDirtyRows() = emptyList<String>()
+            override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) = Unit
+            override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+            override suspend fun allForSource(sourceId: String) = emptyList<ReadingPositionEntity>()
+        }
+        val fakeAudiobookPositionDao = object : AudiobookPositionDao {
+            override suspend fun getByItemId(sourceId: String, itemId: String): AudiobookPositionEntity? = null
+            override suspend fun upsert(entity: AudiobookPositionEntity) = Unit
+            override suspend fun acceptServerIfUnchanged(
+                sourceId: String, itemId: String, positionSec: Double,
+                serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+            ) = 0
+            override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+            override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
+            override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
+            override suspend fun sourcesWithDirtyRows() = emptyList<String>()
+            override suspend fun markDeleted(sourceId: String, itemId: String, localUpdatedAt: Long) = Unit
+            override suspend fun acceptServerDeletionIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
+            override suspend fun allForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
+        }
+        val mockEngine = MockEngine { respond("", HttpStatusCode.OK) }
+        val fakeWebDavFactory = WebDavProgressRemoteFactory(
+            httpClient = HttpClient(mockEngine),
+            dispatchers = testDispatchers,
         )
         return CatalogProgressRemoteFactory(
             catalogRegistry = fakeCatalogRegistry,
@@ -451,32 +517,32 @@ class CatalogProgressRemoteFactoryTest {
             annotationSyncConfigStore = fakeConfigStore,
             webDavProgressRemoteFactory = fakeWebDavFactory,
             sourceRepository = fakeSourceRepository,
-            readingPositionDao = mockk<ReadingPositionDao>(relaxed = true),
-            audiobookPositionDao = mockk<AudiobookPositionDao>(relaxed = true),
+            readingPositionDao = fakeReadingPositionDao,
+            audiobookPositionDao = fakeAudiobookPositionDao,
         )
     }
 
     @Test
     fun `factory - ebook returns non-null WebDav remote for isWebSource source when WebDAV configured`() = runTest {
-        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.CHITANKA)
+        val factory = buildFactory(sourceType = SourceType.CHITANKA)
         assertNotNull(factory.ebook("source-1", "item-1"))
     }
 
     @Test
     fun `factory - ebook returns non-null for GUTENBERG source when WebDAV configured`() = runTest {
-        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.GUTENBERG)
+        val factory = buildFactory(sourceType = SourceType.GUTENBERG)
         assertNotNull(factory.ebook("source-1", "item-1"))
     }
 
     @Test
     fun `factory - ebook returns null for isWebSource source when WebDAV not configured`() = runTest {
-        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.CHITANKA, webDavBaseUrl = null)
+        val factory = buildFactory(sourceType = SourceType.CHITANKA, webDavBaseUrl = null)
         assertNull(factory.ebook("source-1", "item-1"))
     }
 
     @Test
     fun `factory - ebook returns null for LOCAL_FILES source even when WebDAV configured`() = runTest {
-        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.LOCAL_FILES)
+        val factory = buildFactory(sourceType = SourceType.LOCAL_FILES)
         assertNull(factory.ebook("source-1", "item-1"))
     }
 
@@ -486,13 +552,13 @@ class CatalogProgressRemoteFactoryTest {
     // Removed-test: factory - audio always returns null for isWebSource source
     @Test
     fun `factory - audio returns non-null WebDav remote for isWebSource source when WebDAV configured`() = runTest {
-        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.CHITANKA)
+        val factory = buildFactory(sourceType = SourceType.CHITANKA)
         assertNotNull(factory.audio("source-1", "item-1"))
     }
 
     @Test
     fun `factory - audio returns null for isWebSource source when WebDAV not configured`() = runTest {
-        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.CHITANKA, webDavBaseUrl = null)
+        val factory = buildFactory(sourceType = SourceType.CHITANKA, webDavBaseUrl = null)
         assertNull(factory.audio("source-1", "item-1"))
     }
 }
