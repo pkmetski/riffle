@@ -92,7 +92,9 @@ import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceFilesCleaner
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -169,7 +171,17 @@ val iosDataModule = module {
         LibraryItemUiProgressSink(get<LibraryItemDao>(), get<SourceRepository>(), get<CatalogRegistry>(), get<WebSourceLibraryItemUpserter>())
     }
     single<ProgressRemoteFactory> {
-        IosCatalogProgressRemoteFactory(get<CatalogRegistry>(), get<LibraryItemDao>(), get<EbookCfiTranslatorFactory>(), get<Clock>())
+        IosCatalogProgressRemoteFactory(
+            catalogRegistry = get<CatalogRegistry>(),
+            libraryItemDao = get<LibraryItemDao>(),
+            translatorFactory = get<EbookCfiTranslatorFactory>(),
+            clock = get<Clock>(),
+            annotationSyncConfigStore = get(),
+            webDavProgressRemoteFactory = get(),
+            sourceRepository = get<SourceRepository>(),
+            readingPositionDao = get<ReadingPositionDao>(),
+            audiobookPositionDao = get<AudiobookPositionDao>(),
+        )
     }
     // Reconciles one (sourceId, itemId) against the ABS server: called on reader/player open (pull)
     // and close (push).
