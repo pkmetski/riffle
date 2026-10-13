@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -58,6 +59,14 @@ class UnboundedBrowseViewModelThreadingTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
+    // Dedicated single thread used as the compute dispatcher in the threading test. Using
+    // Dispatchers.Default caused flakiness in the full :feature:source-ui:testAndroidHostTest
+    // run because the shared Default pool could be saturated by other tests, causing the
+    // 60 s runTest timeout to fire before first{} returned. A private thread is always
+    // available and still has a distinct thread ID from testDispatcher (Main).
+    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+    private val computeThread = newSingleThreadContext("test-compute")
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -66,6 +75,7 @@ class UnboundedBrowseViewModelThreadingTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        computeThread.close()
     }
 
     private val chitankaSource = Source(
@@ -163,13 +173,13 @@ class UnboundedBrowseViewModelThreadingTest {
             items
         }
 
-        // Use a dedicated compute dispatcher distinct from testDispatcher (Main) so we can
-        // assert the thread ID differs.
+        // Use the dedicated single-thread compute dispatcher (not Dispatchers.Default) so the
+        // thread is always available regardless of what other tests in the suite are doing.
         val computeDispatcher = object : DispatcherProvider {
             override val main: CoroutineDispatcher get() = testDispatcher
             override val mainImmediate: CoroutineDispatcher get() = testDispatcher
-            override val io: CoroutineDispatcher get() = Dispatchers.Default
-            override val default: CoroutineDispatcher get() = Dispatchers.Default
+            override val io: CoroutineDispatcher get() = computeThread
+            override val default: CoroutineDispatcher get() = computeThread
         }
 
         val vm = makeVm(serverItems = instrumentedItems, computeDispatcher = computeDispatcher)
@@ -196,7 +206,7 @@ class UnboundedBrowseViewModelThreadingTest {
         // Cancel viewModelScope and join to prevent UncompletedCoroutinesError: the ViewModel's
         // SharingStarted.Eagerly stateIn flows keep coroutines active in viewModelScope
         // indefinitely, which runTest detects as uncompleted after the test body finishes.
-        // join() waits for the Dispatchers.Default coroutines to reach a terminal cancelled state.
+        // join() waits for the computeThread coroutines to reach a terminal cancelled state.
         vm.viewModelScope.cancel()
         vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
     }

@@ -132,6 +132,21 @@ dependencies {
     add("androidMainImplementation", platform(libs.koin.bom))
 }
 
+// testAndroidHostTest compiles commonTest together with androidHostTest sources, so without a
+// filter the 500+ commonTest tests double-run (once in jvmTest via the Unit job, once here via
+// the Integration job on Robolectric). Exclude all commonTest-originating classes so only the
+// androidHostTest-specific tests run under Robolectric.
+tasks.withType<Test>().configureEach {
+    if (name.contains("AndroidHostTest", ignoreCase = true)) {
+        val commonTestSrcDir = project.file("src/commonTest/kotlin")
+        val commonTestClasses = commonTestSrcDir.walkTopDown()
+            .filter { it.extension == "kt" }
+            .map { it.relativeTo(commonTestSrcDir).path.removeSuffix(".kt").replace('/', '.') }
+            .toList()
+        filter { commonTestClasses.forEach { excludeTestsMatching(it) } }
+    }
+}
+
 // When -PintegrationTests is set (Integration CI job), run only the MockWebServer suites.
 // When absent (Unit CI job), exclude them so they don't run in both jobs.
 tasks.withType<Test>().configureEach {
