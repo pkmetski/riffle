@@ -174,5 +174,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Bundled reader fonts: Readium registers these via fontFamilyDeclarations so the WebView
+	     can load them by name. UIAppFonts is also required for iOS to accept the files.
+	     Files are added as individual resources (PBXFileReference), so they land at the
+	     bundle root — no Fonts/ subdirectory prefix here. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Literata-Regular.ttf</string>
+		<string>Merriweather-Regular.ttf</string>
+		<string>OpenDyslexic-Regular.otf</string>
+	</array>
 </dict>
 </plist>

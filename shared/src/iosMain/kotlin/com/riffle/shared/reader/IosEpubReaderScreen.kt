@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +33,7 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
+import com.riffle.core.common.Clock
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.annotationLocatorJson
 import com.riffle.core.database.AnnotationEntity
@@ -43,8 +45,10 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
+import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
@@ -142,6 +146,7 @@ import com.riffle.shared.generated.resources.ui_no_highlights_to_show
 import com.riffle.shared.generated.resources.ui_readaloud
 import com.riffle.shared.readaloud.IosReadaloudSession
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -193,6 +198,7 @@ fun EpubReaderScreen(
     val logger = koinInject<Logger>()
     val readaloudSessionFactory = koinInject<IosReadaloudSession.Factory>()
     val progressPuller = koinInject<ItemProgressPuller>()
+    val clock = koinInject<Clock>()
     val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
@@ -220,6 +226,7 @@ fun EpubReaderScreen(
     var searchOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<NavigatorSearchMatch>>(emptyList()) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
     var chapterMap by remember { mutableStateOf(ChapterMapUiState.Empty) }
     // The resolved (Auto already collapsed) preferences the chapter map paints itself with.
     var resolvedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
@@ -301,6 +308,10 @@ fun EpubReaderScreen(
     var lazyFetcher by remember { mutableStateOf<IosLazyChapterFetcher?>(null) }
     // Cached publication shape for prefetch index lookups — avoids re-fetching on every position.
     var lazyShape by remember { mutableStateOf<LazyPublicationShape?>(null) }
+    // Session tracking for reading speed: book-open totalprogression + wall-clock start.
+    // Read from onDispose so a single CoroutineScope(SupervisorJob()) can flush the speed write.
+    val sessionStartProgressionRef = remember { mutableStateOf<Float?>(null) }
+    val sessionStartMsRef = remember { mutableStateOf(0L) }
     // Populated in Highlights mode so "Open in Book" can resolve the tapped annotation's locator.
     var highlightsAnnotations by remember { mutableStateOf<List<Annotation>>(emptyList()) }
 
@@ -423,7 +434,10 @@ fun EpubReaderScreen(
                 storedPrefs = stored
                 resolvedPrefs = effective
                 orientationRef.value = effective.orientation
-                val styling = effective.toReadiumTextStyling(isLandscape = isLandscape)
+                val isDoublePage = effective.doublePageSpread &&
+                    effective.orientation == ReaderOrientation.Horizontal &&
+                    isLandscape
+                val styling = effective.toReadiumTextStyling(isLandscape = isLandscape, isDoublePage = isDoublePage)
                 navigator.applyReaderPreferences(
                     fontSizePercent = effective.fontSize,
                     scrollMode = epubScrollMode(effective.orientation),
@@ -594,6 +608,9 @@ fun EpubReaderScreen(
                 is NavigatorEvent.Footnote -> {
                     footnotePopupState = FootnotePopupState(FootnoteContent(event.contentHtml))
                 }
+                is NavigatorEvent.InternalLink -> {
+                    returnToPositionTarget = event.originLocatorJson
+                }
                 else -> Unit
             }
         }
@@ -678,6 +695,30 @@ fun EpubReaderScreen(
             lazyShape = { if (lazyFetcher != null) lazyShape else null },
             prefetchNext = { index -> lazyFetcher?.prefetchNext(index) },
         )
+    }
+
+    // 30s progress-sync heartbeat + reading-speed session tracking. Mirrors Android's
+    // ReadingSessionCoordinator: tick every SYNC_INTERVAL_MS while the book is open, then
+    // flush the speed record on close (see DisposableEffect(item.id) below).
+    LaunchedEffect(localPath) {
+        if (localPath == null || source == ReaderSource.Highlights) return@LaunchedEffect
+        val initialPosition = navigator.snapshotPosition()
+        sessionStartProgressionRef.value = initialPosition?.totalProgression
+        sessionStartMsRef.value = clock.nowMs()
+        while (true) {
+            delay(ReadingSessionCoordinator.SYNC_INTERVAL_MS)
+            val pos = navigator.snapshotPosition() ?: continue
+            val progress = com.riffle.core.domain.finishAwareEbookProgress(
+                totalProgression = pos.totalProgression,
+                progression = pos.progression,
+                positionCounts = spineRef.value.positionCounts,
+            )
+            sessionRepository.runSyncCycle(
+                item.id,
+                SessionPayload(ebookLocation = pos.locatorJson, ebookProgress = progress),
+                item.sourceId,
+            )
+        }
     }
 
     // ---- Auto-scroll -------------------------------------------------------------------------
@@ -1023,6 +1064,20 @@ fun EpubReaderScreen(
                             ebookProgress = closeProgress,
                         )
                         sessionRepository.runSyncCycle(item.id, payload, item.sourceId)
+                        // Flush reading-speed record — mirrors ReadingSessionCoordinator.onClosed.
+                        val startProg = sessionStartProgressionRef.value
+                        val timeDeltaSec = (clock.nowMs() - sessionStartMsRef.value) / 1000.0
+                        val totalPositions = spineRef.value.positionCounts.sum().toFloat()
+                        if (startProg != null && totalPositions > 0f) {
+                            val prior = readingSpeedStore.speedSecPerPosition.first()
+                            val updated = ReadingSpeedTracker.recordSession(
+                                progressDelta = closeProgress - startProg,
+                                timeDeltaSec = timeDeltaSec,
+                                totalPositions = totalPositions,
+                                priorSecPerPosition = prior,
+                            )
+                            if (updated != null) readingSpeedStore.updateSpeed(updated)
+                        }
                     }
                 }
             }
@@ -1071,28 +1126,6 @@ fun EpubReaderScreen(
             onAnnotations = { annotationsPanelOpen = !annotationsPanelOpen; tocOpen = false; searchOpen = false },
             onFormat = { settingsOpen = true },
             extraActions = {
-                if (shouldShowShareHighlights(source)) {
-                    androidx.compose.material3.IconButton(
-                        onClick = {
-                            val chapters = buildChapterElisionsFromAnnotations(highlightsAnnotations)
-                            val html = buildCombinedHtml(
-                                chapters = chapters,
-                                bookTitle = item.title,
-                                figureBytesByHref = emptyMap(),
-                                publisherFontFaceCss = "",
-                                bookBodyFontFamily = null,
-                            )
-                            val fileName = buildPdfFileName(item.title, item.id)
-                            elidedPdfBridge.exportAndShare(html, fileName)
-                        },
-                        modifier = Modifier.testTag(TestTags.IOS_READER_SHARE_HIGHLIGHTS),
-                    ) {
-                        androidx.compose.material3.Icon(
-                            imageVector = RiffleIcons.Share,
-                            contentDescription = null,
-                        )
-                    }
-                }
                 if (prefsForChrome != null &&
                     prefsForChrome.showAutoScroll &&
                     prefsForChrome.orientation != ReaderOrientation.Horizontal
@@ -1163,6 +1196,42 @@ fun EpubReaderScreen(
                         )
                     }
                 }
+                // Share-as-PDF: matches Android order (AutoScroll → Cadence → Readaloud → Share).
+                if (shouldShowShareHighlights(source)) {
+                    var isPdfExporting by remember { mutableStateOf(false) }
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            if (!isPdfExporting) {
+                                isPdfExporting = true
+                                val chapters = buildChapterElisionsFromAnnotations(highlightsAnnotations)
+                                val html = buildCombinedHtml(
+                                    chapters = chapters,
+                                    bookTitle = item.title,
+                                    figureBytesByHref = emptyMap(),
+                                    publisherFontFaceCss = "",
+                                    bookBodyFontFamily = null,
+                                )
+                                val fileName = buildPdfFileName(item.title, item.id)
+                                elidedPdfBridge.exportAndShare(html, fileName) {
+                                    isPdfExporting = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.testTag(TestTags.IOS_READER_SHARE_HIGHLIGHTS),
+                    ) {
+                        if (isPdfExporting) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            androidx.compose.material3.Icon(
+                                imageVector = RiffleIcons.Share,
+                                contentDescription = null,
+                            )
+                        }
+                    }
+                }
             },
         )
 
@@ -1176,8 +1245,11 @@ fun EpubReaderScreen(
                     searchQuery = q
                     searchResults = emptyList()
                     searchResultIndex = 0
+                    searchJob?.cancel()
+                    searchJob = null
                     if (q.length >= 2) {
-                        scope.launch {
+                        searchJob = scope.launch {
+                            delay(300)
                             navigator.search(q).collect { batch ->
                                 searchResults = searchResults + batch
                             }
@@ -1355,6 +1427,9 @@ fun EpubReaderScreen(
                 onDelete = { id -> scope.launch { editor.delete(id) } },
                 onRename = { id, title -> scope.launch { editor.renameBookmark(id, title) } },
                 onDismiss = { annotationsPanelOpen = false },
+                figureContent = { dataUri, _, imgModifier ->
+                    IosAnnotationFigure(dataUri = dataUri, modifier = imgModifier)
+                },
             )
         }
 

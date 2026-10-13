@@ -10,8 +10,9 @@ import Riffle
 /// file, then presents UIActivityViewController from the key window's root view controller.
 @objc class ElidedPdfBridge: NSObject, IosElidedPdfBridge {
 
-    func exportAndShare(html: String, fileName: String) {
+    func exportAndShare(html: String, fileName: String, onComplete: (() -> Void)?) {
         Task { @MainActor in
+            defer { onComplete?() }
             guard let pdfData = await Self.renderPdf(html: html) else { return }
             let tempUrl = Self.writeTempFile(data: pdfData, fileName: fileName)
             guard let tempUrl else { return }
