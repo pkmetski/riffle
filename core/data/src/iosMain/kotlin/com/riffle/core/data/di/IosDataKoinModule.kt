@@ -57,6 +57,8 @@ import com.riffle.core.data.localfiles.ManagedImportsFolder
 import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.data.localfiles.OpenInImporter
 import com.riffle.core.data.localfiles.SharedOpenInImporter
+import com.riffle.core.data.websource.PositionTombstoneWriter
+import com.riffle.core.data.websource.PositionTombstoneWriterImpl
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookPositionDao
@@ -164,6 +166,9 @@ val iosDataModule = module {
     single<com.riffle.core.domain.AudiobookSleepStopStore> { IosAudiobookSleepStopStoreImpl() }
 
     single { ReconcileLocks() }
+    single<PositionTombstoneWriter> {
+        PositionTombstoneWriterImpl(get<ReadingPositionDao>(), get<AudiobookPositionDao>(), get<Clock>())
+    }
     single { WebSourceLibraryItemUpserter(get<LibraryItemDao>()) }
     single {
         LibraryItemUiProgressSink(get<LibraryItemDao>(), get<SourceRepository>(), get<CatalogRegistry>(), get<WebSourceLibraryItemUpserter>())
