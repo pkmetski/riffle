@@ -19,7 +19,6 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
@@ -399,13 +398,5 @@ class IosLibraryRefresherImpl(
         libraryItemDao.updateReadingProgressFromServer(sourceId, itemId, fraction, sp.lastUpdate)
         libraryItemDao.updateFinishedAt(sourceId, itemId, finishedAt)
         return LibraryRefreshResult.Success
-    }
-
-    private fun com.riffle.core.catalog.BookFormat.toEbookFormat(): EbookFormat = when (this) {
-        com.riffle.core.catalog.BookFormat.Epub -> EbookFormat.Epub
-        com.riffle.core.catalog.BookFormat.Pdf -> EbookFormat.Pdf
-        com.riffle.core.catalog.BookFormat.Cbz -> EbookFormat.Cbz
-        com.riffle.core.catalog.BookFormat.Audiobook -> EbookFormat.Unsupported
-        com.riffle.core.catalog.BookFormat.Unsupported -> EbookFormat.Unsupported
     }
 }

@@ -87,16 +87,20 @@ internal fun String.percentDecodeFromUrl(): String = buildString {
         val c = s[i]
         when {
             c == '%' && i + 2 < s.length -> {
-                val hex = s.substring(i + 1, i + 3)
-                val byte = hex.toIntOrNull(16)
-                if (byte != null) {
-                    // Only single-byte values for annotation IDs (GUIDs are ASCII); fall back to
-                    // raw char for anything multi-byte rather than failing hard.
-                    append(byte.toChar())
-                    i += 3
+                // Collect consecutive %XX sequences and decode as UTF-8 so multi-byte code points
+                // (e.g. %C3%A9 → é) are assembled correctly rather than each byte becoming its
+                // own char.
+                val bytes = mutableListOf<Byte>()
+                var j = i
+                while (j < s.length && s[j] == '%' && j + 2 < s.length) {
+                    val hex = s.substring(j + 1, j + 3).toIntOrNull(16)
+                    if (hex != null) { bytes += hex.toByte(); j += 3 } else break
+                }
+                if (bytes.isNotEmpty()) {
+                    append(bytes.toByteArray().decodeToString())
+                    i = j
                 } else {
-                    append(c)
-                    i++
+                    append(c); i++
                 }
             }
             c == '+' -> { append(' '); i++ }

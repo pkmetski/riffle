@@ -2,6 +2,12 @@ package com.riffle.app.feature.reader.highlights
 
 import android.net.FakeUri
 import com.riffle.app.feature.reader.joinEmphasisStylesToHighlights
+import com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
+import com.riffle.feature.reader.highlights.ChapterElision
+import com.riffle.feature.reader.highlights.ELIDED_NOTE_ARIA_LABEL
+import com.riffle.feature.reader.highlights.ELIDED_NOTE_LABEL
+import com.riffle.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
+import com.riffle.feature.reader.highlights.realCapturedFontOrNull
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.HighlightColor

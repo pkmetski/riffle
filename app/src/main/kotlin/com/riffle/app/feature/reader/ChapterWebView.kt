@@ -354,7 +354,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 // tap element's bounding rect in CSS pixels (see HighlightsPublicationFactory);
                 // convert to device px so the downstream binder (ChapterWebViewBinder.onAnnotationTap)
                 // sees the same shape it would from the JS bridge's HeightBridge.onAnnotationTap.
-                val parts = com.riffle.app.feature.reader.highlights.parseAnnotationTapUrlParts(url)
+                val parts = com.riffle.feature.reader.highlights.parseAnnotationTapUrlParts(url)
                 if (parts != null) {
                     val dpr = resources.displayMetrics.density
                     val rect = if (parts.hasRect()) {

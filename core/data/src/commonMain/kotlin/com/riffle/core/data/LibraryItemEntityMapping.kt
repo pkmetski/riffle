@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.BookFormat
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
@@ -34,3 +35,11 @@ internal fun LibraryItemEntity.toDomainLibraryItem() = LibraryItem(
     asin = asin,
     pageCount = pageCount,
 )
+
+internal fun BookFormat.toEbookFormat(): EbookFormat = when (this) {
+    BookFormat.Epub -> EbookFormat.Epub
+    BookFormat.Pdf -> EbookFormat.Pdf
+    BookFormat.Cbz -> EbookFormat.Cbz
+    BookFormat.Audiobook -> EbookFormat.Unsupported
+    BookFormat.Unsupported -> EbookFormat.Unsupported
+}

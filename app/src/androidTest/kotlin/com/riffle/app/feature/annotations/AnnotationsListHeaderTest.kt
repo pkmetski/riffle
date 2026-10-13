@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.feature.library.AnnotationsListUiState
+import com.riffle.feature.library.ui.AnnotationsListScreen
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,7 +33,7 @@ class AnnotationsListHeaderTest {
         composeTestRule.setContent {
             AnnotationsListScreen(
                 state = AnnotationsListUiState(loading = false, books = books),
-                onBookClick = { _, _ -> },
+                onBookSelected = { _, _ -> },
             )
         }
 
