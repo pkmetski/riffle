@@ -9,11 +9,11 @@ import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.BookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
+import com.riffle.core.data.CatalogProgressRemoteFactory
 import com.riffle.core.data.CatalogSyncSourceResolver
 import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.IosAudiobookSleepStopStoreImpl
-import com.riffle.core.data.IosCatalogProgressRemoteFactory
 import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosConnectivityObserver
 import com.riffle.core.data.IosCoverGridDensityStoreImpl
@@ -187,7 +187,7 @@ val iosDataModule = module {
         LibraryItemUiProgressSink(get<LibraryItemDao>(), get<SourceRepository>(), get<CatalogRegistry>(), get<WebSourceLibraryItemUpserter>())
     }
     single<ProgressRemoteFactory> {
-        IosCatalogProgressRemoteFactory(
+        CatalogProgressRemoteFactory(
             catalogRegistry = get<CatalogRegistry>(),
             libraryItemDao = get<LibraryItemDao>(),
             translatorFactory = get<EbookCfiTranslatorFactory>(),
@@ -224,8 +224,6 @@ val iosDataModule = module {
     // (`kickSweepsOnReconnect`, also shared).
     //
     // One constructor argument stays at its default:
-    //  - `remoteIndex`: CatalogRemoteProgressIndex serves the WebDAV web-source pull (ADR 0063),
-    //    which iOS does not have yet — IosCatalogProgressRemoteFactory has no WebDAV branch either.
     // `postSweepMaterializer` is now wired to WebSourceLibraryItemMaterializer (moved to commonMain
     // in the 2026-10-13 parity sweep) so web-source items synced via any future iOS transport are
     // materialised immediately after the sweep.
