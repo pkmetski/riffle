@@ -580,8 +580,8 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     internal func makeNavigatorConfiguration() -> EPUBNavigatorViewController.Configuration {
         EPUBNavigatorViewController.Configuration(
             preferences: pendingPreferences,
-            decorationTemplates: RiffleDecorationTemplates.all(),
-            disablePageTurnsWhileScrolling: true
+            disablePageTurnsWhileScrolling: true,
+            decorationTemplates: RiffleDecorationTemplates.all()
         )
     }
 
