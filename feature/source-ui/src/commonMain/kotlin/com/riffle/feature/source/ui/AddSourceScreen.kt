@@ -39,6 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -160,6 +167,19 @@ fun AddSourceScreen(
             // Scrollable so the submit button stays reachable when the software keyboard
             // shrinks the available height (iOS root applies safeDrawingPadding, which
             // includes the IME inset; a fixed-height Column clipped the Connect button).
+            val focusManager = LocalFocusManager.current
+            // On iOS, pressing Tab on a hardware keyboard injects a '\t' character into the
+            // newly-focused field (a Compose Multiplatform / UIKit bridge quirk). Consuming
+            // Tab via onPreviewKeyEvent before it reaches the text field's internal buffer is
+            // the only reliable fix — stripping '\t' in onValueChange races the UIKit sync.
+            fun Modifier.tabAdvancesFocus() = onPreviewKeyEvent { event ->
+                if (event.key == Key.Tab && event.type == KeyEventType.KeyDown) {
+                    focusManager.moveFocus(FocusDirection.Down)
+                    true
+                } else {
+                    false
+                }
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -209,7 +229,7 @@ fun AddSourceScreen(
                             onValueChange = { viewModel.updateHost(it) },
                             label = { Text(urlLabel) },
                             placeholder = { Text(urlPlaceholder) },
-                            modifier = Modifier.weight(1f).testTag(TestTags.ADD_SOURCE_HOST_FIELD),
+                            modifier = Modifier.weight(1f).testTag(TestTags.ADD_SOURCE_HOST_FIELD).tabAdvancesFocus(),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Uri,
                                 capitalization = KeyboardCapitalization.None,
@@ -221,9 +241,9 @@ fun AddSourceScreen(
                 }
                 OutlinedTextField(
                     value = viewModel.username,
-                    onValueChange = { viewModel.username = it },
+                    onValueChange = { viewModel.updateUsername(it) },
                     label = { Text(stringResource(Res.string.ui_username)) },
-                    modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_USERNAME_FIELD),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_USERNAME_FIELD).tabAdvancesFocus(),
                     // The iOS keyboard defaults to sentence capitalization + autocorrect, which
                     // silently turns "test" into "Test" and makes valid credentials 401.
                     keyboardOptions = credentialKeyboardOptions,
@@ -231,9 +251,9 @@ fun AddSourceScreen(
                 )
                 OutlinedTextField(
                     value = viewModel.password,
-                    onValueChange = { viewModel.password = it },
+                    onValueChange = { viewModel.updatePassword(it) },
                     label = { Text(stringResource(Res.string.ui_password)) },
-                    modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_PASSWORD_FIELD),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.ADD_SOURCE_PASSWORD_FIELD).tabAdvancesFocus(),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = passwordKeyboardOptions,
                     singleLine = true,

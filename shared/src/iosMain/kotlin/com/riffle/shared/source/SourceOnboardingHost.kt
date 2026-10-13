@@ -54,6 +54,7 @@ fun SourceOnboardingHost(
 ) {
     val pickerViewModel = koinInject<SourceTypePickerViewModel>()
     val installedTypes by pickerViewModel.installedTypes.collectAsState()
+    val developerModeEnabled by pickerViewModel.developerModeEnabled.collectAsState()
     val folderPicker = koinInject<FolderPickerInterface>()
     val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
     val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
@@ -95,6 +96,7 @@ fun SourceOnboardingHost(
                                 .onSuccess { onFinished() }
                         }
                     }
+                    type == SourceType.OREILLY -> step = OnboardingStep.OReillyLogin
                     // Zero-config public catalogues (Chitanka, Gutenberg, radio.es): show a
                     // confirmation screen (mirroring Android's AddChitankaScreen etc.) before
                     // materialising the singleton source row.
@@ -104,6 +106,7 @@ fun SourceOnboardingHost(
                 }
             },
             installedTypes = installedTypes,
+            developerModeEnabled = developerModeEnabled,
             enabledTypes = iosSupportedSourceTypes(),
         )
 
@@ -145,11 +148,17 @@ fun SourceOnboardingHost(
                 viewModel = viewModel,
             )
         }
+
+        OnboardingStep.OReillyLogin -> IosOReillyLoginScreen(
+            onDone = onFinished,
+            onNavigateBack = { step = OnboardingStep.Picker },
+        )
     }
 }
 
 private sealed interface OnboardingStep {
     data object Picker : OnboardingStep
+    data object OReillyLogin : OnboardingStep
     data class Confirm(val type: SourceType) : OnboardingStep
     data class Credentials(val type: SourceType) : OnboardingStep
     data class SelectLibraries(val pending: PendingSource) : OnboardingStep
@@ -174,19 +183,17 @@ private sealed interface OnboardingStep {
  * the two cannot
  * drift — offering a type the browse screen has no ViewModel for would crash it.
  *
- * O'Reilly is the one unbounded catalogue still absent, even though it is a credential-less
- * singleton `SingletonWebSourceInstaller` would happily install: it authenticates through an
- * in-app **WebView login** that harvests the `orm-jwt` cookie, which iOS has no implementation
- * of, so `OReillyCatalogFactory.create` returns null without one. It reached this set only
- * because of the zero-config rule, and was hidden downstream purely by
- * `SourceTypePickerScreen`'s `developerModeEnabled` default — a gate `SourceOnboardingHost` never
- * passes a value for. Excluding it here makes that safe by construction instead of by omission,
- * so wiring the developer-mode flag later cannot install a cookie-less O'Reilly source.
+ * O'Reilly is gated behind `SourceTypePickerScreen`'s `developerModeEnabled` flag (see
+ * [OReillyWebSourceDescriptor.requiresDeveloperMode]) so it is only visible when developer
+ * mode is unlocked. It is included in this set so the card is enabled (not greyed out) once
+ * it appears. The [OnboardingStep.OReillyLogin] step implements the iOS WebView login that
+ * harvests the `orm-jwt` cookie.
  */
 internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
     add(SourceType.ABS)
     add(SourceType.KOMGA)
     add(SourceType.LOCAL_FILES)
+    add(SourceType.OREILLY)
     addAll(unboundedBrowseSourceTypes())
 }
 

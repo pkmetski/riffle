@@ -216,22 +216,33 @@ class AddSourceViewModel constructor(
         }
     }
 
+    fun updateUsername(value: String) {
+        // Tab characters are injected into the next-focused field on iOS when the user presses Tab
+        // on a hardware keyboard to advance focus — strip them so the credential is never corrupted.
+        username = value.replace("\t", "")
+    }
+
+    fun updatePassword(value: String) {
+        password = value.replace("\t", "")
+    }
+
     fun updateScheme(value: String) {
         if (value == "http://" || value == "https://") scheme = value
     }
 
     fun updateHost(value: String) {
-        val lower = value.lowercase()
+        val stripped = value.replace("\t", "")
+        val lower = stripped.lowercase()
         when {
             lower.startsWith("https://") -> {
                 scheme = "https://"
-                host = value.substring(8)
+                host = stripped.substring(8)
             }
             lower.startsWith("http://") -> {
                 scheme = "http://"
-                host = value.substring(7)
+                host = stripped.substring(7)
             }
-            else -> host = value
+            else -> host = stripped
         }
     }
 

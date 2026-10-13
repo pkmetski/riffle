@@ -8,7 +8,9 @@ import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
+import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
+import com.riffle.shared.source.IosOReillySessionStore
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
@@ -1056,6 +1058,14 @@ private fun iosLibraryModule(
                 httpClient = get(),
                 userAgent = "Riffle/dev (iOS) radio-es-source",
             ),
+            // Developer-mode-only; requires a WebView login (IosOReillyLoginScreen) to
+            // harvest the orm-jwt cookie. IosOReillySessionStore caches the cookie so
+            // cookieProvider can be synchronous while the WKHTTPCookieStore is async.
+            SourceType.OREILLY to OReillyCatalogFactory(
+                httpClient = get(),
+                cookieProvider = { iosOReillySessionStore.cookieHeader },
+                userAgentProvider = { "Riffle/dev (iOS) oreilly-source" },
+            ),
         )
     }
     single<CatalogRegistry> {
@@ -1387,15 +1397,21 @@ fun startKoin(
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge,
-) = startKoinWithDatabase(
-    navigatorBridgeFactory = navigatorBridgeFactory,
-    audioPlayerBridgeFactory = audioPlayerBridgeFactory,
-    pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
-    publicationInspector = publicationInspector,
-    readaloudBridgeFactory = readaloudBridgeFactory,
-    elidedPdfBridge = elidedPdfBridge,
-    databaseFile = RIFFLE_DATABASE_FILE,
-)
+) {
+    val app = startKoinWithDatabase(
+        navigatorBridgeFactory = navigatorBridgeFactory,
+        audioPlayerBridgeFactory = audioPlayerBridgeFactory,
+        pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
+        publicationInspector = publicationInspector,
+        readaloudBridgeFactory = readaloudBridgeFactory,
+        elidedPdfBridge = elidedPdfBridge,
+        databaseFile = RIFFLE_DATABASE_FILE,
+    )
+    // Start observing the WKHTTPCookieStore so the O'Reilly cookie provider stays current.
+    // Called here (not inside the Koin module) so IosKoinGraphTest can start the production
+    // graph without a live WKWebsiteDataStore.
+    app.koin.get<IosOReillySessionStore>().startObserving()
+}
 
 /**
  * Same graph, with the database file named explicitly. `IosKoinGraphTest` starts the real graph
@@ -1410,7 +1426,7 @@ internal fun startKoinWithDatabase(
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge = NoOpElidedPdfBridge,
     databaseFile: String,
-) {
+): org.koin.core.KoinApplication {
     val app = koinStartKoin {
         modules(
             iosLoggingModule,
@@ -1431,6 +1447,7 @@ internal fun startKoinWithDatabase(
         repository = app.koin.get<IosCrashReportRepositoryImpl>(),
         clock = app.koin.get<Clock>(),
     )
+    return app
 }
 
 private object NoOpElidedPdfBridge : IosElidedPdfBridge {
