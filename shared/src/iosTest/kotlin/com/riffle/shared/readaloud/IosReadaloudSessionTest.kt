@@ -5,11 +5,14 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudBundleReader
+import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.core.domain.SourceRepository
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.shared.audiobook.BundleAudioExtractor
 import com.riffle.shared.library.IosReadaloudHandoff
@@ -94,6 +97,11 @@ class IosReadaloudSessionTest {
         override suspend fun clear(sourceId: String, itemId: String) = Unit
     }
 
+    private class FakeSourceRepository : SourceRepository
+    private class FakeLinkRepository : ReadaloudLinkRepository {
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null
+    }
+
     private fun makeSession(
         bundleReader: ReadaloudBundleReader = FakeBundleReader(),
         audioRepository: ReadaloudAudioRepository = FakeAudioRepository(),
@@ -116,6 +124,8 @@ class IosReadaloudSessionTest {
             bundleReader = bundleReader,
             readaloudPreferencesStore = FakePreferencesStore(),
             resumeStore = FakeResumeStore(),
+            sourceRepository = FakeSourceRepository(),
+            linkRepository = FakeLinkRepository(),
             audiobookHandoffState = audiobookHandoffState,
             dispatchers = dispatchers,
             parentScope = parentScope,

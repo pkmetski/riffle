@@ -1,6 +1,7 @@
 package com.riffle.shared.readaloud
 
 import com.riffle.core.domain.AudioDownloadResult
+import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
@@ -149,6 +150,7 @@ class IosReadaloudSessionVisibilityTest {
             resumeStore = FakeResumeStore(),
             sourceRepository = sourceRepository,
             linkRepository = linkRepository,
+            audiobookHandoffState = AudiobookHandoffState(),
             dispatchers = dispatchers,
             parentScope = kotlinx.coroutines.CoroutineScope(testDispatcher),
         )
