@@ -76,6 +76,7 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
         var riffleUrlCallback: ((String) -> Unit)? = null
+        override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) {
             riffleUrlCallback = callback
         }

@@ -33,10 +33,10 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
+import com.riffle.core.common.Clock
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.annotationLocatorJson
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.common.Clock
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -435,7 +435,8 @@ fun EpubReaderScreen(
                 resolvedPrefs = effective
                 orientationRef.value = effective.orientation
                 val isDoublePage = effective.doublePageSpread &&
-                    effective.orientation == ReaderOrientation.Horizontal && isLandscape
+                    effective.orientation == ReaderOrientation.Horizontal &&
+                    isLandscape
                 val styling = effective.toReadiumTextStyling(isLandscape = isLandscape, isDoublePage = isDoublePage)
                 navigator.applyReaderPreferences(
                     fontSizePercent = effective.fontSize,
