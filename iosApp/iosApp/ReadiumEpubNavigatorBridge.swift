@@ -209,15 +209,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         internalLinkCallback = callback
     }
 
-    /// Test seam: exercises the internal-link callback path without a live Readium Navigator.
-    /// Returns `true` (Readium follows the link) regardless of whether a callback is registered.
-    func simulateInternalLinkTap(href: String, originLocatorJson: String) -> Bool {
-        if let cb = internalLinkCallback {
-            cb(href, originLocatorJson)
-        }
-        return true
-    }
-
     func setErrorCallback(callback: ((String) -> Void)?) {
         errorCallback = callback
     }
@@ -477,6 +468,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     // MARK: - Bundled font registration
 
+}
+
+// MARK: - Bundled fonts + test seams
+
+private extension ReadiumEpubNavigatorBridge {
     /// Font families bundled in the app and registered with Readium so the WebView can load them
     /// by name. The three names must match ReadiumFormattingMapping.kt exactly ("Literata",
     /// "Merriweather", "OpenDyslexic"). UIAppFonts in Info.plist is also required; this covers
@@ -490,10 +486,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             ("Merriweather", "Merriweather-Regular.ttf"),
             ("OpenDyslexic", "OpenDyslexic-Regular.otf"),
         ].compactMap { (familyName, fileName) -> AnyHTMLFontFamilyDeclaration? in
-            // Files are individual PBXFileReferences (not a folder reference), so Xcode copies
-            // them flat to the bundle root — no subdirectory argument needed.
-            // Split name and extension for Bundle.url(forResource:withExtension:) — passing the
-            // full filename with withExtension: nil is not reliable across all bundle layouts.
+            // Split name and extension: passing the full filename with withExtension: nil is
+            // not reliable across all bundle layouts.
             let baseName = (fileName as NSString).deletingPathExtension
             let ext = (fileName as NSString).pathExtension
             guard let url = bundle.url(forResource: baseName, withExtension: ext),
@@ -505,6 +499,15 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             )
             return decl.eraseToAnyHTMLFontFamilyDeclaration()
         }
+    }
+
+    /// Test seam: exercises the internal-link callback path without a live Readium Navigator.
+    /// Returns `true` (Readium follows the link) regardless of whether a callback is registered.
+    func simulateInternalLinkTap(href: String, originLocatorJson: String) -> Bool {
+        if let cb = internalLinkCallback {
+            cb(href, originLocatorJson)
+        }
+        return true
     }
 }
 
