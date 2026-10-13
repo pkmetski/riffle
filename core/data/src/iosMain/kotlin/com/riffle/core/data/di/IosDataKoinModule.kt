@@ -40,6 +40,7 @@ import com.riffle.core.data.LibraryItemUiProgressSink
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
+import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
 import com.riffle.core.data.comic.panel.IosPanelMaskServiceImpl
@@ -57,7 +58,6 @@ import com.riffle.core.data.localfiles.ManagedImportsFolder
 import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.data.localfiles.OpenInImporter
 import com.riffle.core.data.localfiles.SharedOpenInImporter
-import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.websource.PositionTombstoneWriter
 import com.riffle.core.data.websource.PositionTombstoneWriterImpl
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter

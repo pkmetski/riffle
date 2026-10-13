@@ -109,7 +109,6 @@ import com.riffle.core.data.developer.PatStore
 import com.riffle.core.data.dictionary.DictionaryPackSqliteStore
 import com.riffle.core.data.dictionary.KaikkiJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloader
-import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.data.localfiles.AndroidCopyInService
 import com.riffle.core.data.localfiles.AndroidManagedImportsFolder
@@ -138,6 +137,7 @@ import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.database.openRiffleDatabase
 import com.riffle.core.dictionary.DictionaryRepository
+import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.dictionary.PackStore
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationStore

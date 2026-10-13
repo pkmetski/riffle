@@ -475,5 +475,4 @@ class LibraryRepositoryImpl constructor(
         name = name,
         bookCount = bookCount,
     )
-
 }

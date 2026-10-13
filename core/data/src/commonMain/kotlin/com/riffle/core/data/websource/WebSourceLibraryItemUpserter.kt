@@ -1,12 +1,10 @@
 package com.riffle.core.data.websource
 
-import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.data.toEbookFormat
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
-import com.riffle.core.models.EbookFormat
 
 /**
  * Bridges a browsed [CatalogItem] into the local `library_items` cache when the user taps it.

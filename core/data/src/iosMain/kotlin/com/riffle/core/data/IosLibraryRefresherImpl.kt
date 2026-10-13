@@ -19,7 +19,6 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
@@ -400,5 +399,4 @@ class IosLibraryRefresherImpl(
         libraryItemDao.updateFinishedAt(sourceId, itemId, finishedAt)
         return LibraryRefreshResult.Success
     }
-
 }
