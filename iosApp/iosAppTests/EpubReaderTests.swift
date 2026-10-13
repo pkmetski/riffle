@@ -1,4 +1,5 @@
 import XCTest
+import WebKit
 import Riffle
 import ReadiumShared
 import ReadiumNavigator
@@ -476,7 +477,7 @@ final class EpubReaderTests: XCTestCase {
 
     // MARK: - scrollsToTop disabled (iOS has no Android-equivalent "tap top = chapter beginning" parity)
 
-    func testDisableScrollsToTopSetsScrollsToTopFalseOnAllScrollViews() {
+    @MainActor func testDisableScrollsToTopSetsScrollsToTopFalseOnAllScrollViews() {
         // Android's Readium integration has no "tap status bar area = scroll to top" behaviour.
         // disableScrollsToTop(in:) must recursively set scrollsToTop=false on every UIScrollView
         // in the given view subtree, including nested ones (mirroring Readium's WKWebView nesting).
@@ -497,7 +498,7 @@ final class EpubReaderTests: XCTestCase {
                        "disableScrollsToTop must recurse into nested UIScrollViews")
     }
 
-    func testDisableScrollsToTopIsIdempotent() {
+    @MainActor func testDisableScrollsToTopIsIdempotent() {
         let bridge = ReadiumEpubNavigatorBridge()
         let root = UIScrollView()
         bridge.disableScrollsToTop(in: root)
