@@ -10,7 +10,6 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
-import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
@@ -275,6 +274,7 @@ import com.riffle.shared.reader.IosEpubTocExtractor
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
+import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -674,7 +674,8 @@ private fun iosLibraryModule(
                 bundleReader = get(),
                 readaloudPreferencesStore = get(),
                 resumeStore = get(),
-                audiobookHandoffState = get(),
+                sourceRepository = get(),
+                linkRepository = get(),
                 dispatchers = get(),
                 parentScope = get<ApplicationScope>().coroutineScope,
             )

@@ -2,6 +2,8 @@ package com.riffle.feature.designsystem
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,9 @@ object RiffleIcons {
 
     /** Synced-narration (readaloud) badge on a cover. */
     val ReadaloudBadge: ImageVector get() = Headphones
+
+    /** Synced-narration (readaloud) reader toolbar button — open book with sound waves. */
+    val Readaloud: ImageVector get() = ReadaloudIcon
 
     // ── Artwork ───────────────────────────────────────────────────────────────────────────────
 
@@ -306,6 +311,56 @@ object RiffleIcons {
         )
     }
 }
+
+/**
+ * Open book with two arcing sound waves above it — matches `ic_readaloud.xml` on Android.
+ * All paths are stroked (no fill), so `Icon`'s tint applies identically to the filled icons.
+ */
+private val ReadaloudIcon: ImageVector = ImageVector.Builder(
+    name = "Readaloud",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    val strokeBrush = SolidColor(Color.Black)
+    val sw = 1.8f
+    val cap = StrokeCap.Round
+    val join = StrokeJoin.Round
+    // Open book
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M12,11.2c-1.5,-1 -3.6,-1.6 -5.7,-1.6 -0.6,0 -1.1,0.4 -1.1,1v6.3c0,0.5 0.5,0.9 " +
+                "1.1,0.9 2.1,0 4.2,0.6 5.7,1.6 1.5,-1 3.6,-1.6 5.7,-1.6 0.6,0 1.1,-0.4 " +
+                "1.1,-0.9v-6.3c0,-0.6 -0.5,-1 -1.1,-1 -2.1,0 -4.2,0.6 -5.7,1.6z",
+        ).toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+        strokeLineCap = cap,
+        strokeLineJoin = join,
+    )
+    // Spine
+    addPath(
+        pathData = PathParser().parsePathString("M12,11.2V18.1").toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+        strokeLineCap = cap,
+    )
+    // Inner arc
+    addPath(
+        pathData = PathParser().parsePathString("M9,8.2c1.9,-1.1 4.1,-1.1 6,0").toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+        strokeLineCap = cap,
+    )
+    // Outer arc
+    addPath(
+        pathData = PathParser().parsePathString("M7.4,5.6c2.8,-1.6 6.4,-1.6 9.2,0").toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+        strokeLineCap = cap,
+    )
+}.build()
 
 /**
  * Builds a 24dp Material icon whose paths are filled with the current content colour

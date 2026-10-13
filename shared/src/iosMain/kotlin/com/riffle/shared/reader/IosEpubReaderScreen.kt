@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -286,6 +285,7 @@ fun EpubReaderScreen(
     DisposableEffect(item.sourceId, item.id) {
         onDispose { readaloudSession.onDestroy() }
     }
+    val readaloudVisible by readaloudSession.readaloudVisible.collectAsState()
     val readaloudOpen by readaloudSession.readaloudOpen.collectAsState()
     val readaloudPlayback by readaloudSession.playbackState.collectAsState()
     val readaloudAvailable by readaloudSession.readaloudAvailable.collectAsState()
@@ -1162,6 +1162,22 @@ fun EpubReaderScreen(
             svgContent = { svgMarkup, imgModifier -> IosEpubSvgView(svgMarkup, imgModifier) },
         )
 
+        // The corner bookmark ribbon — placed before the top bar so it sits below the bar in
+        // z-order and the top-bar buttons (formatting, TOC, etc.) receive taps first when chrome
+        // is visible. Pinned flush to the top edge; no systemBarsPadding — matching Android, where
+        // the ribbon starts at y=0 of the reader Box.
+        if (localPath != null) {
+            CornerBookmarkIndicator(
+                isBookmarked = currentBookmark != null,
+                isVisible = true,
+                onToggle = { scope.launch { editor.toggleBookmark() } },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 8.dp)
+                    .testTag(TestTags.IOS_READER_BOOKMARK),
+            )
+        }
+
         // Shared M3 top bar (slides in/out with chromeVisible).
         // Auto-scroll and cadence toggles are extra actions injected by the host.
         val prefsForChrome = resolvedPrefs
@@ -1227,7 +1243,7 @@ fun EpubReaderScreen(
                         },
                     )
                 }
-                if (source != ReaderSource.Highlights) {
+                if (readaloudVisible && source != ReaderSource.Highlights) {
                     IconButton(
                         onClick = {
                             if (readaloudOpen) {
@@ -1240,7 +1256,7 @@ fun EpubReaderScreen(
                         modifier = Modifier.testTag(TestTags.READER_READALOUD),
                     ) {
                         Icon(
-                            painter = painterResource(DesignRes.drawable.ic_readaloud),
+                            imageVector = RiffleIcons.Readaloud,
                             contentDescription = stringResource(Res.string.ui_readaloud),
                         )
                     }
@@ -1318,23 +1334,6 @@ fun EpubReaderScreen(
                 onClose = { searchOpen = false; searchQuery = ""; searchResults = emptyList(); searchResultIndex = 0 },
                 onNavigateBack = { searchOpen = false; searchQuery = ""; searchResults = emptyList(); searchResultIndex = 0 },
                 modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
-            )
-        }
-
-        // The corner bookmark ribbon — the shared composable Android's three readers and its
-        // audiobook player render, not the blue in-page wash iOS used to paint. Tapping it
-        // creates or removes the bookmark on this page, using the same shared epsilon that
-        // decides whether it is lit (see `bookmarkEpsFor`), so the two can never disagree.
-        if (localPath != null) {
-            CornerBookmarkIndicator(
-                isBookmarked = currentBookmark != null,
-                isVisible = true,
-                onToggle = { scope.launch { editor.toggleBookmark() } },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .systemBarsPadding()
-                    .padding(end = 8.dp)
-                    .testTag(TestTags.IOS_READER_BOOKMARK),
             )
         }
 

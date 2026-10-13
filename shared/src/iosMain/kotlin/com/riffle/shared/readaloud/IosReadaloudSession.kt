@@ -6,14 +6,16 @@ import com.riffle.core.domain.IosEpubContentExtractor
 import com.riffle.core.domain.IosSentenceSpanReader
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudBundleReader
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTextQuotes
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.SentenceQuote
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.HighlightColor
-import com.riffle.feature.player.AudiobookHandoffState
+import com.riffle.core.models.isStorytellerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -50,13 +52,17 @@ internal class IosReadaloudSession(
     private val bundleReader: ReadaloudBundleReader,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val resumeStore: ReadaloudResumeStore,
-    private val audiobookHandoffState: AudiobookHandoffState,
+    private val sourceRepository: SourceRepository,
+    private val linkRepository: ReadaloudLinkRepository,
     private val dispatchers: DispatcherProvider,
     parentScope: CoroutineScope,
 ) {
     private val scope = CoroutineScope(SupervisorJob(parentScope.coroutineContext[Job]) + dispatchers.main)
 
     // ── State surface ────────────────────────────────────────────────────────────
+
+    private val _readaloudVisible = MutableStateFlow(false)
+    val readaloudVisible: StateFlow<Boolean> = _readaloudVisible
 
     private val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
@@ -117,10 +123,21 @@ internal class IosReadaloudSession(
                 _activeFragmentRef.value = clip?.textFragmentRef
             }
         }
-        // Optimistically enabled — openReadaloud() determines availability on tap and shows the
-        // download dialog or "not available" bar if needed. Eager probing on reader open added a
-        // background network call that contributed to CI test timeouts on loaded runners.
-        _readaloudAvailable.value = true
+        // Determine button visibility: Storyteller source always shows; ABS source shows only
+        // when a Storyteller link exists (mirroring Android's readaloudControlState logic).
+        // Check runs in IO and resolves quickly (DB-only, no network).
+        scope.launch {
+            val source = withContext(dispatchers.io) { sourceRepository.getById(sourceId) }
+            val isStoryteller = source?.isStorytellerService == true
+            val absLink = if (!isStoryteller) {
+                withContext(dispatchers.io) { linkRepository.findByAbsItem(sourceId, itemId) }
+            } else {
+                null
+            }
+            val visible = isStoryteller || absLink != null
+            _readaloudVisible.value = visible
+            _readaloudAvailable.value = visible
+        }
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────────
