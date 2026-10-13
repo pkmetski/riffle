@@ -220,6 +220,10 @@ class IosLibraryRefresherImpl(
                     RemoteProgressUpdate(item.id, progress, item.progressUpdatedAt ?: 0L)
                 }
                 libraryItemDao.batchUpdateReadingProgressFromServer(source.id, progressUpdates)
+                // Supplement with /api/me for books whose userMediaProgress was absent from the
+                // library-list response (e.g. older ABS versions that don't embed it there). Mirrors
+                // Android's LibraryRepositoryImpl which calls pullAllProgress() in parallel with browse().
+                pullAllProgressSupplement(source, dirtyIds)
                 LibraryRefreshResult.Success
             }
             is NetworkResult.Offline -> LibraryRefreshResult.NetworkError(result.cause)
@@ -375,6 +379,22 @@ class IosLibraryRefresherImpl(
             is NetworkResult.Unknown -> LibraryRefreshResult.NetworkError(result.cause)
             else -> LibraryRefreshResult.NetworkError(Exception("Request failed: $result"))
         }
+    }
+
+    private suspend fun pullAllProgressSupplement(source: com.riffle.core.models.Source, dirtyIds: Set<String>) {
+        val catalog = catalogRegistry.forSource(source) ?: return
+        val progressPeer = catalog as? ProgressPeerCapability ?: return
+        val allProgress = try {
+            progressPeer.pullAllProgress()
+        } catch (t: Throwable) {
+            return
+        }
+        val updates = allProgress.mapNotNull { sp ->
+            if (sp.itemId in dirtyIds) return@mapNotNull null
+            val fraction = sp.unifiedLibraryFraction() ?: return@mapNotNull null
+            RemoteProgressUpdate(sp.itemId, fraction, sp.lastUpdate)
+        }
+        libraryItemDao.batchUpdateReadingProgressFromServer(source.id, updates)
     }
 
     override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult {

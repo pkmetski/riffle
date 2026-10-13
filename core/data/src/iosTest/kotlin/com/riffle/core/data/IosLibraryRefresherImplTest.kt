@@ -34,6 +34,7 @@ import com.riffle.core.models.SourceUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryInfo
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryItem
@@ -137,6 +138,13 @@ class IosLibraryRefresherImplTest {
                 rows[itemId] = existing.copy(readingProgress = progress, progressServerUpdatedAt = serverUpdatedAt)
             }
         }
+        // The interface default calls `this.updateReadingProgressFromServer` on the delegate
+        // (`ThrowingLibraryItemDao`), not on this class. Override to route through our recording impl.
+        override suspend fun batchUpdateReadingProgressFromServer(sourceId: String, updates: List<com.riffle.core.database.RemoteProgressUpdate>) {
+            updates.forEach { update ->
+                updateReadingProgressFromServer(sourceId, update.itemId, update.progress, update.serverUpdatedAt)
+            }
+        }
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {
             finishedAtUpdates += Triple(sourceId, itemId, finishedAt)
         }
@@ -204,6 +212,63 @@ class IosLibraryRefresherImplTest {
         ): NetworkResult<List<NetworkCollection>> = throw UnsupportedOperationException()
     }
 
+    // Returns a single item with null readingProgress (server didn't embed progress in the list).
+    private class ItemsWithoutProgressAbsApi(
+        private val itemId: String = "item-1",
+        private val libraryIdForItem: String = "lib-1",
+    ) : AbsLibraryApi {
+        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+            throw UnsupportedOperationException()
+        override suspend fun getLibraryItems(
+            baseUrl: String,
+            libraryId: String,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<List<NetworkLibraryItem>> = NetworkResult.Success(
+            listOf(
+                NetworkLibraryItem(
+                    id = itemId,
+                    libraryId = libraryIdForItem,
+                    title = "Book",
+                    author = "Author",
+                    readingProgress = null,
+                    progressUpdatedAt = null,
+                    ebookFormat = EbookFormat.Epub,
+                )
+            )
+        )
+        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+            NetworkResult.Success(emptyList())
+        override suspend fun getCollections(
+            baseUrl: String,
+            libraryId: String,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<List<NetworkCollection>> = NetworkResult.Success(emptyList())
+    }
+
+    /** [ProgressPeerCapability] that returns a list from [pullAllProgress]. */
+    private class FakeAllProgressPeer(
+        private val allProgress: List<CatalogProgress>,
+        override val sourceType: SourceType = SourceType.ABS,
+    ) : Catalog, ProgressPeerCapability {
+        override suspend fun listRoots(): List<CatalogRoot> = emptyList()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
+        override suspend fun <T> withFileStream(
+            itemId: String,
+            format: BookFormat,
+            handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = throw UnsupportedOperationException()
+        override suspend fun connectivityCheck(): CatalogHealth = throw UnsupportedOperationException()
+        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long): Long? = null
+        override suspend fun pullProgress(itemId: String): CatalogProgress = allProgress.first { it.itemId == itemId }
+        override suspend fun pullAllProgress(): List<CatalogProgress> = allProgress
+    }
+
     private object NoopKomgaLibraryApi : KomgaLibraryApi {
         override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<KomgaLibraryInfo>> =
             throw UnsupportedOperationException()
@@ -219,10 +284,11 @@ class IosLibraryRefresherImplTest {
         catalog: Catalog,
         dao: RecordingLibraryItemDao = RecordingLibraryItemDao(),
         ledger: DirtyProgressLedger = EmptyDirtyLedger(),
+        absApi: AbsLibraryApi = NoopAbsLibraryApi,
     ) = IosLibraryRefresherImpl(
         sourceRepository = FixedSourceRepository(source),
         tokenStorage = FixedTokenStorage(token),
-        absLibraryApi = NoopAbsLibraryApi,
+        absLibraryApi = absApi,
         libraryDao = NoopLibraryDao,
         komgaLibraryApi = NoopKomgaLibraryApi,
         seriesDao = NoopSeriesDao,
@@ -277,5 +343,60 @@ class IosLibraryRefresherImplTest {
         val peer = FakeProgressPeer(CatalogProgress(itemId = "item-1", ebookProgress = 0.5f, isFinished = false, lastUpdate = 0L))
         refresher(source = null, catalog = peer, dao = dao).refreshItemProgress("s1", "item-1")
         assertEquals(0, dao.progressUpdates.size)
+    }
+
+    // ── pullAllProgressSupplement ─────────────────────────────────────────────
+
+    @Test
+    fun refreshLibraryItemsSupplementsProgressFromPullAllWhenLibraryListHasNullProgress() = runTest {
+        // Regression for the "In Progress section not populated on iOS" bug: older ABS servers
+        // (and some configurations) don't embed userMediaProgress in the library-list response.
+        // iOS now calls pullAllProgress() via the catalog after batchUpdateReadingProgressFromServer
+        // so that /api/me fills in the gaps. Mirrors Android's LibraryRepositoryImpl which calls
+        // pullAllProgress() in parallel with catalog.browse().
+        val dao = RecordingLibraryItemDao()
+        val peer = FakeAllProgressPeer(
+            listOf(
+                CatalogProgress(itemId = "item-1", ebookProgress = 0.45f, isFinished = false, lastUpdate = 9_000L)
+            )
+        )
+        // API returns item with null readingProgress — the supplement must adopt 0.45 from /api/me.
+        val r = refresher(
+            catalog = peer,
+            dao = dao,
+            absApi = ItemsWithoutProgressAbsApi(itemId = "item-1", libraryIdForItem = "lib-1"),
+        )
+        r.refreshLibraryItems("lib-1")
+        val supplemented = dao.progressUpdates.filter { it.second == "item-1" }
+        assertEquals(1, supplemented.size, "pullAllProgress must write item-1's progress to the DAO")
+        assertEquals(0.45f, supplemented.first().third, absoluteTolerance = 0.001f)
+    }
+
+    @Test
+    fun refreshLibraryItemsSupplementSkipsDirtyItems() = runTest {
+        // A dirty ebook row has a pending local edit — pullAllProgressSupplement must not overwrite it.
+        val dao = RecordingLibraryItemDao()
+        dao.seed(LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L))
+        val peer = FakeAllProgressPeer(
+            listOf(
+                CatalogProgress(itemId = "item-1", ebookProgress = 0.30f, isFinished = false, lastUpdate = 9_000L)
+            )
+        )
+        val dirtyLedger = object : DirtyProgressLedger {
+            override suspend fun serversWithDirty(): List<String> = listOf("s1")
+            override suspend fun dirtyEbookItems(sourceId: String): List<String> = listOf("item-1")
+            override suspend fun dirtyAudioItems(sourceId: String): List<String> = emptyList()
+        }
+        refresher(
+            catalog = peer,
+            dao = dao,
+            absApi = ItemsWithoutProgressAbsApi(itemId = "item-1", libraryIdForItem = "lib-1"),
+            ledger = dirtyLedger,
+        ).refreshLibraryItems("lib-1")
+        assertEquals(
+            0,
+            dao.progressUpdates.filter { it.second == "item-1" }.size,
+            "dirty item must not have its progress overwritten by pullAllProgress supplement"
+        )
     }
 }

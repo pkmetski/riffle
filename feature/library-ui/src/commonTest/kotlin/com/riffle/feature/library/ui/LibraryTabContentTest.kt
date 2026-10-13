@@ -293,22 +293,26 @@ class LibraryTabContentTest {
     /**
      * The home sections stream in from separate flows. When Series/Collections are already on
      * screen and the book sections above them arrive later, the list must stay at the top. With
-     * keyed section items LazyListState anchors on the first visible KEY instead: the Series
+     * keyed section items LazyListState anchors on the first visible KEY instead: the Finished
      * header stays put, the rows inserted above it land off-screen, and the home opens scrolled
      * past "In Progress" / "Recently Added" — the iOS harness saw "See all" and the first cover
      * tiles sitting above the viewport right after load.
+     *
+     * Originally verified against a Series section (removed from the home tab by #1251 — the home
+     * tab now only shows InProgress, ContinueSeries, RecentlyAdded, Finished to match Android).
+     * The same LazyList key-anchoring regression applies to any section that loads before the
+     * top-priority sections, so the test now uses Finished arriving before InProgress.
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun homeTabStaysAtTopWhenBookSectionsArriveAfterSeries() = runComposeUiTest {
+    fun homeTabStaysAtTopWhenBookSectionsArriveAfterFinished() = runComposeUiTest {
         fun book(i: Int) = LibraryItem(
             id = "b$i", libraryId = "lib", title = "Book $i", author = "Author",
             coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
             ebookFormat = EbookFormat.Epub,
         )
         val books = (1..20).map(::book)
-        val series = Series(id = "s1", libraryId = "lib", name = "Late Series", coverUrl = null, bookCount = 2)
-        var projection by mutableStateOf(LibraryProjection.Empty.copy(series = listOf(series)))
+        var projection by mutableStateOf(LibraryProjection.Empty.copy(finished = books))
         setContent {
             LibraryTabContent(
                 selectedTab = 0,
@@ -326,11 +330,11 @@ class LibraryTabContentTest {
                 onSearchAnnotations = {},
             )
         }
-        onNodeWithTag(sectionHeaderTag(LibrarySectionType.SERIES)).assertIsDisplayed()
+        onNodeWithTag(sectionHeaderTag(LibrarySectionType.FINISHED)).assertIsDisplayed()
 
         // Three two-row grids are taller than the test viewport, so an anchored list would be
         // able to scroll the first sections out of view.
-        projection = projection.copy(inProgress = books, recentlyAdded = books, finished = books)
+        projection = projection.copy(inProgress = books, recentlyAdded = books)
         waitForIdle()
 
         onNodeWithTag(sectionHeaderTag(LibrarySectionType.IN_PROGRESS)).assertIsDisplayed()
