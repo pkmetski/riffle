@@ -187,7 +187,17 @@ val iosDataModule = module {
         LibraryItemUiProgressSink(get<LibraryItemDao>(), get<SourceRepository>(), get<CatalogRegistry>(), get<WebSourceLibraryItemUpserter>())
     }
     single<ProgressRemoteFactory> {
-        IosCatalogProgressRemoteFactory(get<CatalogRegistry>(), get<LibraryItemDao>(), get<EbookCfiTranslatorFactory>(), get<Clock>())
+        IosCatalogProgressRemoteFactory(
+            catalogRegistry = get<CatalogRegistry>(),
+            libraryItemDao = get<LibraryItemDao>(),
+            translatorFactory = get<EbookCfiTranslatorFactory>(),
+            clock = get<Clock>(),
+            annotationSyncConfigStore = get(),
+            webDavProgressRemoteFactory = get(),
+            sourceRepository = get<SourceRepository>(),
+            readingPositionDao = get<ReadingPositionDao>(),
+            audiobookPositionDao = get<AudiobookPositionDao>(),
+        )
     }
     // Reconciles one (sourceId, itemId) against the ABS server: called on reader/player open (pull)
     // and close (push).
