@@ -1,27 +1,28 @@
 import SwiftUI
-import UIKit
 import Riffle
 
-// Bridges IosStatusBarBridge.Listener (Kotlin interface) to UIApplication.setStatusBarHidden so
-// the reader's immersive mode can hide the system status bar, matching Android's
-// ImmersiveModeState. UIViewControllerBasedStatusBarAppearance=NO is required in Info.plist so
-// that UIApplication (not Readium's child EPUBNavigatorViewController) controls the bar.
-private class StatusBarListenerImpl: NSObject, IosStatusBarBridgeListener {
+// Bridges IosStatusBarBridge.Listener to SwiftUI's .statusBarHidden() modifier so the reader's
+// immersive mode hides the system status bar. UIViewControllerBasedStatusBarAppearance=NO is set
+// in Info.plist so this app-level override wins over Readium's child EPUBNavigatorViewController.
+private class StatusBarState: NSObject, ObservableObject, IosStatusBarBridgeListener {
+    @Published var isHidden = false
+
     func onHiddenChanged(hidden: Bool) {
         DispatchQueue.main.async {
-            UIApplication.shared.setStatusBarHidden(hidden, with: .none)
+            self.isHidden = hidden
         }
     }
 }
 
 struct ContentView: View {
-    private let statusBarListener = StatusBarListenerImpl()
+    @StateObject private var statusBarState = StatusBarState()
 
     var body: some View {
         ComposeView()
             .ignoresSafeArea(.all)
+            .statusBarHidden(statusBarState.isHidden)
             .onAppear {
-                IosStatusBarBridge.shared.setListener(listener: statusBarListener)
+                IosStatusBarBridge.shared.setListener(listener: statusBarState)
             }
     }
 }
