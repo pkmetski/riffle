@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -797,22 +798,30 @@ private fun DetailContentTablet(
 
 @Composable
 internal fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(280.dp)
-            .testTag(TestTags.BOOK_DETAIL_COVER)
-            .clip(RoundedCornerShape(4.dp)),
-    ) {
-        CoverImage(
-            url = item.coverUrl,
-            token = token,
-            contentDescription = null,
-            isAudiobook = item.isAudiobookOnly,
-            instrumentationKind = "detail",
-            instrumentationKey = item.id,
-            modifier = Modifier.fillMaxWidth().requiredHeight(280.dp),
-        )
+    // Outer Box fills width and centers the portrait cover horizontally.
+    // Inner Box uses requiredHeight to bypass iOS CMP's infinite-height propagation from
+    // verticalScroll, then derives width from height via aspectRatio(matchHeightConstraintsFirst).
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .requiredHeight(280.dp)
+                .aspectRatio(
+                    ratio = if (item.isAudiobookOnly) 1f else 2f / 3f,
+                    matchHeightConstraintsFirst = true,
+                )
+                .testTag(TestTags.BOOK_DETAIL_COVER)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            CoverImage(
+                url = item.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = item.isAudiobookOnly,
+                instrumentationKind = "detail",
+                instrumentationKey = item.id,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
