@@ -1428,7 +1428,7 @@ internal fun startKoinWithDatabase(
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge = NoOpElidedPdfBridge,
     databaseFile: String,
-): org.koin.core.KoinApplication {
+) {
     val app = koinStartKoin {
         modules(
             iosLoggingModule,
@@ -1449,7 +1449,6 @@ internal fun startKoinWithDatabase(
         repository = app.koin.get<IosCrashReportRepositoryImpl>(),
         clock = app.koin.get<Clock>(),
     )
-    return app
 }
 
 private object NoOpElidedPdfBridge : IosElidedPdfBridge {
