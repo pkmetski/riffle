@@ -5,6 +5,9 @@ import com.riffle.app.feature.reader.evalSync
 import com.riffle.app.feature.reader.withSizedWebViewFixture
 import com.riffle.app.feature.reader.withWebViewFixture
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.feature.reader.highlights.ChapterElision
+import com.riffle.feature.reader.highlights.ELIDED_NOTE_ARIA_LABEL
+import com.riffle.feature.reader.highlights.ELIDED_NOTE_LABEL
 import com.riffle.feature.reader.highlights.HighlightsDomPatch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
