@@ -51,11 +51,11 @@ class LibraryItemDetailParityTest {
     @Test
     fun coverBoxHeightIs280DpForEpub() = runComposeUiTest {
         // Regression: on iOS CMP, fillMaxSize() inside a verticalScroll Column resolves to the
-        // scroll viewport height rather than the parent Box's height(280dp) constraint. This causes
-        // DefaultCoverPlaceholder's Canvas to draw ~viewport-height of gradient, covering the items
-        // below (PublicationFactsLine, ActionRow, title). Fix: CoverBox must pass
-        // requiredHeight(280.dp) to CoverImage so the DrawScope.size is forced to 280dp regardless
-        // of what constraints the verticalScroll propagates.
+        // scroll viewport height rather than a height-constrained parent Box. This caused the
+        // DefaultCoverPlaceholder Canvas to overflow onto items below. Fix: inner Box uses
+        // requiredHeight(280.dp) (bypasses scroll's infinite-height propagation) with an explicit
+        // width so no aspectRatio modifier is needed (aspectRatio fights large minWidth on iOS).
+        // The testTag is on the outer Box whose height == inner Box height == 280 dp.
         setContent { CoverBox(item = item(), token = "") }
         onNodeWithTag(TestTags.BOOK_DETAIL_COVER).assertHeightIsEqualTo(280.dp)
     }
