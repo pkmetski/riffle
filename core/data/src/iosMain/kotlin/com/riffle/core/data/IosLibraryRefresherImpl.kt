@@ -401,11 +401,4 @@ class IosLibraryRefresherImpl(
         return LibraryRefreshResult.Success
     }
 
-    private fun com.riffle.core.catalog.BookFormat.toEbookFormat(): EbookFormat = when (this) {
-        com.riffle.core.catalog.BookFormat.Epub -> EbookFormat.Epub
-        com.riffle.core.catalog.BookFormat.Pdf -> EbookFormat.Pdf
-        com.riffle.core.catalog.BookFormat.Cbz -> EbookFormat.Cbz
-        com.riffle.core.catalog.BookFormat.Audiobook -> EbookFormat.Unsupported
-        com.riffle.core.catalog.BookFormat.Unsupported -> EbookFormat.Unsupported
-    }
 }

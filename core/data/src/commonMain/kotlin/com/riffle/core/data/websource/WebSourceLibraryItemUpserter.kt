@@ -2,6 +2,7 @@ package com.riffle.core.data.websource
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.data.toEbookFormat
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
@@ -79,12 +80,4 @@ class WebSourceLibraryItemUpserter constructor(
         asin = asin,
         pageCount = pageCount,
     )
-
-    private fun BookFormat.toEbookFormat(): EbookFormat = when (this) {
-        BookFormat.Epub -> EbookFormat.Epub
-        BookFormat.Pdf -> EbookFormat.Pdf
-        BookFormat.Cbz -> EbookFormat.Cbz
-        BookFormat.Audiobook -> EbookFormat.Unsupported
-        BookFormat.Unsupported -> EbookFormat.Unsupported
-    }
 }
