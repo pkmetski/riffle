@@ -472,7 +472,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
 // MARK: - Bundled fonts + test seams
 
-private extension ReadiumEpubNavigatorBridge {
+extension ReadiumEpubNavigatorBridge {
     /// Font families bundled in the app and registered with Readium so the WebView can load them
     /// by name. The three names must match ReadiumFormattingMapping.kt exactly ("Literata",
     /// "Merriweather", "OpenDyslexic"). UIAppFonts in Info.plist is also required; this covers
