@@ -1846,7 +1846,7 @@ private fun EpubNavigatorView(
                 // external (non-http). Convert the URL's CSS-px rect to a window IntRect anchored
                 // on the reader container so [HighlightActionsPopup] positions next to the tap
                 // instead of the top-left of the screen (the empty-rect fallback).
-                val parts = com.riffle.app.feature.reader.highlights.parseAnnotationTapUrlParts(
+                val parts = com.riffle.feature.reader.highlights.parseAnnotationTapUrlParts(
                     url.toString(),
                 ) ?: return
                 val container = containerRef.value

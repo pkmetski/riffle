@@ -1,5 +1,8 @@
 package com.riffle.app.feature.reader.highlights
 
+import com.riffle.feature.reader.highlights.buildAnnotationTapUrl
+import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
+import com.riffle.feature.reader.highlights.parseAnnotationTapUrlParts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
