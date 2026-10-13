@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -797,21 +798,21 @@ private fun DetailContentTablet(
 
 @Composable
 internal fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modifier) {
-    // Outer Box fills width and centers the portrait cover horizontally. testTag is here so the
-    // test can assert its height (outer Box wraps inner, so height == inner height == 280 dp).
-    // Inner Box uses explicit width + requiredHeight — not aspectRatio — to avoid the iOS CMP
-    // bug where scroll's infinite height constraint defeats aspectRatio when minWidth is large.
-    val coverWidth = if (item.isAudiobookOnly) 280.dp else (280f * 2f / 3f).dp
-    Box(
+    // BoxWithConstraints gives us the real available width before we commit to a size, letting us
+    // derive an exact portrait height (width × 3/2 for books, square for audiobooks) without
+    // relying on aspectRatio modifier — which fights iOS CMP's scroll-propagated large minWidth
+    // and produces broken layout. requiredHeight bypasses the scroll's infinite-height constraint.
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .testTag(TestTags.BOOK_DETAIL_COVER),
-        contentAlignment = Alignment.Center,
     ) {
+        val w = maxWidth
+        val h = if (item.isAudiobookOnly) w else (w.value * 3f / 2f).dp
         Box(
             modifier = Modifier
-                .width(coverWidth)
-                .requiredHeight(280.dp)
+                .width(w)
+                .requiredHeight(h)
                 .clip(RoundedCornerShape(4.dp)),
         ) {
             CoverImage(

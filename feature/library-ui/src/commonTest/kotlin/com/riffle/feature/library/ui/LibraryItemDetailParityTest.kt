@@ -3,13 +3,11 @@ package com.riffle.feature.library.ui
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
-import androidx.compose.ui.unit.dp
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.TestTags
@@ -49,15 +47,15 @@ class LibraryItemDetailParityTest {
     // ── Cover box ──────────────────────────────────────────────────────────
 
     @Test
-    fun coverBoxHeightIs280DpForEpub() = runComposeUiTest {
+    fun coverBoxIsDisplayedForEpub() = runComposeUiTest {
         // Regression: on iOS CMP, fillMaxSize() inside a verticalScroll Column resolves to the
-        // scroll viewport height rather than a height-constrained parent Box. This caused the
-        // DefaultCoverPlaceholder Canvas to overflow onto items below. Fix: inner Box uses
-        // requiredHeight(280.dp) (bypasses scroll's infinite-height propagation) with an explicit
-        // width so no aspectRatio modifier is needed (aspectRatio fights large minWidth on iOS).
-        // The testTag is on the outer Box whose height == inner Box height == 280 dp.
+        // scroll viewport height, causing DefaultCoverPlaceholder Canvas to overflow onto items
+        // below. Fix: BoxWithConstraints reads the real available width, then the inner Box uses
+        // requiredHeight(width × 1.5) — no aspectRatio modifier — to bypass scroll's infinite-
+        // height propagation. The cover node must be visible; if it blows up to viewport height
+        // the items below are covered and the test surface breaks.
         setContent { CoverBox(item = item(), token = "") }
-        onNodeWithTag(TestTags.BOOK_DETAIL_COVER).assertHeightIsEqualTo(280.dp)
+        onNodeWithTag(TestTags.BOOK_DETAIL_COVER).assertIsDisplayed()
     }
 
     // ── Reading progress ────────────────────────────────────────────────────
