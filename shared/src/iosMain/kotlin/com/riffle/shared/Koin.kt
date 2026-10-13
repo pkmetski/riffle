@@ -1398,7 +1398,7 @@ fun startKoin(
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge,
 ) {
-    val app = startKoinWithDatabase(
+    startKoinWithDatabase(
         navigatorBridgeFactory = navigatorBridgeFactory,
         audioPlayerBridgeFactory = audioPlayerBridgeFactory,
         pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
@@ -1408,9 +1408,11 @@ fun startKoin(
         databaseFile = RIFFLE_DATABASE_FILE,
     )
     // Start observing the WKHTTPCookieStore so the O'Reilly cookie provider stays current.
-    // Called here (not inside the Koin module) so IosKoinGraphTest can start the production
-    // graph without a live WKWebsiteDataStore.
-    app.koin.get<IosOReillySessionStore>().startObserving()
+    // IosOReillySessionStore is a Kotlin subclass of NSObject, which means its KClass cannot
+    // be used as a Koin key (KClass for ObjC subclasses is unsupported in K/N). It lives as a
+    // module-level singleton instead and is started here — not in the Koin module — so tests
+    // that use startKoinWithDatabase do not trigger WKWebsiteDataStore initialisation.
+    iosOReillySessionStore.startObserving()
 }
 
 /**
