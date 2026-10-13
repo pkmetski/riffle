@@ -10,13 +10,14 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.feature.reader.ColumnSnap
 import com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
 import com.riffle.feature.reader.NavigatorSelection
+import com.riffle.feature.reader.RailSegment
 import com.riffle.feature.reader.bookmarkEpsFor
+import com.riffle.feature.reader.buildEpubBookmarkTitle
 import com.riffle.feature.reader.buildHighlightAnchor
 import com.riffle.feature.reader.draftFieldsOf
 import com.riffle.feature.reader.findEnclosedFiguresInHtml
 import com.riffle.feature.reader.planHighlightCommit
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
  * Turns the reader's gestures into stored annotations.
@@ -55,6 +56,8 @@ class ReaderAnnotationEditor(
      * epsilon always fell through to the position-count proxy or the flat 5% fallback.
      */
     private val viewportFractionByHref: () -> Map<String, Double>,
+    /** TOC-derived segments for bookmark title generation — mirrors Android's [railSegments]. */
+    private val tocSegments: () -> List<RailSegment> = { emptyList() },
 ) {
 
     /**
@@ -258,9 +261,9 @@ class ReaderAnnotationEditor(
         val href = position.href
         val spineIndex = spineIndexOf(href) ?: 0
         val progression = position.progression.toDouble()
-        val percent = ((position.totalProgression ?: position.progression) * 100)
-            .roundToInt()
-            .coerceIn(0, 100)
+        val bookmarkTitle = buildEpubBookmarkTitle(
+            tocSegments(), href, spineHrefs(), progression, position.totalProgression?.toDouble(),
+        )
         annotationStore.createBookmark(
             sourceId = sourceId,
             itemId = itemId,
@@ -277,7 +280,7 @@ class ReaderAnnotationEditor(
             chapterHref = href,
             spineIndex = spineIndex,
             progression = progression,
-            bookmarkTitle = "$percent%",
+            bookmarkTitle = bookmarkTitle,
             originFontFamily = originFontFamily(),
             fragmentAnchor = navigator.capturePageFragmentAnchor(),
         )

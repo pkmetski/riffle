@@ -7,16 +7,23 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.ui.generated.resources.Res
@@ -122,19 +129,40 @@ fun ReaderTopBar(
     }
 }
 
-/** Single-line text that scales down to fit if the title is too long for the toolbar. */
+/**
+ * Text that wraps to up to 2 lines then shrinks its font size to fit,
+ * using a drawWithContent guard so the oversized text never flickers on screen.
+ */
 @Composable
 private fun AutoResizeText(
     text: String,
     color: Color,
     modifier: Modifier = Modifier,
 ) {
+    val baseStyle = LocalTextStyle.current
+    var resizedStyle by remember(text, baseStyle.fontSize) { mutableStateOf(baseStyle) }
+    var readyToDraw by remember(text, baseStyle.fontSize) { mutableStateOf(false) }
     Text(
         text = text,
         color = color,
-        maxLines = 1,
+        style = resizedStyle,
+        maxLines = 2,
+        softWrap = true,
         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        modifier = modifier,
+        modifier = modifier.drawWithContent { if (readyToDraw) drawContent() },
+        onTextLayout = { result ->
+            if (result.hasVisualOverflow) {
+                val next = resizedStyle.fontSize * 0.95f
+                if (next.value >= 10f) {
+                    resizedStyle = resizedStyle.copy(fontSize = next)
+                } else {
+                    resizedStyle = resizedStyle.copy(fontSize = 10.sp)
+                    readyToDraw = true
+                }
+            } else {
+                readyToDraw = true
+            }
+        },
     )
 }
 

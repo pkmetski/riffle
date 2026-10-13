@@ -119,6 +119,8 @@ import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.feature.reader.highlights.shouldShowShareHighlights
 import com.riffle.feature.reader.readiumFontFamilyName
+import com.riffle.feature.reader.RailSegment
+import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.toReadiumTextStyling
@@ -262,6 +264,9 @@ fun EpubReaderScreen(
     // Live `viewportSize / chapterSize` per normalised href. Kept in a ref for the same reason
     // the spine is: the editor is constructed once and must see the newest measurement.
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
+    // TOC entries for bookmark title generation — kept in a ref so the editor lambda always reads
+    // the latest value without being reconstructed when tocEntries loads.
+    val tocEntriesRef = remember { mutableStateOf<List<TocEntry>>(emptyList()) }
     val editor = remember(navigator) {
         ReaderAnnotationEditor(
             sourceId = item.sourceId,
@@ -273,6 +278,7 @@ fun EpubReaderScreen(
             spinePositionCounts = { spineRef.value.positionCounts },
             orientation = { orientationRef.value },
             viewportFractionByHref = { viewportFractionRef.value },
+            tocSegments = { buildRailSegments(tocEntriesRef.value, spineHrefs = spineRef.value.hrefs) },
         )
     }
     val selection by navigator.selectionFlow.collectAsState()
@@ -473,12 +479,12 @@ fun EpubReaderScreen(
     // (or unweighted) rail.
     LaunchedEffect(localPath) {
         if (localPath == null) return@LaunchedEffect
-        navigator.getToc().takeIf { it.isNotEmpty() }?.let { tocEntries = it }
+        navigator.getToc().takeIf { it.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
         navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
         if (tocEntries.isNotEmpty() && spine.isUsable) return@LaunchedEffect
         navigator.pageLoadEvents.collect {
             if (tocEntries.isEmpty()) {
-                navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc }
+                navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
             }
             if (!spine.isUsable) {
                 navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
@@ -609,6 +615,11 @@ fun EpubReaderScreen(
         navigator.eventFlow.collect { event ->
             when (event) {
                 is NavigatorEvent.BodyTap -> {
+                    // Compose overlay taps (e.g. CornerBookmarkIndicator) leak through the
+                    // UIKitViewController to Readium, which fires BodyTap. The overlay's onClick
+                    // calls suppressNextBodyTap() synchronously; by the time this coroutine resumes,
+                    // that call has already happened, so the counter is non-zero and we discard.
+                    if (navigator.consumeSuppressedBodyTap()) return@collect
                     editTargetId = null
                     pendingStyles = emptySet()
                     chromeVisible = !chromeVisible
@@ -635,14 +646,13 @@ fun EpubReaderScreen(
         navigator.positionFlow.collect { position -> locatorHref = position.href }
     }
 
-    // Mirror Android's scroll → immersive behaviour: hide chrome on any position change.
-    // Wait for the first page-load event before collecting so that Readium's initial
-    // position-restore emissions (which arrive before the page finishes rendering) don't
-    // immediately hide chrome the moment the reader opens — mirrors Android's
-    // ImmersiveModeState.dismissOverlay() which is tied to user scroll, not position restore.
+    // Enter immersive mode when the user begins dragging — mirrors Android's onScrollStart →
+    // ImmersiveModeState.dismissOverlay() which fires at gesture-start, not at scroll-end.
+    // Wait for the first page-load so Readium's initial position-restore does not hide chrome
+    // before the reader has even finished rendering.
     LaunchedEffect(navigator) {
         navigator.pageLoadEvents.first()
-        navigator.positionFlow.collect {
+        navigator.scrollStartEvents.collect {
             if (!inhibitAutoHide) chromeVisible = false
         }
     }
@@ -1170,7 +1180,12 @@ fun EpubReaderScreen(
             CornerBookmarkIndicator(
                 isBookmarked = currentBookmark != null,
                 isVisible = true,
-                onToggle = { scope.launch { editor.toggleBookmark() } },
+                onToggle = {
+                    // The Compose tap also leaks to the Readium UIKit view underneath;
+                    // suppress the resulting BodyTap so it doesn't toggle chrome.
+                    navigator.suppressNextBodyTap()
+                    scope.launch { editor.toggleBookmark() }
+                },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = 8.dp)

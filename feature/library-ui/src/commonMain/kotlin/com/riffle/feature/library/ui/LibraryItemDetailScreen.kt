@@ -1146,6 +1146,8 @@ private fun TocRow(tocState: TocState, onOpen: () -> Unit) {
     val sectionCount = countFlatEntries(ready.entries)
     ListItem(
         headlineContent = { Text(stringResource(Res.string.ui_sections_count, sectionCount)) },
+        leadingContent = { Icon(LibraryUiGlyphs.FormatListBulleted, contentDescription = null) },
+        trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
     )
 }
@@ -1156,6 +1158,8 @@ private fun ChaptersRow(chaptersState: ChaptersState, onOpen: () -> Unit) {
     if (ready.chapters.isEmpty()) return
     ListItem(
         headlineContent = { Text(stringResource(Res.string.ui_chapters_count, ready.chapters.size)) },
+        leadingContent = { Icon(RiffleIcons.Headphones, contentDescription = null) },
+        trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
     )
 }

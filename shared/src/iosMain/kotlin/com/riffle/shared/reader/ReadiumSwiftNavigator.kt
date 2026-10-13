@@ -66,6 +66,7 @@ class ReadiumSwiftNavigator(
 
     private val _positionFlow = MutableSharedFlow<NavigatorPosition>(replay = 1, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<NavigatorPageLoad>(extraBufferCapacity = 16)
+    private val _scrollStartEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
     private val _eventFlow = MutableSharedFlow<NavigatorEvent>(extraBufferCapacity = 16)
     private val _selectionFlow = MutableStateFlow<NavigatorSelection?>(null)
     private val _decorationActivations =
@@ -81,6 +82,32 @@ class ReadiumSwiftNavigator(
     // applyReaderPreferences call; edge-tap navigation is suppressed while null so an early tap
     // before Compose's LaunchedEffect fires does not accidentally navigate in vertical/scroll mode.
     private var isPaginatedMode: Boolean? = null
+
+    // Number of pending BodyTap events to discard. Incremented synchronously by the Compose
+    // onClick of an overlay (e.g. CornerBookmarkIndicator) that leaks through to the Readium
+    // UIKit view; checked by consumeSuppressedBodyTap() in the BodyTap collector, which runs
+    // after both UIKit (which emits the event) and Compose (which sets the counter) have
+    // finished their synchronous phase for the same touch. Checking here — in the collector
+    // rather than at the emission point — is what makes suppression reliable: Readium's
+    // didTapAt fires before Compose's onClick, so the counter is always 0 at emission time
+    // and would never suppress at the emitter.
+    private var suppressBodyTapCount = 0
+
+    /** Suppress the next BodyTap event. Call synchronously inside the Compose onClick. */
+    fun suppressNextBodyTap() { suppressBodyTapCount++ }
+
+    /**
+     * Returns true (and decrements the counter) if the next BodyTap should be discarded.
+     * Must be called from the BodyTap collector on the main thread before acting on the event.
+     */
+    fun consumeSuppressedBodyTap(): Boolean {
+        return if (suppressBodyTapCount > 0) {
+            suppressBodyTapCount--
+            true
+        } else {
+            false
+        }
+    }
 
     /**
      * The live text selection, or null when there is none.
@@ -106,6 +133,12 @@ class ReadiumSwiftNavigator(
 
     /** `riffle://` URLs intercepted from the Highlights-mode synthetic EPUB's tap targets. */
     val riffleUrls: Flow<String> = _riffleUrls
+
+    /**
+     * Emits [Unit] at the moment the user begins a drag/scroll gesture — fires at gesture-start,
+     * not at scroll-end, so collectors can enter immersive mode immediately.
+     */
+    val scrollStartEvents: Flow<Unit> = _scrollStartEvents
 
     private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
@@ -159,6 +192,9 @@ class ReadiumSwiftNavigator(
         bridge.setRiffleUrlCallback { url ->
             _riffleUrls.tryEmit(url)
         }
+        bridge.setScrollStartCallback {
+            _scrollStartEvents.tryEmit(Unit)
+        }
     }
 
     init {
@@ -194,6 +230,7 @@ class ReadiumSwiftNavigator(
         bridge.setFootnoteCallback(null)
         bridge.setInternalLinkCallback(null)
         bridge.setRiffleUrlCallback(null)
+        bridge.setScrollStartCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
     }

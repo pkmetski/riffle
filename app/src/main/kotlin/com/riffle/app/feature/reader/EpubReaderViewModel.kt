@@ -105,7 +105,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -2784,16 +2783,7 @@ class EpubReaderViewModel constructor(
                 val spineIdx = pub.readingOrder.indexOfFirst { normalizeEpubHref(it.url().toString()) == normalizeEpubHref(href) }.coerceAtLeast(0)
                 val totalProg = locator.locations.totalProgression
                 val spineHrefs = pub.readingOrder.map { it.url().toString() }
-                val segIdx = findActiveSegmentIndex(railSegments.value, href, spineHrefs)
-                val chapterTitle = railSegments.value.getOrNull(segIdx)?.title?.takeIf { it.isNotBlank() }
-                    ?.let { if (it.length > 30) it.take(30).trimEnd { c -> !c.isLetterOrDigit() } + "…" else it }
-                val title = if (chapterTitle != null) {
-                    val pct = (prog * 100).roundToInt().coerceIn(0, 100)
-                    "$chapterTitle · $pct%"
-                } else {
-                    val pct = ((totalProg ?: prog) * 100).roundToInt().coerceIn(0, 100)
-                    "${pct}%"
-                }
+                val title = buildEpubBookmarkTitle(railSegments.value, href, spineHrefs, prog, totalProg)
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
                 // Bookmarks have no live text selection to read a range font from — fall back

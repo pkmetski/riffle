@@ -18,25 +18,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.platform.testTag
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.RecordItemOpened
-import com.riffle.core.logging.LogChannel
-import com.riffle.core.logging.Logger
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
@@ -52,6 +46,7 @@ import com.riffle.feature.library.ui.LibraryItemDetailScreen
 import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
+import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.library.ui.RiffleScreen
 import com.riffle.feature.library.ui.SeriesDetailScreen
@@ -65,19 +60,19 @@ import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.reader.highlights.ReaderSource
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogScreen
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
-import com.riffle.feature.settings.ui.debug.DebugLogScreen
-import com.riffle.feature.settings.ui.developer.DeveloperOptionsScreen
-import com.riffle.feature.settings.ui.dictionary.DictionaryPacksScreen
+import com.riffle.feature.settings.ui.debug.IosDebugLogScreen
+import com.riffle.feature.settings.ui.developer.IosDeveloperOptionsScreen
+import com.riffle.feature.settings.ui.dictionary.IosDictionaryPacksScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
-import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
 import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.generated.resources.ui_book_not_found
@@ -85,7 +80,6 @@ import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
 import com.riffle.shared.source.SourceOnboardingHost
-import com.riffle.shared.source.WebdavOnboardingHost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -99,8 +93,7 @@ import com.riffle.shared.generated.resources.Res as SharedRes
 private enum class AppSection { Library, Settings, Downloads, Riffle }
 
 private sealed interface IosSettingsSubScreen {
-    data class AddSource(val backend: AddSourceBackend? = null, val editId: String? = null) : IosSettingsSubScreen
-    data object WebdavAddSource : IosSettingsSubScreen
+    data object AddSource : IosSettingsSubScreen
     data object AnnotationsSync : IosSettingsSubScreen
     data object AnnotationSyncMaintenance : IosSettingsSubScreen
     data object ReadaloudSettings : IosSettingsSubScreen
@@ -111,7 +104,6 @@ private sealed interface IosSettingsSubScreen {
     data object DictionaryPacks : IosSettingsSubScreen
 }
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen() {
     val viewModel = koinInject<HomeViewModel>()
@@ -129,8 +121,6 @@ fun HomeScreen() {
     // Pending nav from lock-screen / notification taps (openNowPlayingRequests). Cleared by
     // LibraryHost after it pushes the destination onto its stack.
     var pendingLibraryNav by remember { mutableStateOf<LibraryNav?>(null) }
-    var previousSection by remember { mutableStateOf(AppSection.Library) }
-    var pendingRiffleNav by remember { mutableStateOf<LibraryNav?>(null) }
 
     val density = LocalDensity.current.density
     val containerSize = LocalWindowInfo.current.containerSize
@@ -232,12 +222,10 @@ fun HomeScreen() {
         },
         onSettingsSelected = {
             scope.launch { drawerState.close() }
-            previousSection = appSection
             appSection = AppSection.Settings
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
-            previousSection = appSection
             appSection = AppSection.Downloads
         },
     ) {
@@ -245,26 +233,14 @@ fun HomeScreen() {
             AppSection.Settings -> {
                 val folderPicker = koinInject<FolderPickerInterface>()
                 val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
-                val localFilesLogger = koinInject<Logger>()
                 when (val sub = settingsSubScreen) {
-                    IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
+                    IosSettingsSubScreen.AddSource -> SourceOnboardingHost(
                         onFinished = { settingsSubScreen = null },
                         onCancelled = { settingsSubScreen = null },
-                    )
-                    is IosSettingsSubScreen.AddSource -> SourceOnboardingHost(
-                        onFinished = { settingsSubScreen = null },
-                        onCancelled = { settingsSubScreen = null },
-                        initialBackend = sub.backend,
-                        editId = sub.editId,
                     )
                     IosSettingsSubScreen.AnnotationsSync -> AnnotationsSyncSettingsScreen(
                         onNavigateBack = { settingsSubScreen = null },
-                        onNavigateToAddSource = { backend, editId ->
-                            settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
-                                else -> IosSettingsSubScreen.AddSource(backend, editId)
-                            }
-                        },
+                        onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
                         onNavigateToMaintenance = { settingsSubScreen = IosSettingsSubScreen.AnnotationSyncMaintenance },
                     )
                     IosSettingsSubScreen.AnnotationSyncMaintenance -> {
@@ -276,12 +252,7 @@ fun HomeScreen() {
                     }
                     IosSettingsSubScreen.ReadaloudSettings -> ReadaloudSettingsScreen(
                         onNavigateBack = { settingsSubScreen = null },
-                        onNavigateToAddSource = { backend, editId ->
-                            settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
-                                else -> IosSettingsSubScreen.AddSource(backend, editId)
-                            }
-                        },
+                        onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
                         onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
                     )
                     is IosSettingsSubScreen.ReadaloudMatches -> {
@@ -304,35 +275,27 @@ fun HomeScreen() {
                         )
                     }
                     IosSettingsSubScreen.DeveloperOptions -> {
-                        DeveloperOptionsScreen(
+                        val settingsViewModel = koinInject<SettingsViewModel>()
+                        IosDeveloperOptionsScreen(
                             onNavigateBack = { settingsSubScreen = null },
                             onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
+                            viewModel = settingsViewModel,
                         )
                     }
-                    IosSettingsSubScreen.DebugLogs -> DebugLogScreen(
+                    IosSettingsSubScreen.DebugLogs -> IosDebugLogScreen(
                         onNavigateBack = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
                     )
-                    IosSettingsSubScreen.DictionaryPacks -> DictionaryPacksScreen(
+                    IosSettingsSubScreen.DictionaryPacks -> IosDictionaryPacksScreen(
                         onNavigateBack = { settingsSubScreen = null },
                     )
                     null -> SettingsScreen(
                         isExpandedWidth = isTabletLayout,
-                        onNavigateBack = { appSection = previousSection },
-                        onNavigateToAddSource = { backend, editId ->
-                            settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
-                                else -> IosSettingsSubScreen.AddSource(backend, editId)
-                            }
-                        },
-                        onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
+                        onNavigateBack = { appSection = AppSection.Library },
+                        onNavigateToAddSource = { _, _ -> settingsSubScreen = IosSettingsSubScreen.AddSource },
+                        onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource },
                         onNavigateToAddLocalFolder = {
                             folderPicker.pickFolder { uri ->
-                                if (uri != null) {
-                                    scope.launch {
-                                        runCatching { localFilesInstaller.installFolder(uri) }
-                                            .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
-                                    }
-                                }
+                                if (uri != null) scope.launch { runCatching { localFilesInstaller.installFolder(uri) } }
                             }
                         },
                         onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
@@ -341,7 +304,6 @@ fun HomeScreen() {
                         onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
                         onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
                         onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
-                        onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
                         platformHooks = IosPlatformSettingsHooks,
                     )
                 }
@@ -366,20 +328,14 @@ fun HomeScreen() {
                                 ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
                         },
                         onReadItemAtHref = { item, href ->
-                            pendingLibraryNav = LibraryNav.Reader(item, startHref = href)
-                            appSection = AppSection.Library
-                            downloadsDetailNav = null
-                        },
-                        onListenItemAtSec = { item, sec ->
-                            pendingLibraryNav = LibraryNav.AudiobookPlayer(item, startAtSec = sec)
-                            appSection = AppSection.Library
-                            downloadsDetailNav = null
+                            openReadItemAtHref(item, href, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                                ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
                         },
                         onFacetSelected = { _, _, _ -> },
                     )
                 } else {
                     DownloadsScreen(
-                        onNavigateBack = { appSection = previousSection },
+                        onNavigateBack = { appSection = AppSection.Library },
                         onItemSelected = { item ->
                             downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
                         },
@@ -396,19 +352,7 @@ fun HomeScreen() {
                 fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
                 fun rifflePop() { riffleNavStack = riffleNavStack.dropLast(1) }
 
-                LaunchedEffect(pendingRiffleNav) {
-                    val nav = pendingRiffleNav ?: return@LaunchedEffect
-                    riffleNavStack = riffleNavStack + nav
-                    pendingRiffleNav = null
-                }
-
-                SideEffect {
-                    val last = riffleNavStack.lastOrNull()
-                    isInReaderDestination = last is LibraryNav.Reader ||
-                        last is LibraryNav.PdfReader ||
-                        last is LibraryNav.CbzReader ||
-                        last is LibraryNav.ElidedReader
-                }
+                SideEffect { isInReaderDestination = riffleNavStack.lastOrNull() is LibraryNav.ReaderDestination }
                 DisposableEffect(Unit) { onDispose { isInReaderDestination = false } }
 
                 when (val current = riffleNavStack.lastOrNull()) {
@@ -424,9 +368,10 @@ fun HomeScreen() {
                             openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
                                 ?.let { rifflePush(it) }
                         },
-                        onReadItemAtHref = { item, href -> rifflePush(LibraryNav.Reader(item, startHref = href)) },
-                        onListenItemAtSec = { item, sec -> rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec)) },
-                        onNavigateToSeries = { libraryId, seriesId, seriesName -> rifflePush(LibraryNav.SeriesDetail(seriesId, libraryId, seriesName)) },
+                        onReadItemAtHref = { item, href ->
+                            openReadItemAtHref(item, href, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                                ?.let { rifflePush(it) }
+                        },
                         onFacetSelected = { facetLibraryId, facet, value ->
                             rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
                         },
@@ -482,24 +427,11 @@ fun HomeScreen() {
                         onBack = ::rifflePop,
                         onPlaylistAdvance = { _, _ -> },
                     )
-                    is LibraryNav.ReaderDestination -> {
-                        ReaderHost(
-                            destination = current,
-                            onBack = ::rifflePop,
-                            onPlaylistAdvance = { _, _ -> },
-                            onSwitchToReadaloud = { ebookItemId, atSec ->
-                                scope.launch {
-                                    val item = libraryObserver.getItem(ebookItemId) ?: return@launch
-                                    rifflePush(LibraryNav.Reader(item, startReadaloudAtSec = atSec))
-                                }
-                            },
-                            onSwitchToAudiobook = {
-                                val readerDest = current as? LibraryNav.Reader ?: return@ReaderHost
-                                rifflePop()
-                                rifflePush(LibraryNav.AudiobookPlayer(readerDest.item))
-                            },
-                        )
-                    }
+                    is LibraryNav.ReaderDestination -> ReaderHost(
+                        destination = current,
+                        onBack = ::rifflePop,
+                        onPlaylistAdvance = { _, _ -> },
+                    )
                     else -> RiffleScreen(
                         viewModel = riffleViewModel,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -528,10 +460,7 @@ fun HomeScreen() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(stringResource(Res.string.ui_unable_to_connect_to_source))
-                        Button(
-                            onClick = { refreshKey++ },
-                            modifier = Modifier.testTag(TestTags.NO_LIBRARIES_RETRY),
-                        ) { Text(stringResource(Res.string.ui_retry)) }
+                        Button(onClick = { refreshKey++ }) { Text(stringResource(Res.string.ui_retry)) }
                     }
                     is HomeViewModel.StartDestination.Library -> {
                         LaunchedEffect(dest.libraryId) {
@@ -553,7 +482,6 @@ fun HomeScreen() {
     }
 }
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun LibraryHost(
     sourceType: SourceType?,
@@ -570,7 +498,6 @@ private fun LibraryHost(
     // Keyed on libraryId so switching libraries via the drawer resets the stack — avoiding the
     // wrong library's detail screen staying visible when the user switches.
     var navStack by remember(libraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
-    val scope = rememberCoroutineScope()
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
@@ -589,19 +516,7 @@ private fun LibraryHost(
         navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) }
     }
 
-    BackHandler(enabled = navStack.size > 1, onBack = ::pop)
-
-    val saveableStateHolder = rememberSaveableStateHolder()
-
-    SideEffect {
-        val last = navStack.last()
-        onReaderActiveChanged(
-            last is LibraryNav.Reader ||
-                last is LibraryNav.PdfReader ||
-                last is LibraryNav.CbzReader ||
-                last is LibraryNav.ElidedReader,
-        )
-    }
+    SideEffect { onReaderActiveChanged(navStack.last() is LibraryNav.ReaderDestination) }
     DisposableEffect(Unit) { onDispose { onReaderActiveChanged(false) } }
 
     when (val current = navStack.last()) {
@@ -610,67 +525,61 @@ private fun LibraryHost(
         // `NavRoutes.libraryEntryRoute` makes off `SourceType.isUnboundedCatalog`. Without it the
         // iOS host rendered `LibraryItemsScreen` for every library and Chitanka / Gutenberg /
         // radio.es showed a permanently empty one (#1071 §17).
-        is LibraryNav.Items -> saveableStateHolder.SaveableStateProvider("$libraryId/items") {
-            if (unboundedType != null) {
-                UnboundedBrowseScreen(
-                    sourceType = unboundedType,
-                    libraryId = libraryId,
-                    libraryName = libraryName,
-                    onOpenDrawer = onOpenDrawer,
-                    onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
-                    onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
-                    onAnnotatedBookSelected = { sourceId, itemId ->
-                        push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
-                    },
-                )
-            } else {
-                LibraryItemsScreen(
-                    libraryId = libraryId,
-                    libraryName = libraryName,
-                    onOpenDrawer = onOpenDrawer,
-                    showRecentlyAdded = sourceType?.isWebSource != true,
-                    onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
-                    onAnnotatedBookSelected = { sourceId, itemId ->
-                        push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
-                    },
-                    onAnnotationSelected = { result -> push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null })) },
-                    onAudiobookBookmarkSelected = { result ->
-                        push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }))
-                    },
-                    onSeriesSelected = { series ->
-                        push(
-                            LibraryNav.SeriesDetail(
-                                seriesId = series.id,
-                                seriesLibraryId = series.libraryId,
-                                seriesName = series.name,
-                            )
+        is LibraryNav.Items -> if (unboundedType != null) {
+            UnboundedBrowseScreen(
+                sourceType = unboundedType,
+                libraryId = libraryId,
+                libraryName = libraryName,
+                onOpenDrawer = onOpenDrawer,
+                onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
+                onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
+                onAnnotatedBookSelected = { sourceId, itemId ->
+                    push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                },
+            )
+        } else {
+            LibraryItemsScreen(
+                libraryId = libraryId,
+                libraryName = libraryName,
+                onOpenDrawer = onOpenDrawer,
+                showRecentlyAdded = sourceType?.isWebSource != true,
+                onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
+                onAnnotatedBookSelected = { sourceId, itemId ->
+                    push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                },
+                onSeriesSelected = { series ->
+                    push(
+                        LibraryNav.SeriesDetail(
+                            seriesId = series.id,
+                            seriesLibraryId = series.libraryId,
+                            seriesName = series.name,
                         )
-                    },
-                    onCollectionSelected = { collection ->
-                        push(
-                            LibraryNav.CollectionDetail(
-                                collectionId = collection.id,
-                                collectionLibraryId = collection.libraryId,
-                                collectionName = collection.name,
-                            )
+                    )
+                },
+                onCollectionSelected = { collection ->
+                    push(
+                        LibraryNav.CollectionDetail(
+                            collectionId = collection.id,
+                            collectionLibraryId = collection.libraryId,
+                            collectionName = collection.name,
                         )
-                    },
-                    onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
-                    onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
-                    onPlaylistSelected = { playlist ->
-                        push(
-                            LibraryNav.PlaylistDetail(
-                                playlistId = playlist.id,
-                                playlistName = playlist.name,
-                                // The playlist's own rootId, not the host's libraryId: the Playlists tab
-                                // is only visible on an ABS audiobook root and the two are the same
-                                // today, but every PlaylistsRepository call keys on the playlist's root.
-                                playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
-                            )
+                    )
+                },
+                onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
+                onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
+                onPlaylistSelected = { playlist ->
+                    push(
+                        LibraryNav.PlaylistDetail(
+                            playlistId = playlist.id,
+                            playlistName = playlist.name,
+                            // The playlist's own rootId, not the host's libraryId: the Playlists tab
+                            // is only visible on an ABS audiobook root and the two are the same
+                            // today, but every PlaylistsRepository call keys on the playlist's root.
+                            playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
                         )
-                    },
-                )
-            }
+                    )
+                },
+            )
         }
         is LibraryNav.Section -> LibrarySectionScreen(
             libraryId = libraryId,
@@ -678,27 +587,25 @@ private fun LibraryHost(
             onNavigateBack = ::pop,
             onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
         )
-        is LibraryNav.ItemDetail -> saveableStateHolder.SaveableStateProvider("$libraryId/detail/${current.itemId}/${current.sourceId}") {
-            LibraryItemDetailScreen(
-                itemId = current.itemId,
-                sourceId = current.sourceId,
-                onBack = ::pop,
-                // Read: routes by ebook format so ebook+audio items open the EPUB reader.
-                // Listen: isListenable wins so ebook+audio items open the audiobook player.
-                onRead = { item ->
-                    openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
-                },
-                onListen = { item ->
-                    openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
-                },
-                onReadItemAtHref = { item, href -> push(LibraryNav.Reader(item, startHref = href)) },
-                onListenItemAtSec = { item, sec -> push(LibraryNav.AudiobookPlayer(item, startAtSec = sec)) },
-                onNavigateToSeries = { libId, seriesId, seriesName -> push(LibraryNav.SeriesDetail(seriesId, libId, seriesName)) },
-                onFacetSelected = { facetLibraryId, facet, value ->
-                    push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
-                },
-            )
-        }
+        is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            onBack = ::pop,
+            // Read: routes by ebook format so ebook+audio items open the EPUB reader.
+            // Listen: isListenable wins so ebook+audio items open the audiobook player.
+            onRead = { item ->
+                openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+            },
+            onListen = { item ->
+                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+            },
+            onReadItemAtHref = { item, href ->
+                openReadItemAtHref(item, href, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+            },
+            onFacetSelected = { facetLibraryId, facet, value ->
+                push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
+            },
+        )
         is LibraryNav.FilteredBooks -> FilteredBooksHost(
             destination = current,
             onBack = ::pop,
@@ -745,16 +652,6 @@ private fun LibraryHost(
                 destination = current,
                 onBack = ::pop,
                 onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
-                onSwitchToReadaloud = { ebookItemId, atSec ->
-                    scope.launch {
-                        val item = libraryObserver.getItem(ebookItemId) ?: return@launch
-                        navStack = navStack + LibraryNav.Reader(item, startReadaloudAtSec = atSec)
-                    }
-                },
-                onSwitchToAudiobook = {
-                    val readerDest = current as? LibraryNav.Reader ?: return@ReaderHost
-                    navStack = navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item)
-                },
             )
         }
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
@@ -846,7 +743,7 @@ internal fun ElidedReaderLoader(
 internal fun AudiobookBookmarkLoader(
     itemId: String,
     sourceId: String?,
-    startAtSec: Double,
+    startAtSec: Float,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
 ) {
@@ -934,7 +831,7 @@ internal fun AnnotationSearchHost(
     destination: LibraryNav.AnnotationSearch,
     onBack: () -> Unit,
     onOpenBook: (sourceId: String, itemId: String) -> Unit,
-    onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Double) -> Unit,
+    onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Float) -> Unit,
 ) {
     val koin = getKoin()
     val key = "${destination.searchLibraryId}/${destination.query}"
@@ -949,7 +846,7 @@ internal fun AnnotationSearchHost(
         onNavigateBack = onBack,
         onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
         onAudiobookBookmarkSelected = { result ->
-            onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec)
+            onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec.toFloat())
         },
     )
 }
@@ -985,6 +882,6 @@ private fun PlaylistDetailHost(
         onNavigateBack = onBack,
         onItemSelected = onItemSelected,
         onPlayItem = onPlayItem,
-        itemContent = { item, token, onClick -> BookCoverTile(item = item, token = token, onClick = onClick) },
+        itemContent = { item, _, onClick -> PlaylistItemRow(item = item, onClick = onClick) },
     )
 }

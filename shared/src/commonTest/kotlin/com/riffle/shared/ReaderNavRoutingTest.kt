@@ -96,4 +96,40 @@ class ReaderNavRoutingTest {
         val nav = readNavForItem(item(ebookFormat = EbookFormat.Unsupported))
         assertNull(nav)
     }
+
+    // readNavForItemAtHref — TOC entry navigation from book detail screen
+
+    @Test
+    fun readAtHref_epubItem_routesToReaderWithTocHref() {
+        val href = "chapter3.xhtml"
+        val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Epub), href)
+        assertIs<LibraryNav.Reader>(nav)
+        kotlin.test.assertEquals(href, nav.startTocHref)
+    }
+
+    @Test
+    fun readAtHref_epubItem_fragmentHref_routesToReaderWithFullHref() {
+        val href = "part1.xhtml#section-2"
+        val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Epub), href)
+        assertIs<LibraryNav.Reader>(nav)
+        kotlin.test.assertEquals(href, nav.startTocHref)
+    }
+
+    @Test
+    fun readAtHref_pdfItem_returnsNull() {
+        val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Pdf), "page1.xhtml")
+        assertNull(nav)
+    }
+
+    @Test
+    fun readAtHref_cbzItem_returnsNull() {
+        val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Cbz), "page1.xhtml")
+        assertNull(nav)
+    }
+
+    @Test
+    fun readAtHref_unsupportedItem_returnsNull() {
+        val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Unsupported), "page1.xhtml")
+        assertNull(nav)
+    }
 }

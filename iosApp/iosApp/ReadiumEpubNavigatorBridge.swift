@@ -37,6 +37,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var footnoteCallback: ((String) -> Void)?
     private var internalLinkCallback: ((String, String) -> Void)?
     private var riffleUrlCallback: ((String) -> Void)?
+    private var scrollStartCallback: (() -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
     /// remove the handler and break the retain cycle that WKUserContentController's strong
@@ -149,6 +150,62 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         navigator.didMove(toParent: hostViewController)
         for group in activableGroups {
             registerDecorationObserver(navigator, group: group)
+        }
+        installScrollStartGesture(on: navigator.view)
+        installBookmarkCornerBlocker(on: hostViewController.view)
+        disableScrollsToTop(in: navigator.view)
+    }
+
+    // Adds a transparent UIView over the top-right corner of the host view so that taps on the
+    // Compose CornerBookmarkIndicator are NOT also delivered to the Readium WKWebView underneath.
+    // UIKit hit-testing finds this view first (it is added after the navigator's view, so it sits
+    // on top in z-order); the WKWebView never sees the touch. Compose's gesture recognizer fires
+    // independently (it is attached to the root ComposeView, a parent of this host), so the
+    // bookmark's onClick still works correctly. Size is 48×48 pt — generous over the 24×32 dp
+    // ribbon plus its 8 dp right padding.
+    @MainActor
+    private func installBookmarkCornerBlocker(on view: UIView) {
+        let blocker = UIView()
+        blocker.backgroundColor = .clear
+        blocker.isUserInteractionEnabled = true
+        blocker.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(blocker)
+        NSLayoutConstraint.activate([
+            blocker.topAnchor.constraint(equalTo: view.topAnchor),
+            blocker.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            blocker.widthAnchor.constraint(equalToConstant: 48),
+            blocker.heightAnchor.constraint(equalToConstant: 48),
+        ])
+    }
+
+    // Disables the iOS "tap status-bar area to scroll to top" behaviour for every UIScrollView
+    // (including WKWebView.scrollView) in the navigator's view tree. Android's Readium integration
+    // has no equivalent — there, tapping the top of the screen never scrolls to chapter beginning.
+    // Must be called after setup AND after each chapter navigation because Readium creates fresh
+    // WKWebViews for preloaded spreads; locationDidChange re-applies the setting when new views
+    // enter the hierarchy.
+    @MainActor
+    internal func disableScrollsToTop(in view: UIView) {
+        if let scrollView = view as? UIScrollView {
+            scrollView.scrollsToTop = false
+        }
+        for subview in view.subviews {
+            disableScrollsToTop(in: subview)
+        }
+    }
+
+    // Adds a pan recognizer that fires scrollStartCallback at gesture-start — mirrors Android's
+    // onScrollStart → ImmersiveModeState.dismissOverlay() which enters immersive on drag begin.
+    @MainActor
+    private func installScrollStartGesture(on view: UIView) {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(onPanGesture(_:)))
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
+    }
+
+    @objc private func onPanGesture(_ recognizer: UIPanGestureRecognizer) {
+        if recognizer.state == .began {
+            scrollStartCallback?()
         }
     }
 
@@ -354,6 +411,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         riffleUrlCallback = callback
     }
 
+    func setScrollStartCallback(callback: (() -> Void)?) {
+        scrollStartCallback = callback
+    }
+
     private func serializeTocLinks(_ links: [Link]) -> String {
         let items = links.map { serializeTocLink($0) }.joined(separator: ",")
         return "[\(items)]"
@@ -520,6 +581,9 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
             lastLoadedHref = href
             pageLoadCallback?()
         }
+        // Re-apply on every navigation: Readium may have instantiated new WKWebViews for
+        // adjacent preloaded spreads since the last call.
+        if let navView = epubNavigator?.view { disableScrollsToTop(in: navView) }
     }
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
@@ -708,6 +772,7 @@ extension ReadiumEpubNavigatorBridge {
     func simulateTapAt(tapX: Double, tapY: Double, viewWidth: Double, viewHeight: Double) {
         tapCallback?(TapCoords(x: tapX, y: tapY, viewWidth: viewWidth, viewHeight: viewHeight))
     }
+    @objc func simulateScrollStart() { scrollStartCallback?() }
     @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
     @objc func simulateSelection(_ json: String?) { selectionCallback?(json) }
@@ -988,10 +1053,7 @@ extension ReadiumEpubNavigatorBridge {
     func readResourceBase64(href: String, onResult: @escaping (String?) -> Void) {
         Task {
             guard let pub = self.publication else { onResult(nil); return }
-            // Strip the Readium virtual-host origin (same normalization as readResource).
-            let stripped = href
-                .replacingOccurrences(of: #"^https?://[^/]+/"#, with: "", options: .regularExpression)
-                .components(separatedBy: "#").first ?? ""
+            let stripped = Self.stripOrigin(from: href)
             guard let url = AnyURL(string: stripped),
                   let resource = pub.get(url)
             else { onResult(nil); return }
@@ -1002,4 +1064,27 @@ extension ReadiumEpubNavigatorBridge {
             onResult(data.base64EncodedString())
         }
     }
+
+    /// Strips any `scheme://host/` origin prefix from a WebView resource URL and removes any
+    /// fragment, leaving only the publication-relative path (e.g. `EPUB/images/cover.jpg`).
+    ///
+    /// Readium Swift 3.x serves publication resources using a custom `readium://` scheme
+    /// (`readium://{uuid}/EPUB/images/cover.jpg`), so the strip must handle any URL scheme, not
+    /// just `http://` or `https://`.
+    internal static func stripOrigin(from href: String) -> String {
+        href
+            .replacingOccurrences(of: #"^[a-zA-Z][a-zA-Z0-9+\-.]*://[^/]+/"#, with: "", options: .regularExpression)
+            .components(separatedBy: "#").first ?? ""
+    }
+}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension ReadiumEpubNavigatorBridge: UIGestureRecognizerDelegate {
+    // Allow the scroll-start pan to fire alongside Readium's own scroll and swipe recognizers so
+    // it never blocks page-turns or vertical scrolling.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool { true }
 }

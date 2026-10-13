@@ -5,7 +5,8 @@ package com.riffle.shared.reader
  * can be hidden / shown in step with the reader chrome — matching Android's
  * `ImmersiveModeState.hide()` / `ImmersiveModeState.show()` calls.
  *
- * The host (ContentView.swift) registers a [Listener] once on launch.  The reader calls
+ * ContentView.swift registers a [Listener] (an `ObservableObject` that publishes `isHidden`)
+ * and applies SwiftUI's `.statusBarHidden()` modifier driven by that state.  The reader calls
  * [setHidden] whenever `chromeVisible` changes.  Thread safety: Compose runs on the main
  * thread on iOS, so listeners are always invoked on the main thread.
  */

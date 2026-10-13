@@ -326,6 +326,47 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertEqual(received, payload)
     }
 
+    // MARK: - readResourceBase64 URL stripping (iOS-only: readium:// scheme fix)
+    //
+    // Readium Swift 3.x serves publication resources with a custom `readium://` scheme:
+    //   readium://{uuid}/EPUB/images/cover.jpg
+    // The original regex only stripped `https?://`, so the full readium:// URL reached
+    // pub.get(), which indexes resources by relative path and returned nil — causing the
+    // figure-zoom overlay to spin forever after tapping an image.
+    //
+    // These tests pin the stripOrigin helper against both the old broken input (readium://)
+    // and the legacy http(s) input; they would fail if the regex reverted to https?://.
+
+    func testStripOriginStripsReadiumScheme() {
+        let href = "readium://abc123-uuid/EPUB/images/cover.jpg"
+        XCTAssertEqual(ReadiumEpubNavigatorBridge.stripOrigin(from: href), "EPUB/images/cover.jpg",
+                       "readium:// origin must be stripped so pub.get() can resolve the resource")
+    }
+
+    func testStripOriginStripsHttpsScheme() {
+        let href = "https://abc123.localhost/EPUB/images/cover.jpg"
+        XCTAssertEqual(ReadiumEpubNavigatorBridge.stripOrigin(from: href), "EPUB/images/cover.jpg",
+                       "https:// origin must be stripped (legacy server path)")
+    }
+
+    func testStripOriginStripsHttpScheme() {
+        let href = "http://localhost:8080/EPUB/images/cover.jpg"
+        XCTAssertEqual(ReadiumEpubNavigatorBridge.stripOrigin(from: href), "EPUB/images/cover.jpg",
+                       "http:// origin must be stripped")
+    }
+
+    func testStripOriginRemovesFragment() {
+        let href = "readium://abc123/EPUB/images/figure.png#section1"
+        XCTAssertEqual(ReadiumEpubNavigatorBridge.stripOrigin(from: href), "EPUB/images/figure.png",
+                       "Fragment must be removed so pub.get() receives a clean path")
+    }
+
+    func testStripOriginLeavesRelativeHrefUnchanged() {
+        let href = "EPUB/images/cover.jpg"
+        XCTAssertEqual(ReadiumEpubNavigatorBridge.stripOrigin(from: href), "EPUB/images/cover.jpg",
+                       "Already-relative hrefs must pass through unchanged")
+    }
+
     // MARK: - Typography override injection (iOS parity for Android TypographyOverrideWebViewTest)
     //
     // Android injects TYPOGRAPHY_OVERRIDE_CSS on every page load via DefaultRendererBridge and
@@ -412,6 +453,56 @@ final class EpubReaderTests: XCTestCase {
                         "installTypographyOverrideScript must register the typography override WKUserScript")
         XCTAssertEqual(typographyScript?.injectionTime, .atDocumentEnd,
                        "Typography override must inject atDocumentEnd so --USER__textAlign is already in :root style")
+    }
+
+    // MARK: - Scroll-start → immersive mode (iOS parity for Android's onScrollStart → ImmersiveModeState.dismissOverlay)
+
+    func testScrollStartCallbackIsInvokedOnSimulatedScrollStart() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var didFire = false
+        bridge.setScrollStartCallback { didFire = true }
+        bridge.simulateScrollStart()
+        XCTAssertTrue(didFire, "scrollStartCallback must fire when a drag begins")
+    }
+
+    func testScrollStartCallbackDoesNotFireAfterClearing() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var count = 0
+        bridge.setScrollStartCallback { count += 1 }
+        bridge.setScrollStartCallback(callback: nil)
+        bridge.simulateScrollStart()
+        XCTAssertEqual(count, 0, "scrollStartCallback must not fire after being cleared")
+    }
+
+    // MARK: - scrollsToTop disabled (iOS has no Android-equivalent "tap top = chapter beginning" parity)
+
+    func testDisableScrollsToTopSetsScrollsToTopFalseOnAllScrollViews() {
+        // Android's Readium integration has no "tap status bar area = scroll to top" behaviour.
+        // disableScrollsToTop(in:) must recursively set scrollsToTop=false on every UIScrollView
+        // in the given view subtree, including nested ones (mirroring Readium's WKWebView nesting).
+        let bridge = ReadiumEpubNavigatorBridge()
+        let root = UIView()
+        let outerScroll = UIScrollView()
+        let innerScroll = UIScrollView()
+        let nonScrollView = UIView()
+        root.addSubview(outerScroll)
+        root.addSubview(nonScrollView)
+        outerScroll.addSubview(innerScroll)
+
+        bridge.disableScrollsToTop(in: root)
+
+        XCTAssertFalse(outerScroll.scrollsToTop,
+                       "disableScrollsToTop must set scrollsToTop=false on direct UIScrollView children")
+        XCTAssertFalse(innerScroll.scrollsToTop,
+                       "disableScrollsToTop must recurse into nested UIScrollViews")
+    }
+
+    func testDisableScrollsToTopIsIdempotent() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        let root = UIScrollView()
+        bridge.disableScrollsToTop(in: root)
+        bridge.disableScrollsToTop(in: root)
+        XCTAssertFalse(root.scrollsToTop, "Calling disableScrollsToTop twice must leave scrollsToTop=false")
     }
 }
 

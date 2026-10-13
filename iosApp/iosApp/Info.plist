@@ -2,45 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Cleartext HTTP is permitted because users connect to self-hosted Audiobookshelf
-	     servers without TLS — mirrors app/src/main/res/xml/network_security_config.xml. -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<!-- Declare every language whose translations are bundled in composeResources so that
-	     NSBundle.main.preferredLocalizations returns the user's actual language when it is
-	     one of these — otherwise iOS falls back to the development language (English) and
-	     Compose Multiplatform loads English strings on non-English devices. -->
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>bg</string>
-		<string>es</string>
-	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Riffle</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
-	<key>CFBundlePackageType</key>
-	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<!-- "Open in Riffle". Without these four keys an EPUB, PDF or comic cannot be handed to the
-	     app from Mail, Files, Safari or a Finder drop, and the folder picker is the only way a
-	     book can ever enter the library. RiffleApp.onOpenURL receives the document. -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -81,100 +48,40 @@
 			</array>
 		</dict>
 	</array>
-	<!-- iOS ships no UTI for comic archives, so Riffle imports its own. EPUB's
-	     org.idpf.epub-container is declared by Books on every device; re-importing it here is
-	     what makes it resolvable when Books is absent. -->
-	<key>UTImportedTypeDeclarations</key>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
 	<array>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>org.idpf.epub-container</string>
-			<key>UTTypeDescription</key>
-			<string>EPUB book</string>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-				<string>public.composite-content</string>
-			</array>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>epub</string>
-				</array>
-				<key>public.mime-type</key>
-				<array>
-					<string>application/epub+zip</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.riffle.cbz</string>
-			<key>UTTypeDescription</key>
-			<string>Comic book archive (ZIP)</string>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.zip-archive</string>
-			</array>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>cbz</string>
-				</array>
-				<key>public.mime-type</key>
-				<array>
-					<string>application/vnd.comicbook+zip</string>
-					<string>application/x-cbz</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.riffle.cbr</string>
-			<key>UTTypeDescription</key>
-			<string>Comic book archive (RAR)</string>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-			</array>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>cbr</string>
-				</array>
-				<key>public.mime-type</key>
-				<array>
-					<string>application/vnd.comicbook-rar</string>
-					<string>application/x-cbr</string>
-				</array>
-			</dict>
-		</dict>
+		<string>bg</string>
+		<string>es</string>
 	</array>
-	<!-- Opened in place rather than through an Inbox copy, so a book in iCloud Drive can be
-	     imported without the OS duplicating it first. RiffleApp holds the security scope only
-	     long enough to copy the bytes into the app's own imports folder. -->
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
-	<!-- Exposes <Documents>/Riffle Imports in the Files app and over USB, so a user can drop a
-	     book in from Finder and can delete it again from outside the app. -->
-	<key>UIFileSharingEnabled</key>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
 	</array>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<key>UIFileSharingEnabled</key>
 	<true/>
-	<!-- UIViewControllerBasedStatusBarAppearance=NO lets the SwiftUI .statusBarHidden()
-	     modifier in ContentView override any child UIViewController (e.g. Readium's
-	     EPUBNavigatorViewController) that would otherwise take precedence when embedded
-	     as a child VC. This enables IosStatusBarBridge to hide the bar during
-	     immersive-reader mode without fighting the Readium navigator hierarchy. -->
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
@@ -190,15 +97,76 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- Bundled reader fonts: Readium registers these via fontFamilyDeclarations so the WebView
-	     can load them by name. UIAppFonts is also required for iOS to accept the files.
-	     Files are added as individual resources (PBXFileReference), so they land at the
-	     bundle root — no Fonts/ subdirectory prefix here. -->
-	<key>UIAppFonts</key>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<key>UTImportedTypeDeclarations</key>
 	<array>
-		<string>Literata-Regular.ttf</string>
-		<string>Merriweather-Regular.ttf</string>
-		<string>OpenDyslexic-Regular.otf</string>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.composite-content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>EPUB book</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.idpf.epub-container</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>epub</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/epub+zip</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Comic book archive (ZIP)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.riffle.cbz</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cbz</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.comicbook+zip</string>
+					<string>application/x-cbz</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Comic book archive (RAR)</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.riffle.cbr</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cbr</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.comicbook-rar</string>
+					<string>application/x-cbr</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

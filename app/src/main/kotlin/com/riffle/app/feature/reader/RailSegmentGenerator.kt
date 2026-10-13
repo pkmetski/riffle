@@ -57,3 +57,12 @@ fun bookmarkRailPosition(
 
 fun railSegmentIndexAt(segments: List<RailSegment>, x: Float, totalWidth: Float): Int =
     com.riffle.feature.reader.railSegmentIndexAt(segments, x, totalWidth)
+
+fun buildEpubBookmarkTitle(
+    segments: List<RailSegment>,
+    href: String,
+    spineHrefs: List<String>,
+    progression: Double,
+    totalProgression: Double?,
+): String =
+    com.riffle.feature.reader.buildEpubBookmarkTitle(segments, href, spineHrefs, progression, totalProgression)

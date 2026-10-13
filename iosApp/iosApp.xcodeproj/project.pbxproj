@@ -3,37 +3,35 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
 		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
-		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
-		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
+		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
+		8528A47455B6399D5B23B630 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
 		A1C0DE010001 /* AutoScrollBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE010002 /* AutoScrollBridgeTests.swift */; };
 		A1C0DE020001 /* CadenceBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE020002 /* CadenceBridgeTests.swift */; };
 		A1C0DE030001 /* AnnotationBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE030002 /* AnnotationBridgeTests.swift */; };
-		A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE050002 /* AnnotationWireFormatTests.swift */; };
-		A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE060002 /* ScrollProbeBridgeTests.swift */; };
 		A1C0DE040001 /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
-		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
-		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
-		8528A47455B6399D5B23B630 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
+		A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE050002 /* AnnotationWireFormatTests.swift */; };
+		A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE060002 /* ScrollProbeBridgeTests.swift */; };
+		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
+		A1EL2D010001 /* ElidedPdfBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL2D020001 /* ElidedPdfBridgeTests.swift */; };
+		A1EL2D010002 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
 		A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
 		B1000010 /* RiffleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000020 /* RiffleApp.swift */; };
 		B1000011 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* ContentView.swift */; };
-		B1060010 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
-		B1060011 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
-		B1060012 /* OpenInDocumentStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060021 /* OpenInDocumentStagingTests.swift */; };
 		B1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000022 /* Assets.xcassets */; };
 		B1001010 /* iosAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1001020 /* iosAppTests.swift */; };
 		B1002010 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1002001 /* ReadiumShared */; };
 		B1002011 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1002002 /* ReadiumStreamer */; };
 		B1002012 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1002003 /* ReadiumNavigator */; };
 		B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
+		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
 		B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
-		B1061020 /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
 		B1004010 /* AudiobookPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1004020 /* AudiobookPlayerTests.swift */; };
 		B1005020 /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1006010 /* PdfReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1006020 /* PdfReaderTests.swift */; };
@@ -42,21 +40,13 @@
 		B1008011 /* AudiobookPlayerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008021 /* AudiobookPlayerViewModelTests.swift */; };
 		B1008012 /* AutoFollowJsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008022 /* AutoFollowJsTests.swift */; };
 		B1008013 /* EpubReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008023 /* EpubReaderTests.swift */; };
-		B100801C /* PageEdgeTapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100801B /* PageEdgeTapTests.swift */; };
 		B1008014 /* LibraryCoverGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008024 /* LibraryCoverGridTests.swift */; };
 		B1008015 /* OfflineAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008025 /* OfflineAvailabilityTests.swift */; };
 		B1008016 /* ReaderHighlightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008026 /* ReaderHighlightsTests.swift */; };
 		B1008017 /* ReaderSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008027 /* ReaderSettingsTests.swift */; };
 		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
 		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
-		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
-		B106101A /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
-		B1054010 /* AudioPlayerBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1054020 /* AudioPlayerBridgeTests.swift */; };
-		B1061021 /* ReadaloudBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061031 /* ReadaloudBridgeTests.swift */; };
-		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
-		A1EL2D010001 /* ElidedPdfBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL2D020001 /* ElidedPdfBridgeTests.swift */; };
-		A1EL2D010002 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
-		B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1057020 /* IosPlatformSettingsHooksTests.swift */; };
+		B100801C /* PageEdgeTapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100801B /* PageEdgeTapTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
 		B1008032 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1008003 /* ReadiumNavigator */; };
@@ -72,29 +62,31 @@
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
 		B1015010 /* ProgressPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* ProgressPipelineTests.swift */; };
 		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
-		B1051010 /* NavDrawerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1051020 /* NavDrawerTests.swift */; };
-		B1058010 /* LibraryNavStackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1058020 /* LibraryNavStackTests.swift */; };
-		B1052010 /* LibraryGridAndTabsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1052020 /* LibraryGridAndTabsUITests.swift */; };
-		B1056010 /* LibraryItemDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1056020 /* LibraryItemDetailTests.swift */; };
-		B1053010 /* EpubProgressionLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1053020 /* EpubProgressionLocatorTests.swift */; };
 		B1018010 /* StubAbsServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1018020 /* StubAbsServer.swift */; };
 		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
 		B1019010 /* StubKomgaServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1019020 /* StubKomgaServer.swift */; };
 		B101901A /* PdfBridgeUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B101901B /* PdfBridgeUnitTests.swift */; };
-		B1055010 /* FootnoteBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1055020 /* FootnoteBridgeTests.swift */; };
-		C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */; };
-		3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */; };
 		B1020010 /* RiffleHarnessTestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1020020 /* RiffleHarnessTestCase.swift */; };
 		B1021010 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
 		B1022010 /* test-footnotes.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1022020 /* test-footnotes.epub */; };
 		B1023010 /* test.pdf in Resources */ = {isa = PBXBuildFile; fileRef = B1023020 /* test.pdf */; };
 		B1024010 /* test_tone.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B1024020 /* test_tone.mp3 */; };
-		F0NT001001 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
-		F0NT002001 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
-		F0NT003001 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
-		F0NT001003 /* Literata-Regular.ttf in Resources (unit test) */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
-		F0NT002003 /* Merriweather-Regular.ttf in Resources (unit test) */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
-		F0NT003003 /* OpenDyslexic-Regular.otf in Resources (unit test) */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
+		B1051010 /* NavDrawerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1051020 /* NavDrawerTests.swift */; };
+		B1052010 /* LibraryGridAndTabsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1052020 /* LibraryGridAndTabsUITests.swift */; };
+		B1053010 /* EpubProgressionLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1053020 /* EpubProgressionLocatorTests.swift */; };
+		B1054010 /* AudioPlayerBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1054020 /* AudioPlayerBridgeTests.swift */; };
+		B1055010 /* FootnoteBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1055020 /* FootnoteBridgeTests.swift */; };
+		B1056010 /* LibraryItemDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1056020 /* LibraryItemDetailTests.swift */; };
+		B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1057020 /* IosPlatformSettingsHooksTests.swift */; };
+		B1058010 /* LibraryNavStackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1058020 /* LibraryNavStackTests.swift */; };
+		B1060010 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
+		B1060011 /* OpenInDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060020 /* OpenInDocument.swift */; };
+		B1060012 /* OpenInDocumentStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1060021 /* OpenInDocumentStagingTests.swift */; };
+		B106101A /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
+		B1061020 /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
+		B1061021 /* ReadaloudBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061031 /* ReadaloudBridgeTests.swift */; };
+		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
+		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -108,31 +100,32 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1C0DE010002 /* AutoScrollBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutoScrollBridgeTests.swift; sourceTree = "<group>"; };
+		A1C0DE020002 /* CadenceBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CadenceBridgeTests.swift; sourceTree = "<group>"; };
+		A1C0DE030002 /* AnnotationBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationBridgeTests.swift; sourceTree = "<group>"; };
+		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
+		A1C0DE050002 /* AnnotationWireFormatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationWireFormatTests.swift; sourceTree = "<group>"; };
+		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
+		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
+		A1EL2D020001 /* ElidedPdfBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridgeTests.swift; sourceTree = "<group>"; };
+		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = iosApp.app; path = Riffle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000020 /* RiffleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleApp.swift; sourceTree = "<group>"; };
 		B1000021 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		B1060020 /* OpenInDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocument.swift; sourceTree = "<group>"; };
-		B1099030 /* Sqlite3LoadExtensionStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sqlite3LoadExtensionStub.swift; sourceTree = "<group>"; };
-		B1060021 /* OpenInDocumentStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocumentStagingTests.swift; sourceTree = "<group>"; };
 		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		F0NT001002 /* Literata-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fonts/Literata-Regular.ttf"; sourceTree = "<group>"; };
-		F0NT002002 /* Merriweather-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fonts/Merriweather-Regular.ttf"; sourceTree = "<group>"; };
-		F0NT003002 /* OpenDyslexic-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fonts/OpenDyslexic-Regular.otf"; sourceTree = "<group>"; };
 		B1001001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
 		B1002030 /* ReadiumEpubNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadiumEpubNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1003030 /* IosAudioPlayerBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosAudioPlayerBridgeImpl.swift; sourceTree = "<group>"; };
-		B1061030 /* IosReadaloudBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReadaloudBridgeImpl.swift; sourceTree = "<group>"; };
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
 		B1007020 /* ComicsReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicsReaderTests.swift; sourceTree = "<group>"; };
 		B1008000 /* iosAppUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B100801B /* PageEdgeTapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageEdgeTapTests.swift; sourceTree = "<group>"; };
 		B1008020 /* AnnotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTests.swift; sourceTree = "<group>"; };
 		B1008021 /* AudiobookPlayerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerViewModelTests.swift; sourceTree = "<group>"; };
 		B1008022 /* AutoFollowJsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFollowJsTests.swift; sourceTree = "<group>"; };
 		B1008023 /* EpubReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubReaderTests.swift; sourceTree = "<group>"; };
-		B100801B /* PageEdgeTapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageEdgeTapTests.swift; sourceTree = "<group>"; };
 		B1008024 /* LibraryCoverGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCoverGridTests.swift; sourceTree = "<group>"; };
 		B1008025 /* OfflineAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineAvailabilityTests.swift; sourceTree = "<group>"; };
 		B1008026 /* ReaderHighlightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlightsTests.swift; sourceTree = "<group>"; };
@@ -141,16 +134,6 @@
 		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
 		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
 		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
-		B1051020 /* NavDrawerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavDrawerTests.swift; sourceTree = "<group>"; };
-		B1058020 /* LibraryNavStackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryNavStackTests.swift; sourceTree = "<group>"; };
-		B1052020 /* LibraryGridAndTabsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGridAndTabsUITests.swift; sourceTree = "<group>"; };
-		B1056020 /* LibraryItemDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemDetailTests.swift; sourceTree = "<group>"; };
-		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
-		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
-		B1061031 /* ReadaloudBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadaloudBridgeTests.swift; sourceTree = "<group>"; };
-		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
-		A1EL2D020001 /* ElidedPdfBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridgeTests.swift; sourceTree = "<group>"; };
-		B1057020 /* IosPlatformSettingsHooksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPlatformSettingsHooksTests.swift; sourceTree = "<group>"; };
 		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B100F020 /* OnboardingNavIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNavIconTests.swift; sourceTree = "<group>"; };
 		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
@@ -161,24 +144,28 @@
 		B1015020 /* ProgressPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPipelineTests.swift; sourceTree = "<group>"; };
 		B1018020 /* StubAbsServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubAbsServer.swift; sourceTree = "<group>"; };
 		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
-		B1055020 /* FootnoteBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootnoteBridgeTests.swift; sourceTree = "<group>"; };
-		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
-		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
 		B1019020 /* StubKomgaServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubKomgaServer.swift; sourceTree = "<group>"; };
 		B1020020 /* RiffleHarnessTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleHarnessTestCase.swift; sourceTree = "<group>"; };
 		B1021020 /* test.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.epub; sourceTree = "<group>"; };
 		B1022020 /* test-footnotes.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = "test-footnotes.epub"; sourceTree = "<group>"; };
-		B1023020 /* test.pdf */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.pdf; sourceTree = "<group>"; };
+		B1023020 /* test.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = test.pdf; sourceTree = "<group>"; };
 		B1024020 /* test_tone.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = test_tone.mp3; sourceTree = "<group>"; };
+		B1051020 /* NavDrawerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavDrawerTests.swift; sourceTree = "<group>"; };
+		B1052020 /* LibraryGridAndTabsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGridAndTabsUITests.swift; sourceTree = "<group>"; };
+		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
+		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
+		B1055020 /* FootnoteBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootnoteBridgeTests.swift; sourceTree = "<group>"; };
+		B1056020 /* LibraryItemDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemDetailTests.swift; sourceTree = "<group>"; };
+		B1057020 /* IosPlatformSettingsHooksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPlatformSettingsHooksTests.swift; sourceTree = "<group>"; };
+		B1058020 /* LibraryNavStackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryNavStackTests.swift; sourceTree = "<group>"; };
+		B1060020 /* OpenInDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocument.swift; sourceTree = "<group>"; };
+		B1060021 /* OpenInDocumentStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocumentStagingTests.swift; sourceTree = "<group>"; };
+		B1061030 /* IosReadaloudBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReadaloudBridgeImpl.swift; sourceTree = "<group>"; };
+		B1061031 /* ReadaloudBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadaloudBridgeTests.swift; sourceTree = "<group>"; };
+		B1099030 /* Sqlite3LoadExtensionStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sqlite3LoadExtensionStub.swift; sourceTree = "<group>"; };
 		E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspectorTests.swift; sourceTree = "<group>"; };
-		A1C0DE010002 /* AutoScrollBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutoScrollBridgeTests.swift; sourceTree = "<group>"; };
-		A1C0DE020002 /* CadenceBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CadenceBridgeTests.swift; sourceTree = "<group>"; };
-		A1C0DE030002 /* AnnotationBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationBridgeTests.swift; sourceTree = "<group>"; };
-		A1C0DE050002 /* AnnotationWireFormatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationWireFormatTests.swift; sourceTree = "<group>"; };
-		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
-		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
-		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 		E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridge.swift; sourceTree = "<group>"; };
+		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,9 +218,6 @@
 				FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */,
 				E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */,
 				A1C0DE040002 /* ReadiumDecorationTemplates.swift */,
-				F0NT001002 /* Literata-Regular.ttf */,
-				F0NT002002 /* Merriweather-Regular.ttf */,
-				F0NT003002 /* OpenDyslexic-Regular.otf */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -288,8 +272,6 @@
 				B1015020 /* ProgressPipelineTests.swift */,
 				B101901B /* PdfBridgeUnitTests.swift */,
 				B1055020 /* FootnoteBridgeTests.swift */,
-				B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */,
-				BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */,
 				E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */,
 				A1C0DE010002 /* AutoScrollBridgeTests.swift */,
 				A1C0DE020002 /* CadenceBridgeTests.swift */,
@@ -438,9 +420,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				8528A47455B6399D5B23B630 /* test.epub in Resources */,
-				F0NT001003 /* Literata-Regular.ttf in Resources (unit test) */,
-				F0NT002003 /* Merriweather-Regular.ttf in Resources (unit test) */,
-				F0NT003003 /* OpenDyslexic-Regular.otf in Resources (unit test) */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -449,9 +428,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B1000012 /* Assets.xcassets in Resources */,
-				F0NT001001 /* Literata-Regular.ttf in Resources */,
-				F0NT002001 /* Merriweather-Regular.ttf in Resources */,
-				F0NT003001 /* OpenDyslexic-Regular.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -560,8 +536,6 @@
 				B101801A /* PdfKitNavigatorBridge.swift in Sources */,
 				B101901A /* PdfBridgeUnitTests.swift in Sources */,
 				B1055010 /* FootnoteBridgeTests.swift in Sources */,
-				C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */,
-				3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */,
 				A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */,
 				64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */,
 				A1C0DE010001 /* AutoScrollBridgeTests.swift in Sources */,
