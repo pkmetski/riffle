@@ -57,6 +57,7 @@ import com.riffle.core.data.localfiles.ManagedImportsFolder
 import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.data.localfiles.OpenInImporter
 import com.riffle.core.data.localfiles.SharedOpenInImporter
+import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.websource.PositionTombstoneWriter
 import com.riffle.core.data.websource.PositionTombstoneWriterImpl
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
@@ -114,6 +115,7 @@ import com.riffle.core.sync.AudiobookBookmarkReconciler
 import com.riffle.core.sync.BookmarkReconcile
 import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.core.sync.PostSweepMaterializer
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
@@ -170,6 +172,17 @@ val iosDataModule = module {
         PositionTombstoneWriterImpl(get<ReadingPositionDao>(), get<AudiobookPositionDao>(), get<Clock>())
     }
     single { WebSourceLibraryItemUpserter(get<LibraryItemDao>()) }
+    single<PostSweepMaterializer> {
+        WebSourceLibraryItemMaterializer(
+            readingPositionDao = get<ReadingPositionDao>(),
+            audiobookPositionDao = get<AudiobookPositionDao>(),
+            libraryItemDao = get<LibraryItemDao>(),
+            sourceRepository = get<SourceRepository>(),
+            catalogRegistry = get<CatalogRegistry>(),
+            remoteFactory = get<ProgressRemoteFactory>(),
+            upserter = get<WebSourceLibraryItemUpserter>(),
+        )
+    }
     single {
         LibraryItemUiProgressSink(get<LibraryItemDao>(), get<SourceRepository>(), get<CatalogRegistry>(), get<WebSourceLibraryItemUpserter>())
     }
@@ -200,12 +213,12 @@ val iosDataModule = module {
     // app start and app foreground (`RiffleAppRoot`), and the validated offline→online edge
     // (`kickSweepsOnReconnect`, also shared).
     //
-    // Two constructor arguments stay at their defaults, both deliberately:
+    // One constructor argument stays at its default:
     //  - `remoteIndex`: CatalogRemoteProgressIndex serves the WebDAV web-source pull (ADR 0063),
-    //    which iOS does not have — IosCatalogProgressRemoteFactory has no WebDAV branch either.
-    //  - `postSweepMaterializer`: WebSourceLibraryItemMaterializer exists only for those same
-    //    WebDAV-synced web sources.
-    // Both become relevant the day iOS gets a Kotlin/Native WebDAV client (#1072).
+    //    which iOS does not have yet — IosCatalogProgressRemoteFactory has no WebDAV branch either.
+    // `postSweepMaterializer` is now wired to WebSourceLibraryItemMaterializer (moved to commonMain
+    // in the 2026-10-13 parity sweep) so web-source items synced via any future iOS transport are
+    // materialised immediately after the sweep.
     single<DirtyProgressLedger> { DaoDirtyProgressLedger(get<ReadingPositionDao>(), get<AudiobookPositionDao>()) }
     single<SyncSourceResolver> { CatalogSyncSourceResolver(get<CatalogRegistry>(), get<SourceRepository>()) }
     single<RandomProvider> { IosRandomProvider }
@@ -236,6 +249,7 @@ val iosDataModule = module {
             // a position advanced on another device against a *clean* local row was never pulled
             // back — the exact "clean-row gap" ADR 0063 added the index for.
             remoteIndex = get<RemoteProgressIndex>(),
+            postSweepMaterializer = get<PostSweepMaterializer>(),
         )
     }
 
