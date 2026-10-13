@@ -106,8 +106,12 @@ class IosCatalogProgressRemoteFactoryWebDavTest {
                 webDavBaseUrl?.let { AnnotationSyncConfig(it, "user", "pass") }
             )
             override fun observe(): StateFlow<AnnotationSyncConfig?> = flow
-            override suspend fun save(config: AnnotationSyncConfig) { flow.value = config }
-            override suspend fun clear() { flow.value = null }
+            override suspend fun save(config: AnnotationSyncConfig) {
+                flow.value = config
+            }
+            override suspend fun clear() {
+                flow.value = null
+            }
         }
         val fakeSourceRepository = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(fakeSource))
@@ -123,7 +127,10 @@ class IosCatalogProgressRemoteFactoryWebDavTest {
             override suspend fun getByItemId(sourceId: String, itemId: String): ReadingPositionEntity? = null
             override suspend fun upsert(entity: ReadingPositionEntity) = Unit
             override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-            override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
+            override suspend fun acceptServerIfUnchanged(
+                sourceId: String, itemId: String, position: String,
+                serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+            ) = 0
             override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
             override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
             override suspend fun dirtyForSource(sourceId: String) = emptyList<ReadingPositionEntity>()
@@ -135,7 +142,10 @@ class IosCatalogProgressRemoteFactoryWebDavTest {
         val fakeAudiobookPositionDao = object : AudiobookPositionDao {
             override suspend fun getByItemId(sourceId: String, itemId: String): AudiobookPositionEntity? = null
             override suspend fun upsert(entity: AudiobookPositionEntity) = Unit
-            override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
+            override suspend fun acceptServerIfUnchanged(
+                sourceId: String, itemId: String, positionSec: Double,
+                serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+            ) = 0
             override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
             override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
             override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()

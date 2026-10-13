@@ -92,9 +92,7 @@ import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceFilesCleaner
-import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
