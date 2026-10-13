@@ -134,11 +134,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     /// silently not apply to the other.
     @MainActor
     private func attach(publication pub: Publication, initialLocator: Locator?) throws {
-        let config = EPUBNavigatorViewController.Configuration(
-            preferences: pendingPreferences,
-            decorationTemplates: RiffleDecorationTemplates.all(),
-            fontFamilyDeclarations: Self.bundledFontFamilyDeclarations
-        )
+        let config = makeNavigatorConfiguration()
         let navigator = try EPUBNavigatorViewController(
             publication: pub,
             initialLocation: initialLocator,
@@ -577,6 +573,16 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         // sees the correct `:root` style. The script is idempotent — the stable element id
         // prevents duplicate <style> tags on re-injection.
         installTypographyOverrideScript(into: userContentController)
+    }
+
+    /// Extracted for testability — `EPUBNavigatorViewController` cannot be constructed in unit
+    /// tests (requires a live `Publication`), so the test verifies the configuration directly.
+    internal func makeNavigatorConfiguration() -> EPUBNavigatorViewController.Configuration {
+        EPUBNavigatorViewController.Configuration(
+            preferences: pendingPreferences,
+            decorationTemplates: RiffleDecorationTemplates.all(),
+            disablePageTurnsWhileScrolling: true
+        )
     }
 
     /// Registers the typography override as a WKUserScript on `controller`.

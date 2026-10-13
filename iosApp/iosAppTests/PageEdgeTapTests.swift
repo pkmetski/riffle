@@ -60,4 +60,15 @@ final class PageEdgeTapTests: XCTestCase {
         XCTAssertEqual(receivedY, 740)
     }
 
+    func testNavigatorConfigurationDisablesPageTurnsWhileScrolling() {
+        // Android blocks horizontal swipe chapter navigation in vertical/continuous mode via
+        // ScrollBoundaryNavigationContainer.onInterceptTouchEvent. iOS uses Readium's built-in
+        // disablePageTurnsWhileScrolling flag (which takes effect only when scroll = true).
+        // This test pins the flag so it cannot be silently reverted to the false default.
+        let bridge = ReadiumEpubNavigatorBridge()
+        let config = bridge.makeNavigatorConfiguration()
+        XCTAssertTrue(config.disablePageTurnsWhileScrolling,
+                      "horizontal swipes must not navigate between chapters in vertical/continuous mode")
+    }
+
 }
