@@ -525,6 +525,10 @@ jobs:
             echo "::warning::First smoke-launch failed — rebooting simulator and retrying once."
             xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl erase "$SIMULATOR_UDID" 2>/dev/null || true
+            # Post-erase migrations (LaunchServices, Keychain, MCProfile) run concurrently with
+            # the first few seconds after bootstatus reports ready. Launching the app before they
+            # finish causes SpringBoard force-quit (0xfbfbfbfb). Wait 20 s to let them settle.
+            sleep 20
             if ! smoke_launch; then
               echo "::error::Riffle.app did not stay running for 30 s on the simulator — see the smoke-launch console above. Not running the suite."
               exit 1
