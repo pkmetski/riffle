@@ -560,6 +560,35 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
             forMainFrameOnly: false
         ))
         figureHandlerControllers.add(userContentController)
+
+        // Typography overrides: inject after every page load, regardless of chapter href or mode.
+        //
+        // The Kotlin-side LaunchedEffect injection (injectTypographyOverrideScript via
+        // pageLoadEvents) has a known gap: when switching between paginated and continuous mode,
+        // Readium reloads all spreads but locationDidChange fires with the *same* chapter href,
+        // so the bridge's href-change guard suppresses pageLoadCallback — the freshly reloaded
+        // spread never gets the <style> tag. Preloaded chapters share the same gap: they are
+        // loaded in the background before the user reaches them, without going through
+        // locationDidChange.
+        //
+        // Registering a WKUserScript closes both gaps: it fires on every WKWebView page load
+        // (atDocumentEnd, after Readium has baked its CSS variables into the <html style="…">
+        // attribute via cssPropertiesInjection), so our gate [style*="--USER__textAlign"] always
+        // sees the correct `:root` style. The script is idempotent — the stable element id
+        // prevents duplicate <style> tags on re-injection.
+        installTypographyOverrideScript(into: userContentController)
+    }
+
+    /// Registers the typography override as a WKUserScript on `controller`.
+    ///
+    /// Extracted for testability — `EPUBNavigatorViewController` cannot be constructed in unit
+    /// tests (requires a live `Publication`), so the test calls this helper directly.
+    internal func installTypographyOverrideScript(into controller: WKUserContentController) {
+        controller.addUserScript(WKUserScript(
+            source: TypographyOverrideKt.TYPOGRAPHY_OVERRIDE_INSTALL_SCRIPT,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        ))
     }
 
     /// Report a *cleared* selection.

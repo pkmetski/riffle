@@ -386,6 +386,33 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertTrue(true, "applyReaderPreferences with justifyText:true must not crash")
         _ = capturedTextAlign  // silence unused warning
     }
+
+    func testInstallTypographyOverrideScriptRegistersAtDocumentEnd() {
+        // Regression guard for the continuous-mode justify-text bug:
+        //
+        // When the reader switches between paginated and continuous mode, Readium calls
+        // _reloadSpreads() which reloads all spread WKWebViews. locationDidChange fires with the
+        // *same* chapter href, so the bridge's href-change guard in navigator(_:locationDidChange:)
+        // suppresses pageLoadCallback — the freshly-reloaded spread never gets the Kotlin-side
+        // LaunchedEffect injection. Preloaded chapters share the same gap.
+        //
+        // The fix: register the typography override as a WKUserScript in setupUserScripts so it
+        // fires on every WKWebView page load, independent of href equality or mode. This test
+        // verifies that installTypographyOverrideScript registers the script with .atDocumentEnd
+        // (firing after Readium's cssPropertiesInjection bakes --USER__textAlign into <html style>).
+        let bridge = ReadiumEpubNavigatorBridge()
+        let controller = WKUserContentController()
+
+        bridge.installTypographyOverrideScript(into: controller)
+
+        let typographyScript = controller.userScripts.first {
+            $0.source.contains("riffle-typography-override")
+        }
+        XCTAssertNotNil(typographyScript,
+                        "installTypographyOverrideScript must register the typography override WKUserScript")
+        XCTAssertEqual(typographyScript?.injectionTime, .atDocumentEnd,
+                       "Typography override must inject atDocumentEnd so --USER__textAlign is already in :root style")
+    }
 }
 
 /// Minimal `Navigator` for the two delegate methods above, both of which ignore the navigator
