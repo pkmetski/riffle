@@ -1,8 +1,6 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -77,7 +75,6 @@ import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.designsystem.generated.resources.ic_readaloud
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
@@ -104,6 +101,7 @@ import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.bookmarkRailPosition
+import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
@@ -119,8 +117,6 @@ import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.feature.reader.highlights.shouldShowShareHighlights
 import com.riffle.feature.reader.readiumFontFamilyName
-import com.riffle.feature.reader.RailSegment
-import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.toReadiumTextStyling
@@ -161,12 +157,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
-import com.riffle.feature.designsystem.generated.resources.Res as DesignRes
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via

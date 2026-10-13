@@ -100,13 +100,11 @@ class ReadiumSwiftNavigator(
      * Returns true (and decrements the counter) if the next BodyTap should be discarded.
      * Must be called from the BodyTap collector on the main thread before acting on the event.
      */
-    fun consumeSuppressedBodyTap(): Boolean {
-        return if (suppressBodyTapCount > 0) {
-            suppressBodyTapCount--
-            true
-        } else {
-            false
-        }
+    fun consumeSuppressedBodyTap(): Boolean = if (suppressBodyTapCount > 0) {
+        suppressBodyTapCount--
+        true
+    } else {
+        false
     }
 
     /**
