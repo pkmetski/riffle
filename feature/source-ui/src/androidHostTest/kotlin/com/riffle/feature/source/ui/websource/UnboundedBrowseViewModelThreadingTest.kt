@@ -151,17 +151,20 @@ class UnboundedBrowseViewModelThreadingTest {
 
     @Test
     fun `buildOwnedItemIndex runs on compute dispatcher not the collector thread`() = runTest(testDispatcher) {
-        val buildThreads = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+        // Use thread IDs (unique per JVM instance) rather than names; on CI the Gradle executor
+        // thread is sometimes named "DefaultDispatcher-worker-1", which would collide with a real
+        // background worker and cause a spurious assertion failure on the name comparison.
+        val buildThreadIds = java.util.Collections.synchronizedSet(mutableSetOf<Long>())
 
         // Wrap the server items flow so we can record which thread processes each emission.
         val rawItems = MutableStateFlow(List(50) { serverItem("Title$it") })
         val instrumentedItems: Flow<List<LibraryItem>> = rawItems.map { items ->
-            buildThreads.add(Thread.currentThread().name)
+            buildThreadIds.add(Thread.currentThread().threadId())
             items
         }
 
         // Use a dedicated compute dispatcher distinct from testDispatcher (Main) so we can
-        // assert the thread name differs.
+        // assert the thread ID differs.
         val computeDispatcher = object : DispatcherProvider {
             override val main: CoroutineDispatcher get() = testDispatcher
             override val mainImmediate: CoroutineDispatcher get() = testDispatcher
@@ -172,19 +175,23 @@ class UnboundedBrowseViewModelThreadingTest {
         val vm = makeVm(serverItems = instrumentedItems, computeDispatcher = computeDispatcher)
         advanceUntilIdle()
 
+        // Capture the collector thread ID BEFORE first{} to avoid a race where the test thread
+        // is parked between first{} returning and the capture, and its ID momentarily matches a
+        // reused worker slot (highly unlikely but a defensive belt-and-suspenders measure).
+        val collectorThreadId = Thread.currentThread().threadId()
+
         // Wait until the compute dispatcher has settled: the catalog returns one item that is not
         // owned by any of the 50 server items, so filteredItems emits [catalogItem] once the
         // ownedItemIndex build completes on Dispatchers.Default.  StateFlow.first() returns the
-        // current value immediately — require buildThreads.isNotEmpty() in the predicate so we
+        // current value immediately — require buildThreadIds.isNotEmpty() in the predicate so we
         // only proceed once the background pool has *actually* run the map. Without this, the
         // initial non-empty server-item list can satisfy it.isNotEmpty() before the index builds.
-        vm.filteredItems.first { it.isNotEmpty() && buildThreads.isNotEmpty() }
+        vm.filteredItems.first { it.isNotEmpty() && buildThreadIds.isNotEmpty() }
 
-        val collectorThread = Thread.currentThread().name
-        assertTrue("map inside ownedItemIndex never ran", buildThreads.isNotEmpty())
+        assertTrue("map inside ownedItemIndex never ran", buildThreadIds.isNotEmpty())
         assertFalse(
-            "ownedItemIndex map ran on collector (Main) thread $collectorThread — got $buildThreads",
-            buildThreads.any { it == collectorThread },
+            "ownedItemIndex map ran on collector (Main) thread id=$collectorThreadId — got ids $buildThreadIds",
+            buildThreadIds.any { it == collectorThreadId },
         )
         // Cancel viewModelScope and join to prevent UncompletedCoroutinesError: the ViewModel's
         // SharingStarted.Eagerly stateIn flows keep coroutines active in viewModelScope
