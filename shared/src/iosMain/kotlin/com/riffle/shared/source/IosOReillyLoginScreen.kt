@@ -124,6 +124,9 @@ private fun OReillyLoginWebView(
                 configuration = WKWebViewConfiguration(),
             ).apply {
                 navigationDelegate = delegate
+                // Akamai blocks the default WKWebView UA ("WebKit/...") as a bot. Spoofing Mobile
+                // Safari passes the WAF check on the www.oreilly.com redirect chain.
+                customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
                 val url = NSURL.URLWithString(OReillyWebSourceDescriptor.OREILLY_LOGIN_URL)!!
                 loadRequest(NSURLRequest(url))
             }
