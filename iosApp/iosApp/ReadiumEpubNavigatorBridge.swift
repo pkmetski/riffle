@@ -15,10 +15,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
     private let hostViewController = UIViewController()
-    private var epubNavigator: EPUBNavigatorViewController?
+    var epubNavigator: EPUBNavigatorViewController?
     private var publication: Publication?
     // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
-    private var cachedLocatorJson: String?
+    var cachedLocatorJson: String?
     // TOC fetched asynchronously after open; getTocJson() returns from this cache.
     private var cachedTocJson: String = "[]"
     // Reading order + per-resource position counts, fetched asynchronously after open;
@@ -27,22 +27,22 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var cachedSpineJson: String = emptySpineJson
 
     // Callbacks registered by ReadiumSwiftNavigator
-    private var locatorCallback: ((String) -> Void)?
-    private var pageLoadCallback: (() -> Void)?
-    private var tapCallback: ((TapCoords) -> Void)?
-    private var errorCallback: ((String) -> Void)?
-    private var selectionCallback: ((String?) -> Void)?
+    var locatorCallback: ((String) -> Void)?
+    var pageLoadCallback: (() -> Void)?
+    var tapCallback: ((TapCoords) -> Void)?
+    var errorCallback: ((String) -> Void)?
+    var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
     private var figureTapCallback: ((String) -> Void)?
-    private var footnoteCallback: ((String) -> Void)?
-    private var internalLinkCallback: ((String, String) -> Void)?
-    private var riffleUrlCallback: ((String) -> Void)?
+    var footnoteCallback: ((String) -> Void)?
+    var internalLinkCallback: ((String, String) -> Void)?
+    var riffleUrlCallback: ((String) -> Void)?
     private var scrollStartCallback: (() -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
     /// remove the handler and break the retain cycle that WKUserContentController's strong
     /// reference to a WKScriptMessageHandler would otherwise create.
-    private var figureHandlerControllers: NSHashTable<WKUserContentController> = .weakObjects()
+    var figureHandlerControllers: NSHashTable<WKUserContentController> = .weakObjects()
     /// Decoration groups the Kotlin side asked to make tappable. Re-registered on every open,
     /// because `observeDecorationInteractions` lives on the navigator instance, not on us.
     private var activableGroups: Set<String> = []
@@ -50,10 +50,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var urlOpener: (URL) -> Void = { UIApplication.shared.open($0) }
     // Track the last-loaded resource href so pageLoadCallback fires only on resource
     // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
-    private var lastLoadedHref: String?
+    var lastLoadedHref: String?
 
     // Pending preferences — stored before the navigator exists so openEpub can use them.
-    private var pendingPreferences: EPUBPreferences = EPUBPreferences()
+    var pendingPreferences: EPUBPreferences = EPUBPreferences()
 
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
