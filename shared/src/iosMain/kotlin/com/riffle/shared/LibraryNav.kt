@@ -278,7 +278,7 @@ internal fun ReaderHost(
             item = destination.item,
             playlistId = destination.playlistId,
             playlistLibraryId = destination.playlistLibraryId,
-            startAtSec = destination.startAtSec,
+            startAtSec = destination.startAtSec.toDouble(),
             onBack = onBack,
             onPlaylistAdvance = onPlaylistAdvance,
         )

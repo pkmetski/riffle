@@ -16,6 +16,7 @@ import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.models.isStorytellerService
+import com.riffle.feature.player.AudiobookHandoffState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +55,7 @@ internal class IosReadaloudSession(
     private val resumeStore: ReadaloudResumeStore,
     private val sourceRepository: SourceRepository,
     private val linkRepository: ReadaloudLinkRepository,
+    private val audiobookHandoffState: AudiobookHandoffState,
     private val dispatchers: DispatcherProvider,
     parentScope: CoroutineScope,
 ) {

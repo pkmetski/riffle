@@ -676,6 +676,7 @@ private fun iosLibraryModule(
                 resumeStore = get(),
                 sourceRepository = get(),
                 linkRepository = get(),
+                audiobookHandoffState = get(),
                 dispatchers = get(),
                 parentScope = get<ApplicationScope>().coroutineScope,
             )
