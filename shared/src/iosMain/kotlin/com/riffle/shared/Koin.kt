@@ -1407,12 +1407,6 @@ fun startKoin(
         elidedPdfBridge = elidedPdfBridge,
         databaseFile = RIFFLE_DATABASE_FILE,
     )
-    // Start observing the WKHTTPCookieStore so the O'Reilly cookie provider stays current.
-    // IosOReillySessionStore is a Kotlin subclass of NSObject, which means its KClass cannot
-    // be used as a Koin key (KClass for ObjC subclasses is unsupported in K/N). It lives as a
-    // module-level singleton instead and is started here — not in the Koin module — so tests
-    // that use startKoinWithDatabase do not trigger WKWebsiteDataStore initialisation.
-    iosOReillySessionStore.startObserving()
 }
 
 /**

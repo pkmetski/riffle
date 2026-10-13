@@ -64,6 +64,12 @@ internal fun IosOReillyLoginScreen(
     val viewModel = remember { OReillyLoginCommonViewModel(sourceRepository, scope) }
     val loginState by viewModel.state.collectAsState()
 
+    LaunchedEffect(Unit) {
+        // Seed the cookie cache from any pre-existing session and start observing rotations.
+        // Called here (not at startKoin time) because WKWebsiteDataStore is not safe to access
+        // before the UIKit lifecycle is fully running.
+        iosOReillySessionStore.startObserving()
+    }
     LaunchedEffect(viewModel) {
         viewModel.done.collect { onDone() }
     }
