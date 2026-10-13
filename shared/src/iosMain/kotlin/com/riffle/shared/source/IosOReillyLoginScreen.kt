@@ -61,7 +61,6 @@ internal fun IosOReillyLoginScreen(
 ) {
     val scope = rememberCoroutineScope()
     val sourceRepository = koinInject<SourceRepository>()
-    val sessionStore = koinInject<IosOReillySessionStore>()
     val viewModel = remember { OReillyLoginCommonViewModel(sourceRepository, scope) }
     val loginState by viewModel.state.collectAsState()
 
@@ -88,7 +87,7 @@ internal fun IosOReillyLoginScreen(
             OReillyLoginWebView(
                 modifier = Modifier.fillMaxSize(),
                 onSessionCookie = { cookieHeader ->
-                    sessionStore.update(cookieHeader)
+                    iosOReillySessionStore.update(cookieHeader)
                     viewModel.onTokenHarvested(cookieHeader)
                 },
             )

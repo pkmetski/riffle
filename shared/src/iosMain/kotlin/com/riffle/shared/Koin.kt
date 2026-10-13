@@ -10,7 +10,7 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
-import com.riffle.shared.source.IosOReillySessionStore
+import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
