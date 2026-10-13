@@ -82,8 +82,8 @@
 		B1019010 /* StubKomgaServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1019020 /* StubKomgaServer.swift */; };
 		B101901A /* PdfBridgeUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B101901B /* PdfBridgeUnitTests.swift */; };
 		B1055010 /* FootnoteBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1055020 /* FootnoteBridgeTests.swift */; };
-		B1056010 /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1056020 /* InternalLinkBridgeTests.swift */; };
-		B1058010 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1058020 /* BundledFontsTests.swift */; };
+		C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */; };
+		3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */; };
 		B1020010 /* RiffleHarnessTestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1020020 /* RiffleHarnessTestCase.swift */; };
 		B1021010 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
 		B1022010 /* test-footnotes.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1022020 /* test-footnotes.epub */; };
@@ -162,8 +162,8 @@
 		B1018020 /* StubAbsServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubAbsServer.swift; sourceTree = "<group>"; };
 		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
 		B1055020 /* FootnoteBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootnoteBridgeTests.swift; sourceTree = "<group>"; };
-		B1056020 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
-		B1058020 /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
+		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
+		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
 		B1019020 /* StubKomgaServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubKomgaServer.swift; sourceTree = "<group>"; };
 		B1020020 /* RiffleHarnessTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleHarnessTestCase.swift; sourceTree = "<group>"; };
 		B1021020 /* test.epub */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.epub; sourceTree = "<group>"; };
@@ -288,8 +288,8 @@
 				B1015020 /* ProgressPipelineTests.swift */,
 				B101901B /* PdfBridgeUnitTests.swift */,
 				B1055020 /* FootnoteBridgeTests.swift */,
-				B1056020 /* InternalLinkBridgeTests.swift */,
-				B1058020 /* BundledFontsTests.swift */,
+				B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */,
+				BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */,
 				E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */,
 				A1C0DE010002 /* AutoScrollBridgeTests.swift */,
 				A1C0DE020002 /* CadenceBridgeTests.swift */,
@@ -560,8 +560,8 @@
 				B101801A /* PdfKitNavigatorBridge.swift in Sources */,
 				B101901A /* PdfBridgeUnitTests.swift in Sources */,
 				B1055010 /* FootnoteBridgeTests.swift in Sources */,
-				B1056010 /* InternalLinkBridgeTests.swift in Sources */,
-				B1058010 /* BundledFontsTests.swift in Sources */,
+				C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */,
+				3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */,
 				A8E917A54033B6928EEF8622 /* ReadiumPublicationInspector.swift in Sources */,
 				64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */,
 				A1C0DE010001 /* AutoScrollBridgeTests.swift in Sources */,
