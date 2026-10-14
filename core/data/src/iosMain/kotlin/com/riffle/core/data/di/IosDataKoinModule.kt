@@ -289,7 +289,6 @@ val iosDataModule = module {
     }
     single<LibraryObserver> { get<LibraryRepositoryImpl>() }
     single<LibraryMutator> { get<LibraryRepositoryImpl>() }
-    // AbsCatalog is jvmMain-only; catalogRegistry.forSource returns null for ABS on iOS (shared/Koin.kt).
     single<LibraryRefresher> {
         IosLibraryRefresherImpl(
             sourceRepository = get<SourceRepository>(),
