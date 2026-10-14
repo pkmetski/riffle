@@ -242,7 +242,10 @@ class IosAudioPlayerController(
         bridge.replaceTracksFrom(fromIndex, newUrls)
     }
 
-    override fun clearEndOfBookCache() = Unit
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    override fun clearEndOfBookCache() {
+        _playbackEnded.resetReplayCache()
+    }
 
     override fun stop() {
         sleepDriver.cancel()

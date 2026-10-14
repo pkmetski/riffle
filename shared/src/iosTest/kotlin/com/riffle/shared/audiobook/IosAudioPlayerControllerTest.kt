@@ -6,8 +6,11 @@ import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.player.SleepTimerMode
 import com.riffle.feature.player.followSkipIntervals
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -105,7 +108,11 @@ class IosAudioPlayerControllerTest {
         override fun setRemoteCommandCallback(callback: IosRemoteCommandCallback?) {
             remoteCommandCallback = callback
         }
-        override fun setEndOfBookCallback(callback: IosEndOfBookCallback?) = Unit
+        var endOfBookCallback: IosEndOfBookCallback? = null
+            private set
+        override fun setEndOfBookCallback(callback: IosEndOfBookCallback?) {
+            endOfBookCallback = callback
+        }
 
         override fun setNowPlayingInfo(
             title: String,
@@ -687,5 +694,37 @@ class IosAudioPlayerControllerTest {
             controller.sleepTimer.value is SleepTimerMode.CountDown,
             "lock-screen play must not retire the sleep timer"
         )
+    }
+
+    // ── clearEndOfBookCache (#1236) ────────────────────────────────────────────────
+
+    /**
+     * Regression: before the fix, clearEndOfBookCache() was a no-op on iOS. The SharedFlow
+     * replay cache (replay=1) would re-deliver the end-of-book event to the next subscriber
+     * (the following playlist item's AudiobookPlayerViewModel), causing auto-advance to loop
+     * through every remaining playlist item in one burst.
+     */
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun clearEndOfBookCachePreventsStaleEndReplay() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+
+        // Trigger end-of-book naturally.
+        assertNotNull(bridge.endOfBookCallback).onEndOfBook()
+
+        // First subscriber sees the event (replay = 1 delivers immediately).
+        val firstEvent = launch { controller.playbackEnded.first() }
+        testScheduler.runCurrent()
+        firstEvent.cancel()
+
+        // After clearEndOfBookCache, no stale event must be replayed to a new subscriber.
+        controller.clearEndOfBookCache()
+
+        var receivedAfterClear = 0
+        val job = launch { controller.playbackEnded.collect { receivedAfterClear++ } }
+        testScheduler.runCurrent()
+        assertEquals(0, receivedAfterClear, "clearEndOfBookCache must prevent stale replay")
+        job.cancel()
     }
 }
