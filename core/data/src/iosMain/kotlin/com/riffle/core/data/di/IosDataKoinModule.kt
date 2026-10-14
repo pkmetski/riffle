@@ -27,6 +27,7 @@ import com.riffle.core.data.IosHighlightColorPreferencesStoreImpl
 import com.riffle.core.data.IosHighlightsResumeStore
 import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
+import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosPackDownloaderImpl
 import com.riffle.core.data.IosPackStoreImpl
@@ -117,6 +118,8 @@ import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.logging.Logger
+import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.sync.AudiobookBookmarkReconciler
 import com.riffle.core.sync.BookmarkReconcile
 import com.riffle.core.sync.DirtyProgressLedger
@@ -286,7 +289,21 @@ val iosDataModule = module {
     }
     single<LibraryObserver> { get<LibraryRepositoryImpl>() }
     single<LibraryMutator> { get<LibraryRepositoryImpl>() }
-    single<LibraryRefresher> { get<LibraryRepositoryImpl>() }
+    // AbsCatalog is jvmMain-only; catalogRegistry.forSource returns null for ABS on iOS (shared/Koin.kt).
+    single<LibraryRefresher> {
+        IosLibraryRefresherImpl(
+            sourceRepository = get<SourceRepository>(),
+            tokenStorage = get<TokenStorage>(),
+            absLibraryApi = get<AbsLibraryApi>(),
+            libraryDao = get<LibraryDao>(),
+            komgaLibraryApi = get<KomgaLibraryApi>(),
+            seriesDao = get<SeriesDao>(),
+            collectionDao = get<CollectionDao>(),
+            libraryItemDao = get<LibraryItemDao>(),
+            catalogRegistry = get<CatalogRegistry>(),
+            dirtyProgressLedger = get<DirtyProgressLedger>(),
+        )
+    }
 
     // These are unified with Android via the PreferenceStore seam in commonMain.
     // Fully-qualified to disambiguate from the domain interfaces of the same name.
