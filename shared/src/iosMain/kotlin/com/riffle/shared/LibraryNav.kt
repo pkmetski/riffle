@@ -286,6 +286,25 @@ internal fun ReaderHost(
 }
 
 /**
+ * Returns true when [stack]'s top already shows the same player for the same item as [incoming].
+ *
+ * Used to de-duplicate Now Playing navigator requests: when the host receives an
+ * [com.riffle.feature.navigation.NowPlayingNavigator] event while the correct player is already
+ * visible, the push is skipped so the existing destination's playlist context is preserved.
+ * A spurious push would create a second AudiobookPlayer with no playlist id, breaking auto-advance.
+ */
+internal fun isAlreadyAtPlayerDestination(stack: List<LibraryNav>, incoming: LibraryNav): Boolean {
+    val top = stack.lastOrNull() ?: return false
+    return when {
+        top is LibraryNav.AudiobookPlayer && incoming is LibraryNav.AudiobookPlayer ->
+            top.item.id == incoming.item.id
+        top is LibraryNav.Reader && incoming is LibraryNav.Reader ->
+            top.item.id == incoming.item.id
+        else -> false
+    }
+}
+
+/**
  * Converts a TOC entry href (e.g. "chapter3.xhtml" or "part1.xhtml#section-2") into a minimal
  * Readium locator JSON string that [EpubReaderScreen] accepts as [initialLocatorJson], so the
  * reader opens at the requested chapter rather than the last saved position.

@@ -503,9 +503,13 @@ private fun LibraryHost(
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
 
     // Lock-screen / notification taps arrive via pendingNav. Push the destination and clear.
+    // De-duplicate against the stack top: if the correct player is already visible, preserve its
+    // existing context (playlist id, etc.) rather than pushing a context-stripped duplicate.
     LaunchedEffect(pendingNav) {
         val nav = pendingNav ?: return@LaunchedEffect
-        navStack = navStack + nav
+        if (!isAlreadyAtPlayerDestination(navStack, nav)) {
+            navStack = navStack + nav
+        }
         onPendingNavHandled()
     }
 

@@ -27,11 +27,13 @@ struct RiffleApp: App {
             ContentView()
                 .onOpenURL { url in openIncomingDocument(url) }
         }
-        // When the app returns to the foreground (e.g. via a media-notification tap), ask the
-        // navigation host to open whatever is currently playing. The Kotlin side guards against
-        // spurious calls by checking NowPlayingStore before actually navigating.
-        .onChange(of: scenePhase) { phase in
-            if phase == .active {
+        // When the app returns to the foreground from a genuine background state (e.g. a lock-screen
+        // media-notification tap), open the active player. Guarded to background→active only so that
+        // Control Centre pulls, phone calls, and notification banners (.inactive→.active) do not
+        // trigger a spurious nav push. A second Kotlin-side guard in LibraryHost de-duplicates
+        // against the stack top so a player already on screen is never pushed a second time.
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if shouldRequestNowPlayingOpen(from: oldPhase, to: newPhase) {
                 KoinKt.getNowPlayingNavigator().requestOpen()
             }
         }
