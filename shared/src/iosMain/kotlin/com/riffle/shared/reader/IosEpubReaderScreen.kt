@@ -42,9 +42,9 @@ import com.riffle.core.data.annotationLocatorJson
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
-import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderOrientation
