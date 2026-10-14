@@ -26,8 +26,8 @@ import com.riffle.core.data.IosFormattingPreferencesStoreImpl
 import com.riffle.core.data.IosHighlightColorPreferencesStoreImpl
 import com.riffle.core.data.IosHighlightsResumeStore
 import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
-import com.riffle.core.data.IosLibraryMutatorImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
+import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosPackDownloaderImpl
 import com.riffle.core.data.IosPackStoreImpl
@@ -65,8 +65,11 @@ import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesDao
+import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CoverGridScaleDao
+import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.dictionary.PackDownloaderInterface
@@ -87,6 +90,8 @@ import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ProgressReconciler
@@ -111,6 +116,7 @@ import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
+import com.riffle.core.logging.Logger
 import com.riffle.core.sync.AudiobookBookmarkReconciler
 import com.riffle.core.sync.BookmarkReconcile
 import com.riffle.core.sync.DirtyProgressLedger
@@ -265,7 +271,24 @@ val iosDataModule = module {
     single<BookFormattingPreferencesStore> { BookFormattingPreferencesStoreImpl(get<BookFormattingPreferencesDao>()) }
     single<BookComicFormattingPreferencesStore> { BookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
-    single<LibraryMutator> { IosLibraryMutatorImpl(get<LibraryItemDao>(), get<SourceRepository>(), get<Clock>()) }
+    // LibraryRepositoryImpl satisfies all three library role interfaces, matching Android's wiring
+    // in CoreDataKoinModules. One instance is shared across all three bindings.
+    single {
+        LibraryRepositoryImpl(
+            catalogRegistry = get<CatalogRegistry>(),
+            libraryDao = get<LibraryDao>(),
+            libraryItemDao = get<LibraryItemDao>(),
+            seriesDao = get<SeriesDao>(),
+            collectionDao = get<CollectionDao>(),
+            sourceRepository = get<SourceRepository>(),
+            clock = get<Clock>(),
+            logger = get<Logger>(),
+            dirtyProgressLedger = get<DirtyProgressLedger>(),
+        )
+    }
+    single<LibraryObserver> { get<LibraryRepositoryImpl>() }
+    single<LibraryMutator> { get<LibraryRepositoryImpl>() }
+    single<LibraryRefresher> { get<LibraryRepositoryImpl>() }
 
     // These are unified with Android via the PreferenceStore seam in commonMain.
     // Fully-qualified to disambiguate from the domain interfaces of the same name.

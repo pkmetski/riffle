@@ -45,8 +45,6 @@ import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
 import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
-import com.riffle.core.data.IosLibraryObserverImpl
-import com.riffle.core.data.IosLibraryRefresherImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
@@ -121,8 +119,6 @@ import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.IosReadaloudEpubTextOps
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfRepository
@@ -259,7 +255,6 @@ import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosPdfRepositoryImpl
 import com.riffle.shared.library.IosReadaloudHandoff
 import com.riffle.shared.library.IosReadaloudOfflineDownloader
-import com.riffle.shared.library.IosWebSourceLibraryItemUpserterImpl
 import com.riffle.shared.readaloud.IosReadaloudBridge
 import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
 import com.riffle.shared.readaloud.IosReadaloudController
@@ -332,8 +327,6 @@ private fun iosLibraryModule(
             filesCleaner = get(),
         )
     }
-    single<LibraryObserver> { IosLibraryObserverImpl(get(), get(), get(), get(), get()) }
-    single<LibraryRefresher> { IosLibraryRefresherImpl(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
     single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
     single { RefreshLibraries(get()) }
@@ -1095,7 +1088,13 @@ private fun iosLibraryModule(
         }
     }
     single<CoverImageCopier> { IosCoverImageCopier(get()) }
-    single<WebSourceLibraryItemUpserter> { IosWebSourceLibraryItemUpserterImpl(get()) }
+    single<WebSourceLibraryItemUpserter> {
+        val upserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>()
+        object : WebSourceLibraryItemUpserter {
+            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) =
+                upserter.upsert(sourceId, item)
+        }
+    }
 
     // ADR-0052 web-source item cache. Android binds the same pair in CoreDataKoinModules; iOS had
     // neither, because nothing on iOS could browse an unbounded catalogue to reach them.
