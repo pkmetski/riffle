@@ -22,7 +22,7 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.CadenceHeroIcon
 import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
