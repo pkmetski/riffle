@@ -150,6 +150,10 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
 import java.net.URLEncoder
+import com.riffle.app.feature.reader.session.withAnnotationNavigationAnchor
+import com.riffle.feature.reader.AnnotationSession
+import com.riffle.feature.reader.HighlightEditTarget
+import com.riffle.feature.reader.HighlightRender
 import com.riffle.feature.reader.EmphasisDomInjector
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -1197,7 +1201,7 @@ private fun EpubNavigatorView(
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
-    annotationNavigationEvents: Flow<com.riffle.app.feature.reader.session.AnnotationSession.AnnotationNavigationEvent>,
+    annotationNavigationEvents: Flow<AnnotationSession.AnnotationNavigationEvent>,
     searchResults: List<Locator>,
     currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
@@ -1223,10 +1227,10 @@ private fun EpubNavigatorView(
     readaloudHighlightColor: HighlightColor,
     annotationsAvailable: Boolean,
     annotations: List<com.riffle.core.models.Annotation>,
-    highlightRenders: List<EpubReaderViewModel.HighlightRender>,
+    highlightRenders: List<HighlightRender>,
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
-    highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
-    noteEditorTarget: EpubReaderViewModel.HighlightEditTarget?,
+    highlightToEdit: HighlightEditTarget?,
+    noteEditorTarget: HighlightEditTarget?,
     onOpenHighlightActions: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onOpenNoteReader: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onDismissHighlightActions: () -> Unit,
@@ -1254,7 +1258,7 @@ private fun EpubNavigatorView(
     /** ADR 0056 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
      *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
      *  from the per-book preset must visually match the text). */
-    draftAnnotation: com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation? = null,
+    draftAnnotation: AnnotationSession.DraftAnnotation? = null,
     highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
@@ -2260,10 +2264,12 @@ private fun EpubNavigatorView(
         effectiveOrientation,
     ) {
         annotationNavigationEvents.collect { event ->
+            val rawLocator = Locator.fromJSON(JSONObject(event.locatorJson)) ?: return@collect
+            val enrichedLocator = rawLocator.withAnnotationNavigationAnchor(event.annotation)
             val view = continuousViewRef.value
             if (isContinuous && !event.isBookmark && event.annotationId != null && view != null) {
-                val locations = event.locator.locations
-                val href = event.locator.href.toString()
+                val locations = enrichedLocator.locations
+                val href = enrichedLocator.href.toString()
                 val anchor = locations.fragments.firstOrNull()
                 val fullHref = if (anchor != null) "$href#$anchor" else href
                 view.navigateTo(
@@ -2285,11 +2291,11 @@ private fun EpubNavigatorView(
                 // target getElementById("ch01") → chapter top), so the clearing is not gated on
                 // orientation; this branch is never continuous.
                 val paginatedLocator = if (event.imageSrc != null) {
-                    event.locator.copy(
-                        locations = event.locator.locations.copy(fragments = emptyList()),
+                    enrichedLocator.copy(
+                        locations = enrichedLocator.locations.copy(fragments = emptyList()),
                     )
                 } else {
-                    event.locator
+                    enrichedLocator
                 }
                 navigateWithCover(
                     NavigationTarget.ToLocatorJson(paginatedLocator.toJSON().toString()),
@@ -3164,7 +3170,7 @@ private fun EpubNavigatorView(
             val selectedColor = popupSelection.selectedColor
             val currentEmphasisStyles = popupSelection.emphasisStyles
             HighlightActionsPopup(
-                anchorRect = editTarget.anchorRect,
+                anchorRect = editTarget.anchorRect.toIntRect(),
                 selected = selectedColor,
                 note = current?.note ?: currentAnnotation?.note,
                 readerBackground = formattingPrefs.swatchBackdropColor,
@@ -3173,7 +3179,7 @@ private fun EpubNavigatorView(
                 onRemoveColor = { onRemoveHighlightColor(editTarget.id) },
                 onToggleEmphasis = { style -> onToggleEmphasis(editTarget.id, style) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
-                onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },
+                onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect.toIntRect()) },
                 onDismiss = {
                     // Record the dismiss time so the tap that dismissed the popup (Compose fires
                     // onDismissRequest at ACTION_OUTSIDE but the same touch still reaches the
@@ -3392,6 +3398,8 @@ internal fun consumePopupDismissedTap(
 // immersive mode instead of turning the page (Readium's default enables horizontal edge taps).
 // Keyboard nav and the animated ViewPager transition remain intact.
 @OptIn(ExperimentalReadiumApi::class)
+private fun com.riffle.feature.reader.AnchorRect.toIntRect() = IntRect(left, top, right, bottom)
+
 internal fun createPagedDirectionalNavigationAdapter(
     navigator: org.readium.r2.navigator.OverflowableNavigator,
 ): DirectionalNavigationAdapter =

@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.reader.HighlightRender
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import org.junit.Assert.assertEquals
@@ -32,7 +33,7 @@ class HighlightRendererSwapReapplyTest {
         val first = CountingRenderer()
         val second = CountingRenderer()
         var active by mutableStateOf<HighlightRenderer>(first)
-        val renders = emptyList<EpubReaderViewModel.HighlightRender>()
+        val renders = emptyList<HighlightRender>()
 
         rule.setContent {
             // Mirrors the production LaunchedEffect at EpubReaderScreen.kt:1676 — keying on the
@@ -68,12 +69,12 @@ class HighlightRendererSwapReapplyTest {
         ) = Unit
 
         override suspend fun applyAnnotations(
-            renders: List<EpubReaderViewModel.HighlightRender>,
+            renders: List<HighlightRender>,
         ) {
             annotationApplies += 1
         }
 
-        override suspend fun applyNoteGlyphs(renders: List<EpubReaderViewModel.HighlightRender>) =
+        override suspend fun applyNoteGlyphs(renders: List<HighlightRender>) =
             Unit
 
         override suspend fun applySearch(results: List<Locator>, activeIndex: Int) = Unit

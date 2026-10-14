@@ -65,8 +65,12 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
         override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
         var scrollStartCallback: (() -> Unit)? = null
-        override fun setScrollStartCallback(callback: (() -> Unit)?) { scrollStartCallback = callback }
-        fun triggerScrollStart() { scrollStartCallback?.invoke() }
+        override fun setScrollStartCallback(callback: (() -> Unit)?) {
+            scrollStartCallback = callback
+        }
+        fun triggerScrollStart() {
+            scrollStartCallback?.invoke()
+        }
     }
 
     private fun navigator(bridge: FakeBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())

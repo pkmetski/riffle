@@ -36,6 +36,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.common.Clock
+import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.annotationLocatorJson
 import com.riffle.core.database.AnnotationEntity
@@ -43,6 +44,7 @@ import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderOrientation
@@ -78,6 +80,7 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
+import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -197,6 +200,9 @@ fun EpubReaderScreen(
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
     val readaloudSessionFactory = koinInject<IosReadaloudSession.Factory>()
+    val annotationSessionFactory = koinInject<AnnotationSession.Factory>()
+    val annotationSyncController = koinInject<AnnotationSyncController>()
+    val emphasisPreferencesStore = koinInject<EmphasisPreferencesStore>()
     val progressPuller = koinInject<ItemProgressPuller>()
     val clock = koinInject<Clock>()
     val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
@@ -242,6 +248,17 @@ fun EpubReaderScreen(
     val scope = rememberCoroutineScope()
     val bridge = remember { bridgeFactory.create() }
     val navigator = remember(bridge) { ReadiumSwiftNavigator(bridge) }
+    val annotationSession = remember(navigator) {
+        annotationSessionFactory.create(
+            scope = scope,
+            startLiveSync = { sid, ns, iid -> annotationSyncController.startLiveSync(sid, ns, iid) },
+            scheduleSync = { sid, ns, iid -> annotationSyncController.scheduleDebounce(sid, ns, iid) },
+            syncOnOpen = { sid, ns, iid -> annotationSyncController.syncOnOpen(sid, ns, iid) },
+            syncOnClose = { sid, ns, iid -> annotationSyncController.syncOnClose(sid, ns, iid) },
+            mergeAfterEdit = { _, _, _ -> },
+            commitDraftWithNote = { _ -> },
+        )
+    }
     val coordinator = remember(navigator) {
         AnnotationDecorationCoordinator(
             sourceId = item.sourceId,
@@ -376,6 +393,13 @@ fun EpubReaderScreen(
             // (AnnotationActionsSheet) uses it to resolve editTargetId to an Annotation.
             // Decorations still won't match the synthetic EPUB's spine, but the data flow is live.
             coordinator.start()
+            annotationSession.bind(
+                sourceId = item.sourceId,
+                namespace = "",
+                itemId = item.id,
+                highlightRenderResolver = { emptyList() },
+                cfiLocatorResolver = { null },
+            )
             localPath = dirPath
             return@LaunchedEffect
         }
@@ -393,6 +417,13 @@ fun EpubReaderScreen(
                 val shapeJson = IosLazyChapterFetcherImpl.serializeShape(shape)
                 navigator.openLazy(shapeJson, savedLocator, fetcher)
                 coordinator.start()
+                annotationSession.bind(
+                    sourceId = item.sourceId,
+                    namespace = "",
+                    itemId = item.id,
+                    highlightRenderResolver = { emptyList() },
+                    cfiLocatorResolver = { null },
+                )
                 localPath = "lazy" // sentinel: triggers the reader UI without a real file path
                 return@LaunchedEffect
             }
@@ -415,6 +446,13 @@ fun EpubReaderScreen(
             ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
         navigator.open(path, openAt)
         coordinator.start()
+        annotationSession.bind(
+            sourceId = item.sourceId,
+            namespace = "",
+            itemId = item.id,
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
     }
 
     // Apply formatting preferences (font, theme, scroll mode) to the Readium navigator.
@@ -1095,6 +1133,7 @@ fun EpubReaderScreen(
 
     DisposableEffect(item.id) {
         onDispose {
+            annotationSession.onBookClosed()
             coordinator.stop()
             val position = navigator.snapshotPosition()
             if (position != null && source != ReaderSource.Highlights) {
@@ -1396,11 +1435,12 @@ fun EpubReaderScreen(
                 onPickColor = { color ->
                     scope.launch {
                         if (editTarget != null) {
-                            editor.recolor(editTarget.id, color)
+                            annotationSession.recolorHighlight(editTarget.id, color)
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
                             editor.createHighlight(liveSelection, color, pendingStyles, null)
                                 ?.let { editTargetId = it.id }
+                            annotationSession.persistLastUsedColorToken(color.token)
                             pendingStyles = emptySet()
                         }
                     }
@@ -1408,11 +1448,12 @@ fun EpubReaderScreen(
                 onRemoveColor = {
                     scope.launch {
                         if (editTarget != null) {
-                            editor.recolor(editTarget.id, null)
+                            annotationSession.recolorHighlightRaw(editTarget.id, "")
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
                             editor.createHighlight(liveSelection, null, pendingStyles, null)
                                 ?.let { editTargetId = it.id }
+                            annotationSession.persistLastUsedColorToken("")
                             pendingStyles = emptySet()
                         }
                     }
@@ -1420,7 +1461,10 @@ fun EpubReaderScreen(
                 onToggleEmphasis = { style ->
                     scope.launch {
                         if (editTarget != null) {
+                            val currentStyles = editor.emphasisStylesFor(editTarget)
+                            val resultingStyles = if (style in currentStyles) currentStyles - style else currentStyles + style
                             editor.toggleEmphasis(editTarget, style)
+                            emphasisPreferencesStore.setLastUsedStyles(item.sourceId, item.id, resultingStyles)
                         } else {
                             // ADR 0056 §4: a chip tapped on a bare selection persists the
                             // highlight (with no colour) plus its emphasis sibling, so the
@@ -1431,6 +1475,7 @@ fun EpubReaderScreen(
                                 pendingStyles + style
                             }
                             pendingStyles = next
+                            emphasisPreferencesStore.setLastUsedStyles(item.sourceId, item.id, next)
                             if (liveSelection != null && next.isNotEmpty()) {
                                 if (source == ReaderSource.Highlights) return@launch
                                 editor.createHighlight(liveSelection, null, next, null)

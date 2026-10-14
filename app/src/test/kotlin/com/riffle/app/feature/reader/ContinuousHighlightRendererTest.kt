@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.net.FakeUri
+import com.riffle.feature.reader.HighlightRender
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
@@ -76,8 +77,27 @@ class ContinuousHighlightRendererTest {
         return instance
     }
 
+    private fun buildLocatorJson(
+        href: String,
+        text: String? = null,
+        before: String? = null,
+        after: String? = null,
+    ): String {
+        val root = org.json.JSONObject()
+            .put("href", href)
+            .put("type", "application/xhtml+xml")
+        if (text != null || before != null || after != null) {
+            val textObj = org.json.JSONObject()
+            if (text != null) textObj.put("highlight", text)
+            if (before != null) textObj.put("before", before)
+            if (after != null) textObj.put("after", after)
+            root.put("text", textObj)
+        }
+        return root.toString()
+    }
+
     /**
-     * Creates a [Locator] with a meaningful href and text highlight for use in
+     * Creates a [HighlightRender] with a meaningful href and text for use in
      * [applyAnnotations] tests.
      */
     private fun makeRender(
@@ -91,13 +111,9 @@ class ContinuousHighlightRendererTest {
         useAccentBarStyle: Boolean = false,
         emphasisStyles: Set<EmphasisStyle> = emptySet(),
         isBeingEdited: Boolean = false,
-    ) = EpubReaderViewModel.HighlightRender(
+    ) = HighlightRender(
         id = id,
-        locator = Locator(
-            href = makeAbsoluteUrl("https://example.com/$href"),
-            mediaType = MediaType.XHTML,
-            text = Locator.Text(highlight = text, before = before, after = after),
-        ),
+        locatorJson = buildLocatorJson("https://example.com/$href", text = text, before = before, after = after),
         color = color,
         note = note,
         useAccentBarStyle = useAccentBarStyle,

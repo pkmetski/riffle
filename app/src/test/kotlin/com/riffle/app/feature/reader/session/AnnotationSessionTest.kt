@@ -1,7 +1,8 @@
 package com.riffle.app.feature.reader.session
 
-import android.net.FakeUri
-import com.riffle.app.feature.reader.EpubReaderViewModel
+import com.riffle.feature.reader.AnchorRect
+import com.riffle.feature.reader.AnnotationSession.AnnotationNavigationEvent
+import com.riffle.feature.reader.HighlightRender
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.sync.AnnotationSyncStatusStore
@@ -25,6 +26,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -32,9 +35,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.readium.r2.shared.publication.Locator
-import org.readium.r2.shared.util.AbsoluteUrl
-import org.readium.r2.shared.util.mediatype.MediaType
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnnotationSessionTest {
@@ -185,26 +185,49 @@ class AnnotationSessionTest {
     )
     } // companion object
 
-    @Suppress("UNCHECKED_CAST")
     private fun buildLocator(
         href: String = "chapter1.xhtml",
         progression: Double = 0.3,
         fragments: List<String> = emptyList(),
-    ): Locator {
-        val unsafe = Class.forName("sun.misc.Unsafe")
-            .getDeclaredField("theUnsafe")
-            .also { it.isAccessible = true }
-            .get(null) as sun.misc.Unsafe
-        val url = unsafe.allocateInstance(AbsoluteUrl::class.java) as AbsoluteUrl
-        AbsoluteUrl::class.java.getDeclaredField("uri")
-            .also { it.isAccessible = true }
-            .set(url, FakeUri(href))
-        return Locator(
-            href = url,
-            mediaType = MediaType.XHTML,
-            locations = Locator.Locations(progression = progression, fragments = fragments),
-        )
+    ): String {
+        val locations = JSONObject().put("progression", progression)
+        if (fragments.isNotEmpty()) locations.put("fragments", JSONArray(fragments))
+        return JSONObject()
+            .put("href", href)
+            .put("type", "application/xhtml+xml")
+            .put("locations", locations)
+            .toString()
     }
+
+    private data class ParsedLocations(val progression: Double?, val fragments: List<String>?)
+    private data class ParsedText(val highlight: String?, val before: String?, val after: String?)
+    private data class ParsedLocator(val href: String?, val mediaType: String?, val locations: ParsedLocations?, val text: ParsedText?)
+
+    private fun parseLocator(json: String): ParsedLocator? = runCatching {
+        val obj = JSONObject(json)
+        val locObj = obj.optJSONObject("locations")
+        val textObj = obj.optJSONObject("text")
+        val frags = locObj?.optJSONArray("fragments")?.let { arr ->
+            (0 until arr.length()).map { arr.getString(it) }
+        }
+        ParsedLocator(
+            href = obj.optString("href").takeIf { it.isNotBlank() },
+            mediaType = obj.optString("type").takeIf { it.isNotBlank() },
+            locations = locObj?.let {
+                ParsedLocations(
+                    progression = it.optDouble("progression").takeIf { p -> !p.isNaN() },
+                    fragments = frags,
+                )
+            },
+            text = textObj?.let {
+                ParsedText(
+                    highlight = it.optString("highlight").takeIf { s -> s.isNotBlank() },
+                    before = it.optString("before").takeIf { s -> s.isNotBlank() },
+                    after = it.optString("after").takeIf { s -> s.isNotBlank() },
+                )
+            },
+        )
+    }.getOrNull()
 
     private class FakeHighlightColorPreferencesStore(
         initial: HighlightColor = HighlightColor.DEFAULT,
@@ -268,8 +291,8 @@ class AnnotationSessionTest {
     private fun defaultBind(
         session: AnnotationSession,
         store: FakeAnnotationStore = FakeAnnotationStore(),
-        highlightRenderResolver: suspend (Annotation) -> List<EpubReaderViewModel.HighlightRender> = { emptyList() },
-        cfiLocatorResolver: suspend (String) -> Locator? = { null },
+        highlightRenderResolver: suspend (Annotation) -> List<HighlightRender> = { emptyList() },
+        cfiLocatorResolver: suspend (String) -> String? = { null },
     ) {
         session.bind(
             sourceId = "srv1",
@@ -293,7 +316,7 @@ class AnnotationSessionTest {
         val syncOps = FakeSyncOps()
         val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
         val anno = fakeAnnotation()
-        val render = EpubReaderViewModel.HighlightRender(anno.id, buildLocator(), anno.color, anno.note)
+        val render = HighlightRender(anno.id, buildLocator(), anno.color, anno.note)
 
         session.bind(
             sourceId = "srv1",
@@ -303,7 +326,7 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { null },
         )
 
-        assertEquals(emptyList<EpubReaderViewModel.HighlightRender>(), session.highlightRenders.value)
+        assertEquals(emptyList<HighlightRender>(), session.highlightRenders.value)
 
         // ADR 0056 refactor: bind() observes `observeAnnotations` (union) and filters by type,
         // not `observeHighlights`. Publish through the union flow the production code reads.
@@ -332,9 +355,9 @@ class AnnotationSessionTest {
             fakeAnnotation(id = "a2", color = "green"),
             fakeAnnotation(id = "a3", color = "blue"),
         )
-        val locator = buildLocator()
-        val resolver: suspend (Annotation) -> List<EpubReaderViewModel.HighlightRender> = { a ->
-            listOf(EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note))
+        val locatorJson = buildLocator()
+        val resolver: suspend (Annotation) -> List<HighlightRender> = { a ->
+            listOf(HighlightRender(a.id, locatorJson, a.color, a.note))
         }
         session.bind(
             sourceId = "srv1", namespace = "ns1", itemId = "item1",
@@ -479,7 +502,7 @@ class AnnotationSessionTest {
         store.allAnnotations.value = listOf(empty)
         session.openHighlightActions(
             "hEmpty",
-            androidx.compose.ui.unit.IntRect(0, 0, 0, 0),
+            AnchorRect.Zero,
             justCreatedFromDraft = true,
         )
 
@@ -508,7 +531,7 @@ class AnnotationSessionTest {
         store.allAnnotations.value = listOf(empty)
         session.openHighlightActions(
             "hExisting",
-            androidx.compose.ui.unit.IntRect(0, 0, 0, 0),
+            AnchorRect.Zero,
         )
 
         session.dismissHighlightActions()
@@ -534,7 +557,7 @@ class AnnotationSessionTest {
         store.allAnnotations.value = listOf(emptyHighlight, emphasis)
         session.openHighlightActions(
             "hFmt",
-            androidx.compose.ui.unit.IntRect(0, 0, 0, 0),
+            AnchorRect.Zero,
             justCreatedFromDraft = true,
         )
 
@@ -649,7 +672,7 @@ class AnnotationSessionTest {
         )
         defaultBind(session)
         store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "green").copy(note = null))
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openHighlightActions("h1", AnchorRect.Zero)
 
         session.dismissHighlightActions()
 
@@ -685,7 +708,7 @@ class AnnotationSessionTest {
         defaultBind(session)
         // Row is NOT yet in the observed flow — simulating the Room emission lag.
         store.allAnnotations.value = emptyList()
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openHighlightActions("h1", AnchorRect.Zero)
 
         session.dismissHighlightActions()
 
@@ -722,9 +745,9 @@ class AnnotationSessionTest {
         )
         defaultBind(session)
         store.allAnnotations.value = listOf(makeAnnotation(id = "h1"))
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openHighlightActions("h1", AnchorRect.Zero)
 
-        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor("h1", AnchorRect.Zero)
 
         assertNull(session.highlightToEdit.value)
         assertEquals("h1", session.noteEditorTarget.value?.id)
@@ -746,8 +769,8 @@ class AnnotationSessionTest {
         )
         defaultBind(session)
         store.allAnnotations.value = listOf(makeAnnotation(id = "h1"))
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
-        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openHighlightActions("h1", AnchorRect.Zero)
+        session.openNoteEditor("h1", AnchorRect.Zero)
 
         session.dismissHighlightActions()
 
@@ -773,7 +796,7 @@ class AnnotationSessionTest {
         )
         defaultBind(session)
         store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "blue"))
-        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor("h1", AnchorRect.Zero)
 
         session.commitNoteEdit("h1", "my thought")
 
@@ -803,7 +826,7 @@ class AnnotationSessionTest {
         )
         defaultBind(session)
         store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "green"))
-        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor("h1", AnchorRect.Zero)
 
         session.cancelNoteEdit()
 
@@ -833,8 +856,8 @@ class AnnotationSessionTest {
             commitDraftWithNote = { note -> draftNoteCalls += note },
         )
         defaultBind(session)
-        session.openHighlightActions(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
-        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openHighlightActions(AnnotationSession.DRAFT_ANNOTATION_ID, AnchorRect.Zero)
+        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, AnchorRect.Zero)
 
         session.commitNoteEdit(AnnotationSession.DRAFT_ANNOTATION_ID, "my thought")
 
@@ -856,7 +879,7 @@ class AnnotationSessionTest {
             commitDraftWithNote = { note -> draftNoteCalls += note },
         )
         defaultBind(session)
-        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, AnchorRect.Zero)
 
         session.commitNoteEdit(AnnotationSession.DRAFT_ANNOTATION_ID, "   ")
 
@@ -881,7 +904,7 @@ class AnnotationSessionTest {
             commitDraftWithNote = { note -> draftNoteCalls += note },
         )
         defaultBind(session)
-        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, AnchorRect.Zero)
 
         session.cancelNoteEdit()
 
@@ -932,7 +955,7 @@ class AnnotationSessionTest {
         defaultBind(session)
         runCurrent()
 
-        session.openHighlightActions(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 100, 50))
+        session.openHighlightActions(AnnotationSession.DRAFT_ANNOTATION_ID, AnchorRect(0, 0, 100, 50))
         runCurrent()
         assertNotNull(session.highlightToEdit.value)
 
@@ -995,7 +1018,7 @@ class AnnotationSessionTest {
         assertTrue(session.annotationsPanelVisible.value)
 
         // Collect the channel event
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1003,23 +1026,22 @@ class AnnotationSessionTest {
         session.navigateToAnnotation("a1")
 
         assertEquals(1, received.size)
-        // The resolver-owned navigation identity is preserved while AnnotationSession enriches
-        // the locator with the persisted quote needed for exact Readium range resolution.
-        assertEquals(targetLocator.href, received[0].locator.href)
-        assertEquals(targetLocator.mediaType, received[0].locator.mediaType)
-        assertEquals(targetLocator.locations, received[0].locator.locations)
+        // The session emits the resolver's locatorJson unchanged; enrichment (TextQuote) is the host's job.
+        val receivedLocator = parseLocator(received[0].locatorJson)
+        val expectedLocator = parseLocator(targetLocator)
+        assertEquals(expectedLocator?.href, receivedLocator?.href)
+        assertEquals(expectedLocator?.mediaType, receivedLocator?.mediaType)
+        assertEquals(expectedLocator?.locations, receivedLocator?.locations)
         // The seeded annotation in this test has type="highlight", so the event must carry
         // isBookmark=false. Continuous-mode landing now uses viewport-midpoint for both types;
         // the flag is preserved on the event because downstream (analytics, tests) still
         // branches on annotation type.
         assertFalse(received[0].isBookmark)
-        // Readium's scrollToLocator resolves an exact DOM range only when the locator carries
-        // the annotation's TextQuote context. Without these fields annotation navigation falls
-        // back to character progression, which can land one paginated column away because text
-        // density and block layout are not uniform.
-        assertEquals(anno.textSnippet, received[0].locator.text.highlight)
-        assertEquals(anno.textBefore, received[0].locator.text.before)
-        assertEquals(anno.textAfter, received[0].locator.text.after)
+        // The annotation object is now carried in the event so the host can enrich the locator
+        // with the persisted TextQuote context for exact Readium range resolution.
+        assertEquals(anno.textSnippet, received[0].annotation?.textSnippet)
+        assertEquals(anno.textBefore, received[0].annotation?.textBefore)
+        assertEquals(anno.textAfter, received[0].annotation?.textAfter)
         // The annotation id must ride along on the event: continuous-mode navigation uses it to
         // look up the actual `<mark data-riffle-ann="…">` device-Y (via
         // `ChapterWebView.annotationOffsetTopDevicePx`) and centre the viewport on the mark
@@ -1052,7 +1074,7 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1060,18 +1082,19 @@ class AnnotationSessionTest {
 
         assertEquals(1, received.size)
         assertTrue(received[0].isBookmark)
+        val receivedBookmarkLocator = parseLocator(received[0].locatorJson)
+        val expectedBookmarkLocator = parseLocator(targetLocator)
         assertEquals(
-            "bookmark navigation must restore the original live-reader progression persisted on " +
-                "the annotation, not the lossy progression reconstructed from its translated CFI",
-            anno.progression,
-            received[0].locator.locations.progression!!,
+            "bookmark navigation emits the resolver's locatorJson; enrichment (progression override) is the host's job",
+            expectedBookmarkLocator?.locations?.progression!!,
+            receivedBookmarkLocator?.locations?.progression!!,
             0.000001,
         )
-        assertEquals(targetLocator.href, received[0].locator.href)
-        assertEquals(targetLocator.mediaType, received[0].locator.mediaType)
+        assertEquals(expectedBookmarkLocator?.href, receivedBookmarkLocator?.href)
+        assertEquals(expectedBookmarkLocator?.mediaType, receivedBookmarkLocator?.mediaType)
         assertNull(
             "bookmarks are point locators and must not receive a highlight TextQuote",
-            received[0].locator.text.highlight,
+            receivedBookmarkLocator?.text?.highlight,
         )
 
         collectJob.cancel()
@@ -1099,7 +1122,7 @@ class AnnotationSessionTest {
             highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { targetLocator },
         )
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1108,8 +1131,8 @@ class AnnotationSessionTest {
 
         assertEquals(
             "a legacy zero means unknown when its translated CFI points later in the chapter",
-            targetLocator.locations.progression!!,
-            received.single().locator.locations.progression!!,
+            parseLocator(targetLocator)?.locations?.progression!!,
+            parseLocator(received.single().locatorJson)?.locations?.progression!!,
             0.000001,
         )
         collectJob.cancel()
@@ -1137,7 +1160,7 @@ class AnnotationSessionTest {
             highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { targetLocator },
         )
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1149,7 +1172,7 @@ class AnnotationSessionTest {
         assertEquals(
             "bookmark with fragmentAnchor must populate locations.fragments for element-anchored snap",
             listOf("para-ch03"),
-            received[0].locator.locations.fragments,
+            parseLocator(received[0].locatorJson)?.locations?.fragments,
         )
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()
@@ -1178,7 +1201,7 @@ class AnnotationSessionTest {
             highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { cfiFallbackLocator },
         )
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1189,7 +1212,7 @@ class AnnotationSessionTest {
         assertEquals(
             "new-style bookmark at progression=0.0 must NOT fall back to the CFI progression (0.71)",
             0.0,
-            received[0].locator.locations.progression!!,
+            parseLocator(received[0].locatorJson)?.locations?.progression!!,
             0.000001,
         )
         collectJob.cancel()
@@ -1207,14 +1230,17 @@ class AnnotationSessionTest {
         // at withAnnotationNavigationAnchor with fragments = ["section-ch01"], not empty. Without
         // Fix 2, snapAfterGoTo sees a non-empty fragments list and takes the element-snap path,
         // which always resolves to column 0 (the section container's left edge).
-        val locatorWithContainerFragment = Locator(
-            href = buildLocator().href,
-            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
-            locations = Locator.Locations(
-                progression = 0.43,
-                fragments = listOf("section-ch01"), // container-level CFI artifact
-            ),
-        )
+        // NOTE: fragment-clearing for legacy bookmarks is now the Android host's responsibility
+        // (it enriches the locator via withAnnotationNavigationAnchor); the session passes the
+        // raw resolver output. These assertions document the current session-level contract.
+        val locatorWithContainerFragmentJson = JSONObject()
+            .put("href", "chapter1.xhtml")
+            .put("type", "application/xhtml+xml")
+            .put("locations", JSONObject()
+                .put("progression", 0.43)
+                .put("fragments", JSONArray(listOf("section-ch01")))
+            )
+            .toString()
         val legacyBookmark = fakeAnnotation(
             id = "bm-legacy",
             type = AnnotationEntity.TYPE_BOOKMARK,
@@ -1225,23 +1251,24 @@ class AnnotationSessionTest {
         session.bind(
             sourceId = "srv1", namespace = "ns1", itemId = "item1",
             highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { locatorWithContainerFragment },
+            cfiLocatorResolver = { locatorWithContainerFragmentJson },
         )
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
 
         session.navigateToAnnotation(legacyBookmark.id)
 
+        val receivedLegacyLocator = parseLocator(received[0].locatorJson)
         assertEquals(1, received.size)
         assertTrue(received[0].isBookmark)
         assertTrue(
             "legacy bookmark must clear CFI-derived container fragments so snapAfterGoTo uses " +
                 "progression fallback instead of always snapping to column 0",
-            received[0].locator.locations.fragments.isEmpty(),
+            receivedLegacyLocator?.locations?.fragments?.isEmpty() == true,
         )
-        assertEquals(legacyBookmark.progression, received[0].locator.locations.progression!!, 0.000001)
+        assertEquals(legacyBookmark.progression, receivedLegacyLocator?.locations?.progression!!, 0.000001)
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()
     }
@@ -1282,7 +1309,7 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1318,7 +1345,7 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1370,7 +1397,7 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1422,7 +1449,7 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
-        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val received = mutableListOf<AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -1476,7 +1503,7 @@ class AnnotationSessionTest {
         defaultBind(session)
 
         // Set a highlight to edit, then delete it
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        session.openHighlightActions("h1", AnchorRect.Zero)
         assertEquals("h1", session.highlightToEdit.value?.id)
 
         session.deleteAnnotation("h1")
@@ -1517,7 +1544,7 @@ class AnnotationSessionTest {
             highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { null },
         )
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        session.openHighlightActions("h1", AnchorRect.Zero)
         assertEquals("h1", session.highlightToEdit.value?.id)
 
         session.deleteHighlight("h1")
@@ -1547,7 +1574,7 @@ class AnnotationSessionTest {
             highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { null },
         )
-        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect.Zero)
+        session.openHighlightActions("h1", AnchorRect.Zero)
         assertEquals("h1", session.highlightToEdit.value?.id)
 
         session.deleteAnnotation("h1")
@@ -1617,7 +1644,7 @@ class AnnotationSessionTest {
         val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
 
         val anno = fakeAnnotation()
-        val render = EpubReaderViewModel.HighlightRender(anno.id, buildLocator(), anno.color, anno.note)
+        val render = HighlightRender(anno.id, buildLocator(), anno.color, anno.note)
 
         session.bind(
             sourceId = "srv1",

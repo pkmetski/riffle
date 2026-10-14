@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.app.feature.reader.session.AnnotationSession
+import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.MergedDraftFields
 
 /**

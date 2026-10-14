@@ -2,6 +2,7 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.HighlightRender
 import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.feature.reader.NOTE_GLYPH_FOCUS_ID_JS_KEY
 import com.riffle.core.models.EmphasisStyle
@@ -30,6 +31,7 @@ class ReadiumHighlightRendererTest {
             // Return a minimal locator for any non-blank ref
             if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
         },
+        locatorFromJson = { _ -> minimalLocator("fake") },
     )
 
     @Before
@@ -38,10 +40,8 @@ class ReadiumHighlightRendererTest {
     }
 
     private fun minimalLocator(@Suppress("UNUSED_PARAMETER") href: String): Locator {
-        // Locator(Url, MediaType, ...) requires android.net.Uri which is not available in JVM
-        // unit tests. Allocate a Locator stub via Unsafe — the resulting instance has all fields
-        // null/zero but is a real Locator that can be stored in HighlightRender and Decoration.
-        // Our assertions only care about decoration.id and group names, not the locator content.
+        // Used for applySearch tests which take List<Locator> directly.
+        // Allocate a Locator stub via Unsafe — all fields null/zero but a real Locator instance.
         @Suppress("UNCHECKED_CAST")
         val unsafe = Class.forName("sun.misc.Unsafe")
             .getDeclaredField("theUnsafe")
@@ -50,14 +50,17 @@ class ReadiumHighlightRendererTest {
         return unsafe.allocateInstance(Locator::class.java) as Locator
     }
 
+    private fun makeLocatorJson(href: String): String =
+        """{"href":"$href","type":"application/xhtml+xml"}"""
+
     private fun makeRender(
         id: String,
         href: String,
         color: String = "yellow",
         note: String? = null,
-    ) = EpubReaderViewModel.HighlightRender(
+    ) = HighlightRender(
         id = id,
-        locator = minimalLocator(href),
+        locatorJson = makeLocatorJson(href),
         color = color,
         note = note,
     )
@@ -147,6 +150,7 @@ class ReadiumHighlightRendererTest {
                     callOrder.add("fillLineLeading")
                 }
             },
+            locatorFromJson = { _ -> minimalLocator("fake") },
         )
 
         rendererWithGeometryAdjustment.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
@@ -175,6 +179,7 @@ class ReadiumHighlightRendererTest {
                 if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
             },
             evaluateJavascript = { callOrder.add("domInject") },
+            locatorFromJson = { _ -> minimalLocator("fake") },
             emphasisRangeProvider = {
                 listOf(
                     EmphasisDomInjector.EmphasisRange(
@@ -186,9 +191,9 @@ class ReadiumHighlightRendererTest {
                 )
             },
         )
-        val render = EpubReaderViewModel.HighlightRender(
+        val render = HighlightRender(
             id = "h1",
-            locator = minimalLocator("c.xhtml"),
+            locatorJson = makeLocatorJson("c.xhtml"),
             color = "yellow",
             note = null,
             emphasisStyles = setOf(EmphasisStyle.BOLD),
@@ -257,6 +262,7 @@ class ReadiumHighlightRendererTest {
                 if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
             },
             evaluateJavascript = { script -> callOrder += "javascript:$script" },
+            locatorFromJson = { _ -> minimalLocator("fake") },
         )
 
         rendererWithJavascript.applyNoteGlyphs(

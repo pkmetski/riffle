@@ -221,6 +221,7 @@ import com.riffle.feature.player.FollowLoopOrchestrator
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.player.ReadaloudHandoff
+import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReaderStateHolder
@@ -653,6 +654,24 @@ private fun iosLibraryModule(
     // Live on iOS: FollowLoopOrchestrator.flush (per-tick audiobook position writes) and
     // AudiobookPlayerViewModel's speed-change and onCleared flushes all run through it.
     single { ProgressFlushScope(applicationScope = get()) }
+    factory<AnnotationSession.Factory> {
+        AnnotationSession.Factory { scope, startLiveSync, scheduleSync, syncOnOpen, syncOnClose, mergeAfterEdit, commitDraftWithNote ->
+            AnnotationSession(
+                scope = scope,
+                annotationStore = get(),
+                annotationStatusStore = get(),
+                highlightColorPreferencesStore = get(),
+                emphasisPreferencesStore = get(),
+                progressFlushScope = get(),
+                startLiveSync = startLiveSync,
+                scheduleSync = scheduleSync,
+                syncOnOpen = syncOnOpen,
+                syncOnClose = syncOnClose,
+                mergeAfterEdit = mergeAfterEdit,
+                commitDraftWithNote = commitDraftWithNote,
+            )
+        }
+    }
     // SyncPositionStore<Double>/<String> are bound in iosDataModule (core:data), backed by the
     // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
     single { IosReadaloudHandoff() }
