@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
+import com.riffle.feature.reader.HighlightRender
+import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 import com.riffle.feature.reader.toCssRgbaWithAlpha
 import com.riffle.feature.reader.toCssRgba
@@ -64,17 +66,21 @@ internal class ContinuousHighlightRenderer(
     }
 
     override suspend fun applyAnnotations(
-        renders: List<EpubReaderViewModel.HighlightRender>,
+        renders: List<HighlightRender>,
     ) {
         val target = targetProvider() ?: return
         val annotationsByHref = renders
-            .filter { !it.locator.text.highlight.isNullOrBlank() }
-            .groupBy { it.locator.href.toString() }
+            .mapNotNull { h ->
+                val fields = locatorTextFields(h.locatorJson) ?: return@mapNotNull null
+                val text = fields.highlight?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                Triple(fields.href, h, fields)
+            }
+            .groupBy { (href, _, _) -> href }
             .mapValues { (_, items) ->
-                items.map { h ->
+                items.map { (_, h, fields) ->
                     AnnotationHighlight(
                         id = h.id,
-                        text = h.locator.text.highlight!!,
+                        text = fields.highlight!!,
                         // Highlights-mode (ADR 0048): paginated/vertical emit no Readium decoration
                         // and rely entirely on the synthesised HTML's border-left as the visible
                         // accent bar. Continuous still wraps the text itself in a <mark>, so a
@@ -101,8 +107,8 @@ internal class ContinuousHighlightRenderer(
                             else -> HighlightColor.fromToken(h.color).argb.toCssRgba()
                         },
                         hasNote = h.note != null,
-                        before = h.locator.text.before.orEmpty(),
-                        after = h.locator.text.after.orEmpty(),
+                        before = fields.before.orEmpty(),
+                        after = fields.after.orEmpty(),
                         // Highlights-mode: the on-text tap listener MUST NOT fire — the accent-bar
                         // span baked into the synthesised HTML owns tap dispatch. See
                         // AnnotationHighlight.suppressMarkClick.
@@ -114,7 +120,7 @@ internal class ContinuousHighlightRenderer(
         target.applyAnnotationHighlights(annotationsByHref)
     }
 
-    override suspend fun applyNoteGlyphs(renders: List<EpubReaderViewModel.HighlightRender>) {
+    override suspend fun applyNoteGlyphs(renders: List<HighlightRender>) {
         // No-op: glyphs are emitted inside applyAnnotations via applyAnnotationHighlightsJs,
         // so no separate pass is needed.
     }
@@ -158,3 +164,24 @@ internal class ContinuousHighlightRenderer(
         // call is needed in continuous mode.
     }
 }
+
+private data class LocatorTextFields(
+    val href: String,
+    val highlight: String?,
+    val before: String?,
+    val after: String?,
+)
+
+// Extracts href and text fields from a Readium locator JSON string without calling
+// Locator.fromJSON(), which requires android.net.Uri and is unavailable in JVM unit tests.
+private fun locatorTextFields(locatorJson: String): LocatorTextFields? = runCatching {
+    val obj = JSONObject(locatorJson)
+    val href = obj.optString("href").takeIf { it.isNotBlank() } ?: return@runCatching null
+    val text = obj.optJSONObject("text")
+    LocatorTextFields(
+        href = href,
+        highlight = text?.optString("highlight")?.takeIf { it.isNotBlank() },
+        before = text?.optString("before"),
+        after = text?.optString("after"),
+    )
+}.getOrNull()

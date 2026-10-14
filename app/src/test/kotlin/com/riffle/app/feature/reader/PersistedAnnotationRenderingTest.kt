@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.HighlightRender
 import org.readium.r2.shared.publication.Locator
 
 class PersistedAnnotationRenderingTest {
@@ -60,13 +61,13 @@ class PersistedAnnotationRenderingTest {
         ) = Unit
 
         override suspend fun applyAnnotations(
-            renders: List<EpubReaderViewModel.HighlightRender>,
+            renders: List<HighlightRender>,
         ) {
             calls += "annotations"
         }
 
         override suspend fun applyNoteGlyphs(
-            renders: List<EpubReaderViewModel.HighlightRender>,
+            renders: List<HighlightRender>,
         ) {
             calls += "note-glyphs"
         }

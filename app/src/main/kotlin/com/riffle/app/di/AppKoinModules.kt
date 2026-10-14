@@ -48,7 +48,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloaderImpl
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
-import com.riffle.app.feature.reader.session.AnnotationSession
+import com.riffle.feature.reader.AnnotationSession
 import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
 import com.riffle.app.feature.reader.session.ReadaloudSession

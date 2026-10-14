@@ -4,6 +4,8 @@ import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
+import com.riffle.feature.reader.HighlightRender
+import org.json.JSONObject
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator
 import com.riffle.feature.reader.EmphasisDomInjector
@@ -33,6 +35,14 @@ internal class ReadiumHighlightRenderer(
      * (Locator's `text.highlight` may be reflow-truncated or missing on early emits).
      */
     private val emphasisRangeProvider: () -> List<EmphasisDomInjector.EmphasisRange> = { emptyList() },
+    /**
+     * Converts a [HighlightRender.locatorJson] string to a [Locator]. Injected so tests can
+     * supply a fake that bypasses [android.net.Uri] (unavailable in JVM unit tests).
+     * Production default uses [Locator.fromJSON].
+     */
+    private val locatorFromJson: (String) -> Locator? = { json ->
+        Locator.fromJSON(JSONObject(json))
+    },
 ) : HighlightRenderer {
 
     private var hasSentenceDecoration = false
@@ -68,7 +78,7 @@ internal class ReadiumHighlightRenderer(
     }
 
     override suspend fun applyAnnotations(
-        renders: List<EpubReaderViewModel.HighlightRender>,
+        renders: List<HighlightRender>,
     ) {
         if (renders.isEmpty()) {
             if (!hasAnnotationDecorations) return
@@ -90,6 +100,7 @@ internal class ReadiumHighlightRenderer(
             //  - Empty colour + NOT being edited: emit a fully-transparent decoration so the
             //    range stays tappable but nothing paints; layered emphasis (bold/italic via DOM,
             //    underline/strike via companion decorations) is the only visible surface.
+            val locator = locatorFromJson(h.locatorJson) ?: return@mapNotNull null
             val tint = when {
                 h.color.isNotEmpty() -> HighlightColor.fromToken(h.color).argb
                 h.isBeingEdited -> EMPTY_COLOR_EDITING_HINT_ARGB
@@ -97,7 +108,7 @@ internal class ReadiumHighlightRenderer(
             }
             Decoration(
                 id = h.id,
-                locator = h.locator,
+                locator = locator,
                 style = HighlightTintStyle(tint = tint),
             )
         }
@@ -135,7 +146,7 @@ internal class ReadiumHighlightRenderer(
     }
 
     override suspend fun applyNoteGlyphs(
-        renders: List<EpubReaderViewModel.HighlightRender>,
+        renders: List<HighlightRender>,
     ) {
         // Highlights mode (useAccentBarStyle) skips glyphs: the note is already visible as an
         // <aside> in the synthesised HTML, and a glyph in the left gutter would overlap the
@@ -147,8 +158,9 @@ internal class ReadiumHighlightRenderer(
             hasNoteGlyphDecorations = false
             return
         }
-        val noteDecorations = noted.map { h ->
-            Decoration(id = h.id, locator = h.locator, style = NoteGlyphStyle())
+        val noteDecorations = noted.mapNotNull { h ->
+            val locator = locatorFromJson(h.locatorJson) ?: return@mapNotNull null
+            Decoration(id = h.id, locator = locator, style = NoteGlyphStyle())
         }
         applyDecorationsWithClear(noteDecorations, NOTE_GLYPH_DECORATION_GROUP)
         evaluateJavascript?.invoke(noteGlyphViewportClampAfterApplyJs())
@@ -207,15 +219,16 @@ internal class ReadiumHighlightRenderer(
         }
     }
 
-    private suspend fun applyEmphasisCompanions(renders: List<EpubReaderViewModel.HighlightRender>) {
+    private suspend fun applyEmphasisCompanions(renders: List<HighlightRender>) {
         val decorations = renders.flatMap { h ->
-            if (h.emphasisStyles.isEmpty()) return@flatMap emptyList()
+            if (h.emphasisStyles.isEmpty()) return@flatMap emptyList<Decoration>()
+            val locator = locatorFromJson(h.locatorJson) ?: return@flatMap emptyList()
             buildList {
                 if (EmphasisStyle.UNDERLINE in h.emphasisStyles) {
                     add(
                         Decoration(
                             id = "${h.id}#u",
-                            locator = h.locator,
+                            locator = locator,
                             style = Decoration.Style.Underline(tint = EMPHASIS_UNDERLINE_ARGB),
                         )
                     )
@@ -224,7 +237,7 @@ internal class ReadiumHighlightRenderer(
                     add(
                         Decoration(
                             id = "${h.id}#s",
-                            locator = h.locator,
+                            locator = locator,
                             style = EmphasisStrikeStyle(tint = EMPHASIS_STRIKE_ARGB),
                         )
                     )

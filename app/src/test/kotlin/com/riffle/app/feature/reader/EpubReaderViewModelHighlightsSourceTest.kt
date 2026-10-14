@@ -25,6 +25,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
 import org.readium.r2.shared.util.RelativeUrl
 import org.readium.r2.shared.util.Url
 
@@ -41,6 +42,24 @@ import org.readium.r2.shared.util.Url
  * readingOrder contains one link per chapter with highlights — not the ABS EPUB's full spine.
  */
 class EpubReaderViewModelHighlightsSourceTest {
+
+    private data class ParsedHref(private val value: String?) {
+        override fun toString(): String = value ?: ""
+    }
+    private data class ParsedText(val highlight: String?)
+    private data class ParsedLocator(val href: ParsedHref?, val text: ParsedText?)
+
+    private fun parseLocator(json: String): ParsedLocator? = runCatching {
+        val obj = JSONObject(json)
+        val href = obj.optString("href").takeIf { it.isNotBlank() }
+        val textObj = obj.optJSONObject("text")
+        ParsedLocator(
+            href = ParsedHref(href),
+            text = textObj?.let {
+                ParsedText(it.optString("highlight").takeIf { s -> s.isNotBlank() })
+            },
+        )
+    }.getOrNull()
 
     @Suppress("UNCHECKED_CAST")
     private fun testUrlFactory(href: String): Url {
@@ -421,8 +440,9 @@ class EpubReaderViewModelHighlightsSourceTest {
 
         assertTrue(render.isNotEmpty())
         val single = render.first()
-        assertEquals("highlights/ch1.xhtml", single.locator.href.toString())
-        assertEquals("the spice must flow", single.locator.text.highlight)
+        val singleLocator = parseLocator(single.locatorJson)
+        assertEquals("highlights/ch1.xhtml", singleLocator?.href?.toString())
+        assertEquals("the spice must flow", singleLocator?.text?.highlight)
         assertEquals("h2", single.id)
     }
 

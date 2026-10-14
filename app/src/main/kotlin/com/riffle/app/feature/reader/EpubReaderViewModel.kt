@@ -17,6 +17,9 @@ import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.feature.reader.resolveCadenceStartRef
 import android.app.Application
 import androidx.compose.ui.unit.IntRect
+import com.riffle.feature.reader.AnchorRect
+import com.riffle.feature.reader.HighlightEditTarget
+import com.riffle.feature.reader.HighlightRender
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -45,7 +48,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.app.feature.reader.session.AnnotationSession
+import com.riffle.feature.reader.AnnotationSession
 import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
 import com.riffle.core.domain.LibraryObserver
@@ -338,7 +341,7 @@ class EpubReaderViewModel constructor(
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
     private val cadenceController: com.riffle.feature.reader.cadence.CadenceController,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
-    private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
+    private val annotationSessionFactory: com.riffle.feature.reader.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
     private val readerSessionLifecycleFactory: com.riffle.app.feature.reader.session.ReaderSessionLifecycle.Factory,
     internal val logger: Logger,
@@ -986,35 +989,6 @@ class EpubReaderViewModel constructor(
     // "Highlight" affordance must not appear there (ADR 0028).
     val annotationsAvailable: StateFlow<Boolean> = annotationSession.annotationsAvailable
 
-    /**
-     * A persisted highlight reconstructed into a renderable Readium locator + colour token +
-     * optional note.
-     *
-     * [useAccentBarStyle] is Highlights-mode only (ADR 0048): when true,
-     * [com.riffle.app.feature.reader.ReadiumHighlightRenderer.applyAnnotations] paints via
-     * the accent-bar rendering path (synthesised HTML border-left + injected tap span) instead of the usual tinted style,
-     * which renders no fill and confines Readium's tap hit-testing to a narrow gutter strip on
-     * the left of the paragraph — taps in the middle of highlighted text fall through to the
-     * immersive-mode toggle. FullBook mode leaves it false → normal tinted painting on the whole
-     * selection.
-     */
-    data class HighlightRender(
-        val id: String,
-        val locator: Locator,
-        val color: String,
-        val note: String?,
-        val useAccentBarStyle: Boolean = false,
-        /** ADR 0056: union of styles from every [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS]
-         *  row that overlaps this highlight's CFI range. Empty when no emphasis is layered. Drives
-         *  a companion Readium underline decoration (v1) and — as the pipeline grows — inline CSS
-         *  injection for the other three styles. */
-        val emphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = emptySet(),
-        /** ADR 0056 §4: true iff the actions sheet is currently open on this highlight. The
-         *  renderer paints a temporary neutral wash on `∅`-color rows only while this is true,
-         *  so the user can see the range they're editing without a permanent visual footprint. */
-        val isBeingEdited: Boolean = false,
-    )
-
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
 
     /** ADR 0056: live emphasis rows for the current book. Screen reads this to derive which
@@ -1042,36 +1016,25 @@ class EpubReaderViewModel constructor(
      *  the draft's [AnnotationSession.DraftAnnotation.textSnippet] + [AnnotationSession.DraftAnnotation.textBefore]
      *  before commit. Without this, the sheet's chip pre-selection wouldn't visually match the
      *  text ("chip is checked, but the text isn't bold"). */
-    val draftAnnotation: StateFlow<com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation?> =
+    val draftAnnotation: StateFlow<AnnotationSession.DraftAnnotation?> =
         annotationSession.draftAnnotation
-
-    /**
-     * [justCreatedFromDraft]: true when the sheet just swapped from a draft commit to the
-     * persisted row, false when opened by a tap on an existing annotation. Controls whether
-     * [AnnotationSession.dismissHighlightActions]' "tombstone empty on dismiss" check runs —
-     * we only auto-GC an annotation the user just created and then left completely empty (no
-     * colour, no note, no emphasis). Tombstoning an EXISTING annotation the user edited down
-     * to empty would surprise-delete it ("annotation is not permanently saved" — the user
-     * un-bolded intending to keep the anchor for a later colour or note).
-     */
-    data class HighlightEditTarget(
-        val id: String,
-        val anchorRect: IntRect,
-        val noteOnly: Boolean = false,
-        val justCreatedFromDraft: Boolean = false,
-    )
 
     /** Highlight whose actions popup should be open (just-created or tapped), else null. */
     val highlightToEdit: StateFlow<HighlightEditTarget?> = annotationSession.highlightToEdit
 
+    private fun IntRect.toAnchorRect() = AnchorRect(left, top, right, bottom)
+
     fun openHighlightActions(id: String, anchorRect: IntRect) =
-        annotationSession.openHighlightActions(annotationIdOf(id), anchorRect)
+        annotationSession.openHighlightActions(annotationIdOf(id), anchorRect.toAnchorRect())
 
     /** ADR 0056 §4: commitDraft-only variant that marks the target as "just created from a
      *  draft", so the tombstone-on-empty check in [AnnotationSession.dismissHighlightActions]
      *  knows this row is a candidate for GC if the user leaves it empty. Existing annotations
      *  opened by a tap use the plain overload above and never get auto-tombstoned. */
     private fun openHighlightActionsJustCreated(id: String, anchorRect: IntRect) =
+        openHighlightActionsJustCreated(id, anchorRect.toAnchorRect())
+
+    private fun openHighlightActionsJustCreated(id: String, anchorRect: AnchorRect) =
         annotationSession.openHighlightActions(
             annotationIdOf(id),
             anchorRect,
@@ -1080,7 +1043,7 @@ class EpubReaderViewModel constructor(
 
     /** Opens the popup in note-only read mode (no colour pickers, no delete). Used by the margin glyph. */
     fun openNoteReader(id: String, anchorRect: IntRect) =
-        annotationSession.openNoteReader(annotationIdOf(id), anchorRect)
+        annotationSession.openNoteReader(annotationIdOf(id), anchorRect.toAnchorRect())
 
     /**
      * Strip the segment suffix (`#segN`) from a decoration id so tap dispatch resolves to the
@@ -1122,7 +1085,7 @@ class EpubReaderViewModel constructor(
     val noteEditorTarget: StateFlow<HighlightEditTarget?> = annotationSession.noteEditorTarget
 
     fun openNoteEditor(id: String, anchorRect: IntRect) =
-        annotationSession.openNoteEditor(id, anchorRect)
+        annotationSession.openNoteEditor(id, anchorRect.toAnchorRect())
 
     fun commitNoteEdit(id: String, note: String?) {
         viewModelScope.launch { annotationSession.commitNoteEdit(id, note) }
@@ -1580,7 +1543,7 @@ class EpubReaderViewModel constructor(
                 namespace = "",
                 itemId = itemId,
                 highlightRenderResolver = { a -> annotationToRender(a) },
-                cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
+                cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi)?.toJSON()?.toString() },
             )
             // Resolve the source's cross-device annotation-sync namespace (#529) OFF the reader
             // open critical path. Null when the source is LocalOnly (Storyteller peer, anonymous
@@ -1706,7 +1669,7 @@ class EpubReaderViewModel constructor(
             formatting.effectiveFormattingPreferences.value.orientation == ReaderOrientation.Horizontal
         ) {
             annotationSession.emitAnnotationNavigation(
-                locator = o.openAtLocator,
+                locatorJson = o.openAtLocator.toJSON().toString(),
                 annotationId = o.initialFocusAnnotationId,
             )
         }
@@ -2275,8 +2238,8 @@ class EpubReaderViewModel constructor(
                 embeddedFigures = embeddedFigures,
                 originFontFamily = originFont,
                 textSnippetHtml = snippetHtml,
-                anchorRect = anchorRect,
-                locator = selectionLocator,
+                anchorRect = anchorRect.toAnchorRect(),
+                locatorJson = selectionLocator.toJSON().toString(),
             )
             annotationSession.beginAnnotationDraft(draft)
         }
@@ -3537,7 +3500,7 @@ class EpubReaderViewModel constructor(
                     null
                 } ?: return@mapIndexedNotNull null
                 val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
-                HighlightRender(decorationId, locator, a.color, a.note, emphasisStyles = emphasisStyles)
+                HighlightRender(decorationId, locator.toJSON().toString(), a.color, a.note, emphasisStyles = emphasisStyles)
             }
         annotationRenderCache[a.id] = cacheKey to renders
         return renders
@@ -4136,7 +4099,7 @@ internal fun highlightsAnnotationToRender(
     chapters: List<ChapterElision>,
     a: Annotation,
     urlFactory: (String) -> Url? = { Url(it) },
-): List<EpubReaderViewModel.HighlightRender> {
+): List<HighlightRender> {
     val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
     val chapterIndex = nonEmptyChapters.indexOfFirst { chapter -> chapter.highlights.any { it.id == a.id } }
     if (chapterIndex < 0) return emptyList()
@@ -4153,7 +4116,7 @@ internal fun highlightsAnnotationToRender(
     // owned by the injected accent-bar span in the synthesised HTML (see HighlightsPublicationFactory
     // + AnnotationTapUrl). FullBook's annotationToRender leaves this false so tinted highlights and
     // whole-selection tap targets stay unchanged.
-    return listOf(EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, useAccentBarStyle = true))
+    return listOf(HighlightRender(a.id, locator.toJSON().toString(), a.color, a.note, useAccentBarStyle = true))
 }
 
 /**

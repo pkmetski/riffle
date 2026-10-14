@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import androidx.annotation.ColorInt
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
+import com.riffle.feature.reader.HighlightRender
 import org.readium.r2.shared.publication.Locator
 
 /** ARGB color used for the active (current) search result highlight — warm orange. */
@@ -45,7 +46,7 @@ internal interface HighlightRenderer {
      * Empty [renders] clears the group. Same colour+alpha invariant as [applySentenceHighlight].
      */
     suspend fun applyAnnotations(
-        renders: List<EpubReaderViewModel.HighlightRender>,
+        renders: List<HighlightRender>,
     )
 
     /**
@@ -55,7 +56,7 @@ internal interface HighlightRenderer {
      * via [ContinuousStyleInjector.applyAnnotationHighlightsJs], so no separate pass is needed.
      */
     suspend fun applyNoteGlyphs(
-        renders: List<EpubReaderViewModel.HighlightRender>,
+        renders: List<HighlightRender>,
     )
 
     /**
@@ -91,7 +92,7 @@ internal interface HighlightRenderer {
  */
 internal suspend fun renderPersistedAnnotations(
     renderer: HighlightRenderer,
-    renders: List<EpubReaderViewModel.HighlightRender>,
+    renders: List<HighlightRender>,
 ) {
     renderer.applyAnnotations(renders)
     renderer.applyNoteGlyphs(renders)

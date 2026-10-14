@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.session
 
-import androidx.compose.ui.unit.IntRect
+import com.riffle.feature.reader.AnchorRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
@@ -14,7 +14,6 @@ import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
-import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.core.domain.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
@@ -218,7 +217,7 @@ class DismissEmptyHighlightHarnessTest {
         session.annotations.first { list -> list.any { it.id == "hExisting" } }
 
         // User taps existing annotation to open the sheet — plain overload, flag defaults to false.
-        session.openHighlightActions("hExisting", IntRect(0, 0, 0, 0))
+        session.openHighlightActions("hExisting", AnchorRect.Zero)
         session.dismissHighlightActions()
         // Yield so any launch-and-return coroutine kicked off by dismiss can run.
         yield(); yield()
@@ -238,7 +237,7 @@ class DismissEmptyHighlightHarnessTest {
         session.annotations.first { list -> list.any { it.id == "hDraftEmpty" } }
 
         // Simulate commitDraft's post-create sheet swap — the flag distinguishes this path.
-        session.openHighlightActions("hDraftEmpty", IntRect(0, 0, 0, 0), justCreatedFromDraft = true)
+        session.openHighlightActions("hDraftEmpty", AnchorRect.Zero, justCreatedFromDraft = true)
         session.dismissHighlightActions()
         // Suspend until the tombstone lands (the delete is inside a launch that awaits the row).
         awaitDao { list -> list.none { it.id == "hDraftEmpty" } }
@@ -257,7 +256,7 @@ class DismissEmptyHighlightHarnessTest {
         db.annotationDao().upsert(makeEmphasis(id = "eBold", cfi = cfi, styles = "bold"))
         session.emphasisPool.first { pool -> pool.any { it.cfi == cfi } }
 
-        session.openHighlightActions("hFmt", IntRect(0, 0, 0, 0), justCreatedFromDraft = true)
+        session.openHighlightActions("hFmt", AnchorRect.Zero, justCreatedFromDraft = true)
         session.dismissHighlightActions()
         yield(); yield()
 
