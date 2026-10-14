@@ -271,8 +271,6 @@ val iosDataModule = module {
     single<BookFormattingPreferencesStore> { BookFormattingPreferencesStoreImpl(get<BookFormattingPreferencesDao>()) }
     single<BookComicFormattingPreferencesStore> { BookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
     single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
-    // LibraryRepositoryImpl satisfies all three library role interfaces, matching Android's wiring
-    // in CoreDataKoinModules. One instance is shared across all three bindings.
     single {
         LibraryRepositoryImpl(
             catalogRegistry = get<CatalogRegistry>(),
