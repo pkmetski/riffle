@@ -12,7 +12,7 @@ import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.ReconcileLocks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 /**
  * Facade for annotation sync lifecycle. Composes three collaborators behind the

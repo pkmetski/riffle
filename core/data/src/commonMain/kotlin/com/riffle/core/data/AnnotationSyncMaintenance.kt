@@ -4,7 +4,7 @@ import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.models.AnnotationDeviceMeta
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 /**
  * Manual housekeeping for the per-device-file annotation-sync model (issue #78).

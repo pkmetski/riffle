@@ -64,7 +64,7 @@ import com.riffle.feature.settings.ui.generated.resources.ui_show
 import com.riffle.feature.settings.ui.generated.resources.ui_the_app_has_not_crashed_since_installation
 import com.riffle.feature.settings.ui.generated.resources.ui_used_to_submit_panel_detection_bug_reports_to_the_github_repository
 import com.riffle.feature.settings.ui.generated.resources.ui_view_share_the_in_app_log_buffer
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
