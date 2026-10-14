@@ -647,7 +647,9 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator) {
         navigator.pageLoadEvents.first()
         navigator.scrollStartEvents.collect {
-            if (!inhibitAutoHide) chromeVisible = false
+            if (!inhibitAutoHide && orientationRef.value != ReaderOrientation.Horizontal) {
+                chromeVisible = false
+            }
         }
     }
 
