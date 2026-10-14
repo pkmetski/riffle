@@ -308,6 +308,9 @@ jobs:
           target: google_apis
           arch: x86
           profile: Nexus 10
+          # Nexus 10 has a 2560×1600 display — the default 2 GB RAM is not enough on loaded
+          # CI runners and causes silent emulator boot failures. 4 GB keeps it stable.
+          ram-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           script: |
