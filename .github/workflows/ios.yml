@@ -464,7 +464,7 @@ jobs:
           }
           smoke_launch() {
             local app="$HOME/derived-data/Build/Products/Debug-iphonesimulator/Riffle.app"
-            check_swift_overlays "$app/Riffle.debug.dylib" || return 1
+            check_swift_overlays "$app/Riffle" || return 1
             xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl bootstatus "$SIMULATOR_UDID" -b
             xcrun simctl install "$SIMULATOR_UDID" "$app"
