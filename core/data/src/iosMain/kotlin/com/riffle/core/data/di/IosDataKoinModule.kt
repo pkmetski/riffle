@@ -27,7 +27,6 @@ import com.riffle.core.data.IosHighlightColorPreferencesStoreImpl
 import com.riffle.core.data.IosHighlightsResumeStore
 import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
-import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosPackDownloaderImpl
 import com.riffle.core.data.IosPackStoreImpl
@@ -37,6 +36,7 @@ import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.LibraryItemUiProgressSink
+import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
@@ -69,9 +69,9 @@ import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CoverGridScaleDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
-import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.database.SeriesDao
 import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.dictionary.PackStore
 import com.riffle.core.domain.AppThemeStore
@@ -91,8 +91,8 @@ import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LibraryOrderPreferencesStore
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ReadaloudPreferencesStore
