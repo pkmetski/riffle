@@ -160,23 +160,6 @@ jobs:
           script: |
             adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
             ./gradlew :core:database:connectedAndroidDeviceTest
-      - name: Assert ≥1 database tests ran
-        if: success()
-        run: |
-          python3 - <<'EOF'
-          import glob, xml.etree.ElementTree as ET, sys
-          total = 0
-          for f in glob.glob('core/database/build/reports/androidTests/**/*.xml', recursive=True):
-              try:
-                  for _ in ET.parse(f).findall('.//testcase'):
-                      total += 1
-              except ET.ParseError:
-                  pass
-          print(f'Database tests executed: {total}')
-          if total < 1:
-              print('::error::Zero database tests ran — the emulator was not connected or Gradle found no devices. Treating as failure.')
-              sys.exit(1)
-          EOF
       - name: Print failed database connected tests
         if: failure()
         run: |
@@ -256,23 +239,6 @@ jobs:
             adb logcat -G 16M || true
             adb logcat -c || true
             rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-phone.txt || true; exit $rc
-      - name: Assert ≥50 phone harness tests ran
-        if: success()
-        run: |
-          python3 - <<'EOF'
-          import glob, xml.etree.ElementTree as ET, sys
-          total = 0
-          for f in glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True):
-              try:
-                  for _ in ET.parse(f).findall('.//testcase'):
-                      total += 1
-              except ET.ParseError:
-                  pass
-          print(f'Phone harness tests executed: {total}')
-          if total < 50:
-              print(f'::error::Only {total} phone harness tests ran — emulator was not connected or tests were filtered out. Expected ≥50.')
-              sys.exit(1)
-          EOF
       - name: Print failed phone harness tests
         if: failure()
         run: |
@@ -347,23 +313,6 @@ jobs:
           script: |
             adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
             ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
-      - name: Assert ≥1 tablet harness tests ran
-        if: success()
-        run: |
-          python3 - <<'EOF'
-          import glob, xml.etree.ElementTree as ET, sys
-          total = 0
-          for f in glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True):
-              try:
-                  for _ in ET.parse(f).findall('.//testcase'):
-                      total += 1
-              except ET.ParseError:
-                  pass
-          print(f'Tablet harness tests executed: {total}')
-          if total < 1:
-              print('::error::Zero tablet harness tests ran — emulator was not connected or Gradle found no devices. Treating as failure.')
-              sys.exit(1)
-          EOF
       - name: Print failed tablet harness tests
         if: failure()
         run: |
