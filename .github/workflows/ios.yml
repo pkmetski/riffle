@@ -477,6 +477,11 @@ jobs:
             xcrun simctl terminate "$SIMULATOR_UDID" com.riffle.iosApp 2>/dev/null || true
             kill "$launch_pid" 2>/dev/null || true
             wait "$launch_pid" 2>/dev/null || true
+            # Give the CoreSimulator bridge process time to fully disconnect before the caller
+            # erases and re-boots the simulator. Without this delay the bridge can outlive the
+            # `xcrun simctl shutdown` call and send a deferred 0xFBFBFBFB force-quit to the
+            # next app instance ~30 s after the first smoke-launch's console pty was torn down.
+            sleep 5
             echo "--- smoke-launch: app alive after 30 s = $alive"
             echo "--- smoke-launch console:"
             cat smoke-launch.log
