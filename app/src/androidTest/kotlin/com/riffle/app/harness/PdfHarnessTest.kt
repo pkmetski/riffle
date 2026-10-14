@@ -96,7 +96,9 @@ class PdfHarnessTest : KoinTest {
             composeTestRule.waitForIdle()
         }
 
-        composeTestRule.waitUntilOnPdfPage(3)
+        // PdfiumNavigatorFragment renders outside Compose's idle loop — waitForIdle() returns as
+        // soon as Compose settles but the native PDF raster can take longer on a loaded CI runner.
+        composeTestRule.waitUntilOnPdfPage(3, timeoutMillis = 45_000)
         composeTestRule.assertNoErrorState()
 
         // Reveal overlay before asserting the Back button (overlay is hidden in immersive mode).
