@@ -84,8 +84,10 @@ final class LibraryItemDetailTests: AbsHarnessTestCase {
 
         // The translated string is "%1$d раздела" so "9 раздела" must be visible.
         // If Info.plist is missing CFBundleLocalizations this would show "9 sections" instead.
+        // The TOC entry count is loaded asynchronously by parsing the EPUB — the read button
+        // appears from cached item metadata before the EPUB is parsed, so give the TOC time to settle.
         let tocLabel = bgApp.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "раздела")).firstMatch
-        XCTAssertTrue(tocLabel.exists, "TOC row must show Bulgarian text ('раздела') on a Bulgarian locale, not English 'sections'")
+        XCTAssertTrue(tocLabel.waitForExistence(timeout: 15), "TOC row must show Bulgarian text ('раздела') on a Bulgarian locale, not English 'sections'")
 
         bgApp.terminate()
     }
