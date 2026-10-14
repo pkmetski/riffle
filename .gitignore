@@ -44,3 +44,12 @@ xcuserdata/
 
 # Local git worktrees (per-developer, never committed).
 .worktrees/
+
+# Local test report outputs (uploaded to CI as artifacts, not committed).
+android-harness-test-phone-reports/
+android-harness-test-tablet-reports/
+connected-test-reports/
+harness-test-phone-logcat/
+integration-test-reports/
+unit-test-reports/
+lint-reports/
