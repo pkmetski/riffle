@@ -42,6 +42,15 @@ internal object LibraryUiGlyphs {
         listOf("M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z")
     }
 
+    /** `Icons.AutoMirrored.Outlined.FormatListBulleted` */
+    val FormatListBulleted: ImageVector = glyph("FormatListBulleted", autoMirror = true) {
+        listOf(
+            "M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 " +
+                "0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 " +
+                "1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z",
+        )
+    }
+
     /** `Icons.Filled.PlayArrow` */
     val PlayArrow: ImageVector = glyph("PlayArrow") {
         listOf("M8 5v14l11-7z")

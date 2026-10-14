@@ -61,18 +61,15 @@ final class IosAppTests: AbsHarnessTestCase {
     func testSeriesTileNavigatesToDetailAndBackReturns() throws {
         waitForLibraryToLoad()
 
-        // Series section sits below taller book-grid sections; scroll until the tile enters the
-        // LazyColumn's compose window before calling waitForExistence (which does not scroll).
+        // The home tab no longer shows a horizontal Series shelf — Series rows were removed from
+        // HomeTabContent to match Android (where the home tab only shows In Progress, Continue
+        // Series, Recently Added, Finished). Navigate via the Series bottom-nav tab instead.
+        let seriesTab = app.buttons["Series"].firstMatch
+        XCTAssertTrue(seriesTab.waitForExistence(timeout: 15), "Series tab must be present")
+        seriesTab.tap()
+
         let seriesTile = app.buttons[StubAbsServer.testSeriesName].firstMatch
-        for _ in 0..<8 {
-            if seriesTile.exists { break }
-            app.swipeUp()
-        }
-        XCTAssertTrue(seriesTile.waitForExistence(timeout: 15), "Series tile must appear in library")
-        for _ in 0..<5 {
-            if seriesTile.isHittable { break }
-            app.swipeUp()
-        }
+        XCTAssertTrue(seriesTile.waitForExistence(timeout: 15), "Series tile must appear in the Series tab")
         XCTAssertTrue(seriesTile.isHittable, "Series tile must be hittable before tap")
         seriesTile.tap()
 
@@ -136,16 +133,13 @@ final class IosAppTests: AbsHarnessTestCase {
     func testItemTapInSeriesDetailNavigatesToItemDetail() throws {
         waitForLibraryToLoad()
 
+        // Navigate via the Series tab — the home tab no longer shows a horizontal Series shelf.
+        let seriesTab2 = app.buttons["Series"].firstMatch
+        XCTAssertTrue(seriesTab2.waitForExistence(timeout: 15), "Series tab must be present")
+        seriesTab2.tap()
+
         let seriesTile2 = app.buttons[StubAbsServer.testSeriesName].firstMatch
-        for _ in 0..<8 {
-            if seriesTile2.exists { break }
-            app.swipeUp()
-        }
-        XCTAssertTrue(seriesTile2.waitForExistence(timeout: 15), "Series tile must appear in library")
-        for _ in 0..<5 {
-            if seriesTile2.isHittable { break }
-            app.swipeUp()
-        }
+        XCTAssertTrue(seriesTile2.waitForExistence(timeout: 15), "Series tile must appear in the Series tab")
         XCTAssertTrue(seriesTile2.isHittable, "Series tile must be hittable before tap")
         seriesTile2.tap()
 

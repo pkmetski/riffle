@@ -66,6 +66,7 @@ class ReadiumSwiftNavigator(
 
     private val _positionFlow = MutableSharedFlow<NavigatorPosition>(replay = 1, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<NavigatorPageLoad>(extraBufferCapacity = 16)
+    private val _scrollStartEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
     private val _eventFlow = MutableSharedFlow<NavigatorEvent>(extraBufferCapacity = 16)
     private val _selectionFlow = MutableStateFlow<NavigatorSelection?>(null)
     private val _decorationActivations =
@@ -81,6 +82,30 @@ class ReadiumSwiftNavigator(
     // applyReaderPreferences call; edge-tap navigation is suppressed while null so an early tap
     // before Compose's LaunchedEffect fires does not accidentally navigate in vertical/scroll mode.
     private var isPaginatedMode: Boolean? = null
+
+    // Number of pending BodyTap events to discard. Incremented synchronously by the Compose
+    // onClick of an overlay (e.g. CornerBookmarkIndicator) that leaks through to the Readium
+    // UIKit view; checked by consumeSuppressedBodyTap() in the BodyTap collector, which runs
+    // after both UIKit (which emits the event) and Compose (which sets the counter) have
+    // finished their synchronous phase for the same touch. Checking here — in the collector
+    // rather than at the emission point — is what makes suppression reliable: Readium's
+    // didTapAt fires before Compose's onClick, so the counter is always 0 at emission time
+    // and would never suppress at the emitter.
+    private var suppressBodyTapCount = 0
+
+    /** Suppress the next BodyTap event. Call synchronously inside the Compose onClick. */
+    fun suppressNextBodyTap() { suppressBodyTapCount++ }
+
+    /**
+     * Returns true (and decrements the counter) if the next BodyTap should be discarded.
+     * Must be called from the BodyTap collector on the main thread before acting on the event.
+     */
+    fun consumeSuppressedBodyTap(): Boolean = if (suppressBodyTapCount > 0) {
+        suppressBodyTapCount--
+        true
+    } else {
+        false
+    }
 
     /**
      * The live text selection, or null when there is none.
@@ -106,6 +131,12 @@ class ReadiumSwiftNavigator(
 
     /** `riffle://` URLs intercepted from the Highlights-mode synthetic EPUB's tap targets. */
     val riffleUrls: Flow<String> = _riffleUrls
+
+    /**
+     * Emits [Unit] at the moment the user begins a drag/scroll gesture — fires at gesture-start,
+     * not at scroll-end, so collectors can enter immersive mode immediately.
+     */
+    val scrollStartEvents: Flow<Unit> = _scrollStartEvents
 
     private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
@@ -159,6 +190,9 @@ class ReadiumSwiftNavigator(
         bridge.setRiffleUrlCallback { url ->
             _riffleUrls.tryEmit(url)
         }
+        bridge.setScrollStartCallback {
+            _scrollStartEvents.tryEmit(Unit)
+        }
     }
 
     init {
@@ -194,6 +228,7 @@ class ReadiumSwiftNavigator(
         bridge.setFootnoteCallback(null)
         bridge.setInternalLinkCallback(null)
         bridge.setRiffleUrlCallback(null)
+        bridge.setScrollStartCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
     }
@@ -442,6 +477,21 @@ class ReadiumSwiftNavigator(
     /** Injects table-fit CSS so publisher fixed-pixel-width tables reflow to fit the page. Mirrors Android's TableFit RendererCapability. */
     internal suspend fun injectTableFitScript() {
         evaluateJs(com.riffle.feature.reader.TableFit.INSTALL_SCRIPT)
+    }
+
+    /**
+     * Inject the typography override CSS into the current page.
+     *
+     * Mirrors Android's [DefaultRendererBridge] and [ContinuousStyleInjector] typography-override
+     * injection. Readium's own `after.css` forces `text-align: inherit !important` on `p`/`li`
+     * with specificity (0,2,4), so a publisher rule setting `text-align: left` on any ancestor
+     * div wins the cascade even when the user has chosen justify. The injected CSS uses triple
+     * `[style*="--USER__textAlign"]` repetition on `:root` to reach (0,3,2) and beat Readium.
+     * The same high-specificity gate is used for line-height and font-family, ensuring all three
+     * user-controlled typography properties take effect on books with hostile publisher stylesheets.
+     */
+    internal suspend fun injectTypographyOverrideScript() {
+        evaluateJs(com.riffle.feature.reader.TYPOGRAPHY_OVERRIDE_INSTALL_SCRIPT)
     }
 
     private suspend fun evaluateJs(script: String): String? = suspendCancellableCoroutine { cont ->

@@ -8,6 +8,7 @@ import com.riffle.core.catalog.abs.AbsCommonCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
+import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
@@ -273,6 +274,7 @@ import com.riffle.shared.reader.IosEpubTocExtractor
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
+import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -672,6 +674,8 @@ private fun iosLibraryModule(
                 bundleReader = get(),
                 readaloudPreferencesStore = get(),
                 resumeStore = get(),
+                sourceRepository = get(),
+                linkRepository = get(),
                 audiobookHandoffState = get(),
                 dispatchers = get(),
                 parentScope = get<ApplicationScope>().coroutineScope,
@@ -1056,6 +1060,14 @@ private fun iosLibraryModule(
                 httpClient = get(),
                 userAgent = "Riffle/dev (iOS) radio-es-source",
             ),
+            // Developer-mode-only; requires a WebView login (IosOReillyLoginScreen) to
+            // harvest the orm-jwt cookie. IosOReillySessionStore caches the cookie so
+            // cookieProvider can be synchronous while the WKHTTPCookieStore is async.
+            SourceType.OREILLY to OReillyCatalogFactory(
+                httpClient = get(),
+                cookieProvider = { iosOReillySessionStore.cookieHeader },
+                userAgentProvider = { "Riffle/dev (iOS) oreilly-source" },
+            ),
         )
     }
     single<CatalogRegistry> {
@@ -1387,15 +1399,17 @@ fun startKoin(
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge,
-) = startKoinWithDatabase(
-    navigatorBridgeFactory = navigatorBridgeFactory,
-    audioPlayerBridgeFactory = audioPlayerBridgeFactory,
-    pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
-    publicationInspector = publicationInspector,
-    readaloudBridgeFactory = readaloudBridgeFactory,
-    elidedPdfBridge = elidedPdfBridge,
-    databaseFile = RIFFLE_DATABASE_FILE,
-)
+) {
+    startKoinWithDatabase(
+        navigatorBridgeFactory = navigatorBridgeFactory,
+        audioPlayerBridgeFactory = audioPlayerBridgeFactory,
+        pdfNavigatorBridgeFactory = pdfNavigatorBridgeFactory,
+        publicationInspector = publicationInspector,
+        readaloudBridgeFactory = readaloudBridgeFactory,
+        elidedPdfBridge = elidedPdfBridge,
+        databaseFile = RIFFLE_DATABASE_FILE,
+    )
+}
 
 /**
  * Same graph, with the database file named explicitly. `IosKoinGraphTest` starts the real graph

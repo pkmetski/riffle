@@ -5,11 +5,17 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudBundleReader
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.ReadaloudLink
+import com.riffle.core.models.Source
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.shared.audiobook.BundleAudioExtractor
 import com.riffle.shared.library.IosReadaloudHandoff
@@ -94,6 +100,25 @@ class IosReadaloudSessionTest {
         override suspend fun clear(sourceId: String, itemId: String) = Unit
     }
 
+    private class FakeSourceRepository : SourceRepository {
+        override fun observeAll() = flowOf(emptyList<Source>())
+        override suspend fun getActive(): Source? = null
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(UnsupportedOperationException())
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
+
+    private class FakeLinkRepository : ReadaloudLinkRepository {
+        override fun observeAll() = flowOf(emptyList<ReadaloudLink>())
+        override fun observeLinkedAbsItemIds() = flowOf(emptySet<String>())
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+        override suspend fun countForSource(sourceId: String): Int = 0
+    }
+
     private fun makeSession(
         bundleReader: ReadaloudBundleReader = FakeBundleReader(),
         audioRepository: ReadaloudAudioRepository = FakeAudioRepository(),
@@ -116,6 +141,8 @@ class IosReadaloudSessionTest {
             bundleReader = bundleReader,
             readaloudPreferencesStore = FakePreferencesStore(),
             resumeStore = FakeResumeStore(),
+            sourceRepository = FakeSourceRepository(),
+            linkRepository = FakeLinkRepository(),
             audiobookHandoffState = audiobookHandoffState,
             dispatchers = dispatchers,
             parentScope = parentScope,

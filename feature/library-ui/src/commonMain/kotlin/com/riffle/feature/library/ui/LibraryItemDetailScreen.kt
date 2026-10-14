@@ -6,16 +6,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -797,22 +797,34 @@ private fun DetailContentTablet(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modifier) {
-    Box(
+internal fun CoverBox(item: LibraryItem, token: String, modifier: Modifier = Modifier) {
+    // BoxWithConstraints gives us the real available width before we commit to a size, letting us
+    // derive an exact portrait height (width × 3/2 for books, square for audiobooks) without
+    // relying on aspectRatio modifier — which fights iOS CMP's scroll-propagated large minWidth
+    // and produces broken layout. requiredHeight bypasses the scroll's infinite-height constraint.
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 280.dp)
-            .aspectRatio(if (item.isAudiobookOnly) 1f else 2f / 3f)
-            .clip(RoundedCornerShape(4.dp)),
+            .testTag(TestTags.BOOK_DETAIL_COVER),
     ) {
-        CoverImage(
-            url = item.coverUrl,
-            token = token,
-            contentDescription = null,
-            isAudiobook = item.isAudiobookOnly,
-            instrumentationKind = "detail",
-            instrumentationKey = item.id,
-        )
+        val w = maxWidth
+        val h = if (item.isAudiobookOnly) w else (w.value * 3f / 2f).dp
+        Box(
+            modifier = Modifier
+                .width(w)
+                .requiredHeight(h)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            CoverImage(
+                url = item.coverUrl,
+                token = token,
+                contentDescription = null,
+                isAudiobook = item.isAudiobookOnly,
+                instrumentationKind = "detail",
+                instrumentationKey = item.id,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
@@ -1134,6 +1146,8 @@ private fun TocRow(tocState: TocState, onOpen: () -> Unit) {
     val sectionCount = countFlatEntries(ready.entries)
     ListItem(
         headlineContent = { Text(stringResource(Res.string.ui_sections_count, sectionCount)) },
+        leadingContent = { Icon(LibraryUiGlyphs.FormatListBulleted, contentDescription = null) },
+        trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
     )
 }
@@ -1144,6 +1158,8 @@ private fun ChaptersRow(chaptersState: ChaptersState, onOpen: () -> Unit) {
     if (ready.chapters.isEmpty()) return
     ListItem(
         headlineContent = { Text(stringResource(Res.string.ui_chapters_count, ready.chapters.size)) },
+        leadingContent = { Icon(RiffleIcons.Headphones, contentDescription = null) },
+        trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
     )
 }

@@ -157,7 +157,9 @@ jobs:
           api-level: 30
           target: google_apis
           arch: x86_64
-          script: ./gradlew :core:database:connectedAndroidDeviceTest
+          script: |
+            adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
+            ./gradlew :core:database:connectedAndroidDeviceTest
       - name: Print failed database connected tests
         if: failure()
         run: |
@@ -233,6 +235,7 @@ jobs:
           # get silently swallowed (that exact bug shipped in #650 and green-washed
           # every harness failure from 2026-08-03 onward).
           script: |
+            adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
             adb logcat -G 16M || true
             adb logcat -c || true
             rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-phone.txt || true; exit $rc
@@ -305,9 +308,14 @@ jobs:
           target: google_apis
           arch: x86
           profile: Nexus 10
+          # Nexus 10 has a 2560×1600 display — the default 2 GB RAM is not enough on loaded
+          # CI runners and causes silent emulator boot failures. 4 GB keeps it stable.
+          ram-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
+          script: |
+            adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
       - name: Print failed tablet harness tests
         if: failure()
         run: |

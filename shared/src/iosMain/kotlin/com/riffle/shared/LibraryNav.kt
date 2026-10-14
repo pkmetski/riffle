@@ -10,6 +10,7 @@ import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
+import com.riffle.shared.reader.jsonEscaped
 
 /**
  * Destinations inside one library-browsing host.
@@ -83,9 +84,7 @@ internal sealed interface LibraryNav {
     data class Reader(
         override val item: LibraryItem,
         val initialLocatorJson: String? = null,
-        val startHref: String? = null,
-        /** When ≥ 0, the readaloud mini-player opens automatically at this global second. */
-        val startReadaloudAtSec: Double = -1.0,
+        val startTocHref: String? = null,
     ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination
@@ -104,7 +103,7 @@ internal sealed interface LibraryNav {
         override val item: LibraryItem,
         val playlistId: String? = null,
         val playlistLibraryId: String? = null,
-        val startAtSec: Double = -1.0,
+        val startAtSec: Float = -1f,
     ) : ReaderDestination
 
     /**
@@ -116,7 +115,7 @@ internal sealed interface LibraryNav {
     data class AudiobookBookmark(
         val itemId: String,
         val sourceId: String?,
-        val startAtSec: Double,
+        val startAtSec: Float,
     ) : LibraryNav
 }
 
@@ -164,6 +163,27 @@ internal fun openReadItemForReading(
     val destination = readNavForItem(item) ?: return null
     applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
     return destination
+}
+
+/**
+ * Same as [openReadItemForReading] but opens the EPUB reader at [tocHref] instead of the last
+ * saved reading position. Only applicable for EPUB items — PDF/CBZ have no TOC href concept.
+ * Returns `null` (and records nothing) when the item is not an EPUB.
+ */
+internal fun openReadItemAtHref(
+    item: LibraryItem,
+    tocHref: String,
+    applicationScope: ApplicationScope,
+    recordItemOpened: suspend (itemId: String) -> Unit,
+): LibraryNav.ReaderDestination? {
+    val destination = readNavForItemAtHref(item, tocHref) ?: return null
+    applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+    return destination
+}
+
+internal fun readNavForItemAtHref(item: LibraryItem, tocHref: String): LibraryNav.Reader? {
+    if (!item.isReadable || item.ebookFormat == EbookFormat.Pdf || item.ebookFormat == EbookFormat.Cbz) return null
+    return LibraryNav.Reader(item, startTocHref = tocHref)
 }
 
 /**
@@ -244,17 +264,13 @@ internal fun ReaderHost(
     destination: LibraryNav.ReaderDestination,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
-    onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
-    onSwitchToAudiobook: (() -> Unit)? = null,
 ) {
     when (destination) {
         is LibraryNav.Reader -> EpubReaderScreen(
             item = destination.item,
             onBack = onBack,
-            initialLocatorJson = destination.initialLocatorJson,
-            startHref = destination.startHref,
-            startReadaloudAtSec = destination.startReadaloudAtSec,
-            onSwitchToAudiobook = if (destination.item.isListenable) onSwitchToAudiobook else null,
+            initialLocatorJson = destination.startTocHref?.let { tocHrefToLocatorJson(it) }
+                ?: destination.initialLocatorJson,
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = onBack)
@@ -262,10 +278,25 @@ internal fun ReaderHost(
             item = destination.item,
             playlistId = destination.playlistId,
             playlistLibraryId = destination.playlistLibraryId,
-            startAtSec = destination.startAtSec,
+            startAtSec = destination.startAtSec.toDouble(),
             onBack = onBack,
             onPlaylistAdvance = onPlaylistAdvance,
-            onSwitchToReadaloud = onSwitchToReadaloud,
         )
+    }
+}
+
+/**
+ * Converts a TOC entry href (e.g. "chapter3.xhtml" or "part1.xhtml#section-2") into a minimal
+ * Readium locator JSON string that [EpubReaderScreen] accepts as [initialLocatorJson], so the
+ * reader opens at the requested chapter rather than the last saved position.
+ */
+private fun tocHrefToLocatorJson(href: String): String {
+    val hashIndex = href.indexOf('#')
+    return if (hashIndex >= 0) {
+        val path = href.substring(0, hashIndex).jsonEscaped()
+        val fragment = href.substring(hashIndex).jsonEscaped()
+        """{"href":"$path","type":"application/xhtml+xml","locations":{"fragments":["$fragment"]}}"""
+    } else {
+        """{"href":"${href.jsonEscaped()}","type":"application/xhtml+xml"}"""
     }
 }

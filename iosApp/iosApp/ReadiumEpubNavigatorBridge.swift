@@ -15,10 +15,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
     private let hostViewController = UIViewController()
-    private var epubNavigator: EPUBNavigatorViewController?
+    var epubNavigator: EPUBNavigatorViewController?
     private var publication: Publication?
     // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
-    private var cachedLocatorJson: String?
+    var cachedLocatorJson: String?
     // TOC fetched asynchronously after open; getTocJson() returns from this cache.
     private var cachedTocJson: String = "[]"
     // Reading order + per-resource position counts, fetched asynchronously after open;
@@ -27,21 +27,22 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     private var cachedSpineJson: String = emptySpineJson
 
     // Callbacks registered by ReadiumSwiftNavigator
-    private var locatorCallback: ((String) -> Void)?
-    private var pageLoadCallback: (() -> Void)?
-    private var tapCallback: ((TapCoords) -> Void)?
-    private var errorCallback: ((String) -> Void)?
-    private var selectionCallback: ((String?) -> Void)?
+    var locatorCallback: ((String) -> Void)?
+    var pageLoadCallback: (() -> Void)?
+    var tapCallback: ((TapCoords) -> Void)?
+    var errorCallback: ((String) -> Void)?
+    var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
     private var figureTapCallback: ((String) -> Void)?
-    private var footnoteCallback: ((String) -> Void)?
-    private var internalLinkCallback: ((String, String) -> Void)?
-    private var riffleUrlCallback: ((String) -> Void)?
+    var footnoteCallback: ((String) -> Void)?
+    var internalLinkCallback: ((String, String) -> Void)?
+    var riffleUrlCallback: ((String) -> Void)?
+    private var scrollStartCallback: (() -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
     /// remove the handler and break the retain cycle that WKUserContentController's strong
     /// reference to a WKScriptMessageHandler would otherwise create.
-    private var figureHandlerControllers: NSHashTable<WKUserContentController> = .weakObjects()
+    var figureHandlerControllers: NSHashTable<WKUserContentController> = .weakObjects()
     /// Decoration groups the Kotlin side asked to make tappable. Re-registered on every open,
     /// because `observeDecorationInteractions` lives on the navigator instance, not on us.
     private var activableGroups: Set<String> = []
@@ -49,10 +50,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var urlOpener: (URL) -> Void = { UIApplication.shared.open($0) }
     // Track the last-loaded resource href so pageLoadCallback fires only on resource
     // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
-    private var lastLoadedHref: String?
+    var lastLoadedHref: String?
 
     // Pending preferences — stored before the navigator exists so openEpub can use them.
-    private var pendingPreferences: EPUBPreferences = EPUBPreferences()
+    var pendingPreferences: EPUBPreferences = EPUBPreferences()
 
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
@@ -134,11 +135,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     /// silently not apply to the other.
     @MainActor
     private func attach(publication pub: Publication, initialLocator: Locator?) throws {
-        let config = EPUBNavigatorViewController.Configuration(
-            preferences: pendingPreferences,
-            decorationTemplates: RiffleDecorationTemplates.all(),
-            fontFamilyDeclarations: Self.bundledFontFamilyDeclarations
-        )
+        let config = makeNavigatorConfiguration()
         let navigator = try EPUBNavigatorViewController(
             publication: pub,
             initialLocation: initialLocator,
@@ -153,6 +150,62 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         navigator.didMove(toParent: hostViewController)
         for group in activableGroups {
             registerDecorationObserver(navigator, group: group)
+        }
+        installScrollStartGesture(on: navigator.view)
+        installBookmarkCornerBlocker(on: hostViewController.view)
+        disableScrollsToTop(in: navigator.view)
+    }
+
+    // Adds a transparent UIView over the top-right corner of the host view so that taps on the
+    // Compose CornerBookmarkIndicator are NOT also delivered to the Readium WKWebView underneath.
+    // UIKit hit-testing finds this view first (it is added after the navigator's view, so it sits
+    // on top in z-order); the WKWebView never sees the touch. Compose's gesture recognizer fires
+    // independently (it is attached to the root ComposeView, a parent of this host), so the
+    // bookmark's onClick still works correctly. Size is 48×48 pt — generous over the 24×32 dp
+    // ribbon plus its 8 dp right padding.
+    @MainActor
+    private func installBookmarkCornerBlocker(on view: UIView) {
+        let blocker = UIView()
+        blocker.backgroundColor = .clear
+        blocker.isUserInteractionEnabled = true
+        blocker.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(blocker)
+        NSLayoutConstraint.activate([
+            blocker.topAnchor.constraint(equalTo: view.topAnchor),
+            blocker.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            blocker.widthAnchor.constraint(equalToConstant: 48),
+            blocker.heightAnchor.constraint(equalToConstant: 48),
+        ])
+    }
+
+    // Disables the iOS "tap status-bar area to scroll to top" behaviour for every UIScrollView
+    // (including WKWebView.scrollView) in the navigator's view tree. Android's Readium integration
+    // has no equivalent — there, tapping the top of the screen never scrolls to chapter beginning.
+    // Must be called after setup AND after each chapter navigation because Readium creates fresh
+    // WKWebViews for preloaded spreads; locationDidChange re-applies the setting when new views
+    // enter the hierarchy.
+    @MainActor
+    internal func disableScrollsToTop(in view: UIView) {
+        if let scrollView = view as? UIScrollView {
+            scrollView.scrollsToTop = false
+        }
+        for subview in view.subviews {
+            disableScrollsToTop(in: subview)
+        }
+    }
+
+    // Adds a pan recognizer that fires scrollStartCallback at gesture-start — mirrors Android's
+    // onScrollStart → ImmersiveModeState.dismissOverlay() which enters immersive on drag begin.
+    @MainActor
+    private func installScrollStartGesture(on view: UIView) {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(onPanGesture(_:)))
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
+    }
+
+    @objc private func onPanGesture(_ recognizer: UIPanGestureRecognizer) {
+        if recognizer.state == .began {
+            scrollStartCallback?()
         }
     }
 
@@ -358,6 +411,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         riffleUrlCallback = callback
     }
 
+    func setScrollStartCallback(callback: (() -> Void)?) {
+        scrollStartCallback = callback
+    }
+
     private func serializeTocLinks(_ links: [Link]) -> String {
         let items = links.map { serializeTocLink($0) }.joined(separator: ",")
         return "[\(items)]"
@@ -380,6 +437,13 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         return "[\(items)]"
     }
 
+    // MARK: - Bundled font registration
+
+}
+
+// MARK: - Decoration parsing
+
+extension ReadiumEpubNavigatorBridge {
     // Internal (not private) so the unit-test target, which compiles this file directly,
     // can assert that malformed decoration JSON parses to zero decorations.
     func parseDecorations(_ json: String) -> [Decoration] {
@@ -465,9 +529,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             return []
         }
     }
-
-    // MARK: - Bundled font registration
-
 }
 
 // MARK: - Bundled fonts + test seams
@@ -511,139 +572,8 @@ extension ReadiumEpubNavigatorBridge {
     }
 }
 
-// MARK: - EPUBNavigatorDelegate
+// MARK: - EPUBNavigatorDelegate (see ReadiumEpubNavigatorBridge+Delegate.swift)
 
-extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
-    func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
-        guard let json = try? locator.jsonString() else { return }
-        cachedLocatorJson = json
-        locatorCallback?(json)
-        emitSelectionIfCleared()
-        let href = locator.href.string
-        if href != lastLoadedHref {
-            lastLoadedHref = href
-            pageLoadCallback?()
-        }
-    }
-
-    func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
-        emitSelectionIfCleared()
-        let size = navigator.view.bounds.size
-        tapCallback?(TapCoords(x: Double(point.x), y: Double(point.y), viewWidth: Double(size.width), viewHeight: Double(size.height)))
-    }
-
-    /// Called by Readium for each spread's WKWebView before its page content loads.
-    ///
-    /// Injects a thin shim that maps Android's `window.RiffleFigureBridge.onFigureTap(payload)`
-    /// call convention to WKWebView's `window.webkit.messageHandlers.*` API, then registers
-    /// `self` as the `WKScriptMessageHandler` so the message arrives in `userContentController`.
-    ///
-    /// The message handler name must match `FigureTapScript.PAGED_BRIDGE_NAME` ("RiffleFigureBridge").
-    func navigator(
-        _ navigator: EPUBNavigatorViewController,
-        setupUserScripts userContentController: WKUserContentController
-    ) {
-        let shim = """
-            window.RiffleFigureBridge = {
-                onFigureTap: function(p) {
-                    window.webkit.messageHandlers.RiffleFigureBridge.postMessage(p);
-                }
-            };
-            """
-        // Remove before add — idempotent guard against duplicate registration if Readium calls
-        // setupUserScripts more than once for the same WKUserContentController.
-        userContentController.removeScriptMessageHandler(forName: "RiffleFigureBridge")
-        userContentController.add(self, name: "RiffleFigureBridge")
-        userContentController.addUserScript(WKUserScript(
-            source: shim,
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: false
-        ))
-        figureHandlerControllers.add(userContentController)
-    }
-
-    /// Report a *cleared* selection.
-    ///
-    /// `shouldShowMenuForSelection` only fires for a new, non-nil selection —
-    /// `EditingActionsController` sets `isEnabled = false` and notifies nobody when the WKWebView
-    /// reports the selection gone. Without this the annotate sheet would stay on screen over a
-    /// page the user has already deselected, or already turned away from. These two delegate
-    /// callbacks are exactly the moments a selection can disappear: a tap elsewhere, and a page
-    /// turn.
-    private func emitSelectionIfCleared() {
-        guard epubNavigator?.currentSelection == nil else { return }
-        selectionCallback?(nil)
-    }
-
-    /// Tapping an external link in a book did nothing until #1071 §17 — this delegate method was
-    /// an empty stub. Android hands the URL to `Intent.ACTION_VIEW`
-    /// (`EpubReaderScreen.kt:1625-1632`); the iOS equivalent is `UIApplication.open`.
-    ///
-    /// `riffle://` URLs are accent-bar tap targets injected by `ElidedChapterHtmlBuilder` in the
-    /// Highlights-mode synthetic EPUB. They must NOT reach the system URL opener (Safari would
-    /// refuse `riffle://` and do nothing). Forward them to the Kotlin side via [riffleUrlCallback]
-    /// and return early so Safari is never involved.
-    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
-        if url.scheme == "riffle", let cb = riffleUrlCallback {
-            cb(url.absoluteString)
-            return
-        }
-        urlOpener(url)
-    }
-
-    /// Navigator errors (e.g. `.copyForbidden`) were swallowed by an empty stub. Forward them to
-    /// the Kotlin side so they reach the RIFFLE_READER log channel instead of vanishing.
-    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
-        errorCallback?(String(describing: error))
-    }
-
-    /// Readium-Swift 3.x calls this when the user taps a `epub:type="noteref"` anchor. When a
-    /// [footnoteCallback] is registered we strip the note HTML to plain text, forward it, and
-    /// return `false` so the navigator does NOT jump to the note location — the shared
-    /// `FootnotePopup` composable shows it inline instead.
-    func navigator(_ navigator: Navigator, shouldNavigateToNoteAt link: Link, content: String, referrer: String?) -> Bool {
-        guard let cb = footnoteCallback else { return true }
-        let plain = content
-            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        cb(plain.isEmpty ? content : plain)
-        return false
-    }
-
-    /// Internal-link seam — captures the origin locator so the Kotlin layer can offer a
-    /// "Back" card after the user follows an internal cross-reference.
-    ///
-    /// Readium calls this delegate method before navigating to the target. The bridge captures
-    /// the current position from [cachedLocatorJson] as the origin, forwards both the target
-    /// href and the origin to [internalLinkCallback], then returns `true` so Readium still
-    /// follows the link. The Kotlin side captures it as [NavigatorEvent.InternalLink] and
-    /// shows the return-to-position card.
-    func navigator(_ navigator: Navigator, shouldFollowInternalLink link: Link, referrer: Locator?) -> Bool {
-        if let cb = internalLinkCallback, let origin = cachedLocatorJson {
-            cb(link.href, origin)
-        }
-        return true
-    }
-
-    /// The selection seam.
-    ///
-    /// Readium-Swift has no "selection changed" delegate callback. `EditingActionsController`
-    /// does, however, ask this question from its `selection` property observer every time the
-    /// WKWebView reports a new selection, which makes it the one place the host learns that the
-    /// user selected text. Forwarding it here is what gives iOS an annotate affordance at all.
-    ///
-    /// Returns `true`: Riffle's sheet is shown *alongside* the system menu rather than replacing
-    /// it, so Copy / Look Up / Share keep working. Returning `false` (the documented
-    /// custom-pop-up route) would suppress the system menu and silently remove three features to
-    /// add one.
-    func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
-        if let json = Self.selectionJson(locator: selection.locator, frame: selection.frame) {
-            selectionCallback?(json)
-        }
-        return true
-    }
-}
 
 // MARK: - WKScriptMessageHandler (figure-tap bridge)
 
@@ -673,6 +603,7 @@ extension ReadiumEpubNavigatorBridge {
     func simulateTapAt(tapX: Double, tapY: Double, viewWidth: Double, viewHeight: Double) {
         tapCallback?(TapCoords(x: tapX, y: tapY, viewWidth: viewWidth, viewHeight: viewHeight))
     }
+    @objc func simulateScrollStart() { scrollStartCallback?() }
     @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
     @objc func simulateSelection(_ json: String?) { selectionCallback?(json) }
@@ -953,10 +884,7 @@ extension ReadiumEpubNavigatorBridge {
     func readResourceBase64(href: String, onResult: @escaping (String?) -> Void) {
         Task {
             guard let pub = self.publication else { onResult(nil); return }
-            // Strip the Readium virtual-host origin (same normalization as readResource).
-            let stripped = href
-                .replacingOccurrences(of: #"^https?://[^/]+/"#, with: "", options: .regularExpression)
-                .components(separatedBy: "#").first ?? ""
+            let stripped = Self.stripOrigin(from: href)
             guard let url = AnyURL(string: stripped),
                   let resource = pub.get(url)
             else { onResult(nil); return }
@@ -967,4 +895,27 @@ extension ReadiumEpubNavigatorBridge {
             onResult(data.base64EncodedString())
         }
     }
+
+    /// Strips any `scheme://host/` origin prefix from a WebView resource URL and removes any
+    /// fragment, leaving only the publication-relative path (e.g. `EPUB/images/cover.jpg`).
+    ///
+    /// Readium Swift 3.x serves publication resources using a custom `readium://` scheme
+    /// (`readium://{uuid}/EPUB/images/cover.jpg`), so the strip must handle any URL scheme, not
+    /// just `http://` or `https://`.
+    internal static func stripOrigin(from href: String) -> String {
+        href
+            .replacingOccurrences(of: #"^[a-zA-Z][a-zA-Z0-9+\-.]*://[^/]+/"#, with: "", options: .regularExpression)
+            .components(separatedBy: "#").first ?? ""
+    }
+}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension ReadiumEpubNavigatorBridge: UIGestureRecognizerDelegate {
+    // Allow the scroll-start pan to fire alongside Readium's own scroll and swipe recognizers so
+    // it never blocks page-turns or vertical scrolling.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool { true }
 }

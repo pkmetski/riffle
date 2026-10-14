@@ -77,6 +77,7 @@ class ReadiumSwiftNavigatorCadenceTest {
         override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
         override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
+        override fun setScrollStartCallback(callback: (() -> Unit)?) = Unit
     }
 
     private fun navigator(bridge: ScriptBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())

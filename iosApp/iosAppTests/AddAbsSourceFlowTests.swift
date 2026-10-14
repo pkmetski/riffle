@@ -166,9 +166,17 @@ final class AddAbsSourceFlowTests: XCTestCase {
         )
         XCTAssertFalse(app.staticTexts["Add source"].exists, "The source picker must be gone")
 
-        let sectionLabels = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books"]
+        // Match section headers by their stable testTag (accessibilityIdentifier) rather than
+        // translated text — section titles include a count suffix ("Recently Added (6)") that
+        // makes exact label matching unreliable across versions.
+        let sectionIdentifiers = [
+            "section-header-IN_PROGRESS", "section-header-RECENTLY_ADDED",
+            "section-header-FINISHED", "section-header-CONTINUE_SERIES",
+        ]
         let sectionVisible = NSPredicate { _, _ in
-            sectionLabels.contains { self.app.staticTexts[$0].exists }
+            sectionIdentifiers.contains { id in
+                self.app.descendants(matching: .any).matching(identifier: id).firstMatch.exists
+            }
         }
         let refreshed = XCTWaiter.wait(
             for: [XCTNSPredicateExpectation(predicate: sectionVisible, object: nil)],

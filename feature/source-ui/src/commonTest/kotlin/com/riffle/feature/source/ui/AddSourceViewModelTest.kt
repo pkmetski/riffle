@@ -839,12 +839,35 @@ class AddSourceViewModelTest {
         val vm = makeVm(repo)
         vm.updateScheme("https://")
         vm.updateHost("abs.example.com")
-        vm.username = " admin "
-        vm.password = " pass "
+        vm.updateUsername(" admin ")
+        vm.updatePassword(" pass ")
         vm.onConnect()
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("admin", repo.lastUsername)
         assertEquals("pass", repo.lastPassword)
+    }
+
+    @Test
+    fun updateUsernameStripsTabCharacter() {
+        // On iOS a hardware Tab key press inserts a '\t' into the next focused field.
+        // updateUsername must strip it so the phantom character never enters the credential.
+        val vm = makeVm(fakeRepo(AuthenticateResult.WrongCredentials("x")))
+        vm.updateUsername("admin\t")
+        assertEquals("admin", vm.username)
+    }
+
+    @Test
+    fun updatePasswordStripsTabCharacter() {
+        val vm = makeVm(fakeRepo(AuthenticateResult.WrongCredentials("x")))
+        vm.updatePassword("\tpass")
+        assertEquals("pass", vm.password)
+    }
+
+    @Test
+    fun updateHostStripsTabCharacter() {
+        val vm = makeVm(fakeRepo(AuthenticateResult.WrongCredentials("x")))
+        vm.updateHost("abs.example.com\t")
+        assertEquals("abs.example.com", vm.host)
     }
 }

@@ -1,5 +1,11 @@
 # Riffle — Agent Instructions
 
+## No multiline comments — self-documenting code only
+
+**Do not add long multiline comments.** Code must be self-documenting: well-named functions, variables, and types communicate intent without prose. If you encounter pre-existing code with multiline redundant comments, remove them.
+
+A comment is acceptable only when the *why* is non-obvious from the code itself — a hidden constraint, a subtle invariant, or a known external bug. Even then, keep it to one line. Never write comment blocks that describe *what* the code does, restate the method signature, or explain code that already reads clearly.
+
 ## Locating UI elements — use testTag, not coordinates
 
 **Never tap or interact with a UI element by screen coordinate.** Every interactive control in Riffle is tagged with a stable `testTag` that surfaces as `resource-id` in `adb shell uiautomator dump` (Android) and as `accessibilityIdentifier` in the XCUITest tree (iOS). Use these names to find elements before interacting.

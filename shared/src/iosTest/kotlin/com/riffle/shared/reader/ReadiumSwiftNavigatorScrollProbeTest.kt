@@ -64,6 +64,9 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         override fun readResourceBase64(href: String, onResult: (String?) -> Unit) = onResult(null)
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
         override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
+        var scrollStartCallback: (() -> Unit)? = null
+        override fun setScrollStartCallback(callback: (() -> Unit)?) { scrollStartCallback = callback }
+        fun triggerScrollStart() { scrollStartCallback?.invoke() }
     }
 
     private fun navigator(bridge: FakeBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())
@@ -139,5 +142,18 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         val bridge = FakeBridge(answers = { "0.25" })
         navigator(bridge).publishViewportFraction("")
         assertEquals(emptyList(), bridge.evaluated)
+    }
+
+    @Test
+    fun scrollStartEventsEmitsWhenBridgeCallbackFires() = runTest {
+        val bridge = FakeBridge()
+        val nav = navigator(bridge)
+        var fired = false
+        val job = launch { nav.scrollStartEvents.collect { fired = true } }
+        yield()
+        bridge.triggerScrollStart()
+        yield()
+        job.cancel()
+        assertTrue(fired, "scrollStartEvents must emit when the bridge scroll-start callback fires")
     }
 }

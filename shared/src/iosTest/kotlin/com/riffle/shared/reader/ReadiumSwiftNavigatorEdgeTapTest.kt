@@ -65,6 +65,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         override fun cancelSearch() = Unit
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
         override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
+        override fun setScrollStartCallback(callback: (() -> Unit)?) = Unit
     }
 
     private fun navigator(

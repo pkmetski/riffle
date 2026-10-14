@@ -1,11 +1,13 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -73,7 +75,6 @@ import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.designsystem.generated.resources.ic_readaloud
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
@@ -100,6 +101,7 @@ import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.bookmarkRailPosition
+import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
@@ -155,12 +157,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
-import com.riffle.feature.designsystem.generated.resources.Res as DesignRes
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via
@@ -258,6 +258,9 @@ fun EpubReaderScreen(
     // Live `viewportSize / chapterSize` per normalised href. Kept in a ref for the same reason
     // the spine is: the editor is constructed once and must see the newest measurement.
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
+    // TOC entries for bookmark title generation — kept in a ref so the editor lambda always reads
+    // the latest value without being reconstructed when tocEntries loads.
+    val tocEntriesRef = remember { mutableStateOf<List<TocEntry>>(emptyList()) }
     val editor = remember(navigator) {
         ReaderAnnotationEditor(
             sourceId = item.sourceId,
@@ -269,6 +272,7 @@ fun EpubReaderScreen(
             spinePositionCounts = { spineRef.value.positionCounts },
             orientation = { orientationRef.value },
             viewportFractionByHref = { viewportFractionRef.value },
+            tocSegments = { buildRailSegments(tocEntriesRef.value, spineHrefs = spineRef.value.hrefs) },
         )
     }
     val selection by navigator.selectionFlow.collectAsState()
@@ -281,6 +285,7 @@ fun EpubReaderScreen(
     DisposableEffect(item.sourceId, item.id) {
         onDispose { readaloudSession.onDestroy() }
     }
+    val readaloudVisible by readaloudSession.readaloudVisible.collectAsState()
     val readaloudOpen by readaloudSession.readaloudOpen.collectAsState()
     val readaloudPlayback by readaloudSession.playbackState.collectAsState()
     val readaloudAvailable by readaloudSession.readaloudAvailable.collectAsState()
@@ -298,6 +303,9 @@ fun EpubReaderScreen(
     var annotationsPanelOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var chromeVisible by remember { mutableStateOf(true) }
+    // Prevents position-triggered auto-hide for 500 ms after the user taps to reveal chrome,
+    // matching Android's ImmersiveModeState.TOGGLE_COOLDOWN_MS guard.
+    var inhibitAutoHide by remember { mutableStateOf(false) }
     var searchResultIndex by remember { mutableStateOf(0) }
     var footnotePopupState by remember { mutableStateOf<com.riffle.feature.reader.FootnotePopupState?>(null) }
     var returnToPositionTarget by remember { mutableStateOf<String?>(null) }
@@ -465,12 +473,12 @@ fun EpubReaderScreen(
     // (or unweighted) rail.
     LaunchedEffect(localPath) {
         if (localPath == null) return@LaunchedEffect
-        navigator.getToc().takeIf { it.isNotEmpty() }?.let { tocEntries = it }
+        navigator.getToc().takeIf { it.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
         navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
         if (tocEntries.isNotEmpty() && spine.isUsable) return@LaunchedEffect
         navigator.pageLoadEvents.collect {
             if (tocEntries.isEmpty()) {
-                navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc }
+                navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
             }
             if (!spine.isUsable) {
                 navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
@@ -601,9 +609,20 @@ fun EpubReaderScreen(
         navigator.eventFlow.collect { event ->
             when (event) {
                 is NavigatorEvent.BodyTap -> {
+                    // Compose overlay taps (e.g. CornerBookmarkIndicator) leak through the
+                    // UIKitViewController to Readium, which fires BodyTap. The overlay's onClick
+                    // calls suppressNextBodyTap() synchronously; by the time this coroutine resumes,
+                    // that call has already happened, so the counter is non-zero and we discard.
+                    if (navigator.consumeSuppressedBodyTap()) return@collect
                     editTargetId = null
                     pendingStyles = emptySet()
                     chromeVisible = !chromeVisible
+                    // Suppress position-triggered auto-hide for 500 ms so a tap that reveals
+                    // chrome isn't immediately cancelled by the position event that often
+                    // follows a page-edge tap — mirrors Android's TOGGLE_COOLDOWN_MS.
+                    inhibitAutoHide = true
+                    delay(500)
+                    inhibitAutoHide = false
                 }
                 is NavigatorEvent.Footnote -> {
                     footnotePopupState = FootnotePopupState(FootnoteContent(event.contentHtml))
@@ -619,6 +638,30 @@ fun EpubReaderScreen(
     // Track the current spine-item href so the TOC can highlight the active entry.
     LaunchedEffect(navigator) {
         navigator.positionFlow.collect { position -> locatorHref = position.href }
+    }
+
+    // Enter immersive mode when the user begins dragging — mirrors Android's onScrollStart →
+    // ImmersiveModeState.dismissOverlay() which fires at gesture-start, not at scroll-end.
+    // Wait for the first page-load so Readium's initial position-restore does not hide chrome
+    // before the reader has even finished rendering.
+    LaunchedEffect(navigator) {
+        navigator.pageLoadEvents.first()
+        navigator.scrollStartEvents.collect {
+            if (!inhibitAutoHide && orientationRef.value != ReaderOrientation.Horizontal) {
+                chromeVisible = false
+            }
+        }
+    }
+
+    // Hide / restore the system status bar in step with chrome visibility via the Swift host,
+    // matching Android's WindowInsetsControllerCompat.hide(systemBars()) in ImmersiveModeState.
+    // The host (ContentView.swift) registers a Listener and applies .statusBarHidden() on its
+    // SwiftUI view; from Kotlin we only signal the desired state.
+    LaunchedEffect(chromeVisible) {
+        IosStatusBarBridge.setHidden(!chromeVisible)
+    }
+    DisposableEffect(Unit) {
+        onDispose { IosStatusBarBridge.setHidden(false) }
     }
 
     // Keep the corner ribbon in step with the page. Recomputed on every position change and
@@ -883,6 +926,18 @@ fun EpubReaderScreen(
             navigator.injectTableFitScript()
         }
     }
+    // Typography overrides: force user-controlled properties (justify, line-height, font-family)
+    // to win against hostile publisher stylesheets. Readium's own after.css uses
+    // `text-align: inherit !important` with high specificity (0,2,4), which means a publisher
+    // rule setting text-align on a div ancestor of `p` beats Readium even when the user has
+    // chosen justify. The injected CSS uses triple [style*="--USER__textAlign"] repetition to
+    // reach (0,3,2) — same gate as Android's DefaultRendererBridge and ContinuousStyleInjector.
+    LaunchedEffect(navigator, localPath) {
+        if (localPath == null) return@LaunchedEffect
+        navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) }.collect {
+            navigator.injectTypographyOverrideScript()
+        }
+    }
     LaunchedEffect(navigator) {
         navigator.figureTapPayloads.collect { payload ->
             figureZoomState = FigureTapMessageParser.parse(payload)
@@ -1113,6 +1168,27 @@ fun EpubReaderScreen(
             svgContent = { svgMarkup, imgModifier -> IosEpubSvgView(svgMarkup, imgModifier) },
         )
 
+        // The corner bookmark ribbon — placed before the top bar so it sits below the bar in
+        // z-order and the top-bar buttons (formatting, TOC, etc.) receive taps first when chrome
+        // is visible. Pinned flush to the top edge; no systemBarsPadding — matching Android, where
+        // the ribbon starts at y=0 of the reader Box.
+        if (localPath != null) {
+            CornerBookmarkIndicator(
+                isBookmarked = currentBookmark != null,
+                isVisible = true,
+                onToggle = {
+                    // The Compose tap also leaks to the Readium UIKit view underneath;
+                    // suppress the resulting BodyTap so it doesn't toggle chrome.
+                    navigator.suppressNextBodyTap()
+                    scope.launch { editor.toggleBookmark() }
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 8.dp)
+                    .testTag(TestTags.IOS_READER_BOOKMARK),
+            )
+        }
+
         // Shared M3 top bar (slides in/out with chromeVisible).
         // Auto-scroll and cadence toggles are extra actions injected by the host.
         val prefsForChrome = resolvedPrefs
@@ -1178,7 +1254,7 @@ fun EpubReaderScreen(
                         },
                     )
                 }
-                if (source != ReaderSource.Highlights) {
+                if (readaloudVisible && source != ReaderSource.Highlights) {
                     IconButton(
                         onClick = {
                             if (readaloudOpen) {
@@ -1191,7 +1267,7 @@ fun EpubReaderScreen(
                         modifier = Modifier.testTag(TestTags.READER_READALOUD),
                     ) {
                         Icon(
-                            painter = painterResource(DesignRes.drawable.ic_readaloud),
+                            imageVector = RiffleIcons.Readaloud,
                             contentDescription = stringResource(Res.string.ui_readaloud),
                         )
                     }
@@ -1272,27 +1348,11 @@ fun EpubReaderScreen(
             )
         }
 
-        // The corner bookmark ribbon — the shared composable Android's three readers and its
-        // audiobook player render, not the blue in-page wash iOS used to paint. Tapping it
-        // creates or removes the bookmark on this page, using the same shared epsilon that
-        // decides whether it is lit (see `bookmarkEpsFor`), so the two can never disagree.
-        if (localPath != null) {
-            CornerBookmarkIndicator(
-                isBookmarked = currentBookmark != null,
-                isVisible = true,
-                onToggle = { scope.launch { editor.toggleBookmark() } },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .systemBarsPadding()
-                    .padding(top = 40.dp, end = 8.dp)
-                    .testTag(TestTags.IOS_READER_BOOKMARK),
-            )
-        }
-
         // The annotate sheet. Shown for a live selection, or for the annotation the reader just
         // tapped. One sheet for both because the actions are the same — which is how Android's
-        // `HighlightActionsPopup` works too; only the anchoring differs (a Popup next to the
-        // tapped rect there, docked to the bottom here).
+        // `HighlightActionsPopup` works too. For live selections we anchor near the selection
+        // rect (above when there's room, below otherwise), matching Android's
+        // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
         val liveSelection = selection
         if (noteEditorFor == null && (editTarget != null || liveSelection != null)) {
@@ -1300,6 +1360,31 @@ fun EpubReaderScreen(
             // over the wrong backdrop previews a colour the book will never show. Same shared
             // derivation Android's popup reads.
             val readerBackground = (resolvedPrefs ?: FormattingPreferences()).readerSwatchBackdropColor
+            // Position: near selection rect when a live selection is present; bottom otherwise.
+            // Rect coordinates are in the navigator view's dp space (same origin as this Box, y=0
+            // at the physical screen top). minAboveY accounts for the status-bar safe-area so
+            // the sheet never slides behind the system chrome.
+            val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+            val annotationSheetModifier = run {
+                val selRect = liveSelection?.rect
+                if (selRect != null && editTarget == null) {
+                    val targetY = annotationSheetTargetY(
+                        selectionY = selRect.y,
+                        selectionHeight = selRect.height,
+                        minAboveY = statusBarTopDp.value + 8f,
+                    )
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(top = targetY.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                } else {
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                }
+            }
             AnnotationActionsSheet(
                 selectedColor = editTarget?.let {
                     if (it.color.isEmpty()) null else HighlightColor.fromToken(it.color)
@@ -1371,10 +1456,7 @@ fun EpubReaderScreen(
                     editTargetId = null
                     onOpenInBook?.invoke(locatorJson)
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(12.dp),
+                modifier = annotationSheetModifier,
             )
         }
 

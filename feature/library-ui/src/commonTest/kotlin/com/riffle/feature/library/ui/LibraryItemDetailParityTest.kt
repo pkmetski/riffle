@@ -44,6 +44,20 @@ class LibraryItemDetailParityTest {
         description = description,
     )
 
+    // ── Cover box ──────────────────────────────────────────────────────────
+
+    @Test
+    fun coverBoxIsDisplayedForEpub() = runComposeUiTest {
+        // Regression: on iOS CMP, fillMaxSize() inside a verticalScroll Column resolves to the
+        // scroll viewport height, causing DefaultCoverPlaceholder Canvas to overflow onto items
+        // below. Fix: BoxWithConstraints reads the real available width, then the inner Box uses
+        // requiredHeight(width × 1.5) — no aspectRatio modifier — to bypass scroll's infinite-
+        // height propagation. The cover node must be visible; if it blows up to viewport height
+        // the items below are covered and the test surface breaks.
+        setContent { CoverBox(item = item(), token = "") }
+        onNodeWithTag(TestTags.BOOK_DETAIL_COVER).assertIsDisplayed()
+    }
+
     // ── Reading progress ────────────────────────────────────────────────────
 
     @Test

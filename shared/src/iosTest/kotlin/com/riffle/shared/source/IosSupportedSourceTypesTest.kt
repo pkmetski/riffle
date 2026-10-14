@@ -5,7 +5,6 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -64,26 +63,27 @@ class IosSupportedSourceTypesTest {
     }
 
     @Test
-    fun hidesOReillyWhichHasNoIosWebViewLogin() {
-        // O'Reilly is a credential-less singleton, so the old "every zero-config singleton" rule let
-        // it into this set; it was hidden only by SourceTypePickerScreen's developerModeEnabled
-        // default, which SourceOnboardingHost never passes a value for. Wiring that flag would have
-        // installed an O'Reilly source with no WebView login and no orm-jwt cookie, whose
-        // OReillyCatalogFactory.create returns null forever. Exclude it structurally instead.
-        assertFalse(
+    fun offersOReillyForDeveloperMode() {
+        // O'Reilly is gated behind developerModeEnabled in SourceTypePickerScreen
+        // (OReillyWebSourceDescriptor.requiresDeveloperMode = true), so it only appears when the
+        // user has unlocked developer mode. It must be in the enabled set so the card is active
+        // once visible. IosOReillyLoginScreen provides the WKWebView login that harvests orm-jwt.
+        assertTrue(
             SourceType.OREILLY in iosSupportedSourceTypes(),
-            "iOS has no O'Reilly WebView login, so its source must not be installable",
+            "iOS O'Reilly WebView login is implemented; its source must be installable in developer mode",
         )
     }
 
     @Test
     fun everyBrowsableTypeIsAlsoOfferedByThePicker() {
         // Offering a type the browse screen cannot drive would crash; browsing a type the picker
-        // never installs would be dead code. Pin them equal apart from the credentialed sources.
+        // never installs would be dead code. Pin them equal, excluding O'Reilly which is an
+        // unbounded catalogue that uses a dedicated WebView login flow rather than the generic
+        // UnboundedBrowseScreen installation path.
         val browsable = unboundedBrowseSourceTypes()
         assertEquals(
             browsable,
-            iosSupportedSourceTypes().filter { it.isUnboundedCatalog }.toSet(),
+            iosSupportedSourceTypes().filter { it.isUnboundedCatalog && it != SourceType.OREILLY }.toSet(),
         )
     }
 }

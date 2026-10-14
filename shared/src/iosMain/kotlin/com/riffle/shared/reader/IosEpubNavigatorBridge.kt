@@ -45,6 +45,15 @@ interface IosEpubNavigatorBridge {
     fun setPageLoadCallback(callback: (() -> Unit)?)
 
     /**
+     * Called when the user begins a drag gesture over the reader (pan or swipe).
+     *
+     * Fires at gesture-start (finger-down + movement), not at scroll-end, so the host can
+     * enter immersive mode immediately — mirroring Android's [onScrollStart] callback that
+     * [ImmersiveModeState.dismissOverlay] is tied to.
+     */
+    fun setScrollStartCallback(callback: (() -> Unit)?)
+
+    /**
      * Called when the user taps on the book body (not a link).
      *
      * [x] and [y] are the tap coordinates in the navigator view's coordinate space (points on iOS,

@@ -19,4 +19,12 @@
     <string name="ui_download">Download</string>
     <string name="ui_cancel">Cancel</string>
     <string name="ui_download_readaloud_audio">Download readaloud audio (%1$s)?</string>
+
+    <!-- O\'Reilly WebView login (developer mode only) -->
+    <string name="ui_oreilly_sign_in_title">Sign in to O\'Reilly</string>
+    <string name="ui_oreilly_signing_in">Signing you in…</string>
+    <string name="ui_oreilly_signing_in_sub">Securing your O\'Reilly session on this device</string>
+    <string name="ui_oreilly_sign_in_failed">Couldn\'t save your O\'Reilly session. Please try signing in again.</string>
+    <string name="ui_try_again">Try again</string>
+    <string name="ui_back">Back</string>
 </resources>

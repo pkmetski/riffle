@@ -80,6 +80,7 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) {
             riffleUrlCallback = callback
         }
+        override fun setScrollStartCallback(callback: (() -> Unit)?) = Unit
     }
 
     private fun navigator(bridge: FakeBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())
