@@ -61,6 +61,7 @@ class PermanentNavigationDrawerTest {
                 onLibrarySelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
+                onRiffleSelected = {},
             ) {
                 Box(Modifier.fillMaxSize())
             }
@@ -104,6 +105,7 @@ class PermanentNavigationDrawerTest {
                 onLibrarySelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
+                onRiffleSelected = {},
             ) {
                 Box(Modifier.fillMaxSize().testTag("reader-content"))
             }

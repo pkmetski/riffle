@@ -100,7 +100,7 @@ internal fun DownloadsContent(
     onSetCacheAutoClear: (ContentCacheAutoClear) -> Unit,
     onRemoveDownloadedItem: (LocalItemUi) -> Unit,
     onRemoveCachedItem: (LocalItemUi) -> Unit,
-    onItemSelected: (LibraryItem) -> Unit = {},
+    onItemSelected: (LibraryItem) -> Unit,
     onRemoveAllDownloads: () -> Unit,
     onClearAllCached: () -> Unit,
 ) {

@@ -86,7 +86,7 @@ fun RiffleNavigationDrawer(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
-    onRiffleSelected: () -> Unit = {},
+    onRiffleSelected: () -> Unit,
     isRiffleActive: Boolean = false,
     appVersion: String? = null,
     appSha: String? = null,
@@ -144,7 +144,7 @@ private fun DrawerSheetContent(
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
-    onRiffleSelected: () -> Unit = {},
+    onRiffleSelected: () -> Unit,
     isRiffleActive: Boolean = false,
     appVersion: String? = null,
     appSha: String? = null,
@@ -218,7 +218,7 @@ private fun DrawerHeader(
     serverVersions: Map<String, String>,
     onServerSelected: (Source) -> Unit,
     isRiffleActive: Boolean = false,
-    onRiffleSelected: () -> Unit = {},
+    onRiffleSelected: () -> Unit,
 ) {
     val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }

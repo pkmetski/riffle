@@ -57,11 +57,19 @@ class LibraryItemDetailReadButtonStabilityTest {
                 readaloudDownloadState = null,
                 estimatedTotalReadingTimeSec = estimatedSec,
                 onReadItem = {},
+                onListenItem = {},
+                onReadItemAtHref = { _, _ -> },
+                onListenItemAtSec = { _, _ -> },
                 onMarkAsRead = {},
                 onMarkAsUnread = {},
                 onToggleToRead = {},
+                onAddToPlaylist = {},
                 onDownload = {},
                 onRemove = {},
+                onDownloadReadaloud = {},
+                onRemoveReadaloud = {},
+                onDownloadAudiobook = {},
+                onRemoveAudiobook = {},
             )
         }
         composeTestRule.waitForIdle()
