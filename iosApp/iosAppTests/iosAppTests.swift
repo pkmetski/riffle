@@ -81,10 +81,12 @@ final class IosAppTests: AbsHarnessTestCase {
         )
         backArrow.tap()
 
-        let anySection = ["In Progress", "Recently Added", "Finished", "Continue Series", "All Books", "Series"].contains {
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", $0)).firstMatch.waitForExistence(timeout: 5)
-        }
-        XCTAssertTrue(anySection, "Navigating back from series detail should return to library home")
+        // Back from series detail returns to the Series tab, not the Home tab, so Home-tab
+        // section headers ("In Progress", "Recently Added", …) are not visible. Check instead
+        // that the series tile we came from is visible again — that proves we're back on the
+        // series list.
+        let backOnSeries = seriesTile.waitForExistence(timeout: 15)
+        XCTAssertTrue(backOnSeries, "Navigating back from series detail should return to the series list")
     }
 
     /// 4.3 + 4.4 — Tapping a collection tile navigates to collection detail; back returns to library.
