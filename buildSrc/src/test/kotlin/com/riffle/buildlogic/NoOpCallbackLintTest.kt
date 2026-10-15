@@ -108,4 +108,39 @@ class NoOpCallbackLintTest {
         val offenders = detect(path)
         assertEquals(1, offenders.size)
     }
+
+    @Test
+    fun skipsBlockCommentStartLines() {
+        val path = "shared/src/iosMain/kotlin/com/riffle/shared/HomeScreen.kt"
+        writeHostFile(path, """
+            /* onPlaylistAdvance = { _, _ -> } */
+        """.trimIndent())
+        val offenders = detect(path)
+        assertTrue(offenders.isEmpty())
+    }
+
+    @Test
+    fun skipsBlockCommentContinuationLines() {
+        val path = "shared/src/iosMain/kotlin/com/riffle/shared/HomeScreen.kt"
+        writeHostFile(path, """
+            * onPlaylistAdvance = { _, _ -> },
+        """.trimIndent())
+        val offenders = detect(path)
+        assertTrue(offenders.isEmpty())
+    }
+
+    @Test
+    fun reportsOffenderWithCorrectLineNumber() {
+        val path = "shared/src/iosMain/kotlin/com/riffle/shared/HomeScreen.kt"
+        writeHostFile(path, """
+            SomeScreen(
+                onBack = {},
+                onNavigate = {},
+            )
+        """.trimIndent())
+        val offenders = detect(path)
+        assertEquals(2, offenders.size)
+        assertEquals(2, offenders[0].lineNumber)
+        assertEquals(3, offenders[1].lineNumber)
+    }
 }
