@@ -65,6 +65,7 @@ class AnnotationActionsSheetTest {
                 onToggleEmphasis = {},
                 onOpenNoteEditor = {},
                 onDelete = { deleted++ },
+                onOpenInBook = {},
             )
         }
         onNodeWithTag("annotation_swatch_none").performClick()
@@ -108,6 +109,7 @@ class AnnotationActionsSheetTest {
                 onToggleEmphasis = {},
                 onOpenNoteEditor = {},
                 onDelete = null,
+                onOpenInBook = {},
             )
         }
         onNodeWithTag("annotation_delete").assertDoesNotExist()
@@ -131,6 +133,7 @@ class AnnotationActionsSheetTest {
                 onToggleEmphasis = {},
                 onOpenNoteEditor = {},
                 onDelete = {},
+                onOpenInBook = {},
             )
         }
         onNodeWithText("remember why this matters").assertIsDisplayed()

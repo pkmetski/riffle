@@ -80,6 +80,7 @@ class DownloadsConfirmationTest {
                 onSetCacheAutoClear = {},
                 onRemoveDownloadedItem = {},
                 onRemoveCachedItem = {},
+                onItemSelected = {},
                 onRemoveAllDownloads = { removedAll++ },
                 onClearAllCached = {},
             )
@@ -100,6 +101,7 @@ class DownloadsConfirmationTest {
                 onSetCacheAutoClear = {},
                 onRemoveDownloadedItem = {},
                 onRemoveCachedItem = {},
+                onItemSelected = {},
                 onRemoveAllDownloads = {},
                 onClearAllCached = { cleared++ },
             )
@@ -119,6 +121,7 @@ class DownloadsConfirmationTest {
                 onSetCacheAutoClear = {},
                 onRemoveDownloadedItem = {},
                 onRemoveCachedItem = {},
+                onItemSelected = {},
                 onRemoveAllDownloads = {},
                 onClearAllCached = {},
             )

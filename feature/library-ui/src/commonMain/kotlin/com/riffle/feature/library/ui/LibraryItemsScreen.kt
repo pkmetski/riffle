@@ -142,15 +142,15 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
     onSearchAnnotations: (String) -> Unit,
-    onAnnotationSelected: (AnnotationSearchResult) -> Unit = {},
-    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit = {},
-    onShowAllAnnotations: (String) -> Unit = {},
+    onAnnotationSelected: (AnnotationSearchResult) -> Unit,
+    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
+    onShowAllAnnotations: (String) -> Unit,
     showRecentlyAdded: Boolean = true,
     // Whether the layered-back handler (clear search → home tab → exit) should intercept Back.
     // False by default so iOS callers, which manage their own back stack, need no change.
     // Android passes the result of libraryItemsBackEnabled() from MainScreen.
     backEnabled: Boolean = false,
-    onNavigateBack: () -> Unit = {},
+    onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.

@@ -78,6 +78,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         // Thumbnail content reuses the same composable — UIImageView with ScaleAspectFit scales
         // the image down to whatever Modifier size the strip imposes, same as Android's Coil.
         thumbnailContent = pageContent,
+        extraTopBarActions = {},
         isReduceMotion = isReduceMotion,
         formattingSheet = { onDismiss ->
             IosComicFormattingSheet(

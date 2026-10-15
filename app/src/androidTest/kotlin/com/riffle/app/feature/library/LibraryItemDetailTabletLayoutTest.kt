@@ -53,6 +53,8 @@ class LibraryItemDetailTabletLayoutTest {
         composeTestRule.setContent {
             LibraryItemDetailContentTablet(
                 item = item,
+                onFacet = { _, _ -> },
+                onSeriesClick = { _, _ -> },
                 isInToRead = false,
                 token = "",
                 downloadState = DownloadState.NotDownloaded,
@@ -60,11 +62,19 @@ class LibraryItemDetailTabletLayoutTest {
                 isOffline = false,
                 readaloudDownloadState = null,
                 onReadItem = {},
+                onListenItem = {},
+                onReadItemAtHref = { _, _ -> },
+                onListenItemAtSec = { _, _ -> },
                 onMarkAsRead = {},
                 onMarkAsUnread = {},
                 onToggleToRead = {},
+                onAddToPlaylist = {},
                 onDownload = {},
                 onRemove = {},
+                onDownloadReadaloud = {},
+                onRemoveReadaloud = {},
+                onDownloadAudiobook = {},
+                onRemoveAudiobook = {},
             )
         }
 

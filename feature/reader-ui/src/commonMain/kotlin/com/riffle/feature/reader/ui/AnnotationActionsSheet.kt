@@ -257,7 +257,7 @@ fun AnnotationActionsSheet(
     onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier,
     showOpenInBook: Boolean = false,
-    onOpenInBook: () -> Unit = {},
+    onOpenInBook: () -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),

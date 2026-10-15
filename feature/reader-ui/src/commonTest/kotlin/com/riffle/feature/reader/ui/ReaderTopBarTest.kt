@@ -30,6 +30,7 @@ class ReaderTopBarTest {
                 onToc = {},
                 onAnnotations = {},
                 onFormat = {},
+                extraActions = {},
             )
         }
         onNodeWithTag(TestTags.READER_BACK).performClick()
@@ -49,6 +50,7 @@ class ReaderTopBarTest {
                 onToc = {},
                 onAnnotations = {},
                 onFormat = {},
+                extraActions = {},
             )
         }
         onNodeWithTag(TestTags.READER_SEARCH).assertIsDisplayed()
@@ -70,6 +72,7 @@ class ReaderTopBarTest {
                 onToc = {},
                 onAnnotations = {},
                 onFormat = {},
+                extraActions = {},
             )
         }
         onNodeWithTag(TestTags.READER_SEARCH).assertDoesNotExist()
@@ -90,6 +93,7 @@ class ReaderTopBarTest {
                 onToc = {},
                 onAnnotations = {},
                 onFormat = { taps++ },
+                extraActions = {},
             )
         }
         onNodeWithTag(TestTags.READER_SETTINGS).performClick()
@@ -110,6 +114,7 @@ class ReaderTopBarTest {
                 onToc = {},
                 onAnnotations = { taps++ },
                 onFormat = {},
+                extraActions = {},
             )
         }
         onNodeWithTag(TestTags.READER_ANNOTATIONS).performClick()

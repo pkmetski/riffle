@@ -722,6 +722,21 @@ tasks.register("checkParityClosingGate") {
     }
 }
 
+tasks.register("checkNoLiteralNoOpCallbacks") {
+    group = "verification"
+    description = "Fails if a host file passes a literal no-op lambda ({} or { _ -> }) as a callback argument."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+    doLast {
+        val offenders = com.riffle.buildlogic.NoOpCallbackLint.findOffenders(rootProject.projectDir)
+        if (offenders.isNotEmpty()) {
+            val report = offenders.joinToString("\n") { it.render(rootProject.projectDir) }
+            throw GradleException(
+                "Literal no-op callbacks found in host files. Replace with a named NoOp.* constant:\n$report",
+            )
+        }
+    }
+}
+
 // Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
@@ -742,6 +757,7 @@ tasks.register("riffleChecks") {
         "checkSharedCommonMainComposables",
         "checkHardcodedStringLiterals",
         "checkParityClosingGate",
+        "checkNoLiteralNoOpCallbacks",
     )
 }
 
@@ -761,5 +777,6 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkSharedCommonMainComposables"))
         dependsOn(rootProject.tasks.named("checkHardcodedStringLiterals"))
         dependsOn(rootProject.tasks.named("checkParityClosingGate"))
+        dependsOn(rootProject.tasks.named("checkNoLiteralNoOpCallbacks"))
     }
 }

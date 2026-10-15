@@ -257,6 +257,7 @@ fun PdfReaderScreen(
             onToc = viewModel::openToc,
             onAnnotations = viewModel::openAnnotationsPanel,
             onFormat = { showFormattingPanel = true },
+            extraActions = {},
         )
 
         if (showFormattingPanel) {

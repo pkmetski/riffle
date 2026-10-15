@@ -90,7 +90,7 @@ fun CbzReaderScreen(
     /** Thumbnail-sized page content for the strip, defaults to [pageContent]. */
     thumbnailContent: @Composable (modifier: Modifier, page: Int) -> Unit = pageContent,
     /** Extra actions appended to the top-bar action row (e.g. dev-mode panel report on Android). */
-    extraTopBarActions: @Composable () -> Unit = {},
+    extraTopBarActions: @Composable () -> Unit,
     /** True when the OS Reduce Motion setting is active — collapses panel animations to instant. */
     isReduceMotion: Boolean = false,
     modifier: Modifier = Modifier,

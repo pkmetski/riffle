@@ -47,6 +47,7 @@ class NavigationDrawerGestureTest {
                 onLibrarySelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
+                onRiffleSelected = {},
             ) {
                 Box(Modifier.fillMaxSize().testTag("content"))
             }

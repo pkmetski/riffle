@@ -52,7 +52,7 @@ fun ReaderTopBar(
     onToc: () -> Unit,
     onAnnotations: () -> Unit,
     onFormat: () -> Unit,
-    extraActions: @Composable RowScope.() -> Unit = {},
+    extraActions: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(

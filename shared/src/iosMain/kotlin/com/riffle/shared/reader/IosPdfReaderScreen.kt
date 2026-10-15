@@ -268,6 +268,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             onToc = { tocOpen = !tocOpen; annotationsPanelOpen = false },
             onAnnotations = { annotationsPanelOpen = !annotationsPanelOpen; tocOpen = false },
             onFormat = { settingsOpen = true },
+            extraActions = {},
         )
 
         if (localPath != null && formattingPrefs.showChapterMap && railSegments.isNotEmpty()) {

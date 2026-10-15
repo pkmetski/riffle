@@ -35,6 +35,7 @@ import com.riffle.core.logging.Logger
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
+import com.riffle.feature.designsystem.NoOp
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
@@ -167,7 +168,7 @@ fun HomeScreen() {
         }
     }
 
-    LanguageChangeRestartDialog(onDismiss = {})
+    LanguageChangeRestartDialog(onDismiss = NoOp.unit)
 
     LaunchedEffect(drawerViewModel) {
         drawerViewModel.redirectToLibrary.collect { library ->
@@ -377,7 +378,8 @@ fun HomeScreen() {
                             appSection = AppSection.Library
                             downloadsDetailNav = null
                         },
-                        onFacetSelected = { _, _, _ -> },
+                        onFacetSelected = NoOp.facetNavUnavailableInDownloads,
+                        onNavigateToSeries = NoOp.seriesNavUnavailableInDownloads,
                     )
                 } else {
                     DownloadsScreen(
@@ -470,12 +472,12 @@ fun HomeScreen() {
                         sourceId = current.sourceId,
                         startAtSec = current.startAtSec,
                         onBack = ::rifflePop,
-                        onPlaylistAdvance = { _, _ -> },
+                        onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
                     )
                     is LibraryNav.ReaderDestination -> ReaderHost(
                         destination = current,
                         onBack = ::rifflePop,
-                        onPlaylistAdvance = { _, _ -> },
+                        onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
                         onSwitchToReadaloud = { ebookItemId, atSec ->
                             scope.launch {
                                 val item = libraryObserver.getItem(ebookItemId) ?: return@launch
@@ -545,9 +547,9 @@ private fun LibraryHost(
     libraryId: String,
     libraryName: String,
     onOpenDrawer: () -> Unit,
-    onReaderActiveChanged: (Boolean) -> Unit = {},
+    onReaderActiveChanged: (Boolean) -> Unit,
     pendingNav: LibraryNav? = null,
-    onPendingNavHandled: () -> Unit = {},
+    onPendingNavHandled: () -> Unit,
 ) {
     // rememberSaveable cannot be used here: LibraryNav.ReaderDestination carries a LibraryItem
     // which is not Parcelable/Serializable, so the stack would crash on process death.
@@ -657,6 +659,8 @@ private fun LibraryHost(
                             )
                         )
                     },
+                    onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
+                    onNavigateBack = NoOp.backHandledByIosHost,
                 )
             }
         }
@@ -777,7 +781,7 @@ private fun LibraryHost(
             sourceId = current.sourceId,
             startAtSec = current.startAtSec,
             onBack = ::pop,
-            onPlaylistAdvance = { _, _ -> },
+            onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
         )
     }
 }
