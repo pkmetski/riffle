@@ -8,6 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
+		3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */; };
+		C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */; };
+		F0NT001001 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
+		F0NT002001 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
+		F0NT003001 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
+		F0NT001003 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
+		F0NT002003 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
+		F0NT003003 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
 		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
 		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
 		8528A47455B6399D5B23B630 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
@@ -176,6 +184,11 @@
 		E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspectorTests.swift; sourceTree = "<group>"; };
 		E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridge.swift; sourceTree = "<group>"; };
 		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
+		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
+		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
+		F0NT001002 /* Literata-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Literata-Regular.ttf"; sourceTree = "<group>"; };
+		F0NT002002 /* Merriweather-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Merriweather-Regular.ttf"; sourceTree = "<group>"; };
+		F0NT003002 /* OpenDyslexic-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "OpenDyslexic-Regular.otf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -230,8 +243,19 @@
 				FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */,
 				E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */,
 				A1C0DE040002 /* ReadiumDecorationTemplates.swift */,
+				F0NT000GRP /* Fonts */,
 			);
 			path = iosApp;
+			sourceTree = "<group>";
+		};
+		F0NT000GRP /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				F0NT001002 /* Literata-Regular.ttf */,
+				F0NT002002 /* Merriweather-Regular.ttf */,
+				F0NT003002 /* OpenDyslexic-Regular.otf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		B1000004 /* Products */ = {
@@ -293,6 +317,8 @@
 				B1057020 /* IosPlatformSettingsHooksTests.swift */,
 				A1BG0020 /* AppLocalizationUnitTests.swift */,
 				B1066020 /* NowPlayingSceneGateTests.swift */,
+				B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */,
+				BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -434,6 +460,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				8528A47455B6399D5B23B630 /* test.epub in Resources */,
+				F0NT001003 /* Literata-Regular.ttf in Resources */,
+				F0NT002003 /* Merriweather-Regular.ttf in Resources */,
+				F0NT003003 /* OpenDyslexic-Regular.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +471,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				B1000012 /* Assets.xcassets in Resources */,
+				F0NT001001 /* Literata-Regular.ttf in Resources */,
+				F0NT002001 /* Merriweather-Regular.ttf in Resources */,
+				F0NT003001 /* OpenDyslexic-Regular.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -574,6 +606,8 @@
 				B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */,
 				B106501A /* NowPlayingSceneGate.swift in Sources */,
 				B1066010 /* NowPlayingSceneGateTests.swift in Sources */,
+				3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */,
+				C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

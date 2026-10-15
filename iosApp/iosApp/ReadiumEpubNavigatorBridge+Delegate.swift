@@ -81,7 +81,8 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
         EPUBNavigatorViewController.Configuration(
             preferences: pendingPreferences,
             disablePageTurnsWhileScrolling: true,
-            decorationTemplates: RiffleDecorationTemplates.all()
+            decorationTemplates: RiffleDecorationTemplates.all(),
+            fontFamilyDeclarations: Self.bundledFontFamilyDeclarations
         )
     }
 

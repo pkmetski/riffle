@@ -50,6 +50,7 @@ import UIKit
         startOffsetSec: Double
     ) {
         guard !isDisposed else { return }
+        stopActivePlayer()
 
         self.trackUrls = trackUrls
         configureAudioSession()
@@ -252,27 +253,30 @@ import UIKit
         }.resume()
     }
 
-    func dispose() {
-        guard !isDisposed else { return }
-        isDisposed = true
-
+    private func stopActivePlayer() {
         if let token = timeObserverToken {
             player?.removeTimeObserver(token)
             timeObserverToken = nil
         }
         statusObservations.forEach { $0.invalidate() }
         statusObservations.removeAll()
-
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
-        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
-        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
-        removeRemoteCommands()
-
         player?.pause()
         player?.removeAllItems()
         player = nil
         queuedItems = []
+    }
+
+    func dispose() {
+        guard !isDisposed else { return }
+        isDisposed = true
+
+        stopActivePlayer()
         trackUrls = []
+
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        removeRemoteCommands()
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
 

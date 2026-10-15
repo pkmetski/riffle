@@ -104,7 +104,7 @@ class ReaderNavRoutingTest {
         val href = "chapter3.xhtml"
         val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Epub), href)
         assertIs<LibraryNav.Reader>(nav)
-        kotlin.test.assertEquals(href, nav.startTocHref)
+        kotlin.test.assertEquals(href, nav.startHref)
     }
 
     @Test
@@ -112,7 +112,7 @@ class ReaderNavRoutingTest {
         val href = "part1.xhtml#section-2"
         val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Epub), href)
         assertIs<LibraryNav.Reader>(nav)
-        kotlin.test.assertEquals(href, nav.startTocHref)
+        kotlin.test.assertEquals(href, nav.startHref)
     }
 
     @Test

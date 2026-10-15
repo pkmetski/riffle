@@ -84,7 +84,9 @@ internal sealed interface LibraryNav {
     data class Reader(
         override val item: LibraryItem,
         val initialLocatorJson: String? = null,
-        val startTocHref: String? = null,
+        val startHref: String? = null,
+        /** When ≥ 0, the readaloud mini-player opens automatically at this global second. */
+        val startReadaloudAtSec: Double = -1.0,
     ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination
@@ -96,14 +98,14 @@ internal sealed interface LibraryNav {
      * args do. Before the playlist surfaces existed no iOS caller could supply them, so the
      * ViewModel's `navPlaylistId` was hard-wired to `null` and `PlaylistAdvance` was unreachable.
      *
-     * [startAtSec] is `-1f` for most entry points; it is set to a bookmark's position when
+     * [startAtSec] is `-1.0` for most entry points; it is set to a bookmark's position when
      * navigating from an audiobook-bookmark search result, matching Android's `?startAtSec=…` arg.
      */
     data class AudiobookPlayer(
         override val item: LibraryItem,
         val playlistId: String? = null,
         val playlistLibraryId: String? = null,
-        val startAtSec: Float = -1f,
+        val startAtSec: Double = -1.0,
     ) : ReaderDestination
 
     /**
@@ -115,7 +117,7 @@ internal sealed interface LibraryNav {
     data class AudiobookBookmark(
         val itemId: String,
         val sourceId: String?,
-        val startAtSec: Float,
+        val startAtSec: Double,
     ) : LibraryNav
 }
 
@@ -183,7 +185,7 @@ internal fun openReadItemAtHref(
 
 internal fun readNavForItemAtHref(item: LibraryItem, tocHref: String): LibraryNav.Reader? {
     if (!item.isReadable || item.ebookFormat == EbookFormat.Pdf || item.ebookFormat == EbookFormat.Cbz) return null
-    return LibraryNav.Reader(item, startTocHref = tocHref)
+    return LibraryNav.Reader(item, startHref = tocHref)
 }
 
 /**
@@ -264,13 +266,17 @@ internal fun ReaderHost(
     destination: LibraryNav.ReaderDestination,
     onBack: () -> Unit,
     onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+    onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
+    onSwitchToAudiobook: (() -> Unit)? = null,
 ) {
     when (destination) {
         is LibraryNav.Reader -> EpubReaderScreen(
             item = destination.item,
             onBack = onBack,
-            initialLocatorJson = destination.startTocHref?.let { tocHrefToLocatorJson(it) }
-                ?: destination.initialLocatorJson,
+            initialLocatorJson = destination.initialLocatorJson,
+            startHref = destination.startHref,
+            startReadaloudAtSec = destination.startReadaloudAtSec,
+            onSwitchToAudiobook = if (destination.item.isListenable) onSwitchToAudiobook else null,
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = onBack)
@@ -278,9 +284,10 @@ internal fun ReaderHost(
             item = destination.item,
             playlistId = destination.playlistId,
             playlistLibraryId = destination.playlistLibraryId,
-            startAtSec = destination.startAtSec.toDouble(),
+            startAtSec = destination.startAtSec,
             onBack = onBack,
             onPlaylistAdvance = onPlaylistAdvance,
+            onSwitchToReadaloud = onSwitchToReadaloud,
         )
     }
 }
