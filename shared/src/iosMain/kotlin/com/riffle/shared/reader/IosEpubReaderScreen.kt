@@ -388,7 +388,7 @@ fun EpubReaderScreen(
             // (or close when the last highlight is gone); recolour/note edits also rebuild the
             // HTML so the baked snapshot stays in sync with the annotation store.
             var isFirstOpen = true
-            var renderedIds: Set<String> = emptySet()
+            var renderedFingerprints: Set<Pair<String, Long>> = emptySet()
             annotationStore.observeAnnotations(item.sourceId, item.id).collect { annotations ->
                 highlightsAnnotations = annotations
                 val chapters = buildChapterElisionsFromAnnotations(annotations)
@@ -398,11 +398,11 @@ fun EpubReaderScreen(
                     return@collect
                 }
 
-                val incomingIds = annotations
+                val incomingFingerprints = annotations
                     .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE }
-                    .map { it.id }
+                    .map { it.id to it.updatedAt }
                     .toSet()
-                if (!isFirstOpen && incomingIds == renderedIds) return@collect
+                if (!isFirstOpen && incomingFingerprints == renderedFingerprints) return@collect
 
                 // Embed figure bytes as data-URIs — mirrors Android's HighlightsPublicationFactory.
                 // Skipped for lazy publications (no local EPUB file to read from).
@@ -454,7 +454,7 @@ fun EpubReaderScreen(
                     localPath = dirPath
                     isFirstOpen = false
                 }
-                renderedIds = incomingIds
+                renderedFingerprints = incomingFingerprints
             }
             return@LaunchedEffect
         }
