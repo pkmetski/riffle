@@ -43,11 +43,11 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
-import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
@@ -428,7 +428,9 @@ fun EpubReaderScreen(
                 val resumeLocator: String? = if (isFirstOpen) {
                     val lastId = highlightsResumeStore.lastHighlightId(item.sourceId, item.id)
                     if (lastId != null) highlightsResumeChapterHref(chapters, lastId, chapters.size) else null
-                } else null
+                } else {
+                    null
+                }
 
                 val dirPath = IosElidedEpubAssembler.assemble(
                     item, chapters, emphasisBarCss = emphasisBarCss, dataUriByHref = dataUriByHref,
