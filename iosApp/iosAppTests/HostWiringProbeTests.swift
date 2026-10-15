@@ -1,4 +1,5 @@
 import XCTest
+import shared
 
 final class HostWiringProbeTests: XCTestCase {
 
