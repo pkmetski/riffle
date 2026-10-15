@@ -58,6 +58,7 @@ class DrawerSheetContentTest {
                 onLibrarySelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
+                onRiffleSelected = {},
                 content = {},
             )
         }
@@ -81,6 +82,7 @@ class DrawerSheetContentTest {
                 onLibrarySelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
+                onRiffleSelected = {},
                 content = {},
             )
         }
