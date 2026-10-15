@@ -47,6 +47,7 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
@@ -99,6 +100,7 @@ import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.feature.reader.activeTocHref
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
@@ -149,7 +151,6 @@ import com.riffle.shared.generated.resources.ui_could_not_download_book
 import com.riffle.shared.generated.resources.ui_error
 import com.riffle.shared.generated.resources.ui_no_highlights_to_show
 import com.riffle.shared.generated.resources.ui_readaloud
-import com.riffle.shared.readaloud.IosReadaloudSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -199,7 +200,8 @@ fun EpubReaderScreen(
     val readingSpeedStore = koinInject<ReadingSpeedStore>()
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
-    val readaloudSessionFactory = koinInject<IosReadaloudSession.Factory>()
+    val readaloudSessionFactory = koinInject<ReadaloudSession.Factory>()
+    val listeningPreferencesStore = koinInject<ListeningPreferencesStore>()
     val annotationSessionFactory = koinInject<AnnotationSession.Factory>()
     val annotationSyncController = koinInject<AnnotationSyncController>()
     val emphasisPreferencesStore = koinInject<EmphasisPreferencesStore>()
@@ -294,13 +296,23 @@ fun EpubReaderScreen(
     }
     val selection by navigator.selectionFlow.collectAsState()
     val readaloudSession = remember(item.sourceId, item.id) {
-        readaloudSessionFactory.create(item.sourceId, item.id).also { session ->
-            // For combined ebook+audio items, the same item id is the audiobook counterpart.
-            if (item.isListenable) session.audiobookItemId = item.id
+        readaloudSessionFactory.create(scope) { null }.also { session ->
+            session.bind(
+                sourceId = item.sourceId,
+                itemId = item.id,
+                isStorytellerService = false,
+                audioBookId = item.id,
+                audioServerId = item.sourceId,
+                audioSettingsIdentity = com.riffle.core.models.AudioIdentity(item.sourceId, item.id),
+                audiobookItemId = if (item.isListenable) item.id else null,
+                effectiveFormattingPreferencesFlow = kotlinx.coroutines.flow.MutableStateFlow(FormattingPreferences()),
+                readerSyncProvider = { null },
+                audiobookFollowProvider = { null },
+            )
         }
     }
     DisposableEffect(item.sourceId, item.id) {
-        onDispose { readaloudSession.onDestroy() }
+        onDispose { readaloudSession.onBookClosed() }
     }
     val readaloudVisible by readaloudSession.readaloudVisible.collectAsState()
     val readaloudOpen by readaloudSession.readaloudOpen.collectAsState()
@@ -308,7 +320,12 @@ fun EpubReaderScreen(
     val readaloudAvailable by readaloudSession.readaloudAvailable.collectAsState()
     val readaloudDownloadPromptBytes by readaloudSession.downloadPromptBytes.collectAsState()
     val readaloudDownloadProgress by readaloudSession.downloadProgress.collectAsState()
-    val readaloudBarMessage by readaloudSession.barMessage.collectAsState()
+    val readaloudBarMessage by readaloudSession.readaloudBarMessage.collectAsState()
+    val readaloudSkipIntervalSeconds by listeningPreferencesStore.skipIntervalSeconds
+        .collectAsState(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+    val readaloudRewindIntervalSeconds by listeningPreferencesStore.rewindIntervalSeconds
+        .collectAsState(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
+    val readaloudAudiobookItemId by readaloudSession.audiobookItemId.collectAsState()
     val readaloudHighlightColor by readaloudSession.readaloudHighlightColor.collectAsState()
     // The annotation whose actions sheet is open, or null. Set by a decoration tap and by a
     // fresh create so the sheet switches from "annotate this selection" to "edit this
@@ -1102,9 +1119,9 @@ fun EpubReaderScreen(
                 )
                 if (ref == followedRef) return@collect
                 followedRef = ref
-                val spanId = ref.substringAfter('#', "")
-                if (spanId.isNotEmpty() &&
-                    navigator.followCadenceSpan(spanId) == NavigatorFollowResult.OffPage
+                val quote = quotes[ref]
+                if (quote != null &&
+                    navigator.followReadaloudSentence(quote.highlight) == NavigatorFollowResult.OffPage
                 ) {
                     goTo(NavigatorNavigationTarget.ToHref(ref.substringBefore('#')))
                 }
@@ -1296,11 +1313,7 @@ fun EpubReaderScreen(
                 if (readaloudVisible && source != ReaderSource.Highlights) {
                     IconButton(
                         onClick = {
-                            if (readaloudOpen) {
-                                readaloudSession.closeReadaloud()
-                            } else {
-                                scope.launch { readaloudSession.openReadaloud() }
-                            }
+                            if (!readaloudOpen) readaloudSession.openReadaloud()
                         },
                         enabled = readaloudAvailable,
                         modifier = Modifier.testTag(TestTags.READER_READALOUD),
@@ -1624,8 +1637,8 @@ fun EpubReaderScreen(
             ReadaloudMiniPlayer(
                 isPlaying = readaloudPlayback.isPlaying,
                 speed = readaloudPlayback.speed,
-                skipIntervalSeconds = readaloudSession.skipIntervalSeconds,
-                rewindIntervalSeconds = readaloudSession.rewindIntervalSeconds,
+                skipIntervalSeconds = readaloudSkipIntervalSeconds,
+                rewindIntervalSeconds = readaloudRewindIntervalSeconds,
                 canPreviousChapter = readaloudPlayback.currentChapterIndex > 0,
                 canNextChapter = readaloudPlayback.currentChapterIndex < readaloudPlayback.chapterCount - 1,
                 barMessage = readaloudBarMessage,
@@ -1633,13 +1646,13 @@ fun EpubReaderScreen(
                 containerColor = readerPalette.background.copy(alpha = 0.65f),
                 contentColor = readerPalette.foreground,
                 onPlayPause = readaloudSession::togglePlayPause,
-                onRewind = readaloudSession::skipBackward,
-                onForward = readaloudSession::skipForward,
+                onRewind = readaloudSession::rewind,
+                onForward = readaloudSession::forward,
                 onPreviousChapter = readaloudSession::previousChapter,
                 onNextChapter = readaloudSession::nextChapter,
                 onSpeedChange = readaloudSession::setSpeed,
                 onClose = readaloudSession::closeReadaloud,
-                onSwitchToAudiobook = if (onSwitchToAudiobook != null && readaloudSession.audiobookItemId != null) {
+                onSwitchToAudiobook = if (onSwitchToAudiobook != null && readaloudAudiobookItemId != null) {
                     {
                         readaloudSession.prepareAudiobookHandoff()
                         onSwitchToAudiobook()
@@ -1657,7 +1670,7 @@ fun EpubReaderScreen(
         readaloudDownloadPromptBytes?.let { bytes ->
             ReadaloudDownloadDialog(
                 sizeLabel = formatBytesOrUnknown(bytes),
-                onConfirm = { wifiOnly -> readaloudSession.startDownload(wifiOnly) },
+                onConfirm = { wifiOnly -> readaloudSession.confirmDownloadAudio(wifiOnly) },
                 onDismiss = readaloudSession::dismissDownloadPrompt,
             )
         }

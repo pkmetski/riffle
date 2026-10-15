@@ -220,6 +220,7 @@ import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ProgressFlushScope
+import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
@@ -259,7 +260,10 @@ import com.riffle.shared.library.IosReadaloudOfflineDownloader
 import com.riffle.shared.readaloud.IosReadaloudBridge
 import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
 import com.riffle.shared.readaloud.IosReadaloudController
+import com.riffle.shared.readaloud.IosReadaloudPlayerController
 import com.riffle.shared.readaloud.IosReadaloudSession
+import com.riffle.shared.readaloud.IosReadaloudSidecarDelegate
+import com.riffle.shared.readaloud.IosStorytellerSyncDelegate
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
 import com.riffle.shared.reader.IosEbookCfiTranslatorFactory
@@ -691,6 +695,45 @@ private fun iosLibraryModule(
                 audiobookHandoffState = get(),
                 dispatchers = get(),
                 parentScope = get<ApplicationScope>().coroutineScope,
+            )
+        }
+    }
+    single<ReadaloudSession.Factory> {
+        val handoffState: com.riffle.feature.player.AudiobookHandoffState = get()
+        val nowPlayingStore: com.riffle.feature.player.NowPlayingStore = get()
+        ReadaloudSession.Factory { scope, snapshotPosition ->
+            val bridge: IosReadaloudBridge = get<IosReadaloudBridgeFactory>().create()
+            val iosController = IosReadaloudController(
+                bridge = bridge,
+                bundleAudioExtractor = IosBundleAudioExtractor(),
+                readaloudHandoff = get(),
+            )
+            ReadaloudSession(
+                scope = scope,
+                snapshotPosition = snapshotPosition,
+                playerController = IosReadaloudPlayerController(iosController, scope),
+                audioRepository = get(),
+                bundleReader = get(),
+                sidecarDelegate = IosReadaloudSidecarDelegate,
+                storytellerSyncDelegate = IosStorytellerSyncDelegate,
+                audioPlaybackPreferencesStore = get(),
+                listeningPreferencesStore = get(),
+                audioIdentityResolver = get(),
+                readaloudPreferencesStore = get(),
+                readaloudResumeStore = get(),
+                readingPositionStore = get(),
+                readingSyncStore = get(),
+                audioSyncStore = get(),
+                epubRepository = get(),
+                progressFlushScope = get(),
+                connectivityObserver = get(),
+                dispatchers = get(),
+                logger = get(),
+                extractEpub = { path -> com.riffle.core.domain.IosEpubContentExtractor.extract(path) },
+                spanReader = com.riffle.core.domain.IosSentenceSpanReader,
+                onHandoffSignal = { itemId, atSec -> handoffState.signal(itemId, atSec) },
+                onHandoffDismiss = { itemId -> handoffState.dismiss(itemId) },
+                onReadaloudStarted = { itemId -> nowPlayingStore.set(com.riffle.feature.player.NowPlaying.Readaloud(itemId)) },
             )
         }
     }

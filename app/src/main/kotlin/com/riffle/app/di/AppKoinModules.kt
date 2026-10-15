@@ -51,7 +51,10 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
 import com.riffle.feature.reader.AnnotationSession
 import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
-import com.riffle.app.feature.reader.session.ReadaloudSession
+import com.riffle.app.feature.reader.session.AndroidReadaloudPlayerController
+import com.riffle.app.feature.reader.session.AndroidReadaloudSidecarDelegate
+import com.riffle.app.feature.reader.session.AndroidStorytellerSyncDelegate
+import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.app.feature.reader.session.ReaderSessionLifecycle
 import com.riffle.feature.source.ui.AddSourceViewModel
 import com.riffle.feature.source.ui.ComposeResourceSourceUiStrings
@@ -455,30 +458,37 @@ val appKoinModule: Module = module {
     }
 
     factory<ReadaloudSession.Factory> {
-        ReadaloudSession.Factory { scope, snapshotLocator ->
+        val handoffState: com.riffle.feature.player.AudiobookHandoffState = get()
+        val nowPlayingStore: com.riffle.feature.player.NowPlayingStore = get()
+        val epubAnalyzer: com.riffle.core.domain.EpubAnalyzer = get()
+        val playerCoordinator: PlayerController = get()
+        ReadaloudSession.Factory { scope, snapshotPosition ->
             ReadaloudSession(
                 scope = scope,
-                snapshotLocator = snapshotLocator,
-                playerCoordinator = get(),
-                readaloudAudioRepository = get(),
-                streamingSessionFactory = get(),
-                storytellerSyncController = get(),
+                snapshotPosition = snapshotPosition,
+                playerController = AndroidReadaloudPlayerController(playerCoordinator, scope),
+                audioRepository = get(),
+                bundleReader = get(),
+                sidecarDelegate = AndroidReadaloudSidecarDelegate(get(), get()),
+                storytellerSyncDelegate = AndroidStorytellerSyncDelegate(get()),
                 audioPlaybackPreferencesStore = get(),
                 listeningPreferencesStore = get(),
                 audioIdentityResolver = get(),
                 readaloudPreferencesStore = get(),
                 readaloudResumeStore = get(),
-                sidecarStore = get(),
                 readingPositionStore = get(),
                 readingSyncStore = get(),
                 audioSyncStore = get(),
                 epubRepository = get(),
                 progressFlushScope = get(),
-                audiobookHandoffState = get(),
                 connectivityObserver = get(),
-                nowPlayingStore = get(),
                 dispatchers = get(),
                 logger = get(),
+                extractEpub = { path -> epubAnalyzer.extract(path) },
+                spanReader = com.riffle.core.domain.JvmSentenceSpanReader,
+                onHandoffSignal = { itemId, atSec -> handoffState.signal(itemId, atSec) },
+                onHandoffDismiss = { itemId -> handoffState.dismiss(itemId) },
+                onReadaloudStarted = { itemId -> nowPlayingStore.set(com.riffle.feature.player.NowPlaying.Readaloud(itemId)) },
             )
         }
     }
