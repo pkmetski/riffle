@@ -10,6 +10,7 @@ import com.riffle.shared.audiobook.AudiobookPlayerScreen
 import com.riffle.shared.reader.CbzReaderScreen
 import com.riffle.shared.reader.EpubReaderScreen
 import com.riffle.shared.reader.PdfReaderScreen
+import com.riffle.shared.reader.jsonEscaped
 
 /**
  * Destinations inside one library-browsing host.
