@@ -342,7 +342,7 @@ class EpubReaderViewModel constructor(
     private val cadenceController: com.riffle.feature.reader.cadence.CadenceController,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.feature.reader.AnnotationSession.Factory,
-    private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
+    private val readaloudSessionFactory: com.riffle.feature.reader.ReadaloudSession.Factory,
     private val readerSessionLifecycleFactory: com.riffle.app.feature.reader.session.ReaderSessionLifecycle.Factory,
     internal val logger: Logger,
     private val clock: Clock,
@@ -441,10 +441,10 @@ class EpubReaderViewModel constructor(
 
     // Readaloud session — owns readaloud state and leaf controls. Full extraction happens across
     // sub-tasks 8.1–8.5; each sub-task lifts more logic here from the VM.
-    private val readaloud: com.riffle.app.feature.reader.session.ReadaloudSession =
+    private val readaloud: com.riffle.feature.reader.ReadaloudSession =
         readaloudSessionFactory.create(
             scope = viewModelScope,
-            snapshotLocator = { position.snapshotLastLocator() },
+            snapshotPosition = { position.snapshotLastLocator()?.toReadaloudPosition() },
         ).also { session ->
             // Option-B provider seam (sub-task 8.2): session reads VM's live vars without setters.
             // itemId is wired in init {} because it is declared after readaloud in the class body.
@@ -1155,7 +1155,12 @@ class EpubReaderViewModel constructor(
         // The sentence-quote build on isPlaying is now handled by the session's own init observer.
         readaloud.onAudioPlayingChanged = { isPlaying -> readerStateHolder.isAudioPlaying = isPlaying }
         // Wire the Storyteller pulled-locator callback once — position is constructed by this point.
-        readaloud.storytellerServerLocatorCallback = { locator -> position.requestServerJump(locator) }
+        readaloud.storytellerServerLocatorCallback = { locatorJson ->
+            try {
+                val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(locatorJson))
+                if (locator != null) position.requestServerJump(locator)
+            } catch (_: Exception) { }
+        }
         // Issue #439: ReadingSessionCoordinator no-ops until the active Source is confirmed to
         // provide ReadingSessionsCapability. LocalFiles (no capability) never enables sessions;
         // ABS flips it on once its Catalog resolves.
@@ -1486,10 +1491,8 @@ class EpubReaderViewModel constructor(
             audioSettingsIdentity = o.resolvedAudioSettingsIdentity,
             audiobookItemId = o.resolvedAudiobookItemId,
             effectiveFormattingPreferencesFlow = formatting.effectiveFormattingPreferences,
-            currentLocatorFlow = position.currentLocator,
             readerSyncProvider = { lifecycle.matchedSync.value?.readerSync },
             audiobookFollowProvider = { lifecycle.matchedSync.value?.audiobookFollow },
-            readerSyncServerIdProvider = { lifecycle.matchedSync.value?.sourceId },
         )
 
         // Bind the position orchestrator so it can save positions for this book.
@@ -1745,7 +1748,7 @@ class EpubReaderViewModel constructor(
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
             // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
             // regress it to the page top (ADR 0037). Outbound resumes once the user navigates off the page.
-            val pushAudio = readaloud.parkPolicy.fragmentRef == null
+            val pushAudio = readaloud.parkedFragmentRef == null
             val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt, pushAudio) }.getOrNull()
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->
@@ -1855,7 +1858,7 @@ class EpubReaderViewModel constructor(
 
     fun onPositionChanged(locator: Locator) {
         // Delegate park-state clear to the session (lifted in sub-task 8.2).
-        readaloud.onPositionBeforeForward(locator)
+        readaloud.onPositionBeforeForward(locator.toReadaloudPosition())
         // All hot-path position state is managed by PositionOrchestrator.
         val (spineHrefs, counts) = spinePositionCounts.value
         position.onPositionChanged(locator, spineHrefs = spineHrefs, spineCounts = counts)
@@ -3918,7 +3921,7 @@ class EpubReaderViewModel constructor(
     fun closeReadaloud() = readaloud.closeReadaloud()
 
     private fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?) {
-        viewModelScope.launch { readaloud.persistReadaloudResumePosition(locator, fragmentRef) }
+        viewModelScope.launch { readaloud.persistReadaloudResumePosition(locator?.toReadaloudPosition(), fragmentRef) }
     }
 
     fun togglePlayPause() = readaloud.togglePlayPause()

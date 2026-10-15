@@ -200,6 +200,7 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudBundleReader
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudPreferencesStore
@@ -943,6 +944,7 @@ private val coreDataStreamingAudioModule = module {
         )
     }
     single<ReadaloudAudioRepository> { get<JvmReadaloudAudioRepository>() }
+    single<ReadaloudBundleReader> { get<JvmReadaloudAudioRepository>() }
 
     single<BundleAudiobookSource> {
         val readaloudLinkRepository = get<ReadaloudLinkRepository>()
