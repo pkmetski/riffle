@@ -43,6 +43,7 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
@@ -112,11 +113,14 @@ import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
+import com.riffle.feature.reader.highlights.ChapterElision
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.highlights.buildChapterElisionsFromAnnotations
 import com.riffle.feature.reader.highlights.buildCombinedHtml
 import com.riffle.feature.reader.highlights.buildPdfFileName
 import com.riffle.feature.reader.highlights.figureHrefsFromChapters
+import com.riffle.feature.reader.highlights.highlightsResumeAnnotationIdForHref
+import com.riffle.feature.reader.highlights.highlightsResumeChapterHref
 import com.riffle.feature.reader.highlights.mimeForHref
 import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
@@ -208,6 +212,7 @@ fun EpubReaderScreen(
     val progressPuller = koinInject<ItemProgressPuller>()
     val clock = koinInject<Clock>()
     val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
+    val highlightsResumeStore = koinInject<HighlightsResumeStore>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
     val isLandscape = containerSize.width > containerSize.height
@@ -356,6 +361,11 @@ fun EpubReaderScreen(
     val sessionStartMsRef = remember { mutableStateOf(0L) }
     // Populated in Highlights mode so "Open in Book" can resolve the tapped annotation's locator.
     var highlightsAnnotations by remember { mutableStateOf<List<Annotation>>(emptyList()) }
+    // Kept as a ref so the resume-tracking LaunchedEffect can read the latest chapters without
+    // being reconstructed on every rebuild (same pattern as spineRef / tocEntriesRef).
+    val highlightsRenderedChaptersRef = remember { mutableStateOf<List<ChapterElision>>(emptyList()) }
+    // Figure data-URIs computed at open time — reused by the PDF share button.
+    var highlightsDataUriByHref by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     // Load per-book formatting overrides on open. When the dimension bucket changes (fold/rotate),
     // reload the row for the new bucket — each screen-size class has its own settings (ADR 0031).
@@ -374,50 +384,78 @@ fun EpubReaderScreen(
         progressPuller.pullItem(item.sourceId, item.id)
         if (source == ReaderSource.Highlights) {
             // Elided Annotations View: build a synthetic EPUB from the book's highlights and
-            // open it from a temp directory. No position restore — always opens at the start.
-            val annotations = annotationStore.observeAnnotations(item.sourceId, item.id).first()
-            highlightsAnnotations = annotations
-            val chapters = buildChapterElisionsFromAnnotations(annotations)
+            // open it from a temp directory. Observes live changes: deletes trigger a rebuild
+            // (or close when the last highlight is gone); recolour/note edits also rebuild the
+            // HTML so the baked snapshot stays in sync with the annotation store.
+            var isFirstOpen = true
+            var renderedIds: Set<String> = emptySet()
+            annotationStore.observeAnnotations(item.sourceId, item.id).collect { annotations ->
+                highlightsAnnotations = annotations
+                val chapters = buildChapterElisionsFromAnnotations(annotations)
 
-            // Embed figure bytes as data-URIs — mirrors Android's HighlightsPublicationFactory.
-            // Skipped for lazy publications (no local EPUB file to read from).
-            val cap = catalogRegistry.forSourceId(item.sourceId) as? LazyPublicationCapability
-            val dataUriByHref: Map<String, String> = if (cap?.lazyPublication(item.id) != null) {
-                emptyMap()
-            } else {
-                val epubPath = downloader.localPath(item)
-                if (epubPath != null) {
-                    val hrefs = figureHrefsFromChapters(chapters)
-                    hrefs.mapNotNull { href ->
-                        val base64 = readEpubResourceBase64(publicationInspector, epubPath, href)
-                            ?: return@mapNotNull null
-                        href to "data:${mimeForHref(href)};base64,$base64"
-                    }.toMap()
-                } else {
-                    emptyMap()
+                if (chapters.isEmpty()) {
+                    onBack()
+                    return@collect
                 }
-            }
 
-            val dirPath = IosElidedEpubAssembler.assemble(
-                item, chapters, emphasisBarCss = emphasisBarCss, dataUriByHref = dataUriByHref,
-            )
-            if (dirPath == null) {
-                loadError = noHighlightsText
-                return@LaunchedEffect
+                val incomingIds = annotations
+                    .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE }
+                    .map { it.id }
+                    .toSet()
+                if (!isFirstOpen && incomingIds == renderedIds) return@collect
+
+                // Embed figure bytes as data-URIs — mirrors Android's HighlightsPublicationFactory.
+                // Skipped for lazy publications (no local EPUB file to read from).
+                val cap = catalogRegistry.forSourceId(item.sourceId) as? LazyPublicationCapability
+                val dataUriByHref: Map<String, String> = if (cap?.lazyPublication(item.id) != null) {
+                    emptyMap()
+                } else {
+                    val epubPath = downloader.localPath(item)
+                    if (epubPath != null) {
+                        val hrefs = figureHrefsFromChapters(chapters)
+                        hrefs.mapNotNull { href ->
+                            val base64 = readEpubResourceBase64(publicationInspector, epubPath, href)
+                                ?: return@mapNotNull null
+                            href to "data:${mimeForHref(href)};base64,$base64"
+                        }.toMap()
+                    } else {
+                        emptyMap()
+                    }
+                }
+                highlightsDataUriByHref = dataUriByHref
+
+                // Resume: on first open navigate to the chapter the user last read.
+                val resumeLocator: String? = if (isFirstOpen) {
+                    val lastId = highlightsResumeStore.lastHighlightId(item.sourceId, item.id)
+                    if (lastId != null) highlightsResumeChapterHref(chapters, lastId, chapters.size) else null
+                } else null
+
+                val dirPath = IosElidedEpubAssembler.assemble(
+                    item, chapters, emphasisBarCss = emphasisBarCss, dataUriByHref = dataUriByHref,
+                )
+                if (dirPath == null) {
+                    loadError = noHighlightsText
+                    return@collect
+                }
+                navigator.openSyntheticEpub(dirPath, resumeLocator)
+                highlightsRenderedChaptersRef.value = chapters
+
+                if (isFirstOpen) {
+                    // Start the coordinator so coordinator.annotations is populated — the action
+                    // sheet uses it to resolve editTargetId to an Annotation.
+                    coordinator.start()
+                    annotationSession.bind(
+                        sourceId = item.sourceId,
+                        namespace = "",
+                        itemId = item.id,
+                        highlightRenderResolver = { emptyList() },
+                        cfiLocatorResolver = { null },
+                    )
+                    localPath = dirPath
+                    isFirstOpen = false
+                }
+                renderedIds = incomingIds
             }
-            navigator.openSyntheticEpub(dirPath, null)
-            // Start the coordinator so coordinator.annotations is populated — the action sheet
-            // (AnnotationActionsSheet) uses it to resolve editTargetId to an Annotation.
-            // Decorations still won't match the synthetic EPUB's spine, but the data flow is live.
-            coordinator.start()
-            annotationSession.bind(
-                sourceId = item.sourceId,
-                namespace = "",
-                itemId = item.id,
-                highlightRenderResolver = { emptyList() },
-                cfiLocatorResolver = { null },
-            )
-            localPath = dirPath
             return@LaunchedEffect
         }
 
@@ -693,6 +731,20 @@ fun EpubReaderScreen(
     // Track the current spine-item href so the TOC can highlight the active entry.
     LaunchedEffect(navigator) {
         navigator.positionFlow.collect { position -> locatorHref = position.href }
+    }
+
+    // In Highlights mode: persist the current chapter as the resume position so reopening the
+    // same book returns to the chapter the user last read (mirrors Android's ViewModel observer).
+    if (source == ReaderSource.Highlights) {
+        LaunchedEffect(navigator) {
+            navigator.positionFlow.collect { position ->
+                val chapters = highlightsRenderedChaptersRef.value
+                if (chapters.isEmpty()) return@collect
+                val annotationId = highlightsResumeAnnotationIdForHref(chapters, position.href)
+                    ?: return@collect
+                highlightsResumeStore.setLastHighlightId(item.sourceId, item.id, annotationId)
+            }
+        }
     }
 
     // Enter immersive mode when the user begins dragging — mirrors Android's onScrollStart →
@@ -1231,12 +1283,14 @@ fun EpubReaderScreen(
         if (localPath != null) {
             CornerBookmarkIndicator(
                 isBookmarked = currentBookmark != null,
-                isVisible = true,
+                isVisible = source != ReaderSource.Highlights,
                 onToggle = {
-                    // The Compose tap also leaks to the Readium UIKit view underneath;
-                    // suppress the resulting BodyTap so it doesn't toggle chrome.
-                    navigator.suppressNextBodyTap()
-                    scope.launch { editor.toggleBookmark() }
+                    if (source != ReaderSource.Highlights) {
+                        // The Compose tap also leaks to the Readium UIKit view underneath;
+                        // suppress the resulting BodyTap so it doesn't toggle chrome.
+                        navigator.suppressNextBodyTap()
+                        scope.launch { editor.toggleBookmark() }
+                    }
                 },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -1332,12 +1386,19 @@ fun EpubReaderScreen(
                             if (!isPdfExporting) {
                                 isPdfExporting = true
                                 val chapters = buildChapterElisionsFromAnnotations(highlightsAnnotations)
+                                // Use the data-URIs cached at open time so figures appear in the PDF.
+                                val bookBodyFont = highlightsAnnotations
+                                    .mapNotNull { it.originFontFamily?.ifBlank { null } }
+                                    .groupingBy { it }
+                                    .eachCount()
+                                    .maxByOrNull { it.value }
+                                    ?.key
                                 val html = buildCombinedHtml(
                                     chapters = chapters,
                                     bookTitle = item.title,
-                                    figureBytesByHref = emptyMap(),
+                                    figureBytesByHref = highlightsDataUriByHref,
                                     publisherFontFaceCss = "",
-                                    bookBodyFontFamily = null,
+                                    bookBodyFontFamily = bookBodyFont,
                                 )
                                 val fileName = buildPdfFileName(item.title, item.id)
                                 elidedPdfBridge.exportAndShare(html, fileName) {

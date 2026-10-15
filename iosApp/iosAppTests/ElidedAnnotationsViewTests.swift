@@ -126,4 +126,53 @@ final class ElidedAnnotationsViewTests: XCTestCase {
                        "mimetype must contain exactly application/epub+zip")
     }
 
+    // MARK: - Close-on-empty decision
+
+    // Deleting the last highlight produces an empty chapters list; the assembler returns nil
+    // so the screen's collect loop must call onBack() — assemble(nil) is the signal.
+    func testCloseOnEmptyChaptersAssemblerReturnsNil() {
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:])
+        XCTAssertNil(result, "nil dirPath from empty chapters signals the screen to close")
+    }
+
+    // MARK: - Live rebuild
+
+    // Each call to assemble produces a fresh directory path. This verifies the live-rebuild loop
+    // does not serve a stale HTML snapshot when highlights are recoloured or edited.
+    func testAssemblerProducesUniquePathOnEachCall() {
+        let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
+        let path1 = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:])
+        let path2 = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:])
+        XCTAssertNotNil(path1)
+        XCTAssertNotNil(path2)
+        XCTAssertNotEqual(path1, path2,
+                          "each assemble call must produce a unique directory so re-renders do not serve a stale snapshot")
+    }
+
+    // MARK: - Resume helpers (KMP commonMain via Swift bridge)
+
+    func testHighlightsResumeChapterHrefResolvesIndex() {
+        let h1 = fakeHighlight(id: "h1", chapterHref: "ch1.xhtml")
+        let h2 = fakeHighlight(id: "h2", chapterHref: "ch2.xhtml")
+        let chapters: [ChapterElision] = [
+            ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [h1]),
+            ChapterElision(href: "ch2.xhtml", title: "Chapter 2", highlights: [h2]),
+        ]
+        let result = HighlightsViewLogicKt.highlightsResumeChapterHref(
+            chapters: chapters, lastAnnotationId: "h2", readingOrderSize: 2
+        )
+        XCTAssertEqual("highlights/ch1.xhtml", result)
+    }
+
+    func testHighlightsResumeChapterHrefReturnsNilForMissingHighlight() {
+        let h1 = fakeHighlight(id: "h1", chapterHref: "ch1.xhtml")
+        let chapters: [ChapterElision] = [
+            ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [h1]),
+        ]
+        let result = HighlightsViewLogicKt.highlightsResumeChapterHref(
+            chapters: chapters, lastAnnotationId: "deleted-id", readingOrderSize: 1
+        )
+        XCTAssertNil(result)
+    }
+
 }

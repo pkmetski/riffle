@@ -13,6 +13,7 @@ import com.riffle.feature.reader.ui.generated.resources.ui_highlight_suffix
 import com.riffle.feature.reader.ui.generated.resources.ui_no_highlight_color
 import com.riffle.feature.reader.ui.generated.resources.ui_note
 import com.riffle.feature.reader.ui.generated.resources.ui_remove
+import com.riffle.feature.reader.ui.generated.resources.ui_open_in_book
 import com.riffle.feature.reader.ui.generated.resources.ui_remove_bookmark
 import com.riffle.feature.reader.ui.generated.resources.ui_save
 import com.riffle.feature.reader.ui.generated.resources.ui_selected_suffix
@@ -35,4 +36,5 @@ fun annotationSheetLabels(): AnnotationSheetLabels = AnnotationSheetLabels(
     delete = stringResource(Res.string.ui_delete_annotation),
     bookmark = stringResource(Res.string.ui_bookmark_this_page),
     removeBookmark = stringResource(Res.string.ui_remove_bookmark),
+    openInBook = stringResource(Res.string.ui_open_in_book),
 )
