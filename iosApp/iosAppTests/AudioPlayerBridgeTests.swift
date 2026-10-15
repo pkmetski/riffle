@@ -322,6 +322,7 @@ final class AudioPlayerBridgeTests: XCTestCase {
         // Regression: calling preparePlayer a second time without dispose would accumulate KVO
         // observations and leave a dangling time observer on the first player. After stopActivePlayer
         // is called at the start of each preparePlayer, only one player is alive at a time.
+        let bridge = IosAudioPlayerBridgeImpl()
         bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
         // Second prepare must not crash and must clean up the first player's observers.
         bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
