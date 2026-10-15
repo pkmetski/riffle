@@ -636,7 +636,9 @@ private fun LibraryHost(
                         onAnnotatedBookSelected = { sourceId, itemId ->
                             push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                         },
-                        onAnnotationSelected = { result -> push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null })) },
+                        onAnnotationSelected = { result ->
+                            push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null }))
+                        },
                         onAudiobookBookmarkSelected = { result ->
                             push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }))
                         },
