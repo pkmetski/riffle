@@ -134,28 +134,22 @@ import com.riffle.feature.library.ui.generated.resources.Res as LibRes
 fun LibraryItemsScreen(
     libraryId: String,
     libraryName: String,
-    onOpenDrawer: () -> Unit,
-    onItemSelected: (LibraryItem) -> Unit,
-    onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit,
-    onSeriesSelected: (Series) -> Unit,
-    onCollectionSelected: (com.riffle.core.models.Collection) -> Unit,
-    onSectionSeeMore: (LibrarySectionType) -> Unit,
-    onPlaylistSelected: (CatalogPlaylist) -> Unit,
-    onSearchAnnotations: (String) -> Unit,
-    onAnnotationSelected: (AnnotationSearchResult) -> Unit,
-    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
-    onShowAllAnnotations: (String) -> Unit,
+    actions: LibraryItemsActions,
     showRecentlyAdded: Boolean = true,
     // Whether the layered-back handler (clear search → home tab → exit) should intercept Back.
     // False by default so iOS callers, which manage their own back stack, need no change.
     // Android passes the result of libraryItemsBackEnabled() from MainScreen.
     backEnabled: Boolean = false,
-    onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
     annotationsViewModel: AnnotationsListViewModel = koinInject { parametersOf(libraryId) },
 ) {
+    val (
+        onOpenDrawer, onItemSelected, onAnnotatedBookSelected, onSeriesSelected,
+        onCollectionSelected, onSectionSeeMore, onPlaylistSelected, onSearchAnnotations,
+        onAnnotationSelected, onAudiobookBookmarkSelected, onShowAllAnnotations, onNavigateBack,
+    ) = actions
     LaunchedEffect(libraryId) {
         viewModel.onScreenResumed()
     }

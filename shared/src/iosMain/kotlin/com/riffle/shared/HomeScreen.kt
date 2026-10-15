@@ -45,9 +45,12 @@ import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.CollectionDetailScreen
+import com.riffle.feature.library.ui.DownloadsActions
 import com.riffle.feature.library.ui.DownloadsScreen
 import com.riffle.feature.library.ui.FilteredBooksScreen
+import com.riffle.feature.library.ui.LibraryItemDetailActions
 import com.riffle.feature.library.ui.LibraryItemDetailScreen
+import com.riffle.feature.library.ui.LibraryItemsActions
 import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
@@ -66,6 +69,7 @@ import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.settings.SettingsViewModel
+import com.riffle.feature.settings.ui.SettingsActions
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
@@ -320,32 +324,34 @@ fun HomeScreen() {
                     )
                     null -> SettingsScreen(
                         isExpandedWidth = isTabletLayout,
-                        onNavigateBack = { appSection = previousSection },
-                        onNavigateToAddSource = { backend, editId ->
-                            settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
-                                else -> IosSettingsSubScreen.AddSource(backend, editId)
-                            }
-                        },
-                        onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
-                        onNavigateToAddLocalFolder = {
-                            folderPicker.pickFolder { uri ->
-                                if (uri != null) {
-                                    scope.launch {
-                                        runCatching { localFilesInstaller.installFolder(uri) }
-                                            .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                        actions = SettingsActions(
+                            onNavigateBack = { appSection = previousSection },
+                            onNavigateToAddSource = { backend, editId ->
+                                settingsSubScreen = when (backend) {
+                                    is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
+                                    else -> IosSettingsSubScreen.AddSource(backend, editId)
+                                }
+                            },
+                            onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
+                            onNavigateToAddLocalFolder = {
+                                folderPicker.pickFolder { uri ->
+                                    if (uri != null) {
+                                        scope.launch {
+                                            runCatching { localFilesInstaller.installFolder(uri) }
+                                                .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
-                        onNavigateToAnnotationsSyncSettings = { settingsSubScreen = IosSettingsSubScreen.AnnotationsSync },
-                        onNavigateToDeveloperOptions = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
-                        onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
-                        onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
-                        onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
-                        onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
-                        platformHooks = IosPlatformSettingsHooks,
+                            },
+                            onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
+                            onNavigateToAnnotationsSyncSettings = { settingsSubScreen = IosSettingsSubScreen.AnnotationsSync },
+                            onNavigateToDeveloperOptions = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
+                            onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
+                            onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
+                            onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
+                            onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
+                            platformHooks = IosPlatformSettingsHooks,
+                        ),
                     )
                 }
             }
@@ -359,34 +365,38 @@ fun HomeScreen() {
                     LibraryItemDetailScreen(
                         itemId = detail.itemId,
                         sourceId = detail.sourceId,
-                        onBack = { downloadsDetailNav = null },
-                        onRead = { item ->
-                            openReadItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
-                                ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
-                        },
-                        onListen = { item ->
-                            openItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
-                                ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
-                        },
-                        onReadItemAtHref = { item, href ->
-                            pendingLibraryNav = LibraryNav.Reader(item, startHref = href)
-                            appSection = AppSection.Library
-                            downloadsDetailNav = null
-                        },
-                        onListenItemAtSec = { item, sec ->
-                            pendingLibraryNav = LibraryNav.AudiobookPlayer(item, startAtSec = sec)
-                            appSection = AppSection.Library
-                            downloadsDetailNav = null
-                        },
-                        onFacetSelected = NoOp.facetNavUnavailableInDownloads,
-                        onNavigateToSeries = NoOp.seriesNavUnavailableInDownloads,
+                        actions = LibraryItemDetailActions(
+                            onBack = { downloadsDetailNav = null },
+                            onRead = { item ->
+                                openReadItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                                    ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
+                            },
+                            onListen = { item ->
+                                openItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                                    ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
+                            },
+                            onReadItemAtHref = { item, href ->
+                                pendingLibraryNav = LibraryNav.Reader(item, startHref = href)
+                                appSection = AppSection.Library
+                                downloadsDetailNav = null
+                            },
+                            onListenItemAtSec = { item, sec ->
+                                pendingLibraryNav = LibraryNav.AudiobookPlayer(item, startAtSec = sec)
+                                appSection = AppSection.Library
+                                downloadsDetailNav = null
+                            },
+                            onFacetSelected = NoOp.facetNavUnavailableInDownloads,
+                            onNavigateToSeries = NoOp.seriesNavUnavailableInDownloads,
+                        ),
                     )
                 } else {
                     DownloadsScreen(
-                        onNavigateBack = { appSection = previousSection },
-                        onItemSelected = { item ->
-                            downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
-                        },
+                        actions = DownloadsActions(
+                            onNavigateBack = { appSection = previousSection },
+                            onItemSelected = { item ->
+                                downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
+                            },
+                        ),
                         viewModel = downloadsViewModel,
                     )
                 }
@@ -407,21 +417,23 @@ fun HomeScreen() {
                     is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
                         itemId = current.itemId,
                         sourceId = current.sourceId,
-                        onBack = ::rifflePop,
-                        onRead = { item ->
-                            openReadItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
-                                ?.let { rifflePush(it) }
-                        },
-                        onListen = { item ->
-                            openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
-                                ?.let { rifflePush(it) }
-                        },
-                        onReadItemAtHref = { item, href -> rifflePush(LibraryNav.Reader(item, startHref = href)) },
-                        onListenItemAtSec = { item, sec -> rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec)) },
-                        onNavigateToSeries = { libraryId, seriesId, seriesName -> rifflePush(LibraryNav.SeriesDetail(seriesId, libraryId, seriesName)) },
-                        onFacetSelected = { facetLibraryId, facet, value ->
-                            rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
-                        },
+                        actions = LibraryItemDetailActions(
+                            onBack = ::rifflePop,
+                            onRead = { item ->
+                                openReadItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                                    ?.let { rifflePush(it) }
+                            },
+                            onListen = { item ->
+                                openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                                    ?.let { rifflePush(it) }
+                            },
+                            onReadItemAtHref = { item, href -> rifflePush(LibraryNav.Reader(item, startHref = href)) },
+                            onListenItemAtSec = { item, sec -> rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec)) },
+                            onNavigateToSeries = { libraryId, seriesId, seriesName -> rifflePush(LibraryNav.SeriesDetail(seriesId, libraryId, seriesName)) },
+                            onFacetSelected = { facetLibraryId, facet, value ->
+                                rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
+                            },
+                        ),
                     )
                     is LibraryNav.ElidedReader -> ElidedReaderLoader(
                         itemId = current.itemId,
@@ -617,50 +629,52 @@ private fun LibraryHost(
                 LibraryItemsScreen(
                     libraryId = libraryId,
                     libraryName = libraryName,
-                    onOpenDrawer = onOpenDrawer,
                     showRecentlyAdded = sourceType?.isWebSource != true,
-                    onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
-                    onAnnotatedBookSelected = { sourceId, itemId ->
-                        push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
-                    },
-                    onAnnotationSelected = { result -> push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null })) },
-                    onAudiobookBookmarkSelected = { result ->
-                        push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }))
-                    },
-                    onSeriesSelected = { series ->
-                        push(
-                            LibraryNav.SeriesDetail(
-                                seriesId = series.id,
-                                seriesLibraryId = series.libraryId,
-                                seriesName = series.name,
+                    actions = LibraryItemsActions(
+                        onOpenDrawer = onOpenDrawer,
+                        onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
+                        onAnnotatedBookSelected = { sourceId, itemId ->
+                            push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                        },
+                        onAnnotationSelected = { result -> push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null })) },
+                        onAudiobookBookmarkSelected = { result ->
+                            push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }))
+                        },
+                        onSeriesSelected = { series ->
+                            push(
+                                LibraryNav.SeriesDetail(
+                                    seriesId = series.id,
+                                    seriesLibraryId = series.libraryId,
+                                    seriesName = series.name,
+                                )
                             )
-                        )
-                    },
-                    onCollectionSelected = { collection ->
-                        push(
-                            LibraryNav.CollectionDetail(
-                                collectionId = collection.id,
-                                collectionLibraryId = collection.libraryId,
-                                collectionName = collection.name,
+                        },
+                        onCollectionSelected = { collection ->
+                            push(
+                                LibraryNav.CollectionDetail(
+                                    collectionId = collection.id,
+                                    collectionLibraryId = collection.libraryId,
+                                    collectionName = collection.name,
+                                )
                             )
-                        )
-                    },
-                    onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
-                    onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
-                    onPlaylistSelected = { playlist ->
-                        push(
-                            LibraryNav.PlaylistDetail(
-                                playlistId = playlist.id,
-                                playlistName = playlist.name,
-                                // The playlist's own rootId, not the host's libraryId: the Playlists tab
-                                // is only visible on an ABS audiobook root and the two are the same
-                                // today, but every PlaylistsRepository call keys on the playlist's root.
-                                playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
+                        },
+                        onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
+                        onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
+                        onPlaylistSelected = { playlist ->
+                            push(
+                                LibraryNav.PlaylistDetail(
+                                    playlistId = playlist.id,
+                                    playlistName = playlist.name,
+                                    // The playlist's own rootId, not the host's libraryId: the Playlists tab
+                                    // is only visible on an ABS audiobook root and the two are the same
+                                    // today, but every PlaylistsRepository call keys on the playlist's root.
+                                    playlistLibraryId = playlist.rootId.ifEmpty { libraryId },
+                                )
                             )
-                        )
-                    },
-                    onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
-                    onNavigateBack = NoOp.backHandledByIosHost,
+                        },
+                        onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
+                        onNavigateBack = NoOp.backHandledByIosHost,
+                    ),
                 )
             }
         }
@@ -673,27 +687,29 @@ private fun LibraryHost(
         is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
             itemId = current.itemId,
             sourceId = current.sourceId,
-            onBack = ::pop,
-            // Read: routes by ebook format so ebook+audio items open the EPUB reader.
-            // Listen: isListenable wins so ebook+audio items open the audiobook player.
-            onRead = { item ->
-                openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
-            },
-            onListen = { item ->
-                openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
-            },
-            onReadItemAtHref = { item, href ->
-                openReadItemAtHref(item, href, applicationScope, recordItemOpened::invoke)?.let { push(it) }
-            },
-            onListenItemAtSec = { item, sec ->
-                push(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
-            },
-            onNavigateToSeries = { libId, seriesId, seriesName ->
-                push(LibraryNav.SeriesDetail(seriesId, libId, seriesName))
-            },
-            onFacetSelected = { facetLibraryId, facet, value ->
-                push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
-            },
+            actions = LibraryItemDetailActions(
+                onBack = ::pop,
+                // Read: routes by ebook format so ebook+audio items open the EPUB reader.
+                // Listen: isListenable wins so ebook+audio items open the audiobook player.
+                onRead = { item ->
+                    openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                },
+                onListen = { item ->
+                    openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                },
+                onReadItemAtHref = { item, href ->
+                    openReadItemAtHref(item, href, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                },
+                onListenItemAtSec = { item, sec ->
+                    push(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
+                },
+                onNavigateToSeries = { libId, seriesId, seriesName ->
+                    push(LibraryNav.SeriesDetail(seriesId, libId, seriesName))
+                },
+                onFacetSelected = { facetLibraryId, facet, value ->
+                    push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
+                },
+            ),
         )
         is LibraryNav.FilteredBooks -> FilteredBooksHost(
             destination = current,

@@ -73,19 +73,18 @@ import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 @Composable
 fun DownloadsScreen(
     isExpandedWidth: Boolean = false,
-    onNavigateBack: () -> Unit,
-    onItemSelected: (LibraryItem) -> Unit,
+    actions: DownloadsActions,
     viewModel: DownloadsViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     DownloadsContent(
         state = uiState,
         isExpandedWidth = isExpandedWidth,
-        onBack = onNavigateBack,
+        onBack = actions.onNavigateBack,
         onSetCacheAutoClear = viewModel::setCacheAutoClear,
         onRemoveDownloadedItem = viewModel::removeDownloadedItem,
         onRemoveCachedItem = viewModel::removeCachedItem,
-        onItemSelected = onItemSelected,
+        onItemSelected = actions.onItemSelected,
         onRemoveAllDownloads = viewModel::removeAllDownloads,
         onClearAllCached = viewModel::clearAllCached,
     )
