@@ -1,5 +1,4 @@
 import XCTest
-@testable import iosApp
 
 final class HostWiringProbeTests: XCTestCase {
 
