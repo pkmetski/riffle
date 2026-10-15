@@ -26,7 +26,10 @@ object NoOpCallbackLint {
 
     /** Patterns for literal no-op lambdas passed as arguments. */
     private val LITERAL_NOOP_AS_ARGUMENT = Regex(
-        """=\s*\{\s*(?:_(?:\s*,\s*_)*)?\s*-?>?\s*\}"""
+        // Matches `= {}`, `= { _ -> }`, `= { _, _ -> }`, `= { _, _, _ -> }`.
+        // The arrow token `->` is matched as a two-character unit rather than two optional
+        // characters so `->` is required when parameters are present.
+        """=\s*\{\s*(?:_(?:\s*,\s*_)*)?\s*(?:->)?\s*\}"""
     )
 
     data class Offender(
