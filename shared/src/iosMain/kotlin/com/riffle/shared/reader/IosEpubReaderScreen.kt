@@ -47,6 +47,7 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
@@ -99,6 +100,7 @@ import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.feature.reader.activeTocHref
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
@@ -149,8 +151,6 @@ import com.riffle.shared.generated.resources.ui_could_not_download_book
 import com.riffle.shared.generated.resources.ui_error
 import com.riffle.shared.generated.resources.ui_no_highlights_to_show
 import com.riffle.shared.generated.resources.ui_readaloud
-import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.feature.reader.ReadaloudSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -321,8 +321,10 @@ fun EpubReaderScreen(
     val readaloudDownloadPromptBytes by readaloudSession.downloadPromptBytes.collectAsState()
     val readaloudDownloadProgress by readaloudSession.downloadProgress.collectAsState()
     val readaloudBarMessage by readaloudSession.readaloudBarMessage.collectAsState()
-    val readaloudSkipIntervalSeconds by listeningPreferencesStore.skipIntervalSeconds.collectAsState(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
-    val readaloudRewindIntervalSeconds by listeningPreferencesStore.rewindIntervalSeconds.collectAsState(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
+    val readaloudSkipIntervalSeconds by listeningPreferencesStore.skipIntervalSeconds
+        .collectAsState(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+    val readaloudRewindIntervalSeconds by listeningPreferencesStore.rewindIntervalSeconds
+        .collectAsState(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
     val readaloudAudiobookItemId by readaloudSession.audiobookItemId.collectAsState()
     val readaloudHighlightColor by readaloudSession.readaloudHighlightColor.collectAsState()
     // The annotation whose actions sheet is open, or null. Set by a decoration tap and by a
