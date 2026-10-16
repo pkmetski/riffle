@@ -1298,7 +1298,7 @@ fun EpubReaderScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = 8.dp)
-                    .testTag(TestTags.IOS_READER_BOOKMARK),
+                    .testTag(TestTags.READER_BOOKMARK),
             )
         }
 
@@ -1321,7 +1321,7 @@ fun EpubReaderScreen(
                 ) {
                     AutoScrollToggleIcon(
                         isRunning = autoScrollState is AutoScrollState.Running,
-                        modifier = Modifier.testTag(TestTags.IOS_READER_AUTOSCROLL),
+                        modifier = Modifier.testTag(TestTags.READER_AUTOSCROLL),
                         onClick = {
                             if (autoScrollState is AutoScrollState.Running) {
                                 autoScroll.dispatch(AutoScrollEvent.Stop)
@@ -1346,7 +1346,7 @@ fun EpubReaderScreen(
                     val cadenceRunning = cadenceState is CadenceState.Running
                     CadenceToggleIcon(
                         isRunning = cadenceRunning,
-                        modifier = Modifier.testTag(TestTags.IOS_READER_CADENCE),
+                        modifier = Modifier.testTag(TestTags.READER_CADENCE),
                         onClick = {
                             if (cadenceRunning) {
                                 cadence.stop()
@@ -1409,7 +1409,7 @@ fun EpubReaderScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.testTag(TestTags.IOS_READER_SHARE_HIGHLIGHTS),
+                        modifier = Modifier.testTag(TestTags.READER_SHARE_HIGHLIGHTS),
                     ) {
                         if (isPdfExporting) {
                             androidx.compose.material3.CircularProgressIndicator(

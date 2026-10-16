@@ -77,7 +77,7 @@ fun AutoScrollHudPill(
                 onClick = if (running) onPause else onResume,
                 modifier = Modifier
                     .size(28.dp)
-                    .testTag(TestTags.IOS_READER_AUTOSCROLL_PAUSE)
+                    .testTag(TestTags.READER_AUTOSCROLL_PAUSE)
                     .semantics { contentDescription = playPauseDescription },
             ) {
                 if (running) PauseGlyph(Color.White) else PlayGlyph(Color.White)
