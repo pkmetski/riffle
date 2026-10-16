@@ -80,12 +80,16 @@ final class IosAppTests: AbsHarnessTestCase {
             "Series detail screen should show a back arrow"
         )
         backArrow.tap()
+        // Wait for the SeriesDetail pop animation to settle before asserting on the tab bar.
+        // Without this, the timeout below starts ticking while the transition is still in flight
+        // on slow CI runners, leaving insufficient time for the tab bar to appear.
+        _ = backArrow.waitForNonExistence(timeout: 15)
 
         // After popping from SeriesDetail the Library screen is restored. Tab state is not
         // preserved across the push/pop cycle, so the Home tab is shown — not the Series tab
         // we came from. Confirm we left SeriesDetail by verifying the Series tab button exists
         // (it is part of the Library tab bar and absent on the SeriesDetail screen).
-        let backOnLibrary = app.buttons["Series"].waitForExistence(timeout: 15)
+        let backOnLibrary = app.buttons["Series"].waitForExistence(timeout: 10)
         XCTAssertTrue(backOnLibrary, "Navigating back from series detail should return to the library")
     }
 

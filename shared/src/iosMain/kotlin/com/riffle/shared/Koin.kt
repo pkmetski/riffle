@@ -648,6 +648,7 @@ private fun iosLibraryModule(
     single { NowPlayingStore() }
     single { AudiobookHandoffState() }
     single { OpenReconcileTargets() }
+    single { com.riffle.feature.player.AudiobookPlayIntentRegistry() }
     // Live on iOS: FollowLoopOrchestrator.flush (per-tick audiobook position writes) and
     // AudiobookPlayerViewModel's speed-change and onCleared flushes all run through it.
     single { ProgressFlushScope(applicationScope = get()) }
@@ -785,9 +786,7 @@ private fun iosLibraryModule(
             // Start position from navigation (e.g. chapter tap in detail screen). Defaults to
             // -1f (absent) so existing callers without a fifth param are unaffected.
             navStartAtSec = if (params.size() > 4) params.get<Float>(4) else -1f,
-            // iOS navigation is always an explicit user action; there is no automatic
-            // now-playing-card path that bypasses user intent.
-            navUserPlay = true,
+            playIntentRegistry = get(),
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),
             audiobookCacheRepository = get(),
