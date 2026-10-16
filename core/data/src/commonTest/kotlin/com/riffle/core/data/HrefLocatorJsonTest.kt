@@ -1,4 +1,4 @@
-package com.riffle.shared.reader
+package com.riffle.core.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -30,7 +30,6 @@ class HrefLocatorJsonTest {
     fun plainHrefRoundTripsAsJsonString() {
         val href = "OEBPS/Text/part1/chapter-01.xhtml"
         val json = hrefLocatorJson(href)
-        // Verify the href literal is embedded verbatim (no other escaping needed for plain paths).
         assertEquals(
             """{"href":"$href","type":"application/xhtml+xml","locations":{"progression":0.0}}""",
             json,

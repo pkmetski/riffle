@@ -39,6 +39,7 @@ import com.riffle.core.common.Clock
 import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.annotationLocatorJson
+import com.riffle.core.data.hrefLocatorJson
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides

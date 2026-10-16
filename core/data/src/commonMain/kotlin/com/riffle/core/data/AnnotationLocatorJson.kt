@@ -119,6 +119,16 @@ fun annotationDecorationLocatorJson(
 }
 
 /**
+ * Minimal Readium locator JSON for opening at a specific EPUB chapter href.
+ * Used when navigating from a TOC entry or external link. Unlike [annotationLocatorJson],
+ * this carries no CFI — Readium opens at the beginning of the href.
+ */
+fun hrefLocatorJson(href: String): String {
+    val escaped = href.replace("\\", "\\\\").replace("\"", "\\\"")
+    return """{"href":"$escaped","type":"application/xhtml+xml","locations":{"progression":0.0}}"""
+}
+
+/**
  * Extracts the intra-document CFI fragment (everything after `!` inside `epubcfi(…)`).
  * Returns empty string if the CFI has no `!`.
  */

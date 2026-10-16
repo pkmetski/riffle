@@ -81,16 +81,3 @@ internal suspend fun locatorForProgression(
         inspector.locateProgression(filePath, totalProgression) { locatorJson -> cont.resume(locatorJson) }
     }
 }
-
-/**
- * Builds a minimal Readium Locator JSON that navigates to the start of the spine resource at
- * [href]. Readium Swift's [Locator(json:)] accepts any valid locator with at least `href` and
- * `type`; `locations.progression = 0` positions the reader at the chapter start.
- *
- * Used by [EpubReaderScreen] when opened via a TOC tap in the detail screen
- * (`onReadItemAtHref`), where the caller has an href but no full locator JSON.
- */
-internal fun hrefLocatorJson(href: String): String {
-    val escaped = href.replace("\\", "\\\\").replace("\"", "\\\"")
-    return """{"href":"$escaped","type":"application/xhtml+xml","locations":{"progression":0.0}}"""
-}

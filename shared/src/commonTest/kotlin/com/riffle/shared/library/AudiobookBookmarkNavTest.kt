@@ -1,6 +1,6 @@
 package com.riffle.shared.library
 
-import com.riffle.shared.LibraryNav
+import com.riffle.feature.navigation.LibraryNav
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
