@@ -23,11 +23,15 @@ ktlint_standard_trailing-comma-on-declaration-site = disabled
 
 # The iosMain DAO implementations use compact SQL binding lambdas and dense call chains.
 # Disable wrapping rules that conflict with the existing style.
+# platform.Foundation.* / platform.Security.* wildcards are required in Kotlin/Native iosMain because
+# cross-framework property types (e.g. NSURLProtectionSpace.serverTrust returning SecTrustRef) are only
+# resolved when both cinterop namespaces are imported as wildcards.
 [**/iosMain/**/*.kt]
 ktlint_standard_statement-wrapping = disabled
 ktlint_standard_wrapping = disabled
 ktlint_standard_multiline-expression-wrapping = disabled
 ktlint_standard_brace-style = disabled
+ij_kotlin_packages_to_use_import_on_demand = platform.Foundation,platform.Security
 
 # Compose Multiplatform UI — `@Composable` functions are PascalCase by Compose convention, which
 # ktlint's function-naming rule flags; this is the rule's own opt-out rather than a per-function
