@@ -54,7 +54,9 @@ import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.player.ReadaloudHandoff
+import com.riffle.feature.reader.PdfReaderViewModel
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
+import com.riffle.feature.reader.SharedPdfRepository
 import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
@@ -235,6 +237,8 @@ class IosKoinGraphTest {
         // Comics, PDF, local files
         assertNotNull(koin.get<PanelMaskService>())
         assertNotNull(koin.get<PdfRepository>())
+        assertNotNull(koin.get<SharedPdfRepository>())
+        assertNotNull(koin.get<PdfReaderViewModel> { parametersOf("test-item-id", "test-source-id") })
         assertNotNull(koin.get<PdfPageCountExtractor>())
         assertNotNull(koin.get<CoverImageCopier>())
         assertNotNull(koin.get<LocalFilesFolderHealthCheckerInterface>())

@@ -24,7 +24,9 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
-import com.riffle.app.feature.reader.PdfReaderViewModel
+import com.riffle.app.feature.reader.AndroidPdfRepository
+import com.riffle.feature.reader.PdfReaderViewModel
+import com.riffle.feature.reader.SharedPdfRepository
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader
 import com.riffle.feature.library.LibraryItemDetailViewModel
@@ -142,6 +144,7 @@ import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.Module
 import com.riffle.core.data.di.SOURCE_ADAPTERS_BY_SOURCE_TYPE
 import org.koin.core.qualifier.named
+import org.koin.dsl.bind
 import org.koin.dsl.module
 
 private val libraryViewModelModule = module {
@@ -589,26 +592,35 @@ private val readerViewModelModule = module {
             progressSweep = get(),
         )
     }
-    viewModel {
-        PdfReaderViewModel(
-            application = androidApplication(),
-            savedStateHandle = get(),
+    single {
+        AndroidPdfRepository(
             libraryObserver = get(),
-            updateReadingProgressUseCase = get(),
-            pdfRepository = get(),
+            jvmPdfRepository = get(),
             assetRetriever = get(),
             publicationOpener = get(),
-            wakeLockPreferencesStore = get(),
+        )
+    } bind SharedPdfRepository::class
+    viewModel {
+        val handle = get<androidx.lifecycle.SavedStateHandle>()
+        PdfReaderViewModel(
+            itemId = checkNotNull(handle.get<String>("itemId")) { "PdfReaderViewModel requires an itemId nav argument" },
+            navSourceId = handle.get<String>("sourceId"),
+            sharedPdfRepository = get(),
             readingSessionRepository = get(),
+            updateReadingProgressUseCase = get(),
+            wakeLockPreferencesStore = get(),
             volumeNavigationController = get(),
+            volumeKeyDispatcher = get(),
             readerStateHolder = get(),
             annotationStore = get(),
-            sourceRepository = get(),
-            formattingSessionFactory = get(),
-            volumeKeyDispatcher = get(),
+            formattingPreferencesStore = get(),
+            bookFormattingPreferencesStore = get(),
+            appearanceCoordinator = get(),
             progressFlushScope = get(),
+            sourceRepository = get(),
             clock = get(),
             readingSpeedStore = get(),
+            dispatchers = get(),
             catalogRegistry = get(),
         )
     }

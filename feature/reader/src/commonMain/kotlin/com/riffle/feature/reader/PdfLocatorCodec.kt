@@ -48,6 +48,9 @@ object PdfLocatorCodec {
         }
     }
 
+    /** Synthetic href for a 0-based page index, matching the `href` field written by [encode]. */
+    fun pageHref(page0Based: Int): String = "/page-${page0Based + 1}"
+
     private fun extractPosition(json: String): Int? =
         Regex(""""position"\s*:\s*(\d+)""").find(json)?.groupValues?.getOrNull(1)?.toIntOrNull()
 
