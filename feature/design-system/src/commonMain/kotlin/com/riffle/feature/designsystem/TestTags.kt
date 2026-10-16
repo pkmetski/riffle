@@ -14,6 +14,7 @@ object TestTags {
     const val NAV_TAB_ANNOTATIONS = "nav_tab_annotations"
     const val NO_LIBRARIES_RETRY = "no_libraries_retry"
     fun navDrawerLibrary(id: String) = "nav_drawer_library_$id"
+    fun navDrawerSource(id: String) = "nav_drawer_source_$id"
 
     // ── Library tab bar ───────────────────────────────────────────────────────
     const val LIBRARY_TAB_HOME = "library_tab_home"
@@ -69,6 +70,8 @@ object TestTags {
     const val READER_TOC_PANEL = "toc_panel"
     const val READER_NAV_RAIL = "chapter_navigation_rail"
     const val READER_AUTOSCROLL = "reader_autoscroll"
+    const val READER_CADENCE = "reader_cadence"
+    const val READER_SHARE_HIGHLIGHTS = "reader_share_highlights"
     const val READER_FOOTNOTE_POPUP = "footnote_popup"
     const val READER_FOOTNOTE_CLOSE = "footnote_close"
     const val READER_RETURN_CARD = "return_to_position_card"
@@ -115,18 +118,26 @@ object TestTags {
     const val IOS_READER_TOC = "ios_reader_toc"
     const val IOS_READER_SEARCH = "ios_reader_search"
     const val IOS_READER_SEARCH_FIELD = "ios_reader_search_field"
-    const val IOS_READER_AUTOSCROLL = "ios_reader_autoscroll"
-    const val IOS_READER_CADENCE = "ios_reader_cadence"
-    const val IOS_READER_SHARE_HIGHLIGHTS = "ios_reader_share_highlights"
-    const val IOS_READER_BOOKMARK = "ios_reader_bookmark"
-    const val IOS_READER_AUTOSCROLL_PAUSE = "ios_reader_autoscroll_pause"
+
+    // Shared reader-chrome tags — both platforms use these, so no IOS_ prefix.
+    const val IOS_READER_AUTOSCROLL = READER_AUTOSCROLL
+    const val IOS_READER_CADENCE = READER_CADENCE
+    const val IOS_READER_SHARE_HIGHLIGHTS = READER_SHARE_HIGHLIGHTS
+    const val IOS_READER_BOOKMARK = READER_BOOKMARK
+    const val READER_AUTOSCROLL_PAUSE = "reader_autoscroll_pause"
+
+    @Deprecated("Use READER_AUTOSCROLL_PAUSE", ReplaceWith("READER_AUTOSCROLL_PAUSE"))
+    const val IOS_READER_AUTOSCROLL_PAUSE = READER_AUTOSCROLL_PAUSE
 
     // These match the existing pre-tagged string values in AutoScrollUi / CadenceUi.
     const val READER_AUTOSCROLL_SLOWER = "auto_scroll_slower"
     const val READER_AUTOSCROLL_FASTER = "auto_scroll_faster"
     const val READER_CADENCE_SLOWER = "cadence_slower"
     const val READER_CADENCE_FASTER = "cadence_faster"
-    const val IOS_READER_CADENCE_PAUSE = "ios_reader_cadence_pause"
+    const val READER_CADENCE_PAUSE = "reader_cadence_pause"
+
+    @Deprecated("Use READER_CADENCE_PAUSE", ReplaceWith("READER_CADENCE_PAUSE"))
+    const val IOS_READER_CADENCE_PAUSE = READER_CADENCE_PAUSE
 
     // ── iOS PDF reader ────────────────────────────────────────────────────────
     const val IOS_PDF_READER_BACK = "ios_pdf_reader_back"

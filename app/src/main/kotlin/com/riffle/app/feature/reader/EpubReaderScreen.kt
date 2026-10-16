@@ -760,7 +760,8 @@ fun EpubReaderScreen(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(end = 12.dp)
-                            .graphicsLayer { },
+                            .graphicsLayer { }
+                            .testTag(TestTags.READER_BOOKMARK),
                     )
                 }
                 is ReaderState.Error -> {
@@ -888,6 +889,7 @@ fun EpubReaderScreen(
                     ) {
                         com.riffle.feature.reader.ui.AutoScrollToggleIcon(
                             isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
+                            modifier = Modifier.testTag(TestTags.READER_AUTOSCROLL),
                             onClick = {
                                 if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
                                     viewModel.stopAutoScroll()
@@ -903,6 +905,7 @@ fun EpubReaderScreen(
                         val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
                         com.riffle.feature.reader.ui.CadenceToggleIcon(
                             isRunning = cadenceRunning,
+                            modifier = Modifier.testTag(TestTags.READER_CADENCE),
                             onClick = {
                                 if (cadenceRunning) viewModel.stopCadence()
                                 else viewModel.startCadence()
@@ -933,7 +936,10 @@ fun EpubReaderScreen(
                                 )
                             }
                         } else {
-                            IconButton(onClick = viewModel::onShareElidedView) {
+                            IconButton(
+                                onClick = viewModel::onShareElidedView,
+                                modifier = Modifier.testTag(TestTags.READER_SHARE_HIGHLIGHTS),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Share,
                                     contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_share_annotations_as_pdf),

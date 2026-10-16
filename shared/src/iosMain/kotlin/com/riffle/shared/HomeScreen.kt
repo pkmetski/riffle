@@ -23,8 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
+import com.riffle.core.data.annotationLocatorJson
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.ApplicationScope
@@ -37,6 +36,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.NoOp
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.isExpandedWidth
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
@@ -144,9 +144,7 @@ fun HomeScreen() {
     var previousSection by remember { mutableStateOf(AppSection.Library) }
     var pendingRiffleNav by remember { mutableStateOf<LibraryNav?>(null) }
 
-    val density = LocalDensity.current.density
-    val containerSize = LocalWindowInfo.current.containerSize
-    val isTabletLayout = (containerSize.width / density) >= 840f && (containerSize.height / density) >= 480f
+    val isTabletLayout = isExpandedWidth()
     val iosAppVersion = remember {
         NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String
     }
@@ -245,6 +243,7 @@ fun HomeScreen() {
         onSettingsSelected = {
             scope.launch { drawerState.close() }
             previousSection = appSection
+            settingsSubScreen = null
             appSection = AppSection.Settings
         },
         onDownloadsSelected = {
@@ -258,6 +257,7 @@ fun HomeScreen() {
                 val folderPicker = koinInject<FolderPickerInterface>()
                 val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
                 val localFilesLogger = koinInject<Logger>()
+                BackHandler(enabled = settingsSubScreen != null) { settingsSubScreen = null }
                 when (val sub = settingsSubScreen) {
                     IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
                         onFinished = { settingsSubScreen = null },
@@ -367,6 +367,7 @@ fun HomeScreen() {
                 val downloadsApplicationScope = koinInject<ApplicationScope>()
                 val downloadsRecordItemOpened = koinInject<RecordItemOpened>()
                 var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
+                BackHandler(enabled = downloadsDetailNav != null) { downloadsDetailNav = null }
                 val detail = downloadsDetailNav
                 if (detail != null) {
                     LibraryItemDetailScreen(
@@ -447,6 +448,12 @@ fun HomeScreen() {
                             },
                         ),
                     )
+                    is LibraryNav.AnnotationReader -> AnnotationReaderLoader(
+                        itemId = current.itemId,
+                        sourceId = current.sourceId,
+                        locatorJson = current.locatorJson,
+                        onBack = ::rifflePop,
+                    )
                     is LibraryNav.ElidedReader -> ElidedReaderLoader(
                         itemId = current.itemId,
                         sourceId = current.sourceId,
@@ -466,8 +473,8 @@ fun HomeScreen() {
                     is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
                         destination = current,
                         onBack = ::rifflePop,
-                        onOpenBook = { sourceId, itemId ->
-                            rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                        onAnnotationSelected = { sourceId, itemId, locatorJson ->
+                            rifflePush(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson))
                         },
                         onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
                             rifflePlayIntentRegistry.recordIntent(sourceId, itemId)
@@ -737,13 +744,19 @@ private fun LibraryHost(
         is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
             destination = current,
             onBack = ::pop,
-            onOpenBook = { sourceId, itemId ->
-                push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+            onAnnotationSelected = { sourceId, itemId, locatorJson ->
+                push(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson))
             },
             onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
                 playIntentRegistry.recordIntent(sourceId, itemId)
                 push(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
             },
+        )
+        is LibraryNav.AnnotationReader -> AnnotationReaderLoader(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            locatorJson = current.locatorJson,
+            onBack = ::pop,
         )
         is LibraryNav.ElidedReader -> ElidedReaderLoader(
             itemId = current.itemId,
@@ -873,6 +886,41 @@ internal fun ElidedReaderLoader(
 }
 
 /**
+ * Loads a [LibraryItem] by [itemId]/[sourceId] then opens the full EPUB reader at [locatorJson].
+ * Used by annotation search results to land on the annotated page rather than the highlights view.
+ */
+@Composable
+internal fun AnnotationReaderLoader(
+    itemId: String,
+    sourceId: String?,
+    locatorJson: String,
+    onBack: () -> Unit,
+) {
+    val libraryObserver = koinInject<LibraryObserver>()
+    var item by remember { mutableStateOf<LibraryItem?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(itemId, sourceId) {
+        item = if (sourceId != null) libraryObserver.getItem(sourceId, itemId) else libraryObserver.getItem(itemId)
+        loaded = true
+    }
+    val loadedItem = item
+    when {
+        loadedItem != null -> EpubReaderScreen(
+            item = loadedItem,
+            onBack = onBack,
+            source = ReaderSource.FullBook,
+            initialLocatorJson = locatorJson,
+        )
+        loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(SharedRes.string.ui_book_not_found))
+        }
+        else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
+}
+
+/**
  * Loads a [LibraryItem] by [itemId]/[sourceId] and opens the audiobook player at [startAtSec].
  *
  * The audiobook bookmark search result only carries ids and a position — no [LibraryItem] — so this
@@ -970,7 +1018,7 @@ internal fun FilteredBooksHost(
 internal fun AnnotationSearchHost(
     destination: LibraryNav.AnnotationSearch,
     onBack: () -> Unit,
-    onOpenBook: (sourceId: String, itemId: String) -> Unit,
+    onAnnotationSelected: (sourceId: String, itemId: String, locatorJson: String) -> Unit,
     onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Double) -> Unit,
 ) {
     val koin = getKoin()
@@ -984,7 +1032,14 @@ internal fun AnnotationSearchHost(
         viewModel = viewModel,
         labels = annotationSearchLabels(),
         onNavigateBack = onBack,
-        onAnnotationSelected = { result -> onOpenBook(result.annotation.sourceId, result.annotation.itemId) },
+        onAnnotationSelected = { result ->
+            val locatorJson = annotationLocatorJson(
+                result.annotation.chapterHref,
+                result.annotation.cfi,
+                result.annotation.progression,
+            )
+            onAnnotationSelected(result.annotation.sourceId, result.annotation.itemId, locatorJson)
+        },
         onAudiobookBookmarkSelected = { result ->
             onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec)
         },

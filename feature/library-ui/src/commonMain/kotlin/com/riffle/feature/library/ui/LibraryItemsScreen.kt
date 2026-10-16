@@ -208,11 +208,13 @@ fun LibraryItemsScreen(
             )
         },
         bottomBar = {
-            LibraryTabBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-                visibility = tabVisibility ?: LibraryTabVisibility.All,
-            )
+            if (searchQuery.isBlank()) {
+                LibraryTabBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    visibility = tabVisibility ?: LibraryTabVisibility.All,
+                )
+            }
         },
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {

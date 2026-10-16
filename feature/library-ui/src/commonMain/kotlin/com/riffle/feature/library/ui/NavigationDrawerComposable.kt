@@ -355,6 +355,7 @@ private fun DrawerHeader(
                         switcherExpanded = false
                         onServerSelected(server)
                     },
+                    modifier = Modifier.testTag(TestTags.navDrawerSource(server.id)),
                 )
             }
         }
