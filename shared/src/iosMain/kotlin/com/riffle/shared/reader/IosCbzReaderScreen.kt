@@ -106,9 +106,9 @@ private fun IosComicPageContent(
     pageIndex: Int,
     modifier: Modifier = Modifier,
 ) {
-    var state by remember(pageIndex) { mutableStateOf<PageState>(PageState.Loading) }
+    var state by remember(imageSource, pageIndex) { mutableStateOf<PageState>(PageState.Loading) }
 
-    LaunchedEffect(pageIndex) {
+    LaunchedEffect(imageSource, pageIndex) {
         state = PageState.Loading
         val result = withContext(Dispatchers.IO) {
             runCatching { imageSource.imageBytes(pageIndex) }.getOrNull()

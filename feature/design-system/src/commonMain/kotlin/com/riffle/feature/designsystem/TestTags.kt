@@ -101,6 +101,10 @@ object TestTags {
     const val PDF_READER_PAGE_INDICATOR = "pdf_reader_page_indicator"
     const val PDF_READER_FORMAT_TOGGLE = "pdf_reader_format_toggle"
     const val PDF_READER_ANNOTATIONS = "pdf_reader_annotations"
+    const val PDF_READER_CONTAINER = "pdf_reader_container"
+    const val PDF_READER_BOOKMARK = "pdf_reader_bookmark"
+    const val PDF_READER_LOADING = "pdf_reader_loading"
+    const val PDF_READER_ERROR = "pdf_reader_error"
 
     // ── CBZ / comic reader ────────────────────────────────────────────────────
     const val CBZ_READER_BACK = "cbz_reader_back"

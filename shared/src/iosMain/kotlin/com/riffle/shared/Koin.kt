@@ -219,11 +219,13 @@ import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.CbzReaderViewModel
+import com.riffle.feature.reader.PdfReaderViewModel
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
+import com.riffle.feature.reader.SharedPdfRepository
 import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
@@ -273,6 +275,7 @@ import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosEpubTocExtractor
 import com.riffle.shared.reader.IosPdfDownloader
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
+import com.riffle.shared.reader.IosPdfSharedRepository
 import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
@@ -1044,6 +1047,31 @@ private fun iosLibraryModule(
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
     single { IosPdfRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get()) }
     single<PdfRepository> { get<IosPdfRepositoryImpl>() }
+    single { IosPdfSharedRepository(libraryObserver = get(), downloader = get(), positionStore = get()) }
+    single<SharedPdfRepository> { get<IosPdfSharedRepository>() }
+    factory { params ->
+        PdfReaderViewModel(
+            itemId = params.get(0),
+            navSourceId = params.values.getOrNull(1) as? String,
+            sharedPdfRepository = get(),
+            readingSessionRepository = get(),
+            updateReadingProgressUseCase = get(),
+            wakeLockPreferencesStore = get(),
+            volumeNavigationController = get(),
+            volumeKeyDispatcher = get(),
+            readerStateHolder = get(),
+            annotationStore = get(),
+            formattingPreferencesStore = get(),
+            bookFormattingPreferencesStore = get(),
+            appearanceCoordinator = get(),
+            progressFlushScope = get(),
+            sourceRepository = get(),
+            clock = get(),
+            readingSpeedStore = get(),
+            dispatchers = get(),
+            catalogRegistry = get(),
+        )
+    }
     single { IosReadaloudAudioRepositoryImpl(get(), get(), get(), get(), get()) }
     single<ReadaloudAudioRepository> { get<IosReadaloudAudioRepositoryImpl>() }
     single<ReadaloudBundleReader> { get<IosReadaloudAudioRepositoryImpl>() }

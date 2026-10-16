@@ -39,4 +39,38 @@ final class PdfReaderTests: AbsHarnessTestCase {
         XCTAssertTrue(backButton.exists, "PDF reader must open")
         tapBackToLibrary(backButton, in: app)
     }
+
+    // MARK: - Scenario 06-H: State tags and bookmark ribbon
+
+    /// 06-H.1 — The PDF reader container state tag is present once the reader opens.
+    func testPdfReaderContainerTagPresent() throws {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10), "PDF tile must be visible")
+
+        _ = openReader(from: pdfTile, in: app)
+        let container = app.otherElements["pdf_reader_container"]
+        XCTAssertTrue(
+            container.waitForExistence(timeout: 10),
+            "pdf_reader_container tag must be present once the PDF reader opens"
+        )
+    }
+
+    /// 06-H.2 — The bookmark ribbon button is present and tappable once the reader is ready.
+    func testPdfReaderBookmarkRibbonPresent() throws {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10), "PDF tile must be visible")
+
+        _ = openReader(from: pdfTile, in: app)
+        // Wait for reader_ready tag which appears once the VM transitions to Ready state.
+        let ready = app.otherElements["reader_ready"]
+        XCTAssertTrue(ready.waitForExistence(timeout: 15), "PDF reader must reach Ready state")
+
+        let bookmark = app.buttons["pdf_reader_bookmark"]
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5), "Bookmark ribbon button must be present")
+        bookmark.tap()
+        // After toggle the button still exists (not a one-shot action).
+        XCTAssertTrue(bookmark.exists, "Bookmark ribbon must remain after toggle")
+    }
 }
