@@ -73,6 +73,7 @@ class PdfReaderViewModelTest {
 
         assertIs<PdfReaderState.Ready>(vm.state.value)
         assertEquals(10, (vm.state.value as PdfReaderState.Ready).totalPages)
+        vm.onReaderClosed()
     }
 
     @Test
@@ -87,6 +88,7 @@ class PdfReaderViewModelTest {
         runCurrent()
 
         assertEquals(3.0f, bookStore.captured("src1", "item1")?.margins)
+        vm.onReaderClosed()
     }
 
     @Test
@@ -105,6 +107,7 @@ class PdfReaderViewModelTest {
         runCurrent()
 
         assertFalse(vm.hasBookOverrides.value)
+        vm.onReaderClosed()
     }
 
     @Test
@@ -123,6 +126,7 @@ class PdfReaderViewModelTest {
         vm.toggleBookmark()
         runCurrent()
         assertEquals(0, annotationStore.bookmarkCount)
+        vm.onReaderClosed()
     }
 
     @Test
@@ -141,6 +145,7 @@ class PdfReaderViewModelTest {
         vm.onPageChanged(page0Based = 6, totalPages = 10, progression = 0.6f)
         runCurrent()
         assertEquals(1, pdfRepo.savedPositions.size)
+        vm.onReaderClosed()
     }
 
     // ---- Helpers -----------------------------------------------------------
