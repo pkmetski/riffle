@@ -34,9 +34,9 @@ import com.riffle.core.logging.Logger
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.BookCoverTile
-import com.riffle.feature.designsystem.isExpandedWidth
 import com.riffle.feature.designsystem.NoOp
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.isExpandedWidth
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
