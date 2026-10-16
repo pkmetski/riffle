@@ -579,11 +579,12 @@ class AnnotationFocusHarnessTest : KoinTest {
         // the previous search result, the reader briefly re-enters a loading state and Search
         // disappears from the semantic tree. Vertical mode (scroll=true Readium) re-enters Ready
         // more slowly than paginated. A single long timeout proved unreliable on slow CI runners;
-        // retry showing chrome up to 5 times with a 30 s window each, so a Ready→Loading→Ready
+        // retry showing chrome up to 8 times with a 30 s window each, so a Ready→Loading→Ready
         // cycle is handled by the retry loop instead of requiring a timeout large enough for the
-        // combined duration.
+        // combined duration. 8 attempts (vs the original 5) adds a 90 s buffer for slow runners
+        // where vertical-mode chapter transitions take longer than usual.
         var searchFound = false
-        repeat(5) {
+        repeat(8) {
             if (searchFound) return@repeat
             try {
                 showTopAppBar()
@@ -599,7 +600,7 @@ class AnnotationFocusHarnessTest : KoinTest {
                 waitForReaderReady()
             }
         }
-        if (!searchFound) throw AssertionError("navigateWithSearch: Search button not visible after 5 attempts")
+        if (!searchFound) throw AssertionError("navigateWithSearch: Search button not visible after 8 attempts")
         // The Search icon can disappear between the waitUntil pass and performClick if the reader
         // briefly re-enters a loading state (e.g. vertical mode slow chapter transition on CI).
         // Retry once: re-show chrome and click again, matching the pattern used for the Annotations

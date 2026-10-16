@@ -47,7 +47,6 @@ import com.riffle.feature.settings.ui.sections.DictionaryPacksSection
 import com.riffle.feature.settings.ui.sections.ListeningSection
 import com.riffle.feature.settings.ui.sections.ReadaloudSection
 import com.riffle.feature.settings.ui.sections.ReadingSection
-import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.source.ui.settings.SourcesSection
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -65,20 +64,21 @@ internal fun crashReportShareSubject(timestamp: String): String =
 @Composable
 fun SettingsScreen(
     isExpandedWidth: Boolean,
-    onNavigateBack: () -> Unit,
-    onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
-    onNavigateToAddSourcePicker: () -> Unit = { onNavigateToAddSource(AddSourceBackend.Audiobookshelf, null) },
-    onNavigateToAddLocalFolder: () -> Unit,
-    onNavigateToReadaloudSettings: () -> Unit,
-    onNavigateToAnnotationsSyncSettings: () -> Unit,
-    onNavigateToDeveloperOptions: () -> Unit,
-    onNavigateToDictionaryPacks: () -> Unit,
-    onNavigateToDebugLogs: () -> Unit,
-    onNavigateToChangelog: () -> Unit,
-    onNavigateToReadaloudMatches: (String) -> Unit,
-    platformHooks: PlatformSettingsHooks = DefaultPlatformSettingsHooks,
+    actions: SettingsActions,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
+    val onNavigateBack = actions.onNavigateBack
+    val onNavigateToAddSource = actions.onNavigateToAddSource
+    val onNavigateToAddSourcePicker = actions.onNavigateToAddSourcePicker
+    val onNavigateToAddLocalFolder = actions.onNavigateToAddLocalFolder
+    val onNavigateToReadaloudSettings = actions.onNavigateToReadaloudSettings
+    val onNavigateToAnnotationsSyncSettings = actions.onNavigateToAnnotationsSyncSettings
+    val onNavigateToDeveloperOptions = actions.onNavigateToDeveloperOptions
+    val onNavigateToDictionaryPacks = actions.onNavigateToDictionaryPacks
+    val onNavigateToDebugLogs = actions.onNavigateToDebugLogs
+    val onNavigateToChangelog = actions.onNavigateToChangelog
+    val onNavigateToReadaloudMatches = actions.onNavigateToReadaloudMatches
+    val platformHooks = actions.platformHooks
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()

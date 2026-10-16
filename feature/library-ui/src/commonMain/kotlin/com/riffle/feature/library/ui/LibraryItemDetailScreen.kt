@@ -152,16 +152,17 @@ private const val EXPANDED_WIDTH_BREAKPOINT_DP = 600
 fun LibraryItemDetailScreen(
     itemId: String,
     sourceId: String?,
-    onBack: () -> Unit,
-    onRead: (LibraryItem) -> Unit,
-    onListen: (LibraryItem) -> Unit,
-    onReadItemAtHref: (LibraryItem, String) -> Unit,
-    onListenItemAtSec: (LibraryItem, Double) -> Unit,
-    onFacetSelected: (libraryId: String, facet: FacetType, value: String) -> Unit,
-    onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit,
-    onEditMetadata: (() -> Unit)? = null,
+    actions: LibraryItemDetailActions,
     vm: LibraryItemDetailViewModel = koinInject(parameters = { parametersOf(itemId, sourceId) }),
 ) {
+    val onBack = actions.onBack
+    val onRead = actions.onRead
+    val onListen = actions.onListen
+    val onReadItemAtHref = actions.onReadItemAtHref
+    val onListenItemAtSec = actions.onListenItemAtSec
+    val onFacetSelected = actions.onFacetSelected
+    val onNavigateToSeries = actions.onNavigateToSeries
+    val onEditMetadata = actions.onEditMetadata
     val uiState by vm.uiState.collectAsState()
     val downloadState by vm.downloadState.collectAsState()
     val audiobookDownloadState by vm.audiobookDownloadState.collectAsState()

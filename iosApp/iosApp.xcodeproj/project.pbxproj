@@ -26,6 +26,7 @@
 		A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE050002 /* AnnotationWireFormatTests.swift */; };
 		A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE060002 /* ScrollProbeBridgeTests.swift */; };
+		A1C0DE070001 /* HostWiringProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE070002 /* HostWiringProbeTests.swift */; };
 		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
 		A1EL2D010001 /* ElidedPdfBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL2D020001 /* ElidedPdfBridgeTests.swift */; };
 		A1EL2D010002 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
@@ -120,6 +121,7 @@
 		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
 		A1C0DE050002 /* AnnotationWireFormatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationWireFormatTests.swift; sourceTree = "<group>"; };
 		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
+		A1C0DE070002 /* HostWiringProbeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostWiringProbeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
 		A1EL2D020001 /* ElidedPdfBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridgeTests.swift; sourceTree = "<group>"; };
 		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = iosApp.app; path = Riffle.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -314,6 +316,7 @@
 				A1C0DE030002 /* AnnotationBridgeTests.swift */,
 				A1C0DE050002 /* AnnotationWireFormatTests.swift */,
 				A1C0DE060002 /* ScrollProbeBridgeTests.swift */,
+				A1C0DE070002 /* HostWiringProbeTests.swift */,
 				B1057020 /* IosPlatformSettingsHooksTests.swift */,
 				A1BG0020 /* AppLocalizationUnitTests.swift */,
 				B1066020 /* NowPlayingSceneGateTests.swift */,
@@ -593,6 +596,7 @@
 				A1C0DE030001 /* AnnotationBridgeTests.swift in Sources */,
 				A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */,
 				A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */,
+				A1C0DE070001 /* HostWiringProbeTests.swift in Sources */,
 				A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */,
 				B1053010 /* EpubProgressionLocatorTests.swift in Sources */,
 				B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */,

@@ -17,8 +17,11 @@ import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.ui.CollectionDetailScreen
+import com.riffle.feature.library.ui.DownloadsActions
 import com.riffle.feature.library.ui.DownloadsScreen
+import com.riffle.feature.library.ui.LibraryItemDetailActions
 import com.riffle.feature.library.ui.LibraryItemDetailScreen
+import com.riffle.feature.library.ui.LibraryItemsActions
 import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.RiffleViewModel
@@ -102,10 +105,10 @@ internal fun NavGraphBuilder.libraryNavGraph(
         DownloadsScreen(
             viewModel = koinViewModel<DownloadsViewModel>(),
             isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
-            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-            onItemSelected = { item ->
-                navController.navigate(libraryItemDetailRoute(item))
-            },
+            actions = DownloadsActions(
+                onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+                onItemSelected = { item -> navController.navigate(libraryItemDetailRoute(item)) },
+            ),
         )
     }
     composable(
@@ -137,49 +140,49 @@ internal fun NavGraphBuilder.libraryNavGraph(
             viewModel = koinViewModel<LibraryItemsViewModel>(parameters = { parametersOf(libraryId) }),
             annotationsViewModel = koinViewModel<AnnotationsListViewModel>(parameters = { parametersOf(libraryId) }),
             backEnabled = libBackEnabled,
-            onNavigateBack = { navController.navigateAsRoot(HOME) },
-            onOpenDrawer = { scope.launch { drawerState.open() } },
-            onSeriesSelected = { series ->
-                navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
-            },
-            onCollectionSelected = { collection ->
-                navController.navigate(collectionDetailRoute(libraryId, collection.id, collection.name))
-            },
-            onItemSelected = { item ->
-                navController.navigate(libraryItemDetailRoute(item))
-            },
-            onAnnotationSelected = { result ->
-                val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
-                val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
-                val encodedAnnotationId = URLEncoder.encode(result.annotation.id, "UTF-8")
-                navController.navigate(
-                    "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
-                )
-            },
-            onAudiobookBookmarkSelected = { result ->
-                val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
-                val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}&userPlay=true")
-            },
-            onShowAllAnnotations = { query ->
-                val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
-            },
-            onSectionSeeMore = { sectionType ->
-                navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
-            },
-            onAnnotatedBookSelected = { sourceId, itemId ->
-                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-            },
-            onPlaylistSelected = { playlist ->
-                val encodedName = URLEncoder.encode(playlist.name, "UTF-8")
-                val encodedId = URLEncoder.encode(playlist.id, "UTF-8")
-                navController.navigate("playlist_detail/$libraryId/$encodedId/$encodedName")
-            },
-            onSearchAnnotations = { query ->
-                val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
-            },
+            actions = LibraryItemsActions(
+                onNavigateBack = { navController.navigateAsRoot(HOME) },
+                onOpenDrawer = { scope.launch { drawerState.open() } },
+                onSeriesSelected = { series ->
+                    navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
+                },
+                onCollectionSelected = { collection ->
+                    navController.navigate(collectionDetailRoute(libraryId, collection.id, collection.name))
+                },
+                onItemSelected = { item -> navController.navigate(libraryItemDetailRoute(item)) },
+                onAnnotationSelected = { result ->
+                    val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
+                    val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
+                    val encodedAnnotationId = URLEncoder.encode(result.annotation.id, "UTF-8")
+                    navController.navigate(
+                        "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
+                    )
+                },
+                onAudiobookBookmarkSelected = { result ->
+                    val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
+                    val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
+                    navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}&userPlay=true")
+                },
+                onShowAllAnnotations = { query ->
+                    val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                    navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
+                },
+                onSectionSeeMore = { sectionType ->
+                    navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
+                },
+                onAnnotatedBookSelected = { sourceId, itemId ->
+                    navController.navigate(annotationsBookClickRoute(sourceId, itemId))
+                },
+                onPlaylistSelected = { playlist ->
+                    val encodedName = URLEncoder.encode(playlist.name, "UTF-8")
+                    val encodedId = URLEncoder.encode(playlist.id, "UTF-8")
+                    navController.navigate("playlist_detail/$libraryId/$encodedId/$encodedName")
+                },
+                onSearchAnnotations = { query ->
+                    val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                    navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
+                },
+            ),
         )
     }
     composable(
@@ -309,38 +312,38 @@ internal fun NavGraphBuilder.libraryNavGraph(
             itemId = itemId,
             sourceId = sourceId,
             vm = vm,
-            onBack = { navController.popBackStackIfTop(backStackEntry) },
-            onRead = { item ->
-                readerRouteFor(item)?.let { navController.navigate(it) }
-            },
-            onListen = { item ->
-                val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
-                val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?userPlay=true")
-            },
-            onReadItemAtHref = { item, href ->
-                val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                val encodedHref = URLEncoder.encode(href, "UTF-8")
-                val sourceParam = if (item.sourceId.isNotBlank()) {
-                    "&sourceId=${URLEncoder.encode(item.sourceId, "UTF-8")}"
-                } else {
-                    ""
-                }
-                navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref$sourceParam")
-            },
-            onListenItemAtSec = { item, startSec ->
-                val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
-                val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec&userPlay=true")
-            },
-            onFacetSelected = { libId, facet, value ->
-                val encoded = URLEncoder.encode(value, "UTF-8")
-                navController.navigate("filtered_books/$libId/${facet.name}/$encoded")
-            },
-            onNavigateToSeries = { libId, seriesId, seriesName ->
-                navController.navigate(seriesDetailRoute(libId, seriesId, seriesName))
-            },
-            onEditMetadata = { showEditMetadataDialog = true },
+            actions = LibraryItemDetailActions(
+                onBack = { navController.popBackStackIfTop(backStackEntry) },
+                onRead = { item -> readerRouteFor(item)?.let { navController.navigate(it) } },
+                onListen = { item ->
+                    val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
+                    val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                    navController.navigate("audiobook_player/$encodedSourceId/$encodedId?userPlay=true")
+                },
+                onReadItemAtHref = { item, href ->
+                    val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                    val encodedHref = URLEncoder.encode(href, "UTF-8")
+                    val sourceParam = if (item.sourceId.isNotBlank()) {
+                        "&sourceId=${URLEncoder.encode(item.sourceId, "UTF-8")}"
+                    } else {
+                        ""
+                    }
+                    navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref$sourceParam")
+                },
+                onListenItemAtSec = { item, startSec ->
+                    val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
+                    val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                    navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec&userPlay=true")
+                },
+                onFacetSelected = { libId, facet, value ->
+                    val encoded = URLEncoder.encode(value, "UTF-8")
+                    navController.navigate("filtered_books/$libId/${facet.name}/$encoded")
+                },
+                onNavigateToSeries = { libId, seriesId, seriesName ->
+                    navController.navigate(seriesDetailRoute(libId, seriesId, seriesName))
+                },
+                onEditMetadata = { showEditMetadataDialog = true },
+            ),
         )
 
         if (showEditMetadataDialog) {

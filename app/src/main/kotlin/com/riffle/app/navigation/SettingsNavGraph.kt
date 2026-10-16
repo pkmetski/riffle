@@ -16,6 +16,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.riffle.feature.settings.ui.SettingsActions
 import com.riffle.feature.settings.ui.SettingsScreen
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
 import com.riffle.feature.settings.ui.i18n.AppLanguage
@@ -77,34 +78,36 @@ internal fun NavGraphBuilder.settingsNavGraph(
 
         SettingsScreen(
             isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
-            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-            // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
-            // form from their respective Settings drill-ins; editing an existing ABS
-            // Source also skips the picker (the Source Type is already known). All three
-            // paths still flow through `onNavigateToAddSource(backend, editId)`.
-            onNavigateToAddSource = { backend, editId ->
-                val params = buildList {
-                    add("type=${backend.routeType}")
-                    if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
-                }.joinToString("&")
-                navController.navigate("$ADD_SOURCE?$params")
-            },
-            // The "Add source" button in the Sources section always launches the picker;
-            // once a SourceType is picked the picker itself routes to the type's addRoute
-            // (see [addSourceRouteFor]).
-            onNavigateToAddSourcePicker = { navController.navigate(ADD_SOURCE_TYPE_PICKER) },
-            onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
-            onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
-            onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
-            onNavigateToDeveloperOptions = { navController.navigate(DEVELOPER_OPTIONS) },
-            onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
-            onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
-            onNavigateToChangelog = { navController.navigate(CHANGELOG) },
-            onNavigateToReadaloudMatches = { sourceId ->
-                val encoded = URLEncoder.encode(sourceId, "UTF-8")
-                navController.navigate("readaloud_matches/$encoded")
-            },
-            platformHooks = platformHooks,
+            actions = SettingsActions(
+                onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+                // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
+                // form from their respective Settings drill-ins; editing an existing ABS
+                // Source also skips the picker (the Source Type is already known). All three
+                // paths still flow through `onNavigateToAddSource(backend, editId)`.
+                onNavigateToAddSource = { backend, editId ->
+                    val params = buildList {
+                        add("type=${backend.routeType}")
+                        if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
+                    }.joinToString("&")
+                    navController.navigate("$ADD_SOURCE?$params")
+                },
+                // The "Add source" button in the Sources section always launches the picker;
+                // once a SourceType is picked the picker itself routes to the type's addRoute
+                // (see [addSourceRouteFor]).
+                onNavigateToAddSourcePicker = { navController.navigate(ADD_SOURCE_TYPE_PICKER) },
+                onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
+                onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
+                onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
+                onNavigateToDeveloperOptions = { navController.navigate(DEVELOPER_OPTIONS) },
+                onNavigateToDictionaryPacks = { navController.navigate(DICTIONARY_PACKS_SETTINGS) },
+                onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
+                onNavigateToChangelog = { navController.navigate(CHANGELOG) },
+                onNavigateToReadaloudMatches = { sourceId ->
+                    val encoded = URLEncoder.encode(sourceId, "UTF-8")
+                    navController.navigate("readaloud_matches/$encoded")
+                },
+                platformHooks = platformHooks,
+            ),
         )
     }
     composable(READALOUD_SETTINGS) { backStackEntry ->
