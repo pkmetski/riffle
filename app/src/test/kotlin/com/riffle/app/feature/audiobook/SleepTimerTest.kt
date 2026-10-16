@@ -17,6 +17,7 @@ import com.riffle.feature.player.AudiobookResumeResolver
 import com.riffle.feature.player.AudiobookReconciliationCoordinator
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.AudiobookHandoffState
+import com.riffle.feature.player.AudiobookPlayIntentRegistry
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.models.AudioIdentity
@@ -154,6 +155,7 @@ class SleepTimerTest {
         var cancelCalled = 0
         var triggerNowCalled = 0
         val seeks = mutableListOf<Double>()
+        var playCallCount = 0
 
         override suspend fun prepare(
             trackUrls: List<String>,
@@ -166,7 +168,7 @@ class SleepTimerTest {
             chapters: List<AudiobookChapter>,
         ) { /* no-op */ }
 
-        override fun play() {}
+        override fun play() { playCallCount++ }
         override fun setSpeed(speed: Float) {}
         override fun currentAbsoluteSec(): Double = position
         override fun seekTo(absoluteSec: Double) { seeks.add(absoluteSec) }
@@ -204,7 +206,7 @@ class SleepTimerTest {
         bookmarkStore: AudiobookBookmarkStore = FakeBookmarkStore(),
         connectivity: FakeConnectivityObserver = FakeConnectivityObserver(online = true),
         sleepStopStore: com.riffle.core.domain.AudiobookSleepStopStore = FakeSleepStopStore(),
-        navUserPlay: Boolean = true,
+        playIntentRegistry: AudiobookPlayIntentRegistry = AudiobookPlayIntentRegistry(),
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -279,8 +281,52 @@ class SleepTimerTest {
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
             sleepStopStore = sleepStopStore,
-            navUserPlay = navUserPlay,
+            playIntentRegistry = playIntentRegistry,
         )
+    }
+
+    // ── auto-play suppression tests ───────────────────────────────────────────────
+
+    @Test
+    fun `audiobook does not auto-play when ViewModel is recreated without explicit play intent`() = runTest(testDispatcher) {
+        val controller = FakeController()
+        // No intent recorded (simulates process death / notification tap / any non-explicit init)
+        val vm = buildViewModel(controller)
+        runCurrent()
+
+        assertEquals("play must not be called without an explicit play intent", 0, controller.playCallCount)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `audiobook auto-plays when explicit play intent is recorded before navigation`() = runTest(testDispatcher) {
+        val registry = AudiobookPlayIntentRegistry()
+        registry.recordIntent(sourceId, itemId)
+
+        val controller = FakeController()
+        val vm = buildViewModel(controller, playIntentRegistry = registry)
+        runCurrent()
+
+        assertEquals("play must be called when user explicitly opened the player", 1, controller.playCallCount)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `explicit play intent is single-use — second VM creation without re-recording does not play`() = runTest(testDispatcher) {
+        val registry = AudiobookPlayIntentRegistry()
+        registry.recordIntent(sourceId, itemId)
+
+        val controller1 = FakeController()
+        val vm1 = buildViewModel(controller1, playIntentRegistry = registry)
+        runCurrent()
+        assertEquals(1, controller1.playCallCount)
+        vm1.clearForTest()
+
+        val controller2 = FakeController()
+        val vm2 = buildViewModel(controller2, playIntentRegistry = registry)
+        runCurrent()
+        assertEquals("intent was consumed on first VM; second VM must not auto-play", 0, controller2.playCallCount)
+        vm2.clearForTest()
     }
 
     // ── delegation tests ─────────────────────────────────────────────────────────
@@ -423,14 +469,14 @@ class SleepTimerTest {
     }
 
     @Test
-    fun `sleep-stopped flag suppresses auto-play on mini-player reopen`() = runTest(testDispatcher) {
+    fun `sleep-stopped flag suppresses auto-play when there is no explicit play intent`() = runTest(testDispatcher) {
         val store = FakeSleepStopStore()
         // Pre-mark as stopped by a previous sleep timer (simulates the flag persisted from a prior session)
         store.markSleepStopped(sourceId, itemId)
 
         val controller = FakeController()
-        // navUserPlay=false simulates the mini-player / now-playing card tap (not an explicit play button press)
-        val vm = buildViewModel(controller, sleepStopStore = store, navUserPlay = false)
+        // No explicit play intent (empty registry) + sleep-stopped → auto-play must be suppressed
+        val vm = buildViewModel(controller, sleepStopStore = store)
         runCurrent()
 
         // Flag must be cleared on open so a subsequent reopen auto-plays normally
@@ -444,8 +490,8 @@ class SleepTimerTest {
         store.markSleepStopped(sourceId, itemId)
 
         val controller = FakeController()
-        // navUserPlay=false = mini-player tap; flag is consumed (cleared) and suppression applies
-        val vm = buildViewModel(controller, sleepStopStore = store, navUserPlay = false)
+        // No explicit play intent; flag is consumed (cleared) and suppression applies
+        val vm = buildViewModel(controller, sleepStopStore = store)
         runCurrent()
 
         // Flag should have been consumed (cleared) on open — a subsequent reopen would auto-play

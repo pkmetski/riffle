@@ -145,4 +145,40 @@ final class AudiobookPlayerViewModelTests: XCTestCase {
             "forward and back steps are deliberately different"
         )
     }
+
+    // MARK: - AudiobookPlayIntentRegistry (process-death auto-play fix)
+
+    /// iOS counterpart for SleepTimerTest.`paused audiobook does not auto-play when ViewModel is
+    /// recreated without explicit play intent`. The registry is a commonMain singleton; this test
+    /// exercises its Kotlin/Native ABI to catch any platform-specific bridging regression.
+    func testConsumeIntentReturnsFalseWhenNoIntentWasRecorded() {
+        let registry = AudiobookPlayIntentRegistry()
+        let hadIntent = registry.consumeIntent(sourceId: "src-1", itemId: "item-1")
+        XCTAssertFalse(hadIntent, "consuming an intent that was never recorded must return false")
+    }
+
+    /// iOS counterpart for SleepTimerTest.`explicitly opened paused audiobook auto-plays when
+    /// intent is recorded`. Verifies that recordIntent + consumeIntent forms a single-use latch
+    /// on the iOS code path.
+    func testRecordedIntentIsConsumedOnce() {
+        let registry = AudiobookPlayIntentRegistry()
+        registry.recordIntent(sourceId: "src-1", itemId: "item-1")
+
+        XCTAssertTrue(registry.consumeIntent(sourceId: "src-1", itemId: "item-1"),
+                      "first consume must return true after recordIntent")
+        XCTAssertFalse(registry.consumeIntent(sourceId: "src-1", itemId: "item-1"),
+                       "second consume must return false — intent is a one-shot latch")
+    }
+
+    func testIntentsAreScopedPerItem() {
+        let registry = AudiobookPlayIntentRegistry()
+        registry.recordIntent(sourceId: "src-1", itemId: "item-1")
+
+        XCTAssertFalse(registry.consumeIntent(sourceId: "src-1", itemId: "item-2"),
+                       "intent for item-1 must not satisfy a consume for item-2")
+        XCTAssertFalse(registry.consumeIntent(sourceId: "src-2", itemId: "item-1"),
+                       "intent for src-1 must not satisfy a consume for src-2")
+        XCTAssertTrue(registry.consumeIntent(sourceId: "src-1", itemId: "item-1"),
+                      "the original intent must still be available for the correct item")
+    }
 }

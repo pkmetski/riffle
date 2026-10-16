@@ -247,6 +247,7 @@ val appKoinModule: Module = module {
 
     single { NowPlayingNavigator() }
     single { NowPlayingStore() }
+    single { com.riffle.feature.player.AudiobookPlayIntentRegistry() }
 
     // ---- Audio session connectors (factory — one instance per consumer) ---------------------
 

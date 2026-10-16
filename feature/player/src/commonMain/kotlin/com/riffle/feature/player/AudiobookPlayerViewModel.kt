@@ -51,7 +51,7 @@ class AudiobookPlayerViewModel constructor(
     navPlaylistId: String?,
     navPlaylistLibraryId: String?,
     navStartAtSec: Float,
-    navUserPlay: Boolean = true,
+    private val playIntentRegistry: AudiobookPlayIntentRegistry,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
     private val audiobookCacheRepository: com.riffle.core.domain.AudiobookCacheRepository,
@@ -345,13 +345,13 @@ class AudiobookPlayerViewModel constructor(
                 controller.setSpeed(initialSpeed)
                 reconciledResumeSec = resumeSec
                 localUpdatedAt = resumeStamp
+                val hasExplicitPlayIntent = playIntentRegistry.consumeIntent(sourceId, itemId)
                 val wasSleepStopped = sourceId.isNotEmpty() &&
                     sleepStopStore.wasSleepStopped(sourceId, itemId)
                 if (wasSleepStopped) sleepStopStore.clearSleepStopped(sourceId, itemId)
-                // Suppress auto-play only when the flag is set AND the user did not explicitly
-                // press a play button (navUserPlay=false = mini-player / now-playing card tap).
-                val suppressAutoPlay = !navUserPlay && wasSleepStopped
-                if (!resume.wasFinishedOnOpen && !suppressAutoPlay) controller.play()
+                val shouldAutoPlay = !resume.wasFinishedOnOpen &&
+                    hasExplicitPlayIntent && !wasSleepStopped
+                if (shouldAutoPlay) controller.play()
                 attachReaderSync(resumeSec, resumeStamp)
                 followLoopOrchestrator.start(viewModelScope, followContext)
             }

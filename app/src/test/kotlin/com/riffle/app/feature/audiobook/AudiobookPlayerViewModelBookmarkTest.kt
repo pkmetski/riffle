@@ -231,6 +231,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
             sleepStopStore = NoopSleepStopStore,
+            playIntentRegistry = com.riffle.feature.player.AudiobookPlayIntentRegistry(),
         )
     }
 
@@ -787,6 +788,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
             sleepStopStore = NoopSleepStopStore,
+            playIntentRegistry = com.riffle.feature.player.AudiobookPlayIntentRegistry(),
         )
         runCurrent()
 
@@ -884,6 +886,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             contentCacheAccessStore = NoopContentCacheAccessStore,
             progressSweep = io.mockk.mockk(relaxed = true),
             sleepStopStore = NoopSleepStopStore,
+            playIntentRegistry = com.riffle.feature.player.AudiobookPlayIntentRegistry(),
         )
         runCurrent()
 

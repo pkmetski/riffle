@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -174,6 +175,7 @@ internal fun NavGraphBuilder.readerNavGraph(
         val currentSourceId = backStackEntry.arguments?.getString("sourceId").orEmpty()
         val currentPlaylistId = backStackEntry.arguments?.getString("playlistId")
         val currentLibraryId = backStackEntry.arguments?.getString("libraryId")
+        val playIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
         AudiobookPlayerScreen(
             windowSizeClass = windowSizeClass,
             onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
@@ -190,6 +192,7 @@ internal fun NavGraphBuilder.readerNavGraph(
                 // earlier chain-runs-away failure mode when the next item was already at
                 // 100% is now handled by [AudiobookController.clearEndOfBookCache] wiping
                 // the STATE_ENDED replay before the incoming VM subscribes.)
+                playIntentRegistry.recordIntent(advSourceId, nextItemId)
                 navController.navigate(
                     "audiobook_player/$encodedSource/$encoded?playlistId=$pl&libraryId=$lib&userPlay=true"
                 ) {

@@ -55,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import com.riffle.app.feature.library.EditLocalFileMetadataDialog
 import com.riffle.feature.library.LibraryItemDetailUiState
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -134,6 +135,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 drawerState.close()
             }
         }
+        val libraryItemsPlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
         LibraryItemsScreen(
             libraryId = libraryId,
             libraryName = libraryName,
@@ -161,6 +163,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 onAudiobookBookmarkSelected = { result ->
                     val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
                     val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
+                    libraryItemsPlayIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
                     navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}&userPlay=true")
                 },
                 onShowAllAnnotations = { query ->
@@ -195,6 +198,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
     ) { backStackEntry ->
         val playlistLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
         val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
+        val playlistPlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
         PlaylistDetailScreen(
             viewModel = koinViewModel<PlaylistDetailViewModel>(),
             labels = playlistLabels(),
@@ -210,6 +214,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 val encodedId = URLEncoder.encode(item.id, "UTF-8")
                 val plQ = URLEncoder.encode(playlistIdArg, "UTF-8")
                 val libQ = URLEncoder.encode(playlistLibraryId, "UTF-8")
+                playlistPlayIntentRegistry.recordIntent(item.sourceId, item.id)
                 navController.navigate(
                     "audiobook_player/$encodedSourceId/$encodedId?playlistId=$plQ&libraryId=$libQ&userPlay=true"
                 )
@@ -308,6 +313,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
         val uiState by vm.uiState.collectAsState()
         var showEditMetadataDialog by remember { mutableStateOf(false) }
 
+        val detailPlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
         LibraryItemDetailScreen(
             itemId = itemId,
             sourceId = sourceId,
@@ -318,6 +324,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 onListen = { item ->
                     val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                     val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                    detailPlayIntentRegistry.recordIntent(item.sourceId, item.id)
                     navController.navigate("audiobook_player/$encodedSourceId/$encodedId?userPlay=true")
                 },
                 onReadItemAtHref = { item, href ->
@@ -333,6 +340,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 onListenItemAtSec = { item, startSec ->
                     val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
                     val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                    detailPlayIntentRegistry.recordIntent(item.sourceId, item.id)
                     navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec&userPlay=true")
                 },
                 onFacetSelected = { libId, facet, value ->
@@ -393,6 +401,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             },
         ),
     ) { backStackEntry ->
+        val annotationSearchPlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
         AnnotationSearchResultsScreen(
             viewModel = koinViewModel<AnnotationSearchViewModel>(),
             labels = annotationSearchLabels(),
@@ -408,6 +417,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             onAudiobookBookmarkSelected = { result ->
                 val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
                 val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
+                annotationSearchPlayIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
                 navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}&userPlay=true")
             },
         )

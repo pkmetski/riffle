@@ -405,6 +405,7 @@ fun HomeScreen() {
                 val riffleViewModel = koinInject<RiffleViewModel>()
                 val riffleApplicationScope = koinInject<ApplicationScope>()
                 val riffleRecordItemOpened = koinInject<RecordItemOpened>()
+                val rifflePlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
                 var riffleNavStack by remember { mutableStateOf(listOf<LibraryNav>()) }
 
                 fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
@@ -424,11 +425,15 @@ fun HomeScreen() {
                                     ?.let { rifflePush(it) }
                             },
                             onListen = { item ->
+                                rifflePlayIntentRegistry.recordIntent(item.sourceId, item.id)
                                 openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
                                     ?.let { rifflePush(it) }
                             },
                             onReadItemAtHref = { item, href -> rifflePush(LibraryNav.Reader(item, startHref = href)) },
-                            onListenItemAtSec = { item, sec -> rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec)) },
+                            onListenItemAtSec = { item, sec ->
+                                rifflePlayIntentRegistry.recordIntent(item.sourceId, item.id)
+                                rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
+                            },
                             onNavigateToSeries = { libraryId, seriesId, seriesName -> rifflePush(LibraryNav.SeriesDetail(seriesId, libraryId, seriesName)) },
                             onFacetSelected = { facetLibraryId, facet, value ->
                                 rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
@@ -458,6 +463,7 @@ fun HomeScreen() {
                             rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                         },
                         onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
+                            rifflePlayIntentRegistry.recordIntent(sourceId, itemId)
                             rifflePush(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
                         },
                     )
@@ -571,6 +577,7 @@ private fun LibraryHost(
     var navStack by remember(libraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
+    val playIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
 
     // Lock-screen / notification taps arrive via pendingNav. Push the destination and clear.
@@ -697,12 +704,14 @@ private fun LibraryHost(
                     openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
                 },
                 onListen = { item ->
+                    playIntentRegistry.recordIntent(item.sourceId, item.id)
                     openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
                 },
                 onReadItemAtHref = { item, href ->
                     openReadItemAtHref(item, href, applicationScope, recordItemOpened::invoke)?.let { push(it) }
                 },
                 onListenItemAtSec = { item, sec ->
+                    playIntentRegistry.recordIntent(item.sourceId, item.id)
                     push(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
                 },
                 onNavigateToSeries = { libId, seriesId, seriesName ->
@@ -725,6 +734,7 @@ private fun LibraryHost(
                 push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
             },
             onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
+                playIntentRegistry.recordIntent(sourceId, itemId)
                 push(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
             },
         )
@@ -754,6 +764,7 @@ private fun LibraryHost(
                 val next = libraryObserver.observeLibraryItems(rootId).first()
                     .firstOrNull { it.id == nextItemId }
                 val nextNav = playlistAdvanceNav(next, context)
+                playIntentRegistry.recordIntent(context.item.sourceId, nextItemId)
                 navStack = navStack.dropLast(1) + nextNav
             }
             ReaderHost(
@@ -792,7 +803,10 @@ private fun LibraryHost(
             onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
             // "Play" carries the playlist context into the player, which is what makes
             // AudiobookPlayerViewModel's end-of-book auto-advance reachable on iOS at all.
-            onPlayItem = { item -> push(playlistPlayerNav(item, current)) },
+            onPlayItem = { item ->
+                playIntentRegistry.recordIntent(item.sourceId, item.id)
+                push(playlistPlayerNav(item, current))
+            },
         )
         is LibraryNav.AudiobookBookmark -> AudiobookBookmarkLoader(
             itemId = current.itemId,
