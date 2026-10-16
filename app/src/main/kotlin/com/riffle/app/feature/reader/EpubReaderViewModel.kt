@@ -4140,48 +4140,14 @@ internal fun deriveChapterTitle(href: String): String =
  *
  * `internal` so it's unit-testable from `app:test`.
  */
-internal fun elidedChapterTitle(href: String, derived: String, toc: List<TocEntry>, elidedIndex: Int): String {
-    resolveChapterTitle(href, toc)?.let { return it }
-    if (!looksUnhelpfulTitle(derived)) return derived
-    return "Chapter ${elidedIndex + 1}"
-}
-
-private val UUID_TITLE_REGEX =
-    Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
-// Matches auto-generated EPUB spine filenames: letters/underscores/hyphens followed by 2+
-// digits (e.g. "part0010", "item003", "text00001", "ch06", "ch10"). Human-readable titles
-// never end in zero-padded digit runs of this length, so these are safe to treat as unhelpful.
-// Two-digit minimum covers common patterns like "ch06"/"ch10" that only have two-digit padding.
-private val SPINE_FILENAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_-]*\\d{2,}$")
+internal fun elidedChapterTitle(href: String, derived: String, toc: List<TocEntry>, elidedIndex: Int): String =
+    com.riffle.feature.reader.highlights.elidedChapterTitle(href, derived, toc, elidedIndex)
 
 internal fun looksUnhelpfulTitle(title: String): Boolean =
-    title.isBlank() || title.equals("Chapter", ignoreCase = true) ||
-    UUID_TITLE_REGEX.matches(title) || SPINE_FILENAME_REGEX.matches(title)
+    com.riffle.feature.reader.highlights.looksUnhelpfulTitle(title)
 
-/**
- * Resolves a highlight's chapter title from the cached TOC (Fix B, ADR 0048 follow-up) — without
- * this, [deriveChapterTitle]'s href-basename fallback surfaces raw filenames like "part0007" as
- * chapter headings. Matches on the href with any TOC fragment (`#anchor`) stripped, since a
- * highlight's stored `chapterHref` never carries one but a TOC entry pointing at a mid-chapter
- * heading often does. Returns null (not [deriveChapterTitle]'s output) when no TOC entry matches,
- * so the caller can fall back explicitly. `internal` so it's unit-testable from `app:test` without
- * constructing the ViewModel.
- */
-internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
-    val normalized = href.substringBefore('#')
-    fun search(entries: List<TocEntry>): String? {
-        for (entry in entries) {
-            val entryHref = entry.href.substringBefore('#')
-            if (entryHref == normalized || entryHref.endsWith("/$normalized") || normalized.endsWith("/$entryHref")) {
-                return entry.title.ifBlank { null }
-            }
-            search(entry.children)?.let { return it }
-        }
-        return null
-    }
-    return search(toc)
-}
+internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? =
+    com.riffle.feature.reader.highlights.resolveChapterTitle(href, toc)
 
 /**
  * Filters [rows] down to live highlights, sorts them by reading position (spineIndex, progression,
@@ -4246,12 +4212,7 @@ internal fun highlightsResumeChapterHref(
     chapters: List<ChapterElision>,
     lastAnnotationId: String,
     readingOrderSize: Int,
-): String? {
-    val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
-    val index = nonEmptyChapters.indexOfFirst { chapter -> chapter.highlights.any { it.id == lastAnnotationId } }
-    if (index < 0 || index >= readingOrderSize) return null
-    return "highlights/ch$index.xhtml"
-}
+): String? = com.riffle.feature.reader.highlights.highlightsResumeChapterHref(chapters, lastAnnotationId, readingOrderSize)
 
 /**
  * Inverse of [highlightsResumeChapterHref] (Task 10, ADR 0048): given the synthesised href the
@@ -4260,9 +4221,6 @@ internal fun highlightsResumeChapterHref(
  * as this book's resume position. Returns null for a malformed/out-of-range href (defensive; the
  * navigator should only ever report hrefs the factory itself generated).
  */
-internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>, href: String): String? {
-    val index = Regex("""highlights/ch(\d+)\.xhtml$""").find(href)?.groupValues?.get(1)?.toIntOrNull() ?: return null
-    val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
-    return nonEmptyChapters.getOrNull(index)?.highlights?.firstOrNull()?.id
-}
+internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>, href: String): String? =
+    com.riffle.feature.reader.highlights.highlightsResumeAnnotationIdForHref(chapters, href)
 

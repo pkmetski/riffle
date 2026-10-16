@@ -126,4 +126,65 @@ final class ElidedAnnotationsViewTests: XCTestCase {
                        "mimetype must contain exactly application/epub+zip")
     }
 
+    // MARK: - Close-on-empty decision
+
+    // Deleting the last highlight produces an empty chapters list; the assembler returns nil
+    // so the screen's collect loop must call onBack() — assemble(nil) is the signal.
+    func testCloseOnEmptyChaptersAssemblerReturnsNil() {
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:])
+        XCTAssertNil(result, "nil dirPath from empty chapters signals the screen to close")
+    }
+
+    // MARK: - Live rebuild
+
+    // The assembler deliberately reuses the same keyed path (riffle_elided_<itemId>) for each
+    // book, removing and recreating the directory on every call so the content is always fresh.
+    // This test verifies that a second call succeeds even when the directory already exists —
+    // i.e., the overwrite path is exercised without error.
+    func testAssemblerSucceedsOnRepeatCallOverwritingExistingDirectory() {
+        let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
+        guard let path1 = IosElidedEpubAssembler.shared.assemble(
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]
+        ) else {
+            XCTFail("first assemble call returned nil")
+            return
+        }
+        guard let path2 = IosElidedEpubAssembler.shared.assemble(
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]
+        ) else {
+            XCTFail("second assemble call returned nil — overwrite of existing directory failed")
+            return
+        }
+        XCTAssertEqual(path1, path2, "assembler reuses the same keyed path for the same book")
+        let fm = FileManager.default
+        XCTAssertTrue(fm.fileExists(atPath: path2 + "/content.opf"),
+                      "content.opf must exist after overwrite call")
+    }
+
+    // MARK: - Resume helpers (KMP commonMain via Swift bridge)
+
+    func testHighlightsResumeChapterHrefResolvesIndex() {
+        let h1 = fakeHighlight(id: "h1", chapterHref: "ch1.xhtml")
+        let h2 = fakeHighlight(id: "h2", chapterHref: "ch2.xhtml")
+        let chapters: [ChapterElision] = [
+            ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [h1]),
+            ChapterElision(href: "ch2.xhtml", title: "Chapter 2", highlights: [h2]),
+        ]
+        let result = HighlightsViewLogicKt.highlightsResumeChapterHref(
+            chapters: chapters, lastAnnotationId: "h2", readingOrderSize: 2
+        )
+        XCTAssertEqual("highlights/ch1.xhtml", result)
+    }
+
+    func testHighlightsResumeChapterHrefReturnsNilForMissingHighlight() {
+        let h1 = fakeHighlight(id: "h1", chapterHref: "ch1.xhtml")
+        let chapters: [ChapterElision] = [
+            ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [h1]),
+        ]
+        let result = HighlightsViewLogicKt.highlightsResumeChapterHref(
+            chapters: chapters, lastAnnotationId: "deleted-id", readingOrderSize: 1
+        )
+        XCTAssertNil(result)
+    }
+
 }

@@ -47,6 +47,7 @@
     <string name="ui_delete_annotation">Delete annotation</string>
     <string name="ui_bookmark_this_page">Bookmark this page</string>
     <string name="ui_remove_bookmark">Remove bookmark</string>
+    <string name="ui_open_in_book">Open in book</string>
 
     <!-- Speed HUD and Cadence HUD -->
     <string name="ui_slower">Slower</string>
