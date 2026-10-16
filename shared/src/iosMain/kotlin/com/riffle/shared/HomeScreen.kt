@@ -243,6 +243,7 @@ fun HomeScreen() {
         onSettingsSelected = {
             scope.launch { drawerState.close() }
             previousSection = appSection
+            settingsSubScreen = null
             appSection = AppSection.Settings
         },
         onDownloadsSelected = {
@@ -256,6 +257,7 @@ fun HomeScreen() {
                 val folderPicker = koinInject<FolderPickerInterface>()
                 val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
                 val localFilesLogger = koinInject<Logger>()
+                BackHandler(enabled = settingsSubScreen != null) { settingsSubScreen = null }
                 when (val sub = settingsSubScreen) {
                     IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
                         onFinished = { settingsSubScreen = null },
@@ -365,6 +367,7 @@ fun HomeScreen() {
                 val downloadsApplicationScope = koinInject<ApplicationScope>()
                 val downloadsRecordItemOpened = koinInject<RecordItemOpened>()
                 var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
+                BackHandler(enabled = downloadsDetailNav != null) { downloadsDetailNav = null }
                 val detail = downloadsDetailNav
                 if (detail != null) {
                     LibraryItemDetailScreen(
