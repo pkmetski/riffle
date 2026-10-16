@@ -14,6 +14,7 @@ object TestTags {
     const val NAV_TAB_ANNOTATIONS = "nav_tab_annotations"
     const val NO_LIBRARIES_RETRY = "no_libraries_retry"
     fun navDrawerLibrary(id: String) = "nav_drawer_library_$id"
+    fun navDrawerSource(id: String) = "nav_drawer_source_$id"
 
     // ── Library tab bar ───────────────────────────────────────────────────────
     const val LIBRARY_TAB_HOME = "library_tab_home"
