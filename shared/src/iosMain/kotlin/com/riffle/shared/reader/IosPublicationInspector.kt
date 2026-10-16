@@ -81,4 +81,3 @@ internal suspend fun locatorForProgression(
         inspector.locateProgression(filePath, totalProgression) { locatorJson -> cont.resume(locatorJson) }
     }
 }
-
