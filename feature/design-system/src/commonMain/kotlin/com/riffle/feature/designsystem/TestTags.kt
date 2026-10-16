@@ -118,12 +118,14 @@ object TestTags {
     const val IOS_READER_TOC = "ios_reader_toc"
     const val IOS_READER_SEARCH = "ios_reader_search"
     const val IOS_READER_SEARCH_FIELD = "ios_reader_search_field"
+
     // Shared reader-chrome tags — both platforms use these, so no IOS_ prefix.
     const val IOS_READER_AUTOSCROLL = READER_AUTOSCROLL
     const val IOS_READER_CADENCE = READER_CADENCE
     const val IOS_READER_SHARE_HIGHLIGHTS = READER_SHARE_HIGHLIGHTS
     const val IOS_READER_BOOKMARK = READER_BOOKMARK
     const val READER_AUTOSCROLL_PAUSE = "reader_autoscroll_pause"
+
     @Deprecated("Use READER_AUTOSCROLL_PAUSE", ReplaceWith("READER_AUTOSCROLL_PAUSE"))
     const val IOS_READER_AUTOSCROLL_PAUSE = READER_AUTOSCROLL_PAUSE
 
@@ -133,6 +135,7 @@ object TestTags {
     const val READER_CADENCE_SLOWER = "cadence_slower"
     const val READER_CADENCE_FASTER = "cadence_faster"
     const val READER_CADENCE_PAUSE = "reader_cadence_pause"
+
     @Deprecated("Use READER_CADENCE_PAUSE", ReplaceWith("READER_CADENCE_PAUSE"))
     const val IOS_READER_CADENCE_PAUSE = READER_CADENCE_PAUSE
 
