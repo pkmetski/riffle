@@ -763,6 +763,7 @@ private fun LibraryHost(
                 advanceToItemId = null
                 val next = libraryObserver.observeLibraryItems(rootId).first()
                     .firstOrNull { it.id == nextItemId }
+                playIntentRegistry.recordIntent(context.item.sourceId, nextItemId)
                 val nextNav = playlistAdvanceNav(next, context)
                 playIntentRegistry.recordIntent(context.item.sourceId, nextItemId)
                 navStack = navStack.dropLast(1) + nextNav

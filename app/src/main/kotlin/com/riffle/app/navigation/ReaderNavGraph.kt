@@ -163,13 +163,6 @@ internal fun NavGraphBuilder.readerNavGraph(
                 nullable = true
                 defaultValue = null
             },
-            // True when the user explicitly pressed a play button (details, playlist, bookmark).
-            // False (default) for automatic navigation via the mini-player / now-playing card,
-            // which should respect the sleep-timer suppression.
-            navArgument("userPlay") {
-                type = NavType.BoolType
-                defaultValue = false
-            },
         )
     ) { backStackEntry ->
         val currentSourceId = backStackEntry.arguments?.getString("sourceId").orEmpty()
@@ -194,7 +187,7 @@ internal fun NavGraphBuilder.readerNavGraph(
                 // the STATE_ENDED replay before the incoming VM subscribes.)
                 playIntentRegistry.recordIntent(advSourceId, nextItemId)
                 navController.navigate(
-                    "audiobook_player/$encodedSource/$encoded?playlistId=$pl&libraryId=$lib&userPlay=true"
+                    "audiobook_player/$encodedSource/$encoded?playlistId=$pl&libraryId=$lib"
                 ) {
                     popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
                 }

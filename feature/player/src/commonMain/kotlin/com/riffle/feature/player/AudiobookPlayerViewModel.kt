@@ -346,11 +346,10 @@ class AudiobookPlayerViewModel constructor(
                 reconciledResumeSec = resumeSec
                 localUpdatedAt = resumeStamp
                 val hasExplicitPlayIntent = playIntentRegistry.consumeIntent(sourceId, itemId)
-                val wasSleepStopped = sourceId.isNotEmpty() &&
-                    sleepStopStore.wasSleepStopped(sourceId, itemId)
-                if (wasSleepStopped) sleepStopStore.clearSleepStopped(sourceId, itemId)
-                val shouldAutoPlay = !resume.wasFinishedOnOpen &&
-                    hasExplicitPlayIntent && !wasSleepStopped
+                if (sourceId.isNotEmpty() && sleepStopStore.wasSleepStopped(sourceId, itemId)) {
+                    sleepStopStore.clearSleepStopped(sourceId, itemId)
+                }
+                val shouldAutoPlay = !resume.wasFinishedOnOpen && hasExplicitPlayIntent
                 if (shouldAutoPlay) controller.play()
                 attachReaderSync(resumeSec, resumeStamp)
                 followLoopOrchestrator.start(viewModelScope, followContext)

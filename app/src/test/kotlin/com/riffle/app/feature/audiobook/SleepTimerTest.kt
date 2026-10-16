@@ -479,7 +479,7 @@ class SleepTimerTest {
         val vm = buildViewModel(controller, sleepStopStore = store)
         runCurrent()
 
-        // Flag must be cleared on open so a subsequent reopen auto-plays normally
+        assertEquals("auto-play must be suppressed when there is no explicit play intent", 0, controller.playCallCount)
         assertTrue("flag should be cleared after being consumed on open", !store.wasSleepStopped(sourceId, itemId))
         vm.clearForTest()
     }
