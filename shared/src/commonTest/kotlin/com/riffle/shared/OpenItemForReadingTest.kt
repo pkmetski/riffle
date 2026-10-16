@@ -3,6 +3,8 @@ package com.riffle.shared
 import com.riffle.core.domain.DefaultApplicationScope
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.navigation.LibraryNav
+import com.riffle.feature.navigation.openItemForReading
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest

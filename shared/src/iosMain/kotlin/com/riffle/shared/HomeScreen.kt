@@ -65,7 +65,14 @@ import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
+import com.riffle.feature.navigation.LibraryNav
 import com.riffle.feature.navigation.NavigationDrawerViewModel
+import com.riffle.feature.navigation.isAlreadyAtPlayerDestination
+import com.riffle.feature.navigation.openItemForReading
+import com.riffle.feature.navigation.openReadItemAtHref
+import com.riffle.feature.navigation.openReadItemForReading
+import com.riffle.feature.navigation.playlistAdvanceNav
+import com.riffle.feature.navigation.playlistPlayerNav
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.settings.SettingsViewModel

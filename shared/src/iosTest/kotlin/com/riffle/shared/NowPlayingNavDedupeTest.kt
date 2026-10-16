@@ -2,6 +2,8 @@ package com.riffle.shared
 
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.navigation.LibraryNav
+import com.riffle.feature.navigation.isAlreadyAtPlayerDestination
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

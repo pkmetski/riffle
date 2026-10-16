@@ -1,4 +1,4 @@
-package com.riffle.shared
+package com.riffle.feature.navigation
 
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
@@ -23,8 +23,6 @@ class ReaderNavRoutingTest {
         ebookFormat = ebookFormat,
         hasAudio = hasAudio,
     )
-
-    // readerNavForItem — Listen action: isListenable wins over ebook format
 
     @Test
     fun pdfItemRoutes_toPdfReader() {
@@ -56,8 +54,6 @@ class ReaderNavRoutingTest {
         assertNull(nav)
     }
 
-    // readNavForItem — Read action: ebook format wins; listenable is last-resort fallback
-
     @Test
     fun readAction_epubItem_routesToReader() {
         val nav = readNavForItem(item(ebookFormat = EbookFormat.Epub))
@@ -78,15 +74,12 @@ class ReaderNavRoutingTest {
 
     @Test
     fun readAction_ebookAndAudioItem_routesToReader_notAudiobookPlayer() {
-        // An ebook+audio item: Read opens the EPUB reader, not the audiobook player.
-        // This is the key difference from readerNavForItem (Listen) which routes to AudiobookPlayer.
         val nav = readNavForItem(item(ebookFormat = EbookFormat.Epub, hasAudio = true))
         assertIs<LibraryNav.Reader>(nav)
     }
 
     @Test
     fun readAction_pureAudioItem_routesToAudiobookPlayer_asFallback() {
-        // A pure-audio item has no readable ebook format, so fallback to AudiobookPlayer.
         val nav = readNavForItem(item(ebookFormat = EbookFormat.Unsupported, hasAudio = true))
         assertIs<LibraryNav.AudiobookPlayer>(nav)
     }
@@ -96,8 +89,6 @@ class ReaderNavRoutingTest {
         val nav = readNavForItem(item(ebookFormat = EbookFormat.Unsupported))
         assertNull(nav)
     }
-
-    // readNavForItemAtHref — TOC entry navigation from book detail screen
 
     @Test
     fun readAtHref_epubItem_routesToReaderWithTocHref() {

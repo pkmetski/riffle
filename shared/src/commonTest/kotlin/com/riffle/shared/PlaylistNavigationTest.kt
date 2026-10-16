@@ -2,6 +2,10 @@ package com.riffle.shared
 
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.navigation.LibraryNav
+import com.riffle.feature.navigation.playlistAdvanceNav
+import com.riffle.feature.navigation.playlistPlayerNav
+import com.riffle.feature.navigation.readerNavForItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
