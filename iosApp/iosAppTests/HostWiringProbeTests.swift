@@ -1,5 +1,5 @@
 import XCTest
-import shared
+import Riffle
 
 final class HostWiringProbeTests: XCTestCase {
 
