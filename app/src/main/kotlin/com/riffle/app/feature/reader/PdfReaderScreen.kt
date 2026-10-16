@@ -204,7 +204,7 @@ fun PdfReaderScreen(
                                 .testTag(TestTags.READER_READY)
                                 .semantics {
                                     contentDescription = buildString {
-                                        append(currentPage?.let { "page:$it" } ?: "")
+                                        append(currentPage?.let { "page:${it + 1}" } ?: "")
                                         append(" wake-lock:")
                                         append(if (keepScreenOn) "on" else "off")
                                     }
