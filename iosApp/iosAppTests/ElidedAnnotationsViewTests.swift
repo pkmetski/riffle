@@ -137,16 +137,28 @@ final class ElidedAnnotationsViewTests: XCTestCase {
 
     // MARK: - Live rebuild
 
-    // Each call to assemble produces a fresh directory path. This verifies the live-rebuild loop
-    // does not serve a stale HTML snapshot when highlights are recoloured or edited.
-    func testAssemblerProducesUniquePathOnEachCall() {
+    // The assembler deliberately reuses the same keyed path (riffle_elided_<itemId>) for each
+    // book, removing and recreating the directory on every call so the content is always fresh.
+    // This test verifies that a second call succeeds even when the directory already exists —
+    // i.e., the overwrite path is exercised without error.
+    func testAssemblerSucceedsOnRepeatCallOverwritingExistingDirectory() {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        let path1 = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:])
-        let path2 = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:])
-        XCTAssertNotNil(path1)
-        XCTAssertNotNil(path2)
-        XCTAssertNotEqual(path1, path2,
-                          "each assemble call must produce a unique directory so re-renders do not serve a stale snapshot")
+        guard let path1 = IosElidedEpubAssembler.shared.assemble(
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]
+        ) else {
+            XCTFail("first assemble call returned nil")
+            return
+        }
+        guard let path2 = IosElidedEpubAssembler.shared.assemble(
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]
+        ) else {
+            XCTFail("second assemble call returned nil — overwrite of existing directory failed")
+            return
+        }
+        XCTAssertEqual(path1, path2, "assembler reuses the same keyed path for the same book")
+        let fm = FileManager.default
+        XCTAssertTrue(fm.fileExists(atPath: path2 + "/content.opf"),
+                      "content.opf must exist after overwrite call")
     }
 
     // MARK: - Resume helpers (KMP commonMain via Swift bridge)
