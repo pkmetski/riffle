@@ -31,10 +31,11 @@ final class BundledFontsTests: XCTestCase {
     // Info.plist, making the fonts unloadable by UIFont and therefore invisible in the reader.
     // This test catches any future plist rewrite that omits one or more of the entries.
     func testUIAppFontsListsAllThreeBundledFonts() {
-        guard let bundlePath = Bundle.main.path(forResource: "Info", ofType: "plist"),
-              let plist = NSDictionary(contentsOfFile: bundlePath),
-              let uiAppFonts = plist["UIAppFonts"] as? [String] else {
-            XCTFail("Could not read UIAppFonts from Info.plist")
+        // infoDictionary is pre-loaded by the runtime from the bundle's Info.plist and is
+        // always available — unlike path(forResource:ofType:) which may return nil when
+        // the plist is compiled into the binary rather than kept as a standalone file.
+        guard let uiAppFonts = Bundle.main.infoDictionary?["UIAppFonts"] as? [String] else {
+            XCTFail("UIAppFonts is missing or not an array in the main bundle's Info.plist")
             return
         }
         XCTAssertTrue(uiAppFonts.contains("Literata-Regular.ttf"),
