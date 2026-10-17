@@ -6,7 +6,7 @@ import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.domain.DefaultPositionTranslator
-import com.riffle.core.domain.JvmEpubCfiOps
+import com.riffle.core.domain.KsoupEpubCfiOps
 import com.riffle.core.domain.MediaOverlayClip
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -31,7 +31,7 @@ class AudiobookFollowTest {
         "c1.html#s2" to ChapterProgression(0, 0.5),
         "c2.html#s1" to ChapterProgression(1, 0.0),
     )
-    private fun translator() = DefaultPositionTranslator(clips, fragmentProgressions = fragmentProgressions, cfiOps = JvmEpubCfiOps)
+    private fun translator() = DefaultPositionTranslator(clips, fragmentProgressions = fragmentProgressions, cfiOps = KsoupEpubCfiOps)
 
     private class FakePeer(val stamp: Long = 4242L) : ProgressPeerCapability, AudiobookProgressPeerCapability {
         var sentSeconds: Double? = null

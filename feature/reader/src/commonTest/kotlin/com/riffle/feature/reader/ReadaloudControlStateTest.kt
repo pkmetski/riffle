@@ -1,24 +1,24 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.reader
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ReadaloudControlStateTest {
-    @Test fun storyteller_book_is_visible_and_enabled() {
+    @Test fun storytellerBookIsVisibleAndEnabled() {
         assertEquals(
             ReadaloudControlState(visible = true, enabled = true),
             readaloudControlState(isStoryteller = true, isMatchedAbs = false, bundlePresent = false),
         )
     }
 
-    @Test fun unmatched_abs_book_hides_the_control() {
+    @Test fun unmatchedAbsBookHidesTheControl() {
         assertEquals(
             ReadaloudControlState(visible = false, enabled = false),
             readaloudControlState(isStoryteller = false, isMatchedAbs = false, bundlePresent = false),
         )
     }
 
-    @Test fun matched_abs_without_bundle_is_visible_and_enabled() {
+    @Test fun matchedAbsWithoutBundleIsVisibleAndEnabled() {
         // ADR 0040: the control is tappable even without a bundle — tapping streams when eligible,
         // else prompts the download. No longer gated on a present bundle.
         assertEquals(
@@ -27,7 +27,7 @@ class ReadaloudControlStateTest {
         )
     }
 
-    @Test fun matched_abs_with_bundle_is_visible_and_enabled() {
+    @Test fun matchedAbsWithBundleIsVisibleAndEnabled() {
         assertEquals(
             ReadaloudControlState(visible = true, enabled = true),
             readaloudControlState(isStoryteller = false, isMatchedAbs = true, bundlePresent = true),

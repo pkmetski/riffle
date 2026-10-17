@@ -7,18 +7,14 @@ import com.fleeksoft.ksoup.nodes.Node
 import com.fleeksoft.ksoup.nodes.TextNode
 
 /**
- * iOS port of core/domain's jvmMain EpubCfiTranslator.kt (ADR 0013), using ksoup — a Kotlin
- * Multiplatform port of jsoup with an API designed to mirror it closely — instead of org.jsoup,
- * which has no Kotlin/Native target. The DOM-walking algorithm itself is unchanged from the JVM
- * version; only the parser import changed. Android keeps using its own jsoup-based file — this
- * is a separate implementation, not a shared one, because org.jsoup and ksoup are different
- * libraries with different types (Element/TextNode/Document are not interchangeable across them).
+ * Multiplatform CFI translator backed by ksoup (ADR 0013). Replaces the parallel
+ * jvmMain/iosMain copies — the DOM-walking algorithm is identical across platforms; only the
+ * parser import changed (org.jsoup → ksoup). jvmTest and iosTest suites can now merge into
+ * commonTest against this single implementation.
  *
- * See core/domain/src/jvmMain/kotlin/com/riffle/core/domain/EpubCfiTranslator.kt for the
- * canonical version and inline documentation of the algorithm; kept minimal here to the functions
- * [IosEbookCfiTranslator] actually needs.
+ * See the removed jvmMain/EpubCfiTranslator.kt for the inline documentation of the algorithm.
  */
-internal fun iosExtractCfiDocPath(fullCfi: String): String? {
+internal fun ksoupExtractCfiDocPath(fullCfi: String): String? {
     if (!fullCfi.startsWith("epubcfi(") || !fullCfi.endsWith(")")) return null
     val inner = fullCfi.removePrefix("epubcfi(").removeSuffix(")")
     val bang = inner.indexOf('!')
@@ -26,43 +22,43 @@ internal fun iosExtractCfiDocPath(fullCfi: String): String? {
     return inner.substring(bang + 1).takeIf { it.isNotEmpty() }
 }
 
-internal fun iosCfiDocPathToProgression(docPath: String, html: String): Double? {
+internal fun ksoupCfiDocPathToProgression(docPath: String, html: String): Double? {
     val doc = Ksoup.parse(html)
     val body = doc.body()
-    val totalChars = iosCountBodyChars(body)
+    val totalChars = ksoupCountBodyChars(body)
     if (totalChars == 0L) return null
 
-    val anchored = iosCfiDocPathToProgressionIdAnchored(docPath, doc, body, totalChars)
+    val anchored = ksoupCfiDocPathToProgressionIdAnchored(docPath, doc, body, totalChars)
     if (anchored != null) return anchored
 
     val htmlEl = doc.child(0)
-    val parsed = iosParseCfiDocPath(docPath) ?: return null
-    val targetNode = iosWalkCfiSteps(htmlEl, parsed.steps) as? TextNode ?: return null
-    val charsBefore = iosCountCharsBefore(body, targetNode, parsed.charOffset)
+    val parsed = ksoupParseCfiDocPath(docPath) ?: return null
+    val targetNode = ksoupWalkCfiSteps(htmlEl, parsed.steps) as? TextNode ?: return null
+    val charsBefore = ksoupCountCharsBefore(body, targetNode, parsed.charOffset)
     if (charsBefore < 0L) return null
     return (charsBefore.toDouble() / totalChars).coerceIn(0.0, 1.0)
 }
 
-internal fun iosProgressionToCfiDocPath(progression: Double, html: String): String? {
+internal fun ksoupProgressionToCfiDocPath(progression: Double, html: String): String? {
     val doc = Ksoup.parse(html)
     val htmlEl = doc.child(0)
     val body = doc.body()
 
-    val totalChars = iosCountBodyChars(body)
+    val totalChars = ksoupCountBodyChars(body)
     if (totalChars == 0L) return null
 
     val targetChar = (progression.coerceIn(0.0, 1.0) * totalChars)
         .toLong().coerceIn(0L, totalChars - 1L)
 
-    val (textNode, offset) = iosFindNodeAtChar(body, targetChar) ?: return null
-    return iosBuildCfiDocPath(htmlEl, textNode, offset)
+    val (textNode, offset) = ksoupFindNodeAtChar(body, targetChar) ?: return null
+    return ksoupBuildCfiDocPath(htmlEl, textNode, offset)
 }
 
 // ── CFI string parsing ────────────────────────────────────────────────────────
 
-internal data class IosParsedCfiDocPath(val steps: List<Int>, val charOffset: Int)
+internal data class KsoupParsedCfiDocPath(val steps: List<Int>, val charOffset: Int)
 
-internal fun iosParseCfiDocPath(docPath: String): IosParsedCfiDocPath? {
+internal fun ksoupParseCfiDocPath(docPath: String): KsoupParsedCfiDocPath? {
     val parts = docPath.trimStart('/').split('/').filter { it.isNotEmpty() }
     if (parts.isEmpty()) return null
 
@@ -79,12 +75,12 @@ internal fun iosParseCfiDocPath(docPath: String): IosParsedCfiDocPath? {
             steps.add(noAssertion.toIntOrNull() ?: return null)
         }
     }
-    return if (steps.isEmpty()) null else IosParsedCfiDocPath(steps, charOffset)
+    return if (steps.isEmpty()) null else KsoupParsedCfiDocPath(steps, charOffset)
 }
 
 // ── DOM walking ───────────────────────────────────────────────────────────────
 
-internal fun iosWalkCfiSteps(root: Element, steps: List<Int>): Node? {
+internal fun ksoupWalkCfiSteps(root: Element, steps: List<Int>): Node? {
     var current: Node = root
     for (step in steps) {
         val parent = current as? Element ?: return null
@@ -102,7 +98,7 @@ internal fun iosWalkCfiSteps(root: Element, steps: List<Int>): Node? {
 
 // ── Character counting ────────────────────────────────────────────────────────
 
-internal fun iosCountBodyChars(body: Element): Long {
+internal fun ksoupCountBodyChars(body: Element): Long {
     var total = 0L
     fun visit(node: Node) {
         when (node) {
@@ -114,7 +110,7 @@ internal fun iosCountBodyChars(body: Element): Long {
     return total
 }
 
-internal fun iosCountCharsBefore(body: Element, target: TextNode, offsetInTarget: Int): Long {
+internal fun ksoupCountCharsBefore(body: Element, target: TextNode, offsetInTarget: Int): Long {
     var count = 0L
     var found = false
 
@@ -133,7 +129,7 @@ internal fun iosCountCharsBefore(body: Element, target: TextNode, offsetInTarget
 
 // ── Finding node at character position ───────────────────────────────────────
 
-internal fun iosFindNodeAtChar(body: Element, targetChar: Long): Pair<TextNode, Int>? {
+internal fun ksoupFindNodeAtChar(body: Element, targetChar: Long): Pair<TextNode, Int>? {
     var remaining = targetChar
 
     fun visit(node: Node): Pair<TextNode, Int>? = when (node) {
@@ -154,7 +150,7 @@ internal fun iosFindNodeAtChar(body: Element, targetChar: Long): Pair<TextNode, 
 
 // ── CFI path building ─────────────────────────────────────────────────────────
 
-internal fun iosBuildCfiDocPath(htmlEl: Element, textNode: TextNode, offset: Int): String? {
+internal fun ksoupBuildCfiDocPath(htmlEl: Element, textNode: TextNode, offset: Int): String? {
     val textParent = textNode.parentNode() as? Element ?: return null
 
     val textStep = run {
@@ -183,7 +179,7 @@ internal fun iosBuildCfiDocPath(htmlEl: Element, textNode: TextNode, offset: Int
 
 // ── ID-anchored navigation (private) ─────────────────────────────────────────
 
-private fun iosCountCharsBeforeElement(body: Element, target: Element): Long {
+private fun ksoupCountCharsBeforeElement(body: Element, target: Element): Long {
     var count = 0L
     var found = false
 
@@ -200,7 +196,7 @@ private fun iosCountCharsBeforeElement(body: Element, target: Element): Long {
     return if (found) count else -1L
 }
 
-private fun iosCfiDocPathToProgressionIdAnchored(
+private fun ksoupCfiDocPathToProgressionIdAnchored(
     docPath: String,
     doc: Document,
     body: Element,
@@ -227,7 +223,7 @@ private fun iosCfiDocPathToProgressionIdAnchored(
 
     val anchor = anchorElement ?: return null
 
-    val charsBeforeAnchor = iosCountCharsBeforeElement(body, anchor)
+    val charsBeforeAnchor = ksoupCountCharsBeforeElement(body, anchor)
     if (charsBeforeAnchor < 0L) return null
 
     val remainingParts = parts.drop(anchorPartIndex + 1)
@@ -236,9 +232,9 @@ private fun iosCfiDocPathToProgressionIdAnchored(
     }
 
     val remainingPath = "/" + remainingParts.joinToString("/")
-    val remainingParsed = iosParseCfiDocPath(remainingPath) ?: return null
-    val targetNode = iosWalkCfiSteps(anchor, remainingParsed.steps) as? TextNode ?: return null
-    val charsWithinAnchor = iosCountCharsBefore(anchor, targetNode, remainingParsed.charOffset)
+    val remainingParsed = ksoupParseCfiDocPath(remainingPath) ?: return null
+    val targetNode = ksoupWalkCfiSteps(anchor, remainingParsed.steps) as? TextNode ?: return null
+    val charsWithinAnchor = ksoupCountCharsBefore(anchor, targetNode, remainingParsed.charOffset)
     if (charsWithinAnchor < 0L) return null
 
     return ((charsBeforeAnchor + charsWithinAnchor).toDouble() / totalChars).coerceIn(0.0, 1.0)

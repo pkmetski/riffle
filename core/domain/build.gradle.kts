@@ -14,17 +14,18 @@ kotlin {
             api(project(":core:models"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            // Kotlin Multiplatform port of jsoup — used by the shared Ksoup-backed DOM/CFI
+            // translators (KsoupEpubCfiTranslator, KsoupEpubChapterDomOps). Replaces the former
+            // parallel jvmMain org.jsoup + iosMain ksoup split.
+            implementation(libs.ksoup)
         }
         jvmMain.dependencies {
+            // EpubCfiTranslator.kt: extractAnchorFromCfi/extractCfiElementIds/hasElementWithId
+            // are used in production (EpubReaderViewModel.kt). Kept in jvmMain until those call
+            // sites are migrated to the shared ksoup equivalents.
             implementation(libs.jsoup)
             // Use-case classes carry @Inject so Hilt can wire them through the data/app graph.
             implementation("javax.inject:javax.inject:1")
-        }
-        iosMain.dependencies {
-            // Kotlin Multiplatform port of jsoup, used only by the iOS EbookCfiTranslator (issue
-            // #1065) — Android keeps using org.jsoup directly (jvmMain, above); this is additive,
-            // not a replacement, so Android's existing jsoup-based reader code is untouched.
-            implementation(libs.ksoup)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

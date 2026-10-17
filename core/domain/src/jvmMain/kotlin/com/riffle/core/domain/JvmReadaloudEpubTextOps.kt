@@ -1,8 +1,8 @@
 package com.riffle.core.domain
 
-/** jsoup-backed [ReadaloudEpubTextOps] for Android/JVM. */
+/** JVM [ReadaloudEpubTextOps]. Uses the shared Ksoup CFI ops. */
 object JvmReadaloudEpubTextOps : ReadaloudEpubTextOps {
-    override val cfiOps: EpubCfiOps = JvmEpubCfiOps
+    override val cfiOps: EpubCfiOps = KsoupEpubCfiOps
 
     override fun progressionsOfElementIds(html: String, elementIds: Set<String>): Map<String, Double> =
         EpubTextChars.progressionsOfElementIds(html, elementIds)

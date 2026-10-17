@@ -1,6 +1,7 @@
 package com.riffle.shared
 
 import androidx.lifecycle.ViewModel
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

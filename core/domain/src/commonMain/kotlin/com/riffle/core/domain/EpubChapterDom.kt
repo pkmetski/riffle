@@ -65,8 +65,8 @@ interface EpubChapterDomOps {
     fun buildCfiRange(spineStep: Int, html: String, startChar: Long, endChar: Long): String?
 }
 
-/** The platform's chapter-DOM implementation: jsoup on JVM/Android, ksoup on Kotlin/Native. */
-expect fun epubChapterDomOps(): EpubChapterDomOps
+/** The shared Ksoup-backed chapter-DOM implementation. */
+fun epubChapterDomOps(): EpubChapterDomOps = KsoupEpubChapterDomOps
 
 /** Tags that carry a figure for annotation purposes. Both DOM walks must agree on this set. */
 val FIGURE_TAGS: Set<String> = setOf("img", "svg", "picture", "figure")
@@ -91,5 +91,5 @@ fun assembleCfiRange(spineStep: Int, startPath: String, endPath: String): String
     return "epubcfi(/6/$spineStep!$parent,$startRemainder,$endRemainder)"
 }
 
-/** The platform's [EpubCfiOps]: `JvmEpubCfiOps` (jsoup) or `IosEpubCfiOps` (ksoup). */
-expect fun epubCfiOps(): EpubCfiOps
+/** The shared Ksoup-backed [EpubCfiOps]. */
+fun epubCfiOps(): EpubCfiOps = KsoupEpubCfiOps

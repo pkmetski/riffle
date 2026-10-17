@@ -25,8 +25,8 @@ class IosEbookCfiTranslator(private val epubFilePath: String) : EbookCfiTranslat
         val hrefs = ensureSpine() ?: return null
         val href = hrefs.getOrNull(spineIndex) ?: return null
         val html = readChapterHtml(hrefs, spineIndex) ?: return null
-        val docPath = iosExtractCfiDocPath(epubcfi) ?: return null
-        val progression = iosCfiDocPathToProgression(docPath, html) ?: return null
+        val docPath = ksoupExtractCfiDocPath(epubcfi) ?: return null
+        val progression = ksoupCfiDocPathToProgression(docPath, html) ?: return null
         val escapedHref = href.jsonEscaped()
         return """{"href":"$escapedHref","type":"application/xhtml+xml","locations":{"progression":$progression}}"""
     }
@@ -39,7 +39,7 @@ class IosEbookCfiTranslator(private val epubFilePath: String) : EbookCfiTranslat
         val spineIndex = hrefs.indexOfFirst { normalizeEpubHref(it) == normalizeEpubHref(href) }
         if (spineIndex < 0) return null
         val html = readChapterHtml(hrefs, spineIndex) ?: return null
-        val docPath = iosProgressionToCfiDocPath(progression, html) ?: return null
+        val docPath = ksoupProgressionToCfiDocPath(progression, html) ?: return null
         return "epubcfi(/6/${(spineIndex + 1) * 2}!$docPath)"
     }
 
