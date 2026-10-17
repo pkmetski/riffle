@@ -633,6 +633,8 @@ tasks.register("checkHardcodedStringLiterals") {
                 layout.projectDirectory.dir("shared/src/commonMain").asFile,
             ),
             projectRoot = projectRoot,
+            // Dynamic value ("42%") — not translatable English prose.
+            extraAllowlist = listOf("app/src/main/kotlin/com/riffle/app/feature/update/UpdateAvailableDialog.kt"),
         )
         if (offenders.isNotEmpty()) {
             throw GradleException(
