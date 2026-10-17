@@ -69,7 +69,7 @@ import org.jetbrains.compose.resources.stringResource
  *  - Keep-screen-on (window flag on Android, UIApplication on iOS)
  *  - Immersive mode state (SystemUI on Android, full-screen API on iOS)
  *  - Image decoding (BitmapFactory+Coil on Android, UIImage on iOS)
- *  - The formatting sheet contents (ComicFormattingSheet on Android, IosComicFormattingSheet on iOS)
+ *  - The formatting sheet (shared ComicFormattingSheet from feature:settings-ui)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -36,6 +36,7 @@ import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ui.CbzReaderScreen
+import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

@@ -19,6 +19,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ui.CbzReaderScreen
+import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -81,7 +82,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         extraTopBarActions = {},
         isReduceMotion = isReduceMotion,
         formattingSheet = { onDismiss ->
-            IosComicFormattingSheet(
+            ComicFormattingSheet(
                 formatting = effectiveComicFormatting,
                 hasBookOverrides = hasComicOverrides,
                 onUpdate = vm::updateComicFormatting,
