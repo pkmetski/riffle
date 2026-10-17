@@ -2,6 +2,8 @@ package com.riffle.shared.audiobook
 
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookTimeline
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.models.AudiobookTracks
 import com.riffle.feature.player.AudioPlayerInterface
@@ -45,6 +47,7 @@ class IosAudioPlayerController(
     // Bundle-backed sessions (ADR 0027) carry zip-entry paths, which AVFoundation cannot open;
     // see [BundleAudioExtractor].
     private val bundleAudioExtractor: BundleAudioExtractor = IosBundleAudioExtractor(),
+    private val logger: Logger = NoOpLogger,
 ) : AudioPlayerInterface {
 
     private val scope = CoroutineScope(SupervisorJob() + mainDispatcher)
@@ -146,7 +149,16 @@ class IosAudioPlayerController(
             val extracted = bundleAudioExtractor.extractedTrackUrls(localZipFilePath, trackUrls)
             // A short result means the bundle is missing entries the session's spans describe;
             // queueing it would map every span onto the wrong track. Refuse instead.
-            if (extracted.size != trackUrls.size) return else extracted
+            if (extracted.size != trackUrls.size) {
+                val missing = trackUrls - extracted.toSet()
+                logger.e(LogChannel.Audiobook) {
+                    "Bundle extraction incomplete: ${extracted.size}/${trackUrls.size} tracks resolved" +
+                        " from $localZipFilePath; missing entries: $missing — playback aborted"
+                }
+                return
+            } else {
+                extracted
+            }
         }
         // Flush any stale end-of-book event from a prior session before loading new tracks,
         // mirroring Android AudiobookController.resetReplayCache() before prepare().
@@ -293,5 +305,11 @@ class IosAudioPlayerController(
 
     companion object {
         private const val MS_PER_SEC = 1000.0
+
+        private val NoOpLogger = object : Logger {
+            override fun d(channel: LogChannel, t: Throwable?, msg: () -> String) = Unit
+            override fun w(channel: LogChannel, t: Throwable?, msg: () -> String) = Unit
+            override fun e(channel: LogChannel, t: Throwable?, msg: () -> String) = Unit
+        }
     }
 }
