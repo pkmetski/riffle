@@ -52,12 +52,9 @@ import com.riffle.feature.source.ui.generated.resources.ui_no_folders_yet
 import com.riffle.feature.source.ui.generated.resources.ui_no_libraries_found
 import com.riffle.feature.source.ui.generated.resources.ui_permission_revoked
 import com.riffle.feature.source.ui.generated.resources.ui_permission_revoked_remove_and_readd
-import com.riffle.feature.source.ui.generated.resources.ui_readaloud_match_counts
-import com.riffle.feature.source.ui.generated.resources.ui_readaloud_matches
 import com.riffle.feature.source.ui.generated.resources.ui_remove_folder
 import com.riffle.feature.source.ui.generated.resources.ui_remove_folder_3
 import com.riffle.feature.source.ui.generated.resources.ui_remove_folder_explanation
-import com.riffle.feature.source.ui.generated.resources.ui_review_and_match_readalouds
 import com.riffle.feature.source.ui.generated.resources.ui_some_folders_need_attention
 import com.riffle.feature.source.ui.generated.resources.ui_tap_add_folder_above_to_pick_a_folder_to_monitor
 import com.riffle.feature.source.ui.localizedSourceDisplayName
@@ -266,10 +263,11 @@ internal fun configuredSourceSubtitle(
 }
 
 /**
- * The body revealed when a source row is expanded. Audiobookshelf sources show their library
- * visibility switches; Storyteller Services would show a readaloud-matches summary — but
- * Storyteller no longer appears in the Sources list (it moved under the Readaloud drill-in), so
- * the branch is retained here only for the pinning test that exercises the expansion in isolation.
+ * The body revealed when an Audiobookshelf source row is expanded: library visibility switches
+ * and reorder handles.
+ *
+ * Storyteller Services do not reach this composable — they live under the Readaloud drill-in and
+ * their match-review row is rendered by ReadaloudSettingsScreen instead.
  */
 @Composable
 fun SourceSettingsExpansion(
@@ -280,46 +278,15 @@ fun SourceSettingsExpansion(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onOpenReadaloudMatches: () -> Unit,
 ) {
-    val transparentColors = ListItemDefaults.colors(containerColor = Color.Transparent)
     Column(modifier = Modifier.fillMaxWidth()) {
-        when (source.serverType) {
-            ServerType.AUDIOBOOKSHELF -> {
-                if (libraryItems.isEmpty()) {
-                    ExpansionNote(stringResource(Res.string.ui_no_libraries_found))
-                } else {
-                    ReorderableLibraryList(
-                        items = libraryItems,
-                        onSetLibraryVisible = onSetLibraryVisible,
-                        onReorder = onReorderLibraries,
-                    )
-                }
-            }
-            ServerType.STORYTELLER_SERVICE -> {
-                ExpansionHeader(stringResource(Res.string.ui_readaloud_matches))
-                val counts = summary ?: ReadaloudMatchSummary(0, 0, 0, 0)
-                ListItem(
-                    colors = transparentColors,
-                    modifier = Modifier
-                        .padding(start = 24.dp)
-                        .testTag(TestTags.SOURCE_SETTINGS_READALOUD_MATCHES)
-                        .clickable { onOpenReadaloudMatches() },
-                    headlineContent = { Text(stringResource(Res.string.ui_review_and_match_readalouds)) },
-                    supportingContent = {
-                        Text(
-                            stringResource(
-                                Res.string.ui_readaloud_match_counts,
-                                counts.unmatchedCount,
-                                counts.suggestedCount,
-                                counts.partiallyMatchedCount,
-                                counts.matchedCount,
-                            ),
-                        )
-                    },
-                    trailingContent = {
-                        Icon(MaterialGlyphs.KeyboardArrowRight, contentDescription = null)
-                    },
-                )
-            }
+        if (libraryItems.isEmpty()) {
+            ExpansionNote(stringResource(Res.string.ui_no_libraries_found))
+        } else {
+            ReorderableLibraryList(
+                items = libraryItems,
+                onSetLibraryVisible = onSetLibraryVisible,
+                onReorder = onReorderLibraries,
+            )
         }
     }
 }

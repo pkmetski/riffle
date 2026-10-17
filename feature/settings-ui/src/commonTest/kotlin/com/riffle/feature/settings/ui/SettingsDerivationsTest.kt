@@ -79,6 +79,15 @@ class SettingsDerivationsTest {
         assertEquals("reader@storyteller.example.com · no readalouds yet", subtitle)
     }
 
+    @Test fun readaloudSubtitleOmitsAtSignWhenUsernameIsEmpty() {
+        val subtitle = readaloudSubtitle(
+            storyteller(username = ""),
+            serverVersions = mapOf("sty-1" to "2.0.0"),
+            readaloudSummaries = emptyMap(),
+        )
+        assertEquals("storyteller.example.com · v2.0.0", subtitle)
+    }
+
     // --- Chip selection is keyed on the value, not on rendered text ---
 
     /**

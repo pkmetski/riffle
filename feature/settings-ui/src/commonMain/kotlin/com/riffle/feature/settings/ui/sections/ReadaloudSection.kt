@@ -8,7 +8,7 @@ import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.settings.ReadaloudMatchSummary
-import com.riffle.feature.settings.displayHost
+import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.StorytellerBadge
 import com.riffle.feature.settings.ui.generated.resources.*
@@ -64,19 +64,19 @@ internal fun localizedReadaloudRowSummary(
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
 ): String {
     // TODO: migrate to Res.string.ui_storyteller_not_configured_tap_to_set_up
-    if (storyteller == null) return stringResource(Res.string.ui_storyteller_not_configured_tap_to_set_up)
-    val username = storyteller.username.takeIf { it.isNotEmpty() }
-    val version = serverVersions[storyteller.id]
-    val summary = readaloudSummaries[storyteller.id]
-    val head = if (username != null) {
-        "$username@${storyteller.url.displayHost()}"
-    } else {
-        storyteller.url.displayHost()
-    }
-    val parts = mutableListOf(head)
-    if (version != null) parts += "v$version"
-    if (summary != null) parts += localizedMatchCountsFragment(summary)
-    return parts.joinToString(" · ")
+    val notConfigured = stringResource(Res.string.ui_storyteller_not_configured_tap_to_set_up)
+    // localizedMatchCountsFragment is @Composable; pre-compute unconditionally so composition
+    // slot ordering stays stable across recompositions when storyteller/summary presence changes.
+    val localizedCounts = localizedMatchCountsFragment(
+        storyteller?.let { readaloudSummaries[it.id] } ?: ReadaloudMatchSummary(0, 0, 0, 0),
+    )
+    return readaloudRowSummary(
+        storyteller = storyteller,
+        serverVersions = serverVersions,
+        readaloudSummaries = readaloudSummaries,
+        notConfiguredText = notConfigured,
+        countFragment = { localizedCounts },
+    )
 }
 
 @Composable

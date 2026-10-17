@@ -43,7 +43,8 @@ internal fun readaloudSubtitle(
     serverVersions: Map<String, String>,
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
 ): String {
-    val prefix = "${source.username}@${source.url.authority()}"
+    val username = source.username.takeIf { it.isNotEmpty() }
+    val prefix = if (username != null) "$username@${source.url.authority()}" else source.url.authority()
     val version = serverVersions[source.id]
     val summary = readaloudSummaries[source.id]
 

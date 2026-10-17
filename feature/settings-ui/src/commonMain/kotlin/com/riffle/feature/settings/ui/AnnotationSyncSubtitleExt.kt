@@ -4,8 +4,8 @@ import com.riffle.feature.settings.AnnotationSyncSubtitle
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.withoutDanglingSeparator
-import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Clock
 
 @Composable
 internal fun AnnotationSyncSubtitle.resolve(): String = when (this) {

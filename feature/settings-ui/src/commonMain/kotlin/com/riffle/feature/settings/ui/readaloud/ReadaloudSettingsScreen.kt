@@ -48,13 +48,14 @@ import com.riffle.feature.settings.ui.StorytellerBadge
 import com.riffle.feature.settings.ui.disabledListItemColors
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.readaloudSubtitle
 import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
 import com.riffle.feature.source.ui.AddSourceBackend
-import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.time.Clock
 
 /**
  * Full-screen drill-in that hosts every Readaloud-related setting. Reached from the collapsed
@@ -129,19 +130,7 @@ fun ReadaloudSettingsScreen(
                     trailingContent = { DrillInChevron() },
                 )
             } else {
-                val username = storyteller.username.takeIf { it.isNotEmpty() }
-                val version = serverVersions[storyteller.id]
-                val subtitle = buildString {
-                    if (username != null) {
-                        append(username)
-                        append(" · ")
-                    }
-                    append(storyteller.url.value)
-                    if (version != null) {
-                        append(" · v")
-                        append(version)
-                    }
-                }
+                val subtitle = readaloudSubtitle(storyteller, serverVersions, readaloudSummaries)
                 ListItem(
                     modifier = Modifier.clickable {
                         onNavigateToAddSource(AddSourceBackend.Storyteller, storyteller.id)

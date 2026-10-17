@@ -148,4 +148,25 @@ class ReadaloudRowSummaryTest {
         )
         assertTrue(summary.endsWith("no readalouds yet"), "empty summary should collapse to 'no readalouds yet': $summary")
     }
+
+    @Test
+    fun customNotConfiguredText_andCountFragment_areHonouredByCallers() {
+        // Proves the parameters that localizedReadaloudRowSummary passes are actually used,
+        // so a localized host can replace both the not-configured hint and the count fragment.
+        val notConfigured = readaloudRowSummary(
+            storyteller = null,
+            serverVersions = emptyMap(),
+            readaloudSummaries = emptyMap(),
+            notConfiguredText = "Custom not configured text",
+        )
+        assertEquals("Custom not configured text", notConfigured)
+
+        val withCustomCounts = readaloudRowSummary(
+            storyteller = storytellerSource(),
+            serverVersions = emptyMap(),
+            readaloudSummaries = mapOf("sty-1" to ReadaloudMatchSummary(2, 0, 0, 0)),
+            countFragment = { "CUSTOM_COUNTS" },
+        )
+        assertTrue(withCustomCounts.endsWith("CUSTOM_COUNTS"), "custom countFragment must be used: $withCustomCounts")
+    }
 }
