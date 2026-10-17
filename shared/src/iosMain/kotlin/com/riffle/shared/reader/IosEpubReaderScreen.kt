@@ -1517,8 +1517,11 @@ fun EpubReaderScreen(
                             annotationSession.recolorHighlight(editTarget.id, color)
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
-                            createIosHighlight(liveSelection, color, pendingStyles, null, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
-                                ?.let { editTargetId = it.id }
+                            createIosHighlight(
+                                liveSelection, color, pendingStyles, null,
+                                navigator, annotationStore, annotationSession,
+                                item.sourceId, item.id, spineRef,
+                            )?.let { editTargetId = it.id }
                             annotationSession.persistLastUsedColorToken(color.token)
                             pendingStyles = emptySet()
                         }
@@ -1530,8 +1533,11 @@ fun EpubReaderScreen(
                             annotationSession.recolorHighlightRaw(editTarget.id, "")
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
-                            createIosHighlight(liveSelection, null, pendingStyles, null, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
-                                ?.let { editTargetId = it.id }
+                            createIosHighlight(
+                                liveSelection, null, pendingStyles, null,
+                                navigator, annotationStore, annotationSession,
+                                item.sourceId, item.id, spineRef,
+                            )?.let { editTargetId = it.id }
                             annotationSession.persistLastUsedColorToken("")
                             pendingStyles = emptySet()
                         }
@@ -1557,8 +1563,11 @@ fun EpubReaderScreen(
                             emphasisPreferencesStore.setLastUsedStyles(item.sourceId, item.id, next)
                             if (liveSelection != null && next.isNotEmpty()) {
                                 if (source == ReaderSource.Highlights) return@launch
-                                createIosHighlight(liveSelection, null, next, null, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
-                                    ?.let { editTargetId = it.id }
+                                createIosHighlight(
+                                    liveSelection, null, next, null,
+                                    navigator, annotationStore, annotationSession,
+                                    item.sourceId, item.id, spineRef,
+                                )?.let { editTargetId = it.id }
                                 pendingStyles = emptySet()
                             }
                         }
@@ -1599,8 +1608,11 @@ fun EpubReaderScreen(
                         } else {
                             if (source != ReaderSource.Highlights) {
                                 selection?.let { sel ->
-                                    createIosHighlight(sel, null, pendingStyles, text, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
-                                        ?.let { editTargetId = it.id }
+                                    createIosHighlight(
+                                        sel, null, pendingStyles, text,
+                                        navigator, annotationStore, annotationSession,
+                                        item.sourceId, item.id, spineRef,
+                                    )?.let { editTargetId = it.id }
                                 }
                             }
                             pendingStyles = emptySet()
@@ -2154,13 +2166,16 @@ internal suspend fun applyAnnotationDecorations(
                 val styles = annotation.emphasisStyles?.filter {
                     it == EmphasisStyle.BOLD || it == EmphasisStyle.ITALIC
                 }?.toSet().orEmpty()
-                if (styles.isEmpty()) null
-                else com.riffle.feature.reader.EmphasisDomInjector.EmphasisRange(
-                    id = annotation.id,
-                    textSnippet = annotation.textSnippet,
-                    textBefore = annotation.textBefore,
-                    styles = styles,
-                )
+                if (styles.isEmpty()) {
+                    null
+                } else {
+                    com.riffle.feature.reader.EmphasisDomInjector.EmphasisRange(
+                        id = annotation.id,
+                        textSnippet = annotation.textSnippet,
+                        textBefore = annotation.textBefore,
+                        styles = styles,
+                    )
+                }
             },
         ),
     )

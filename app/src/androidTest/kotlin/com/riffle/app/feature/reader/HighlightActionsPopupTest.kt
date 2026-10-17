@@ -46,26 +46,33 @@ class HighlightActionsPopupTest {
 
     @Test
     fun noNote_tapNoteRow_callsOnOpenNoteEditor() {
+        // The shared AnnotationActionsSheet uses the addNote label "Add a note…" and the whole
+        // note row is clickable — no intermediate expand step.
         var called = false
         showPopup(note = null, onOpenNoteEditor = { called = true })
-        composeTestRule.onNodeWithText("Add note").performClick()
+        composeTestRule.onNodeWithText("Add a note…").performClick()
         assertTrue("onOpenNoteEditor must be called directly when there is no note", called)
     }
 
     @Test
-    fun existingNote_initialState_showsPreviewAndExpandIcon() {
+    fun existingNote_initialState_showsPreviewText() {
+        // The shared AnnotationActionsSheet shows a compact note preview inline (maxLines = 2),
+        // without expand/collapse icons. The retired expand/collapse behavior lived only in the
+        // old HighlightActionsSheet private copy.
         showPopup(note = "My detailed note text here")
         composeTestRule.onNodeWithText("Note").assertIsDisplayed()
         composeTestRule.onNodeWithText("My detailed note text here").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Expand note").assertIsDisplayed()
     }
 
     @Test
-    fun existingNote_tapRow_expandsToFullTextAndEditButton() {
-        showPopup(note = "My detailed note text here")
+    fun existingNote_tapRow_callsOnOpenNoteEditor() {
+        // The shared AnnotationActionsSheet makes the whole note row directly open the editor —
+        // no expand step. The retired expand/collapse "Edit" button lived only in the old private
+        // copy of HighlightActionsSheet.
+        var called = false
+        showPopup(note = "My detailed note text here", onOpenNoteEditor = { called = true })
         composeTestRule.onNodeWithText("Note").performClick()
-        composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Collapse note").assertIsDisplayed()
+        assertTrue("tapping the note row must call onOpenNoteEditor directly", called)
     }
 
     @Test
