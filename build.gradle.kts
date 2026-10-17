@@ -738,6 +738,49 @@ tasks.register("checkNoLiteralNoOpCallbacks") {
     }
 }
 
+// Guards the pbxproj membership invariant established by #1246: every Swift test file under
+// iosApp/iosAppTests/ must be referenced in project.pbxproj, and every font file under
+// iosApp/iosApp/Fonts/ must appear in a Resources build phase. A stale squash-merge that silently
+// deletes lines from project.pbxproj (as happened with #1220) would trip this check.
+tasks.register("checkPbxprojMembership") {
+    group = "verification"
+    description = "Fails if a Swift test or bundled font is missing from iosApp/iosApp.xcodeproj/project.pbxproj."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val pbxprojFile = projectRoot.resolve("iosApp/iosApp.xcodeproj/project.pbxproj")
+        if (!pbxprojFile.exists()) {
+            logger.warn("checkPbxprojMembership: project.pbxproj not found — skipping.")
+            return@doLast
+        }
+        val pbxprojContent = pbxprojFile.readText()
+
+        val swiftTestFiles = projectRoot.resolve("iosApp/iosAppTests")
+            .walkTopDown()
+            .filter { it.isFile && it.extension == "swift" }
+            .map { it.relativeTo(projectRoot).path.replace('\\', '/') }
+            .toSet()
+
+        val fontsDir = projectRoot.resolve("iosApp/iosApp/Fonts")
+        val fontFiles = if (fontsDir.exists()) {
+            fontsDir.walkTopDown()
+                .filter { it.isFile }
+                .map { it.relativeTo(projectRoot).path.replace('\\', '/') }
+                .toSet()
+        } else {
+            emptySet()
+        }
+
+        val violations = TestGuardrailLint.checkPbxprojMembership(swiftTestFiles, fontFiles, pbxprojContent)
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "project.pbxproj membership check failed (#1246). These files must be added to the Xcode project:\n" +
+                    violations.joinToString("\n") { "  ${it.render()}" },
+            )
+        }
+    }
+}
+
 // Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
@@ -759,6 +802,7 @@ tasks.register("riffleChecks") {
         "checkHardcodedStringLiterals",
         "checkParityClosingGate",
         "checkNoLiteralNoOpCallbacks",
+        "checkPbxprojMembership",
     )
 }
 

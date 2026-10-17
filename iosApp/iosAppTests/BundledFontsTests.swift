@@ -1,7 +1,8 @@
 import XCTest
 import Riffle
 
-// Unit tests for the bundled font family declarations registered with the Readium navigator.
+// Unit tests for the bundled font family declarations registered with the Readium navigator,
+// and for the UIAppFonts plist entry that makes them loadable by the OS.
 //
 // The declarations are consumed by EPUBNavigatorViewController.Configuration to make Literata,
 // Merriweather, and OpenDyslexic available as reader typefaces. Removing a font file from the
@@ -24,5 +25,31 @@ final class BundledFontsTests: XCTestCase {
                       "Merriweather family must be declared")
         XCTAssertTrue(names.contains("OpenDyslexic"),
                       "OpenDyslexic family must be declared")
+    }
+
+    // Regression: a stale squash-merge (#1220) silently dropped the UIAppFonts array from
+    // Info.plist, making the fonts unloadable by UIFont and therefore invisible in the reader.
+    // This test catches any future plist rewrite that omits one or more of the entries.
+    func testUIAppFontsListsAllThreeBundledFonts() {
+        // iosAppUnitTests has no host application, so Bundle.main is the xctest daemon
+        // (not Riffle.app). Load the app bundle explicitly from the build products
+        // directory — Riffle.app and iosAppUnitTests.xctest share the same parent folder.
+        let productsDir = Bundle(for: BundledFontsTests.self).bundleURL
+            .deletingLastPathComponent()
+        let riffleAppURL = productsDir.appendingPathComponent("Riffle.app")
+        guard let riffleBundle = Bundle(url: riffleAppURL) else {
+            XCTFail("Could not load Riffle.app bundle at \(riffleAppURL.path)")
+            return
+        }
+        guard let uiAppFonts = riffleBundle.infoDictionary?["UIAppFonts"] as? [String] else {
+            XCTFail("UIAppFonts is missing or not an array in Riffle.app's Info.plist")
+            return
+        }
+        XCTAssertTrue(uiAppFonts.contains("Literata-Regular.ttf"),
+                      "UIAppFonts must list Literata-Regular.ttf so UIFont can load it")
+        XCTAssertTrue(uiAppFonts.contains("Merriweather-Regular.ttf"),
+                      "UIAppFonts must list Merriweather-Regular.ttf so UIFont can load it")
+        XCTAssertTrue(uiAppFonts.contains("OpenDyslexic-Regular.otf"),
+                      "UIAppFonts must list OpenDyslexic-Regular.otf so UIFont can load it")
     }
 }

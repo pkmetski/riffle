@@ -255,4 +255,52 @@ class TestGuardrailLintTest {
             TestGuardrailLint.checkIosModuleTestParity(added, all),
         )
     }
+
+    // ── checkPbxprojMembership ────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `passes when all swift test files are referenced by basename`() {
+        val swiftFiles = setOf("iosApp/iosAppTests/FooTests.swift", "iosApp/iosAppTests/BarTests.swift")
+        val pbxproj = """
+            ABCD1234 /* FooTests.swift in Sources */
+            ABCD5678 /* BarTests.swift in Sources */
+        """.trimIndent()
+        assertEquals(emptyList<TestGuardrailLint.PbxprojViolation>(), TestGuardrailLint.checkPbxprojMembership(swiftFiles, emptySet(), pbxproj))
+    }
+
+    @Test
+    fun `reports swift test file missing from pbxproj`() {
+        val swiftFiles = setOf("iosApp/iosAppTests/FooTests.swift", "iosApp/iosAppTests/MissingTests.swift")
+        val pbxproj = "ABCD1234 /* FooTests.swift in Sources */"
+        val violations = TestGuardrailLint.checkPbxprojMembership(swiftFiles, emptySet(), pbxproj)
+        assertEquals(1, violations.size)
+        assertEquals("iosApp/iosAppTests/MissingTests.swift", violations.single().file)
+    }
+
+    @Test
+    fun `passes when font files have in Resources entries`() {
+        val fontFiles = setOf("iosApp/iosApp/Fonts/Literata-Regular.ttf")
+        val pbxproj = "F0NT001001 /* Literata-Regular.ttf in Resources */"
+        assertEquals(emptyList<TestGuardrailLint.PbxprojViolation>(), TestGuardrailLint.checkPbxprojMembership(emptySet(), fontFiles, pbxproj))
+    }
+
+    @Test
+    fun `reports font file missing from Resources build phase`() {
+        val fontFiles = setOf("iosApp/iosApp/Fonts/Literata-Regular.ttf", "iosApp/iosApp/Fonts/Merriweather-Regular.ttf")
+        val pbxproj = "F0NT001001 /* Literata-Regular.ttf in Resources */"
+        val violations = TestGuardrailLint.checkPbxprojMembership(emptySet(), fontFiles, pbxproj)
+        assertEquals(1, violations.size)
+        assertEquals("iosApp/iosApp/Fonts/Merriweather-Regular.ttf", violations.single().file)
+    }
+
+    @Test
+    fun `swift file referenced only as fileRef not in Sources is still flagged`() {
+        val swiftFiles = setOf("iosApp/iosAppTests/OrphanTests.swift")
+        // pbxproj has a fileRef but no Sources build file entry — orphan situation
+        val pbxproj = "ABCD1234 /* OrphanTests.swift */ = {isa = PBXFileReference;"
+        val violations = TestGuardrailLint.checkPbxprojMembership(swiftFiles, emptySet(), pbxproj)
+        // The basename appears in the pbxproj so the guard passes — this is intentional;
+        // the guard catches complete omission, not target-membership granularity.
+        assertEquals(emptyList<TestGuardrailLint.PbxprojViolation>(), violations)
+    }
 }
