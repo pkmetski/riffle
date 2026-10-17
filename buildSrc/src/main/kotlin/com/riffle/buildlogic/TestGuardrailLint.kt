@@ -176,4 +176,47 @@ object TestGuardrailLint {
             .findAll(commitMessages)
             .map { it.groupValues[1].trim().removeSurrounding("`") }
             .toSet()
+
+    // ── pbxproj membership guard ──────────────────────────────────────────────────────────────────
+
+    data class PbxprojViolation(val file: String, val reason: String) {
+        fun render(): String = "$file — $reason"
+    }
+
+    /**
+     * Checks that every `.swift` file under `iosApp/iosAppTests/` is referenced by its basename in
+     * the Xcode project file, and that every font file under `iosApp/iosApp/Fonts/` has a
+     * `in Resources` build-phase entry.
+     *
+     * The pbxproj stores filenames without directory prefixes for files in subdirectories that are
+     * added as groups, so basename matching is intentional and correct.
+     *
+     * A stale merge that deletes lines from `project.pbxproj` (as happened in #1246) would cause
+     * this check to fail for any file whose reference was dropped.
+     */
+    fun checkPbxprojMembership(
+        swiftTestFiles: Set<String>,
+        fontFiles: Set<String>,
+        pbxprojContent: String,
+    ): List<PbxprojViolation> {
+        val violations = mutableListOf<PbxprojViolation>()
+
+        for (path in swiftTestFiles.sorted()) {
+            val basename = path.substringAfterLast('/')
+            if (!pbxprojContent.contains(basename)) {
+                violations += PbxprojViolation(path, "not referenced in project.pbxproj — add it to the Xcode target")
+            }
+        }
+
+        for (path in fontFiles.sorted()) {
+            val basename = path.substringAfterLast('/')
+            // A font in Resources must appear as `<name> in Resources` in a PBXBuildFile entry.
+            val inResources = Regex("""\Q$basename\E\s+in Resources""")
+            if (!inResources.containsMatchIn(pbxprojContent)) {
+                violations += PbxprojViolation(path, "not in a Resources build phase in project.pbxproj — add it to the app target's Copy Bundle Resources")
+            }
+        }
+
+        return violations
+    }
 }
