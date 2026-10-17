@@ -298,7 +298,7 @@ class LibraryTabContentTest {
      * past "In Progress" / "Recently Added" — the iOS harness saw "See all" and the first cover
      * tiles sitting above the viewport right after load.
      *
-     * Originally verified against a Series section (removed from the home tab by #1251 — the home
+     * Originally verified against a Series section (removed from the home tab by #1220 — the home
      * tab now only shows InProgress, ContinueSeries, RecentlyAdded, Finished to match Android).
      * The same LazyList key-anchoring regression applies to any section that loads before the
      * top-priority sections, so the test now uses Finished arriving before InProgress.

@@ -508,6 +508,38 @@ class ReadaloudSession constructor(
 
     // ---- Bind ----------------------------------------------------------------------------------
 
+    /**
+     * Updates the matched-ABS audio references after an async link lookup, without re-triggering
+     * the full [bind] lifecycle (resume load, quote build, etc.). Called by platforms that resolve
+     * the Storyteller link outside the ViewModel layer (iOS, where bind is called synchronously
+     * before the DB query can run).
+     */
+    fun resolveMatchedAbs(audioBookId: String, audioServerId: String, audiobookItemId: String?) {
+        this.audioBookId = audioBookId
+        this.audioServerId = audioServerId
+        _audiobookItemId.value = audiobookItemId
+        val isMatchedAbs = audioBookId != itemId
+        val bundlePresent = audioRepository.isAudioAvailable(audioServerId, audioBookId)
+        val control = readaloudControlState(
+            isStoryteller = isStorytellerService,
+            isMatchedAbs = isMatchedAbs,
+            bundlePresent = bundlePresent,
+        )
+        _readaloudVisible.value = control.visible
+        _readaloudAvailable.value = control.enabled
+        bundleReader.bundlePath(audioServerId, audioBookId)?.let { path ->
+            launchPreWarmTrack(path)
+            if (control.enabled) {
+                quoteBuilder.quoteBundle = path
+                quoteBuilder.build(path)
+            }
+        }
+        if (isMatchedAbs && !bundlePresent) {
+            sidecarDelegate.prepare(audioServerId, audioBookId)
+            startSidecarObserver()
+        }
+    }
+
     fun bind(
         sourceId: String,
         itemId: String,

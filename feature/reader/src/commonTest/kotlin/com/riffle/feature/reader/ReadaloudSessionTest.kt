@@ -8,6 +8,7 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.EpubDownloadResult
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
@@ -369,6 +370,38 @@ class ReadaloudSessionTest {
             assertEquals(false, session.readaloudPrepared)
             assertEquals(false, session.readaloudStarted)
             assertEquals(false, session.readaloudOpen.value)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun resolveMatchedAbsMakesReadaloudVisibleWhenLinkExists() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope)
+            session.bind(
+                sourceId = "abs-src",
+                itemId = "ebook-1",
+                isStorytellerService = false,
+                audioBookId = "ebook-1",
+                audioServerId = "abs-src",
+                audioSettingsIdentity = AudioIdentity("abs-src", "ebook-1"),
+                audiobookItemId = null,
+                effectiveFormattingPreferencesFlow = MutableStateFlow(FormattingPreferences()),
+                readerSyncProvider = { null },
+                audiobookFollowProvider = { null },
+            )
+            assertEquals(false, session.readaloudVisible.value, "readaloud must be hidden before ABS link is resolved")
+
+            session.resolveMatchedAbs(
+                audioBookId = "st-book-1",
+                audioServerId = "st-src",
+                audiobookItemId = null,
+            )
+
+            assertEquals(true, session.readaloudVisible.value, "readaloud must be visible once the matched ABS link is resolved")
+            assertEquals(null, session.audiobookItemId.value, "audiobookItemId remains null when item is not listenable")
         } finally {
             sessionScope.cancel()
         }

@@ -261,6 +261,9 @@ import UIKit
         statusObservations.forEach { $0.invalidate() }
         statusObservations.removeAll()
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        removeRemoteCommands()
         player?.pause()
         player?.removeAllItems()
         player = nil

@@ -13,6 +13,8 @@ import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.WebSourceDescriptors
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.isExpandedWidth
@@ -58,6 +60,7 @@ fun SourceOnboardingHost(
     val folderPicker = koinInject<FolderPickerInterface>()
     val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
     val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
+    val logger = koinInject<Logger>()
     val scope = rememberCoroutineScope()
 
     // When an initialBackend is provided (edit-source routing), skip the picker and go directly
@@ -94,6 +97,7 @@ fun SourceOnboardingHost(
                         scope.launch {
                             runCatching { localFilesInstaller.installFolder(uri) }
                                 .onSuccess { onFinished() }
+                                .onFailure { logger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
                         }
                     }
                     type == SourceType.OREILLY -> step = OnboardingStep.OReillyLogin
@@ -223,8 +227,9 @@ private fun addSourceViewModel(type: SourceType, editId: String? = null): AddSou
 fun WebdavOnboardingHost(
     onFinished: () -> Unit,
     onCancelled: () -> Unit,
+    editId: String? = null,
 ) {
-    val viewModel = remember { webdavAddSourceViewModel() }
+    val viewModel = remember { webdavAddSourceViewModel(editId) }
     AddSourceScreen(
         isExpandedWidth = false,
         onNavigateBack = onCancelled,
@@ -236,7 +241,7 @@ fun WebdavOnboardingHost(
     )
 }
 
-private fun webdavAddSourceViewModel(): AddSourceViewModel =
-    KoinPlatform.getKoin().get { parametersOf(AddSourceBackend.Webdav.routeType) }
+private fun webdavAddSourceViewModel(editId: String? = null): AddSourceViewModel =
+    KoinPlatform.getKoin().get { parametersOf(AddSourceBackend.Webdav.routeType, editId.orEmpty()) }
 
 private fun selectLibrariesViewModel(): SelectLibrariesViewModel = KoinPlatform.getKoin().get()

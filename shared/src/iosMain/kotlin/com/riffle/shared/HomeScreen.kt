@@ -112,7 +112,7 @@ private enum class AppSection { Library, Settings, Downloads, Riffle }
 
 private sealed interface IosSettingsSubScreen {
     data class AddSource(val backend: AddSourceBackend? = null, val editId: String? = null) : IosSettingsSubScreen
-    data object WebdavAddSource : IosSettingsSubScreen
+    data class WebdavAddSource(val editId: String? = null) : IosSettingsSubScreen
     data object AnnotationsSync : IosSettingsSubScreen
     data object AnnotationSyncMaintenance : IosSettingsSubScreen
     data object ReadaloudSettings : IosSettingsSubScreen
@@ -259,9 +259,10 @@ fun HomeScreen() {
                 val localFilesLogger = koinInject<Logger>()
                 BackHandler(enabled = settingsSubScreen != null) { settingsSubScreen = null }
                 when (val sub = settingsSubScreen) {
-                    IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
+                    is IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
                         onFinished = { settingsSubScreen = null },
                         onCancelled = { settingsSubScreen = null },
+                        editId = sub.editId,
                     )
                     is IosSettingsSubScreen.AddSource -> SourceOnboardingHost(
                         onFinished = { settingsSubScreen = null },
@@ -273,7 +274,7 @@ fun HomeScreen() {
                         onNavigateBack = { settingsSubScreen = null },
                         onNavigateToAddSource = { backend, editId ->
                             settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
+                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
                                 else -> IosSettingsSubScreen.AddSource(backend, editId)
                             }
                         },
@@ -290,7 +291,7 @@ fun HomeScreen() {
                         onNavigateBack = { settingsSubScreen = null },
                         onNavigateToAddSource = { backend, editId ->
                             settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
+                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
                                 else -> IosSettingsSubScreen.AddSource(backend, editId)
                             }
                         },
@@ -335,7 +336,7 @@ fun HomeScreen() {
                             onNavigateBack = { appSection = previousSection },
                             onNavigateToAddSource = { backend, editId ->
                                 settingsSubScreen = when (backend) {
-                                    is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource
+                                    is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
                                     else -> IosSettingsSubScreen.AddSource(backend, editId)
                                 }
                             },
