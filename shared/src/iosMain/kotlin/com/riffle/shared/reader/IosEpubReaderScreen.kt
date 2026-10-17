@@ -50,6 +50,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
@@ -206,6 +207,7 @@ fun EpubReaderScreen(
     val dispatchers = koinInject<DispatcherProvider>()
     val logger = koinInject<Logger>()
     val readaloudSessionFactory = koinInject<ReadaloudSession.Factory>()
+    val readaloudLinkRepository = koinInject<ReadaloudLinkRepository>()
     val listeningPreferencesStore = koinInject<ListeningPreferencesStore>()
     val annotationSessionFactory = koinInject<AnnotationSession.Factory>()
     val annotationSyncController = koinInject<AnnotationSyncController>()
@@ -319,6 +321,17 @@ fun EpubReaderScreen(
     }
     DisposableEffect(item.sourceId, item.id) {
         onDispose { readaloudSession.onBookClosed() }
+    }
+    LaunchedEffect(item.sourceId, item.id) {
+        val link = readaloudLinkRepository.findByAbsItem(item.sourceId, item.id)
+        if (link != null) {
+            val audiobookItemId = if (item.isListenable) item.id else null
+            readaloudSession.resolveMatchedAbs(
+                audioBookId = link.storytellerBookId,
+                audioServerId = link.storytellerSourceId,
+                audiobookItemId = audiobookItemId,
+            )
+        }
     }
     val readaloudVisible by readaloudSession.readaloudVisible.collectAsState()
     val readaloudOpen by readaloudSession.readaloudOpen.collectAsState()
