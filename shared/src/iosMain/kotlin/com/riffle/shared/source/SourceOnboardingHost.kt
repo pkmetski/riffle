@@ -242,6 +242,10 @@ fun WebdavOnboardingHost(
 }
 
 private fun webdavAddSourceViewModel(editId: String? = null): AddSourceViewModel =
-    KoinPlatform.getKoin().get { parametersOf(AddSourceBackend.Webdav.routeType, editId.orEmpty()) }
+    if (editId != null) {
+        KoinPlatform.getKoin().get { parametersOf(AddSourceBackend.Webdav.routeType, editId) }
+    } else {
+        KoinPlatform.getKoin().get { parametersOf(AddSourceBackend.Webdav.routeType) }
+    }
 
 private fun selectLibrariesViewModel(): SelectLibrariesViewModel = KoinPlatform.getKoin().get()

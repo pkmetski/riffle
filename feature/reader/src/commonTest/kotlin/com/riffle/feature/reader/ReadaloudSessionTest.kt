@@ -401,6 +401,7 @@ class ReadaloudSessionTest {
             )
 
             assertEquals(true, session.readaloudVisible.value, "readaloud must be visible once the matched ABS link is resolved")
+            assertEquals(true, session.readaloudAvailable.value, "readaloud must be enabled once the matched ABS link is resolved")
             assertEquals(null, session.audiobookItemId.value, "audiobookItemId remains null when item is not listenable")
         } finally {
             sessionScope.cancel()

@@ -508,12 +508,6 @@ class ReadaloudSession constructor(
 
     // ---- Bind ----------------------------------------------------------------------------------
 
-    /**
-     * Updates the matched-ABS audio references after an async link lookup, without re-triggering
-     * the full [bind] lifecycle (resume load, quote build, etc.). Called by platforms that resolve
-     * the Storyteller link outside the ViewModel layer (iOS, where bind is called synchronously
-     * before the DB query can run).
-     */
     fun resolveMatchedAbs(audioBookId: String, audioServerId: String, audiobookItemId: String?) {
         this.audioBookId = audioBookId
         this.audioServerId = audioServerId
