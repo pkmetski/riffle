@@ -275,16 +275,6 @@ private fun CbzAndroidThumbnailContent(
     }
 }
 
-/** Android implementation of panel page content — decoded via BitmapFactory, rendered via Coil. */
-@Composable
-internal fun CbzAndroidPanelPageContent(
-    modifier: Modifier,
-    imageSource: ComicPageSource,
-    page: Int,
-) {
-    CbzAndroidPageContent(modifier = modifier, imageSource = imageSource, page = page)
-}
-
 // ── Android-only decode helpers ────────────────────────────────────────────────
 
 private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
