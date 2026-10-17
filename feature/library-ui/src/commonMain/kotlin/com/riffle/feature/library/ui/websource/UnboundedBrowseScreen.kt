@@ -28,6 +28,7 @@ import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_annotations
 import com.riffle.feature.library.ui.generated.resources.ui_home

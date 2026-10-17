@@ -29,7 +29,7 @@ class DefaultPositionTranslator(
     private val absChapterHtml: (Int) -> String? = { null },
     private val storytellerSpineHrefs: List<String> = emptyList(),
     private val storytellerChapterHtml: (Int) -> String? = { null },
-    // Platform's CFI primitives: JvmEpubCfiOps (jsoup) or IosEpubCfiOps (ksoup).
+    // Shared Ksoup-backed CFI primitives.
     private val cfiOps: EpubCfiOps,
 ) : PositionTranslator {
 

@@ -10,12 +10,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.player.AudiobookPlayerEvent
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ui.AudiobookPlayerBody
 import com.riffle.feature.player.ui.isCompactPlayerHeight
 import com.riffle.feature.player.ui.playerChromeLabels
-import com.riffle.shared.ScreenScopedViewModelHost
 import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf
 

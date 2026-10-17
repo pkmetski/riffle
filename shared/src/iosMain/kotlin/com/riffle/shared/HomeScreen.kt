@@ -57,6 +57,7 @@ import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.library.ui.RiffleScreen
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.annotationSearchLabels
 import com.riffle.feature.library.ui.filteredBooksLabels

@@ -6,13 +6,18 @@ import com.fleeksoft.ksoup.nodes.Node
 import com.fleeksoft.ksoup.nodes.TextNode
 
 /**
- * [EpubChapterDomOps] backed by ksoup, the Kotlin Multiplatform port of jsoup.
+ * [EpubChapterDomOps] backed by ksoup, the Kotlin Multiplatform port of jsoup. Replaces the
+ * parallel jvmMain (jsoup) and iosMain (ksoup) implementations — the DOM-walking algorithm is
+ * identical on both platforms; only the parser import changed.
  *
- * Mirrors [JvmEpubChapterDomOps] step for step — the two must produce identical output for the
- * same chapter, which the shared highlight tests in `feature:reader`'s `commonTest` enforce by
- * running on both platforms.
+ * Every implementation must walk identically: the same chapter HTML must yield the same readable
+ * text, the same figure positions and the same range CFI on either platform, or a highlight
+ * created on one device re-anchors to the wrong span on the other.
+ *
+ * Identity-keyed tracking: ksoup's Element equality is structural, so two distinct but identical
+ * `<img>` tags collide in a HashMap. Index by reference via a list with `===` instead.
  */
-object IosEpubChapterDomOps : EpubChapterDomOps {
+object KsoupEpubChapterDomOps : EpubChapterDomOps {
 
     override fun readableBodyText(html: String): String {
         val out = StringBuilder()
@@ -32,8 +37,6 @@ object IosEpubChapterDomOps : EpubChapterDomOps {
         val ids = mutableListOf<Element>()
         var running = 0L
 
-        // Identity-keyed lookup: ksoup's Element equality is structural, so two distinct but
-        // identical <img> tags would collide in a hash map. Index by reference instead.
         fun idOf(el: Element): Int {
             val existing = ids.indexOfFirst { it === el }
             if (existing >= 0) return existing
@@ -87,14 +90,10 @@ object IosEpubChapterDomOps : EpubChapterDomOps {
         val doc = Ksoup.parse(html)
         val htmlEl = doc.child(0)
         val body = doc.body()
-        val (startNode, startOffset) = iosFindNodeAtChar(body, startChar) ?: return null
-        val (endNode, endOffset) = iosFindNodeAtChar(body, endChar) ?: return null
-        val startPath = iosBuildCfiDocPath(htmlEl, startNode, startOffset) ?: return null
-        val endPath = iosBuildCfiDocPath(htmlEl, endNode, endOffset) ?: return null
+        val (startNode, startOffset) = ksoupFindNodeAtChar(body, startChar) ?: return null
+        val (endNode, endOffset) = ksoupFindNodeAtChar(body, endChar) ?: return null
+        val startPath = ksoupBuildCfiDocPath(htmlEl, startNode, startOffset) ?: return null
+        val endPath = ksoupBuildCfiDocPath(htmlEl, endNode, endOffset) ?: return null
         return assembleCfiRange(spineStep, startPath, endPath)
     }
 }
-
-actual fun epubChapterDomOps(): EpubChapterDomOps = IosEpubChapterDomOps
-
-actual fun epubCfiOps(): EpubCfiOps = IosEpubCfiOps
