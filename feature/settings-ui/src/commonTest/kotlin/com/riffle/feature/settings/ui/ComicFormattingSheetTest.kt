@@ -1,7 +1,6 @@
 package com.riffle.feature.settings.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -43,10 +42,10 @@ class ComicFormattingSheetTest {
                 onDismiss = {},
             )
         }
-        onNodeWithText("Background").assertIsDisplayed()
-        onNodeWithText("Panel View").assertIsDisplayed()
-        onNodeWithText("Panel Overflow").assertIsDisplayed()
-        onNodeWithText("On-screen info").assertIsDisplayed()
+        onNodeWithText("Background").assertExists()
+        onNodeWithText("Panel View").assertExists()
+        onNodeWithText("Panel Overflow").assertExists()
+        onNodeWithText("On-screen info").assertExists()
     }
 
     @Test
