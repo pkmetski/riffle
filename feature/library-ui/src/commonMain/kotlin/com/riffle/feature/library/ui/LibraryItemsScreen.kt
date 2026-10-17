@@ -319,8 +319,8 @@ fun LibraryTabContent(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onPlaylistSelected: (CatalogPlaylist) -> Unit,
     onSearchAnnotations: (String) -> Unit,
-    onToggleNotStarted: () -> Unit = {},
-    onSetSortMode: (LibrarySortMode) -> Unit = {},
+    onToggleNotStarted: () -> Unit,
+    onSetSortMode: (LibrarySortMode) -> Unit,
 ) {
     when (selectedTab) {
         0 -> HomeTabContent(

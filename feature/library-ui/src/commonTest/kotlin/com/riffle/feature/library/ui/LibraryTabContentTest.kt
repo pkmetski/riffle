@@ -70,6 +70,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -97,6 +99,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -123,6 +127,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -154,6 +160,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = { searched = it },
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -186,6 +194,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = { searched = it },
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -220,6 +230,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -249,6 +261,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -284,6 +298,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -328,6 +344,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
         onNodeWithTag(sectionHeaderTag(LibrarySectionType.FINISHED)).assertIsDisplayed()
@@ -363,6 +381,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -394,6 +414,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -430,6 +452,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -463,6 +487,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -489,6 +515,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 
@@ -523,6 +551,8 @@ class LibraryTabContentTest {
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
                 onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
             )
         }
 

@@ -51,6 +51,7 @@ class AppVersionSectionTest {
                     onViewReleaseUrl = { viewedUrls += it },
                     onSetAutoUpdateEnabled = {},
                     onNavigateToChangelog = {},
+                    onVersionTap = {},
                 )
             }
         }
@@ -81,6 +82,7 @@ class AppVersionSectionTest {
                     onViewReleaseUrl = { viewedUrls += it },
                     onSetAutoUpdateEnabled = {},
                     onNavigateToChangelog = {},
+                    onVersionTap = {},
                 )
             }
         }

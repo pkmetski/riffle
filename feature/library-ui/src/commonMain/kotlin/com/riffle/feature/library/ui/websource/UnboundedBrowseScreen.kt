@@ -191,6 +191,8 @@ fun UnboundedBrowseScreen(
                             onSectionSeeMore = {},
                             onPlaylistSelected = {},
                             onSearchAnnotations = onSearchAnnotations,
+                            onToggleNotStarted = {},
+                            onSetSortMode = {},
                         )
                     }
                 }
