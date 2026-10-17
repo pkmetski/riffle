@@ -628,6 +628,7 @@ tasks.register("checkHardcodedStringLiterals") {
         val offenders = HardcodedStringLiteralLint.findOffenders(
             scanRoots = listOf(
                 layout.projectDirectory.dir("feature").asFile,
+                layout.projectDirectory.dir("app/src/main").asFile,
                 layout.projectDirectory.dir("shared/src/iosMain").asFile,
                 layout.projectDirectory.dir("shared/src/commonMain").asFile,
             ),

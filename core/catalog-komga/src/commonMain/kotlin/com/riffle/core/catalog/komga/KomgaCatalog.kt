@@ -22,6 +22,7 @@ import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.common.parseIso8601ToEpochMillis
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
@@ -776,7 +777,7 @@ class KomgaCatalog(
          */
         internal fun parseIsoInstant(raw: String?): Long? {
             if (raw.isNullOrBlank()) return null
-            return parseIsoInstantToEpochMillis(raw)
+            return parseIso8601ToEpochMillis(raw)
         }
 
         /** Komga's server-side page-size cap. Requests larger than this are silently truncated. */

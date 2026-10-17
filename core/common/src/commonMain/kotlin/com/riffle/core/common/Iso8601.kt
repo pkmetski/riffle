@@ -1,5 +1,7 @@
 package com.riffle.core.common
 
+import kotlin.time.Instant
+
 /**
  * Formats [epochMillis] as an ISO-8601 UTC instant, e.g. `2021-12-20T10:30:45.123Z`.
  *
@@ -8,7 +10,8 @@ package com.riffle.core.common
  * other can parse with [parseIso8601ToEpochMillis]. Fractional seconds may be omitted when they are
  * zero (the JVM does that); parsers on both platforms accept either shape.
  */
-expect fun formatIso8601(epochMillis: Long): String
+fun formatIso8601(epochMillis: Long): String = Instant.fromEpochMilliseconds(epochMillis).toString()
 
 /** Parses an ISO-8601 instant (with or without fractional seconds) to epoch millis; null if malformed. */
-expect fun parseIso8601ToEpochMillis(iso: String): Long?
+fun parseIso8601ToEpochMillis(iso: String): Long? =
+    runCatching { Instant.parse(iso).toEpochMilliseconds() }.getOrNull()
