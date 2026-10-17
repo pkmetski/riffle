@@ -57,6 +57,7 @@ import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
 import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.library.ui.RiffleScreen
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.annotationSearchLabels
 import com.riffle.feature.library.ui.filteredBooksLabels
@@ -106,7 +107,6 @@ import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSBundle
-import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.shared.generated.resources.Res as SharedRes
 
 private enum class AppSection { Library, Settings, Downloads, Riffle }
