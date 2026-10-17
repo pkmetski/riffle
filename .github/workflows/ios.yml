@@ -502,14 +502,21 @@ jobs:
           # Unsigned app lacks application-identifier entitlement → Keychain writes fail → empty library in tests.
           # Code signing is therefore left enabled (ad-hoc "Sign to Run Locally"; no team needed on simulator).
           build_for_testing
-          if ! smoke_launch; then
-            echo "::warning::First smoke-launch failed — rebooting simulator and retrying once."
+          erase_and_wait() {
             xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl erase "$SIMULATOR_UDID" 2>/dev/null || true
             sleep 20 # post-erase migrations (LaunchServices, Keychain) run async; launching before they finish causes SpringBoard force-quit
+          }
+          if ! smoke_launch; then
+            echo "::warning::Smoke-launch attempt 1 failed — erasing simulator and retrying."
+            erase_and_wait
             if ! smoke_launch; then
-              echo "::error::Riffle.app did not stay running for 30 s on the simulator — see the smoke-launch console above. Not running the suite."
-              exit 1
+              echo "::warning::Smoke-launch attempt 2 failed — erasing simulator and retrying once more."
+              erase_and_wait
+              if ! smoke_launch; then
+                echo "::error::Riffle.app did not stay running for 30 s after 3 smoke-launch attempts — see the smoke-launch console above. Not running the suite."
+                exit 1
+              fi
             fi
           fi
           if run_harness; then
