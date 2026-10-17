@@ -798,7 +798,7 @@ private fun iosLibraryModule(
             updateReadingProgressUseCase = get(),
             sourceRepository = get(),
             tokenStorage = get(),
-            controller = IosAudioPlayerController(bridge),
+            controller = IosAudioPlayerController(bridge, logger = get()),
             readaloudHandoff = get(),
             audioPlaybackPreferencesStore = get(),
             listeningPreferencesStore = get(),

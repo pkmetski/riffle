@@ -2,6 +2,8 @@ package com.riffle.shared.audiobook
 
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.feature.player.SkipIntervals
 import com.riffle.feature.player.SleepTimerMode
@@ -471,6 +473,37 @@ class IosAudioPlayerControllerTest {
         )
 
         assertEquals(emptyList(), bridge.preparedUrls, "a short extraction must not reach the player")
+    }
+
+    /**
+     * An incomplete bundle must be logged at ERROR level on the Audiobook channel so the failure
+     * is visible in the Xcode console and the in-app debug log, rather than being silently dropped.
+     */
+    @Test
+    fun anIncompleteBundleLogsAnError() = runTest {
+        val bridge = FakeBridge()
+        val extractor = FakeBundleAudioExtractor { entry ->
+            if (entry.endsWith("part0002.mp4")) null else "file:///extracted/$entry"
+        }
+        val logger = RecordingLogger()
+        val controller = IosAudioPlayerController(bridge, UnconfinedTestDispatcher(), extractor, logger)
+
+        controller.prepare(
+            trackUrls = bundleEntries,
+            spans = spans,
+            durationSec = 300.0,
+            startAtSec = 0.0,
+            localZipFilePath = "/Library/Caches/epubs/book.epub",
+            bookTitle = "Test Book",
+            chapters = chapters,
+        )
+
+        val errors = logger.records(LogChannel.Audiobook).filter { it.level == RecordingLogger.Level.E }
+        assertEquals(1, errors.size, "exactly one error must be logged for an incomplete bundle")
+        assertTrue(
+            errors.single().message.contains("2/3"),
+            "error message must report the resolved vs expected track count, was: '${errors.single().message}'",
+        )
     }
 
     /** A streamed or downloaded session has no bundle, so the extractor must never be consulted. */
