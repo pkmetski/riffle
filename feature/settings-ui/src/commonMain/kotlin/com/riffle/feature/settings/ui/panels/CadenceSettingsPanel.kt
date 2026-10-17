@@ -18,8 +18,15 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.withResolvedTheme
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.ui_adds_the_toggle_to_the_reader_top_bar_all_orientations
+import com.riffle.feature.settings.ui.generated.resources.ui_cadence
+import com.riffle.feature.settings.ui.generated.resources.ui_cadence_description
+import com.riffle.feature.settings.ui.generated.resources.ui_cadence_webview_unavailable
+import com.riffle.feature.settings.ui.generated.resources.ui_default_speed
+import com.riffle.feature.settings.ui.generated.resources.ui_per_book_override_formatting_panel_volume_keys
+import com.riffle.feature.settings.ui.generated.resources.ui_show_cadence
+import com.riffle.feature.settings.ui.generated.resources.ui_this_icon_appears_in_the_reader_top_bar_to_start_and_stop_cadence
 import com.riffle.feature.settings.ui.readersettings.CadenceHeroIcon
 import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
 import kotlinx.datetime.TimeZone
