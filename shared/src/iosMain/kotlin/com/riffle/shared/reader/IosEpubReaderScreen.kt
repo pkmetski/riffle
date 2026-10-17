@@ -56,7 +56,6 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
-import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
@@ -160,6 +159,7 @@ import com.riffle.shared.generated.resources.ui_readaloud
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -269,39 +269,11 @@ fun EpubReaderScreen(
             commitDraftWithNote = { _ -> },
         )
     }
-    val coordinator = remember(navigator) {
-        AnnotationDecorationCoordinator(
-            sourceId = item.sourceId,
-            itemId = item.id,
-            annotationStore = annotationStore,
-            navigator = navigator,
-        )
-    }
-    val annotations by coordinator.annotations.collectAsState()
-    // Kept in a ref the editor's suppliers read, so the editor is constructed once and still
-    // sees the current spine / orientation rather than the values at first composition.
+    val annotations by annotationSession.annotations.collectAsState()
     val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
     val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
-    // Live `viewportSize / chapterSize` per normalised href. Kept in a ref for the same reason
-    // the spine is: the editor is constructed once and must see the newest measurement.
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
-    // TOC entries for bookmark title generation — kept in a ref so the editor lambda always reads
-    // the latest value without being reconstructed when tocEntries loads.
     val tocEntriesRef = remember { mutableStateOf<List<TocEntry>>(emptyList()) }
-    val editor = remember(navigator) {
-        ReaderAnnotationEditor(
-            sourceId = item.sourceId,
-            itemId = item.id,
-            annotationStore = annotationStore,
-            navigator = navigator,
-            annotations = { coordinator.annotations.value },
-            spineHrefs = { spineRef.value.hrefs },
-            spinePositionCounts = { spineRef.value.positionCounts },
-            orientation = { orientationRef.value },
-            viewportFractionByHref = { viewportFractionRef.value },
-            tocSegments = { buildRailSegments(tocEntriesRef.value, spineHrefs = spineRef.value.hrefs) },
-        )
-    }
     val selection by navigator.selectionFlow.collectAsState()
     val readaloudSession = remember(item.sourceId, item.id) {
         readaloudSessionFactory.create(scope) { null }.also { session ->
@@ -369,10 +341,13 @@ fun EpubReaderScreen(
     var lazyFetcher by remember { mutableStateOf<IosLazyChapterFetcher?>(null) }
     // Cached publication shape for prefetch index lookups — avoids re-fetching on every position.
     var lazyShape by remember { mutableStateOf<LazyPublicationShape?>(null) }
-    // Session tracking for reading speed: book-open totalprogression + wall-clock start.
-    // Read from onDispose so a single CoroutineScope(SupervisorJob()) can flush the speed write.
-    val sessionStartProgressionRef = remember { mutableStateOf<Float?>(null) }
-    val sessionStartMsRef = remember { mutableStateOf(0L) }
+    // ReadingSessionCoordinator drives the 30-s sync heartbeat and reading-speed flush on close.
+    // Uses an independent scope (not rememberCoroutineScope) so onClosed() can still launch the
+    // speed-flush coroutine after Composition teardown has begun to cancel the composition scope.
+    val sessionCoordinatorScope = remember(item.id) { CoroutineScope(SupervisorJob()) }
+    val sessionCoordinator = remember(item.id) {
+        ReadingSessionCoordinator(clock, readingSpeedStore, sessionCoordinatorScope)
+    }
     // Populated in Highlights mode so "Open in Book" can resolve the tapped annotation's locator.
     var highlightsAnnotations by remember { mutableStateOf<List<Annotation>>(emptyList()) }
     // Kept as a ref so the resume-tracking LaunchedEffect can read the latest chapters without
@@ -457,9 +432,6 @@ fun EpubReaderScreen(
                 highlightsRenderedChaptersRef.value = chapters
 
                 if (isFirstOpen) {
-                    // Start the coordinator so coordinator.annotations is populated — the action
-                    // sheet uses it to resolve editTargetId to an Annotation.
-                    coordinator.start()
                     annotationSession.bind(
                         sourceId = item.sourceId,
                         namespace = "",
@@ -487,7 +459,6 @@ fun EpubReaderScreen(
                 lazyFetcher = fetcher
                 val shapeJson = IosLazyChapterFetcherImpl.serializeShape(shape)
                 navigator.openLazy(shapeJson, savedLocator, fetcher)
-                coordinator.start()
                 annotationSession.bind(
                     sourceId = item.sourceId,
                     namespace = "",
@@ -516,7 +487,6 @@ fun EpubReaderScreen(
             ?: savedLocator
             ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
         navigator.open(path, openAt)
-        coordinator.start()
         annotationSession.bind(
             sourceId = item.sourceId,
             namespace = "",
@@ -790,8 +760,10 @@ fun EpubReaderScreen(
     // Keep the corner ribbon in step with the page. Recomputed on every position change and
     // whenever the annotation set changes, because both can flip the answer.
     LaunchedEffect(navigator, annotations) {
-        currentBookmark = editor.bookmarkOnCurrentPage()
-        navigator.positionFlow.collect { currentBookmark = editor.bookmarkOnCurrentPage() }
+        currentBookmark = bookmarkOnCurrentPage(navigator, annotations, orientationRef, spineRef, viewportFractionRef)
+        navigator.positionFlow.collect {
+            currentBookmark = bookmarkOnCurrentPage(navigator, annotations, orientationRef, spineRef, viewportFractionRef)
+        }
     }
 
     // Search results painted in the page, not just listed. `searchMark` had no producer on iOS
@@ -863,28 +835,42 @@ fun EpubReaderScreen(
         )
     }
 
-    // 30s progress-sync heartbeat + reading-speed session tracking. Mirrors Android's
-    // ReadingSessionCoordinator: tick every SYNC_INTERVAL_MS while the book is open, then
-    // flush the speed record on close (see DisposableEffect(item.id) below).
+    // 30s progress-sync heartbeat + reading-speed session — now driven by ReadingSessionCoordinator.
+    // Restarts when localPath becomes non-null (i.e. when the book finishes opening).
     LaunchedEffect(localPath) {
         if (localPath == null || source == ReaderSource.Highlights) return@LaunchedEffect
         val initialPosition = navigator.snapshotPosition()
-        sessionStartProgressionRef.value = initialPosition?.totalProgression
-        sessionStartMsRef.value = clock.nowMs()
-        while (true) {
-            delay(ReadingSessionCoordinator.SYNC_INTERVAL_MS)
-            val pos = navigator.snapshotPosition() ?: continue
-            val progress = com.riffle.core.domain.finishAwareEbookProgress(
-                totalProgression = pos.totalProgression,
-                progression = pos.progression,
-                positionCounts = spineRef.value.positionCounts,
-            )
-            sessionRepository.runSyncCycle(
-                item.id,
-                SessionPayload(ebookLocation = pos.locatorJson, ebookProgress = progress),
-                item.sourceId,
-            )
-        }
+        sessionCoordinator.onResumed(
+            initialTotalProgression = initialPosition?.totalProgression,
+            onTick = {
+                val pos = navigator.snapshotPosition() ?: return@onResumed
+                val progress = com.riffle.core.domain.finishAwareEbookProgress(
+                    totalProgression = pos.totalProgression,
+                    progression = pos.progression,
+                    positionCounts = spineRef.value.positionCounts,
+                )
+                sessionRepository.runSyncCycle(
+                    item.id,
+                    SessionPayload(ebookLocation = pos.locatorJson, ebookProgress = progress),
+                    item.sourceId,
+                )
+            },
+        )
+    }
+
+    // Annotation decorations: apply highlights, bookmarks, note glyphs, emphasis and figure borders
+    // to the navigator whenever annotations change or a page loads. Replaces the defunct
+    // AnnotationDecorationCoordinator — the shared AnnotationSession now drives observation and the
+    // three preference stores, so decoration-application is the only iOS-specific concern left.
+    LaunchedEffect(navigator) {
+        combine(
+            annotationSession.annotations,
+            annotationSession.emphasisPool,
+            navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) },
+        ) { annotations, emphasis, _ -> annotations to emphasis }
+            .collect { (annotations, emphasis) ->
+                applyAnnotationDecorations(navigator, annotations, emphasis)
+            }
     }
 
     // ---- Auto-scroll -------------------------------------------------------------------------
@@ -1219,11 +1205,14 @@ fun EpubReaderScreen(
     DisposableEffect(item.id) {
         onDispose {
             annotationSession.onBookClosed()
-            coordinator.stop()
             val position = navigator.snapshotPosition()
             if (position != null && source != ReaderSource.Highlights) {
+                val totalPositions = spineRef.value.positionCounts.sum().toFloat()
+                // Flush the reading-speed session via the coordinator (runs on sessionCoordinatorScope
+                // which outlives Composition teardown — see ReadingSessionCoordinator.onClosed).
+                sessionCoordinator.onClosed(position.totalProgression, totalPositions)
                 // rememberCoroutineScope is cancelled during composition teardown; use an
-                // independent scope so the DB write and sync survive past onDispose.
+                // independent scope so the position write and sync survive past onDispose.
                 CoroutineScope(SupervisorJob()).launch {
                     runCatching {
                         // The locator was already written by the last onChanged; on close we
@@ -1243,23 +1232,10 @@ fun EpubReaderScreen(
                             ebookProgress = closeProgress,
                         )
                         sessionRepository.runSyncCycle(item.id, payload, item.sourceId)
-                        // Flush reading-speed record — mirrors ReadingSessionCoordinator.onClosed.
-                        val startProg = sessionStartProgressionRef.value
-                        val timeDeltaSec = (clock.nowMs() - sessionStartMsRef.value) / 1000.0
-                        val totalPositions = spineRef.value.positionCounts.sum().toFloat()
-                        if (startProg != null && totalPositions > 0f) {
-                            val prior = readingSpeedStore.speedSecPerPosition.first()
-                            val updated = ReadingSpeedTracker.recordSession(
-                                progressDelta = closeProgress - startProg,
-                                timeDeltaSec = timeDeltaSec,
-                                totalPositions = totalPositions,
-                                priorSecPerPosition = prior,
-                            )
-                            if (updated != null) readingSpeedStore.updateSpeed(updated)
-                        }
                     }
                 }
             }
+            sessionCoordinatorScope.cancel()
             navigator.close()
             lazyFetcher?.dispose()
             lazyFetcher = null
@@ -1305,7 +1281,20 @@ fun EpubReaderScreen(
                         // The Compose tap also leaks to the Readium UIKit view underneath;
                         // suppress the resulting BodyTap so it doesn't toggle chrome.
                         navigator.suppressNextBodyTap()
-                        scope.launch { editor.toggleBookmark() }
+                        scope.launch {
+                            toggleBookmark(
+                                navigator = navigator,
+                                annotationStore = annotationStore,
+                                annotationSession = annotationSession,
+                                annotations = annotationSession.annotations.value,
+                                sourceId = item.sourceId,
+                                itemId = item.id,
+                                spineRef = spineRef,
+                                orientationRef = orientationRef,
+                                viewportFractionRef = viewportFractionRef,
+                                tocEntriesRef = tocEntriesRef,
+                            )
+                        }
                     }
                 },
                 modifier = Modifier
@@ -1518,7 +1507,7 @@ fun EpubReaderScreen(
                 selectedColor = editTarget?.let {
                     if (it.color.isEmpty()) null else HighlightColor.fromToken(it.color)
                 },
-                emphasisStyles = editTarget?.let { editor.emphasisStylesFor(it) } ?: pendingStyles,
+                emphasisStyles = editTarget?.let { emphasisStylesForAnnotation(it, annotationSession.emphasisPool.value) } ?: pendingStyles,
                 note = editTarget?.note,
                 readerBackground = readerBackground,
                 labels = annotationSheetLabels(),
@@ -1528,7 +1517,7 @@ fun EpubReaderScreen(
                             annotationSession.recolorHighlight(editTarget.id, color)
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
-                            editor.createHighlight(liveSelection, color, pendingStyles, null)
+                            createIosHighlight(liveSelection, color, pendingStyles, null, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
                                 ?.let { editTargetId = it.id }
                             annotationSession.persistLastUsedColorToken(color.token)
                             pendingStyles = emptySet()
@@ -1541,7 +1530,7 @@ fun EpubReaderScreen(
                             annotationSession.recolorHighlightRaw(editTarget.id, "")
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
-                            editor.createHighlight(liveSelection, null, pendingStyles, null)
+                            createIosHighlight(liveSelection, null, pendingStyles, null, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
                                 ?.let { editTargetId = it.id }
                             annotationSession.persistLastUsedColorToken("")
                             pendingStyles = emptySet()
@@ -1551,9 +1540,9 @@ fun EpubReaderScreen(
                 onToggleEmphasis = { style ->
                     scope.launch {
                         if (editTarget != null) {
-                            val currentStyles = editor.emphasisStylesFor(editTarget)
+                            val currentStyles = emphasisStylesForAnnotation(editTarget, annotationSession.emphasisPool.value)
                             val resultingStyles = if (style in currentStyles) currentStyles - style else currentStyles + style
-                            editor.toggleEmphasis(editTarget, style)
+                            toggleIosEmphasis(editTarget, style, annotationStore, annotationSession, item.sourceId, item.id, navigator)
                             emphasisPreferencesStore.setLastUsedStyles(item.sourceId, item.id, resultingStyles)
                         } else {
                             // ADR 0056 §4: a chip tapped on a bare selection persists the
@@ -1568,7 +1557,7 @@ fun EpubReaderScreen(
                             emphasisPreferencesStore.setLastUsedStyles(item.sourceId, item.id, next)
                             if (liveSelection != null && next.isNotEmpty()) {
                                 if (source == ReaderSource.Highlights) return@launch
-                                editor.createHighlight(liveSelection, null, next, null)
+                                createIosHighlight(liveSelection, null, next, null, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
                                     ?.let { editTargetId = it.id }
                                 pendingStyles = emptySet()
                             }
@@ -1578,7 +1567,7 @@ fun EpubReaderScreen(
                 onOpenNoteEditor = { noteEditorFor = editTarget?.id ?: "" },
                 onDelete = editTarget?.let { target ->
                     {
-                        scope.launch { editor.delete(target.id) }
+                        scope.launch { annotationSession.deleteAnnotation(target.id) }
                         editTargetId = null
                     }
                 },
@@ -1606,11 +1595,11 @@ fun EpubReaderScreen(
                 onConfirm = { text ->
                     scope.launch {
                         if (existing != null) {
-                            editor.setNote(existing.id, text)
+                            annotationStore.updateNote(existing.id, text.takeIf { it.isNotBlank() })
                         } else {
                             if (source != ReaderSource.Highlights) {
                                 selection?.let { sel ->
-                                    editor.createHighlight(sel, null, pendingStyles, text)
+                                    createIosHighlight(sel, null, pendingStyles, text, navigator, annotationStore, annotationSession, item.sourceId, item.id, spineRef)
                                         ?.let { editTargetId = it.id }
                                 }
                             }
@@ -1641,8 +1630,8 @@ fun EpubReaderScreen(
                         }
                     }
                 },
-                onDelete = { id -> scope.launch { editor.delete(id) } },
-                onRename = { id, title -> scope.launch { editor.renameBookmark(id, title) } },
+                onDelete = { id -> scope.launch { annotationSession.deleteAnnotation(id) } },
+                onRename = { id, title -> scope.launch { annotationStore.renameBookmark(id, title) } },
                 onDismiss = { annotationsPanelOpen = false },
                 figureContent = { dataUri, _, imgModifier ->
                     IosAnnotationFigure(dataUri = dataUri, modifier = imgModifier)
@@ -1924,4 +1913,255 @@ internal suspend fun startCadenceFromCurrentPage(
     } else {
         cadence.onPageTopResolved(href, navigator.cadenceStartSpanId())
     }
+}
+
+internal fun emphasisStylesForAnnotation(
+    annotation: com.riffle.core.models.Annotation,
+    emphasisPool: List<com.riffle.core.models.Annotation>,
+): Set<EmphasisStyle> = emphasisPool
+    .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS && it.cfi == annotation.cfi }
+    .flatMap { it.emphasisStyles.orEmpty() }
+    .toSet()
+
+internal suspend fun createIosHighlight(
+    selection: com.riffle.feature.reader.NavigatorSelection,
+    color: HighlightColor?,
+    styles: Set<EmphasisStyle>,
+    note: String?,
+    navigator: ReadiumSwiftNavigator,
+    annotationStore: com.riffle.core.domain.AnnotationStore,
+    annotationSession: com.riffle.feature.reader.AnnotationSession,
+    sourceId: String,
+    itemId: String,
+    spineRef: androidx.compose.runtime.MutableState<SpinePositions>,
+): com.riffle.core.models.Annotation? {
+    val href = selection.href
+    val spineHrefs = spineRef.value.hrefs
+    val spineIndex = com.riffle.feature.reader.spineIndexOfHref(spineHrefs, href).takeIf { it >= 0 } ?: return null
+    val html = navigator.readChapterHtml(href) ?: return null
+    val anchor = com.riffle.feature.reader.buildHighlightAnchor(
+        html = html,
+        spineIndex = spineIndex,
+        snippet = selection.text,
+        textBefore = selection.before,
+        pageProgression = selection.progression,
+    ) ?: return null
+
+    val figures = com.riffle.feature.reader.findEnclosedFiguresInHtml(
+        html,
+        anchor.figureRangeStartChar,
+        anchor.figureRangeEndChar,
+    )
+    val colorToken = color?.token ?: ""
+    val chapterAnnotations = annotationSession.annotations.value.filter {
+        com.riffle.core.domain.normalizeEpubHref(it.chapterHref) == com.riffle.core.domain.normalizeEpubHref(href)
+    }
+    val plan = com.riffle.feature.reader.planHighlightCommit(
+        html = html,
+        draftFields = com.riffle.feature.reader.draftFieldsOf(
+            cfiRange = anchor.cfiRange,
+            textSnippet = selection.text,
+            textBefore = selection.before,
+            textAfter = selection.after,
+            progression = anchor.progression,
+            embeddedFigures = figures.ifEmpty { null },
+        ),
+        draftSpineIndex = spineIndex,
+        draftChapterHref = href,
+        draftColor = colorToken,
+        draftEmphasisStyles = styles,
+        candidates = chapterAnnotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT },
+        emphasisPool = annotationSession.emphasisPool.value.filter {
+            com.riffle.core.domain.normalizeEpubHref(it.chapterHref) == com.riffle.core.domain.normalizeEpubHref(href)
+        },
+        imageAnnotations = chapterAnnotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE },
+    )
+    plan.deleteEmphasisIds.forEach { annotationStore.delete(it) }
+    plan.deleteHighlightIds.forEach { annotationStore.delete(it) }
+    plan.deleteImageIds.forEach { annotationStore.delete(it) }
+
+    val fields = plan.fields
+    val originFont = navigator.computedBodyFontFamily()?.takeIf { it.isNotBlank() }
+        ?: com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
+    val created = annotationStore.createHighlight(
+        sourceId = sourceId,
+        itemId = itemId,
+        cfi = fields.cfiRange,
+        textSnippet = fields.textSnippet,
+        chapterHref = href,
+        textBefore = fields.textBefore,
+        textAfter = fields.textAfter,
+        color = colorToken,
+        spineIndex = spineIndex,
+        progression = fields.progression,
+        embeddedFigures = fields.embeddedFigures,
+        originFontFamily = originFont,
+        textSnippetHtml = null,
+    )
+    if (!note.isNullOrBlank()) annotationStore.updateNote(created.id, note)
+    if (styles.isNotEmpty()) {
+        annotationStore.createEmphasis(
+            sourceId = sourceId,
+            itemId = itemId,
+            cfi = fields.cfiRange,
+            textSnippet = fields.textSnippet,
+            chapterHref = href,
+            styles = styles,
+            textBefore = fields.textBefore,
+            textAfter = fields.textAfter,
+            spineIndex = spineIndex,
+            progression = fields.progression,
+            originFontFamily = originFont,
+        )
+    }
+    navigator.clearSelection()
+    return created
+}
+
+internal suspend fun toggleIosEmphasis(
+    annotation: com.riffle.core.models.Annotation,
+    style: EmphasisStyle,
+    annotationStore: com.riffle.core.domain.AnnotationStore,
+    annotationSession: com.riffle.feature.reader.AnnotationSession,
+    sourceId: String,
+    itemId: String,
+    navigator: ReadiumSwiftNavigator,
+) {
+    val existing = annotationSession.emphasisPool.value
+        .firstOrNull { it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS && it.cfi == annotation.cfi }
+    val current = existing?.emphasisStyles.orEmpty()
+    val next = if (style in current) current - style else current + style
+    val originFont = navigator.computedBodyFontFamily()?.takeIf { it.isNotBlank() }
+        ?: com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
+    when {
+        existing == null && next.isNotEmpty() -> annotationStore.createEmphasis(
+            sourceId = sourceId,
+            itemId = itemId,
+            cfi = annotation.cfi,
+            textSnippet = annotation.textSnippet,
+            chapterHref = annotation.chapterHref,
+            styles = next,
+            textBefore = annotation.textBefore,
+            textAfter = annotation.textAfter,
+            spineIndex = annotation.spineIndex,
+            progression = annotation.progression,
+            originFontFamily = annotation.originFontFamily ?: originFont,
+        )
+        existing != null && next.isEmpty() -> annotationStore.delete(existing.id)
+        existing != null -> annotationStore.updateEmphasisStyles(existing.id, next)
+    }
+}
+
+internal fun bookmarkOnCurrentPage(
+    navigator: ReadiumSwiftNavigator,
+    annotations: List<com.riffle.core.models.Annotation>,
+    orientationRef: androidx.compose.runtime.MutableState<com.riffle.core.domain.ReaderOrientation>,
+    spineRef: androidx.compose.runtime.MutableState<SpinePositions>,
+    viewportFractionRef: androidx.compose.runtime.MutableState<Map<String, Double>>,
+): com.riffle.core.models.Annotation? {
+    val position = navigator.snapshotPosition() ?: return null
+    val hrefNorm = com.riffle.core.domain.normalizeEpubHref(position.href)
+    val eps = com.riffle.feature.reader.bookmarkEpsFor(
+        orientation = orientationRef.value,
+        spineCounts = spineRef.value.hrefs to spineRef.value.positionCounts,
+        viewportFractionByHref = viewportFractionRef.value,
+        chapterHref = hrefNorm,
+    )
+    return annotations.firstOrNull { a ->
+        a.type == com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK &&
+            com.riffle.core.domain.normalizeEpubHref(a.chapterHref) == hrefNorm &&
+            kotlin.math.abs(a.progression - position.progression) <= eps
+    }
+}
+
+internal suspend fun toggleBookmark(
+    navigator: ReadiumSwiftNavigator,
+    annotationStore: com.riffle.core.domain.AnnotationStore,
+    annotationSession: com.riffle.feature.reader.AnnotationSession,
+    annotations: List<com.riffle.core.models.Annotation>,
+    sourceId: String,
+    itemId: String,
+    spineRef: androidx.compose.runtime.MutableState<SpinePositions>,
+    orientationRef: androidx.compose.runtime.MutableState<com.riffle.core.domain.ReaderOrientation>,
+    viewportFractionRef: androidx.compose.runtime.MutableState<Map<String, Double>>,
+    tocEntriesRef: androidx.compose.runtime.MutableState<List<com.riffle.core.models.TocEntry>>,
+): Boolean {
+    val existing = bookmarkOnCurrentPage(navigator, annotations, orientationRef, spineRef, viewportFractionRef)
+    if (existing != null) {
+        annotationStore.delete(existing.id)
+        return false
+    }
+    val position = navigator.snapshotPosition() ?: return false
+    val href = position.href
+    val spineHrefs = spineRef.value.hrefs
+    val spineIndex = com.riffle.feature.reader.spineIndexOfHref(spineHrefs, href).takeIf { it >= 0 } ?: 0
+    val progression = position.progression.toDouble()
+    val tocSegments = com.riffle.feature.reader.buildRailSegments(tocEntriesRef.value, spineHrefs = spineHrefs)
+    val bookmarkTitle = com.riffle.feature.reader.buildEpubBookmarkTitle(
+        tocSegments, href, spineHrefs, progression, position.totalProgression?.toDouble(),
+    )
+    val originFont = navigator.computedBodyFontFamily()?.takeIf { it.isNotBlank() }
+        ?: com.riffle.feature.reader.FALLBACK_ORIGIN_FONT_FAMILY
+    annotationStore.createBookmark(
+        sourceId = sourceId,
+        itemId = itemId,
+        cfi = position.locatorJson,
+        textSnippet = "",
+        chapterHref = href,
+        spineIndex = spineIndex,
+        progression = progression,
+        bookmarkTitle = bookmarkTitle,
+        originFontFamily = originFont,
+        fragmentAnchor = navigator.capturePageFragmentAnchor(),
+    )
+    return true
+}
+
+internal suspend fun applyAnnotationDecorations(
+    navigator: ReadiumSwiftNavigator,
+    annotations: List<com.riffle.core.models.Annotation>,
+    emphasis: List<com.riffle.core.models.Annotation>,
+) {
+    val highlights = annotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT }
+    val bookmarks = annotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK }
+    navigator.applyDecorations(
+        ReaderDecorationGroups.highlights,
+        highlights.mapNotNull { annotationToHighlightDecoration(it) },
+    )
+    navigator.applyDecorations(
+        ReaderDecorationGroups.noteGlyphs,
+        highlights.mapNotNull { annotationToNoteGlyphDecoration(it) },
+    )
+    navigator.applyDecorations(
+        ReaderDecorationGroups.bookmarks,
+        bookmarks.map { annotationToBookmarkDecoration(it) },
+    )
+    navigator.applyDecorations(
+        ReaderDecorationGroups.emphasis,
+        emphasis.mapNotNull { annotationToEmphasisDecoration(it) },
+    )
+    navigator.evaluateJavaScriptForDecorations(com.riffle.feature.reader.decorations.figureBorderInjectionJs())
+    navigator.evaluateJavaScriptForDecorations(
+        com.riffle.feature.reader.decorations.figureBorderApplyJs(
+            cssRules = com.riffle.feature.reader.decorations.FigureBorderDecoration.buildCssRules(annotations),
+            svgMatches = com.riffle.feature.reader.decorations.FigureBorderDecoration.buildSvgMatches(annotations),
+            rasterMarks = com.riffle.feature.reader.decorations.FigureBorderDecoration.buildRasterMarks(annotations),
+        ),
+    )
+    navigator.evaluateJavaScriptForDecorations(
+        com.riffle.feature.reader.EmphasisDomInjector.script(
+            emphasis.mapNotNull { annotation ->
+                val styles = annotation.emphasisStyles?.filter {
+                    it == EmphasisStyle.BOLD || it == EmphasisStyle.ITALIC
+                }?.toSet().orEmpty()
+                if (styles.isEmpty()) null
+                else com.riffle.feature.reader.EmphasisDomInjector.EmphasisRange(
+                    id = annotation.id,
+                    textSnippet = annotation.textSnippet,
+                    textBefore = annotation.textBefore,
+                    styles = styles,
+                )
+            },
+        ),
+    )
 }
