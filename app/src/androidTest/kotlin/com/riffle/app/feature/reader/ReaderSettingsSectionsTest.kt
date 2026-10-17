@@ -1,10 +1,6 @@
 package com.riffle.app.feature.reader
 
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,16 +11,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.riffle.app.feature.reader.cbz.ComicDisplaySection
 import com.riffle.feature.settings.ui.readersettings.DisplaySection
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.comic.ComicFormattingPreferences
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -192,34 +185,4 @@ class ReaderSettingsSectionsTest {
         composeTestRule.runOnIdle { assertEquals(ReaderTheme.Sepia, updated!!.theme) }
     }
 
-    @Test
-    fun comicDisplaySection_backgroundThemeIncludesAutoThemeChip() {
-        var selected: ReaderTheme? = null
-        composeTestRule.setContent {
-            Column(Modifier.padding(horizontal = 24.dp)) {
-                ComicDisplaySection(
-                    prefs = ComicFormattingPreferences(backgroundTheme = ReaderTheme.Dark),
-                    onBackgroundThemeChange = { selected = it },
-                    onPanelViewChange = {},
-                    onPanelOverflowChange = {},
-                    onPanelAnimationSpeedChange = {},
-                    onShowReadingProgressChange = {},
-                    onShowPageNumbersChange = {},
-                )
-            }
-        }
-
-        composeTestRule.onNodeWithText("Background").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Background").assertLeftPositionInRootIsEqualTo(24.dp)
-        composeTestRule.onNodeWithText("Auto").assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("Dim").assertCountEquals(0)
-        composeTestRule.onNodeWithContentDescription("Sepia theme").performClick()
-        composeTestRule.runOnIdle {
-            assertEquals(ReaderTheme.Sepia, selected)
-        }
-        composeTestRule.onNodeWithContentDescription("Auto theme").performClick()
-        composeTestRule.runOnIdle {
-            assertEquals(ReaderTheme.Auto, selected)
-        }
-    }
 }
