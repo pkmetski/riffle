@@ -284,6 +284,38 @@ class ParityClosingGateLintTest {
         assertEquals(emptyList<ParityClosingGateLint.Violation>(), violations)
     }
 
+    // ── checkOpenSubIssues ───────────────────────────────────────────────────
+
+    @Test
+    fun `no open sub-issues returns null`() {
+        val result = ParityClosingGateLint.checkOpenSubIssues(issueNumber = 42, openSubIssueNumbers = emptyList())
+        assertEquals(null, result)
+    }
+
+    @Test
+    fun `open sub-issues produce OPEN_SUB_ISSUES violation`() {
+        val result = ParityClosingGateLint.checkOpenSubIssues(
+            issueNumber = 42,
+            openSubIssueNumbers = listOf(101, 102),
+        )
+        assertEquals(ParityClosingGateLint.ViolationKind.OPEN_SUB_ISSUES, result?.kind)
+        assertEquals(42, result?.issueNumber)
+        assertTrue(result?.detail?.contains("#101") == true)
+        assertTrue(result?.detail?.contains("#102") == true)
+        assertTrue(result?.detail?.contains("Part of #42") == true)
+    }
+
+    @Test
+    fun `single open sub-issue blocks close`() {
+        val result = ParityClosingGateLint.checkOpenSubIssues(
+            issueNumber = 200,
+            openSubIssueNumbers = listOf(201),
+        )
+        assertEquals(ParityClosingGateLint.ViolationKind.OPEN_SUB_ISSUES, result?.kind)
+    }
+
+    // ── checkAcceptanceTests — the four gate scenarios ───────────────────────
+
     @Test
     fun `issue without Acceptance lines is vacuously clean`() {
         val issueBody = """
