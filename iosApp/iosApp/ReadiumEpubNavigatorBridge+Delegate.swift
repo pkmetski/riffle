@@ -169,14 +169,13 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     /// WKWebView reports a new selection, which makes it the one place the host learns that the
     /// user selected text. Forwarding it here is what gives iOS an annotate affordance at all.
     ///
-    /// Returns `true`: Riffle's sheet is shown *alongside* the system menu rather than replacing
-    /// it, so Copy / Look Up / Share keep working. Returning `false` (the documented
-    /// custom-pop-up route) would suppress the system menu and silently remove three features to
-    /// add one.
+    /// Returns `false`: Riffle's annotation sheet replaces the system menu so the two do not
+    /// coexist on the same selection. The system Copy / Look Up / Share actions are available
+    /// through the long-press menu on highlighted text after the annotation has been created.
     func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
         if let json = Self.selectionJson(locator: selection.locator, frame: selection.frame) {
             selectionCallback?(json)
         }
-        return true
+        return false
     }
 }
