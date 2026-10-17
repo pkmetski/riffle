@@ -1045,17 +1045,6 @@ fun EpubReaderScreen(
     }
 }
 
-// Reader TopAppBar palette: same translucent black as the global nav-bar scrim so both
-// bars read as a single translucent overlay on the page rather than opaque chrome.
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-    containerColor = com.riffle.app.ui.bottomBarScrimColor(),
-    titleContentColor = androidx.compose.ui.graphics.Color.White,
-    navigationIconContentColor = androidx.compose.ui.graphics.Color.White,
-    actionIconContentColor = androidx.compose.ui.graphics.Color.White,
-)
-
 // Isolated scope: cursorPosition updates only recompose this composable, not sibling EpubNavigatorView.
 @Composable
 private fun EpubChapterRailOverlay(

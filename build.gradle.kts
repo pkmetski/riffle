@@ -17,7 +17,6 @@ plugins {
     alias(libs.plugins.androidx.room) apply false
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.ksp) apply false
-    alias(libs.plugins.hilt) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.kotlin.multiplatform) apply false
@@ -103,7 +102,6 @@ tasks.register("checkRiffleInfraSeams") {
             "core/domain/src/main/kotlin/com/riffle/core/domain/Clock.kt",
             "core/domain/src/main/kotlin/com/riffle/core/domain/DispatcherProvider.kt",
             "core/domain/src/main/kotlin/com/riffle/core/domain/SystemClock.kt",
-            "core/domain/src/main/kotlin/com/riffle/core/domain/DefaultDispatcherProvider.kt",
             // core:common KMP — SystemClock is the production Clock impl; permitted in jvmMain.
             "core/common/src/jvmMain/kotlin/com/riffle/core/common/SystemClock.kt",
             // ---- Grandfathered — Clock sweep follow-up.
@@ -630,10 +628,13 @@ tasks.register("checkHardcodedStringLiterals") {
         val offenders = HardcodedStringLiteralLint.findOffenders(
             scanRoots = listOf(
                 layout.projectDirectory.dir("feature").asFile,
+                layout.projectDirectory.dir("app/src/main").asFile,
                 layout.projectDirectory.dir("shared/src/iosMain").asFile,
                 layout.projectDirectory.dir("shared/src/commonMain").asFile,
             ),
             projectRoot = projectRoot,
+            // Dynamic value ("42%") — not translatable English prose.
+            extraAllowlist = listOf("app/src/main/kotlin/com/riffle/app/feature/update/UpdateAvailableDialog.kt"),
         )
         if (offenders.isNotEmpty()) {
             throw GradleException(

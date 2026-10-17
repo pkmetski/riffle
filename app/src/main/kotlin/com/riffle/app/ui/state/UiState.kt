@@ -1,12 +1,9 @@
 package com.riffle.app.ui.state
 
 /**
- * Unified screen state taxonomy — replaces the per-feature Loading/Ready/Error sealed classes that
- * each ViewModel used to define. Screens consume it via [UiStateScaffold] which renders a common
- * loader / error treatment; the `success` slot receives the domain object [T].
- *
- * Screens that need extra discriminators (e.g. a Downloading sub-state inside a player) parameterise
- * [T] with their own sealed type instead of nesting variants into this wrapper.
+ * Unified screen state taxonomy. Screens that need extra discriminators (e.g. a Downloading
+ * sub-state inside a player) parameterise [T] with their own sealed type instead of nesting
+ * variants into this wrapper.
  */
 sealed interface UiState<out T> {
     data object Loading : UiState<Nothing>

@@ -45,12 +45,9 @@ import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceVi
 import com.riffle.feature.settings.ui.debug.DebugLogViewModel
 import com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
-import com.riffle.feature.source.ui.AddChitankaViewModel
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
-import com.riffle.app.feature.source.gutenberg.AddGutenbergViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
 import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
-import com.riffle.feature.source.ui.AddRadioEsViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel
@@ -450,7 +447,6 @@ private val sourceViewModelModule = module {
             dispatchers = get(),
         )
     }
-    viewModel { AddChitankaViewModel(installer = get()) }
     viewModel {
         GutenbergBrowseViewModel(
             savedStateHandle = get(),
@@ -465,7 +461,6 @@ private val sourceViewModelModule = module {
             dispatchers = get(),
         )
     }
-    viewModel { AddGutenbergViewModel(installer = get()) }
     viewModel { AddLocalFilesViewModel(installer = get()) }
     viewModel {
         WebSourceLibraryViewModel(
@@ -479,7 +474,6 @@ private val sourceViewModelModule = module {
             offlineAvailability = get(),
         )
     }
-    viewModel { AddRadioEsViewModel(installer = get()) }
     viewModel {
         RadioEsBrowseViewModel(
             savedStateHandle = get(),

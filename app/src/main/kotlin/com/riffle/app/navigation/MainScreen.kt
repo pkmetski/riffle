@@ -338,10 +338,6 @@ internal fun NavController.navigateAsRootIfTop(backStackEntry: NavBackStackEntry
         action = { navigateAsRoot(route) },
     )
 
-// LibraryItemsScreen can remain composed as the predictive-back preview while a sub-screen is
-// still the committed top. In that one case, popping the actual committed top is intentional.
-internal fun NavController.popCommittedTopFromLibraryPreview(): Boolean = popBackStack()
-
 // Navigating to HOME on every source switch lets getStartDestination() pick the correct library
 // for the new source (last-opened per source, falling back to the first in the list).
 internal fun shouldNavigateHomeOnSourceSwitch(): Boolean = true
@@ -366,11 +362,3 @@ internal fun NavController.committedTopRouteAsState(): String? {
     return committedTopRoute(backStack.map { it.destination.route })
 }
 
-/**
- * Reads [NavController.currentBackStack] synchronously.
- *
- * `@SuppressLint("RestrictedApi")` is required — see [committedTopRouteAsState] for rationale.
- */
-@android.annotation.SuppressLint("RestrictedApi")
-internal fun NavController.currentBackStackSnapshot(): List<NavBackStackEntry> =
-    currentBackStack.value.toList()
