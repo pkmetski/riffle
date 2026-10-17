@@ -6,6 +6,10 @@ import com.riffle.feature.library.ui.DownloadsActions
 import com.riffle.feature.library.ui.LibraryItemDetailActions
 import com.riffle.feature.library.ui.LibraryItemsActions
 import com.riffle.feature.library.ui.probeFields
+import com.riffle.feature.player.ui.PlayerHostActions
+import com.riffle.feature.player.ui.probeFields
+import com.riffle.feature.reader.ui.ReaderHostActions
+import com.riffle.feature.reader.ui.probeFields
 import com.riffle.feature.settings.ui.DefaultPlatformSettingsHooks
 import com.riffle.feature.settings.ui.SettingsActions
 import com.riffle.feature.settings.ui.probeFields
@@ -87,4 +91,22 @@ fun iosSettingsActionsViolations(): List<String> {
         platformHooks = DefaultPlatformSettingsHooks,
     )
     return HostWiringProbe.check(actions.probeFields())
+}
+
+fun iosReaderHostActionsViolations(): List<String> {
+    val actions = ReaderHostActions(
+        onBack = {},
+        onSwitchToAudiobook = {},
+    )
+    return HostWiringProbe.check(actions.probeFields())
+}
+
+fun iosPlayerHostActionsViolations(): List<String> {
+    val actions = PlayerHostActions(
+        onBack = {},
+        onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+        onSwitchToReadaloud = { _, _ -> },
+    )
+    val allowlist = setOf("onPlaylistAdvance")
+    return HostWiringProbe.check(actions.probeFields(), allowlist)
 }

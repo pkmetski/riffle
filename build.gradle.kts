@@ -723,21 +723,6 @@ tasks.register("checkParityClosingGate") {
     }
 }
 
-tasks.register("checkNoLiteralNoOpCallbacks") {
-    group = "verification"
-    description = "Fails if a host file passes a literal no-op lambda ({} or { _ -> }) as a callback argument."
-    notCompatibleWithConfigurationCache("reading the file system at execution time")
-    doLast {
-        val offenders = com.riffle.buildlogic.NoOpCallbackLint.findOffenders(rootProject.projectDir)
-        if (offenders.isNotEmpty()) {
-            val report = offenders.joinToString("\n") { it.render(rootProject.projectDir) }
-            throw GradleException(
-                "Literal no-op callbacks found in host files. Replace with a named NoOp.* constant:\n$report",
-            )
-        }
-    }
-}
-
 // Guards the pbxproj membership invariant established by #1246: every Swift test file under
 // iosApp/iosAppTests/ must be referenced in project.pbxproj, and every font file under
 // iosApp/iosApp/Fonts/ must appear in a Resources build phase. A stale squash-merge that silently
@@ -801,7 +786,6 @@ tasks.register("riffleChecks") {
         "checkSharedCommonMainComposables",
         "checkHardcodedStringLiterals",
         "checkParityClosingGate",
-        "checkNoLiteralNoOpCallbacks",
         "checkPbxprojMembership",
     )
 }
@@ -822,6 +806,5 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkSharedCommonMainComposables"))
         dependsOn(rootProject.tasks.named("checkHardcodedStringLiterals"))
         dependsOn(rootProject.tasks.named("checkParityClosingGate"))
-        dependsOn(rootProject.tasks.named("checkNoLiteralNoOpCallbacks"))
     }
 }

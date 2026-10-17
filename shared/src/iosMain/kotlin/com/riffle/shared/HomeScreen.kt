@@ -75,7 +75,9 @@ import com.riffle.feature.navigation.openReadItemForReading
 import com.riffle.feature.navigation.playlistAdvanceNav
 import com.riffle.feature.navigation.playlistPlayerNav
 import com.riffle.feature.player.NowPlaying
+import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.ui.ReaderHostActions
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.SettingsActions
 import com.riffle.feature.settings.ui.SettingsScreen
@@ -504,24 +506,31 @@ fun HomeScreen() {
                         itemId = current.itemId,
                         sourceId = current.sourceId,
                         startAtSec = current.startAtSec,
-                        onBack = ::rifflePop,
-                        onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+                        playerActions = PlayerHostActions(
+                            onBack = ::rifflePop,
+                            onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+                        ),
                     )
                     is LibraryNav.ReaderDestination -> ReaderHost(
                         destination = current,
-                        onBack = ::rifflePop,
-                        onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
-                        onSwitchToReadaloud = { ebookItemId, atSec ->
-                            scope.launch {
-                                val item = libraryObserver.getItem(ebookItemId) ?: return@launch
-                                rifflePush(LibraryNav.Reader(item, startReadaloudAtSec = atSec))
-                            }
-                        },
-                        onSwitchToAudiobook = {
-                            val readerDest = current as? LibraryNav.Reader ?: return@ReaderHost
-                            rifflePop()
-                            rifflePush(LibraryNav.AudiobookPlayer(readerDest.item))
-                        },
+                        readerActions = ReaderHostActions(
+                            onBack = ::rifflePop,
+                            onSwitchToAudiobook = {
+                                val readerDest = current as? LibraryNav.Reader ?: return@ReaderHostActions
+                                rifflePop()
+                                rifflePush(LibraryNav.AudiobookPlayer(readerDest.item))
+                            },
+                        ),
+                        playerActions = PlayerHostActions(
+                            onBack = ::rifflePop,
+                            onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+                            onSwitchToReadaloud = { ebookItemId, atSec ->
+                                scope.launch {
+                                    val item = libraryObserver.getItem(ebookItemId) ?: return@launch
+                                    rifflePush(LibraryNav.Reader(item, startReadaloudAtSec = atSec))
+                                }
+                            },
+                        ),
                     )
                     else -> RiffleScreen(
                         viewModel = riffleViewModel,
@@ -791,18 +800,23 @@ private fun LibraryHost(
             }
             ReaderHost(
                 destination = current,
-                onBack = ::pop,
-                onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
-                onSwitchToReadaloud = { ebookItemId, atSec ->
-                    scope.launch {
-                        val item = libraryObserver.getItem(ebookItemId) ?: return@launch
-                        navStack = navStack + LibraryNav.Reader(item, startReadaloudAtSec = atSec)
-                    }
-                },
-                onSwitchToAudiobook = {
-                    val readerDest = current as? LibraryNav.Reader ?: return@ReaderHost
-                    navStack = navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item)
-                },
+                readerActions = ReaderHostActions(
+                    onBack = ::pop,
+                    onSwitchToAudiobook = {
+                        val readerDest = current as? LibraryNav.Reader ?: return@ReaderHostActions
+                        navStack = navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item)
+                    },
+                ),
+                playerActions = PlayerHostActions(
+                    onBack = ::pop,
+                    onPlaylistAdvance = { _, nextItemId -> advanceToItemId = nextItemId },
+                    onSwitchToReadaloud = { ebookItemId, atSec ->
+                        scope.launch {
+                            val item = libraryObserver.getItem(ebookItemId) ?: return@launch
+                            navStack = navStack + LibraryNav.Reader(item, startReadaloudAtSec = atSec)
+                        }
+                    },
+                ),
             )
         }
         is LibraryNav.SeriesDetail -> SeriesDetailScreen(
@@ -834,8 +848,10 @@ private fun LibraryHost(
             itemId = current.itemId,
             sourceId = current.sourceId,
             startAtSec = current.startAtSec,
-            onBack = ::pop,
-            onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+            playerActions = PlayerHostActions(
+                onBack = ::pop,
+                onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+            ),
         )
     }
 }
@@ -933,8 +949,7 @@ internal fun AudiobookBookmarkLoader(
     itemId: String,
     sourceId: String?,
     startAtSec: Double,
-    onBack: () -> Unit,
-    onPlaylistAdvance: (sourceId: String, nextItemId: String) -> Unit,
+    playerActions: PlayerHostActions,
 ) {
     val libraryObserver = koinInject<LibraryObserver>()
     var item by remember { mutableStateOf<LibraryItem?>(null) }
@@ -955,8 +970,9 @@ internal fun AudiobookBookmarkLoader(
             playlistId = null,
             playlistLibraryId = null,
             startAtSec = startAtSec,
-            onBack = onBack,
-            onPlaylistAdvance = onPlaylistAdvance,
+            onBack = playerActions.onBack,
+            onPlaylistAdvance = playerActions.onPlaylistAdvance,
+            onSwitchToReadaloud = playerActions.onSwitchToReadaloud,
         )
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(SharedRes.string.ui_book_not_found))
