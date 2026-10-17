@@ -356,7 +356,6 @@ fun HomeScreen() {
                             onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
                             onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
                             onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
-                            onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
                             platformHooks = IosPlatformSettingsHooks,
                         ),
                     )

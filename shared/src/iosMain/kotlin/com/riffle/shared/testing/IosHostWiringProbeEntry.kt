@@ -84,7 +84,6 @@ fun iosSettingsActionsViolations(): List<String> {
         onNavigateToDictionaryPacks = {},
         onNavigateToDebugLogs = {},
         onNavigateToChangelog = {},
-        onNavigateToReadaloudMatches = { _ -> },
         platformHooks = DefaultPlatformSettingsHooks,
     )
     return HostWiringProbe.check(actions.probeFields())

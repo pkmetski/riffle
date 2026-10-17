@@ -33,7 +33,6 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.LibraryUiItem
-import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.feature.settings.idsWithSwap
 import com.riffle.feature.settings.label
 import com.riffle.feature.source.ui.ConfirmDestructiveDialog
@@ -82,11 +81,9 @@ fun SourcesSection(
     singletonWebSources: List<Source>,
     sourceVersions: Map<String, String>,
     libraryItemsBySource: Map<String, List<LibraryUiItem>>,
-    readaloudSummaries: Map<String, ReadaloudMatchSummary>,
     expandedSources: SnapshotStateMap<String, Boolean>,
     onNavigateToAddSourcePicker: () -> Unit,
     onNavigateToAddLocalFolder: () -> Unit,
-    onOpenReadaloudMatches: (String) -> Unit,
     onRemoveSource: (String) -> Unit,
     onRemoveLocalFolder: (String) -> Unit,
     onRemoveLocalFilesSource: () -> Unit,
@@ -118,14 +115,12 @@ fun SourcesSection(
             onRemove = { onRemoveSource(source.id) },
             sourceVersion = sourceVersions[source.id],
             libraryItems = libraryItemsBySource[source.id].orEmpty(),
-            summary = readaloudSummaries[source.id],
             onSetLibraryVisible = { libraryId, visible ->
                 onSetLibraryVisible(source.id, libraryId, visible)
             },
             onReorderLibraries = { orderedIds ->
                 onReorderLibraries(source.id, orderedIds)
             },
-            onOpenReadaloudMatches = { onOpenReadaloudMatches(source.id) },
         )
     }
     localFilesSource?.let { lfs ->
@@ -193,10 +188,8 @@ fun ConfiguredSourceRow(
     onRemove: () -> Unit,
     sourceVersion: String?,
     libraryItems: List<LibraryUiItem>,
-    summary: ReadaloudMatchSummary?,
     onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
-    onOpenReadaloudMatches: () -> Unit,
 ) {
     val subtitle = configuredSourceSubtitle(source, descriptor, sourceVersion)
     // Headline: for the ABS descriptor we keep the ABS/Storyteller product label because it's the
@@ -226,10 +219,8 @@ fun ConfiguredSourceRow(
         SourceSettingsExpansion(
             source = source,
             libraryItems = libraryItems,
-            summary = summary,
             onSetLibraryVisible = onSetLibraryVisible,
             onReorderLibraries = onReorderLibraries,
-            onOpenReadaloudMatches = onOpenReadaloudMatches,
         )
     }
 }
@@ -273,10 +264,8 @@ internal fun configuredSourceSubtitle(
 fun SourceSettingsExpansion(
     source: Source,
     libraryItems: List<LibraryUiItem>,
-    summary: ReadaloudMatchSummary?,
     onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
-    onOpenReadaloudMatches: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (libraryItems.isEmpty()) {

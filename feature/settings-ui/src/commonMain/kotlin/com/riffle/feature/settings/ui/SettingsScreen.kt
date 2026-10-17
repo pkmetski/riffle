@@ -77,7 +77,6 @@ fun SettingsScreen(
     val onNavigateToDictionaryPacks = actions.onNavigateToDictionaryPacks
     val onNavigateToDebugLogs = actions.onNavigateToDebugLogs
     val onNavigateToChangelog = actions.onNavigateToChangelog
-    val onNavigateToReadaloudMatches = actions.onNavigateToReadaloudMatches
     val platformHooks = actions.platformHooks
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
@@ -154,11 +153,9 @@ fun SettingsScreen(
                     singletonWebSources = singletonWebSources,
                     sourceVersions = serverVersions,
                     libraryItemsBySource = libraryItemsBySource,
-                    readaloudSummaries = readaloudSummaries,
                     expandedSources = expandedServers,
                     onNavigateToAddSourcePicker = onNavigateToAddSourcePicker,
                     onNavigateToAddLocalFolder = onNavigateToAddLocalFolder,
-                    onOpenReadaloudMatches = onNavigateToReadaloudMatches,
                     onRemoveSource = viewModel::removeServer,
                     onRemoveLocalFolder = viewModel::removeLocalFolder,
                     onRemoveLocalFilesSource = viewModel::removeLocalFilesSource,
