@@ -1,4 +1,5 @@
 package com.riffle.feature.settings.ui.sections
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
@@ -16,14 +17,24 @@ import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.AppUpdateUiState
 import com.riffle.feature.settings.ui.DrillInChevron
-import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.ui_app_name
+import com.riffle.feature.settings.ui.generated.resources.ui_app_version_section
+import com.riffle.feature.settings.ui.generated.resources.ui_check_for_updates
+import com.riffle.feature.settings.ui.generated.resources.ui_check_for_updates_automatically
+import com.riffle.feature.settings.ui.generated.resources.ui_checking_for_updates
+import com.riffle.feature.settings.ui.generated.resources.ui_downloading_update_percent
+import com.riffle.feature.settings.ui.generated.resources.ui_installed_version
+import com.riffle.feature.settings.ui.generated.resources.ui_installed_version_up_to_date
+import com.riffle.feature.settings.ui.generated.resources.ui_release_history
+import com.riffle.feature.settings.ui.generated.resources.ui_release_page
+import com.riffle.feature.settings.ui.generated.resources.ui_retry
+import com.riffle.feature.settings.ui.generated.resources.ui_starting_installer
+import com.riffle.feature.settings.ui.generated.resources.ui_update
+import com.riffle.feature.settings.ui.generated.resources.ui_update_available_version
+import com.riffle.feature.settings.ui.generated.resources.ui_update_check_failed
 import org.jetbrains.compose.resources.stringResource
 
-/**
- * "App version" section — the manual update-check row. Advances through
- * check → (up-to-date | update available → download % → install) as the user taps.
- */
 @Composable
 internal fun AppVersionSection(
     installedVersionName: String,
@@ -32,10 +43,10 @@ internal fun AppVersionSection(
     canInstallUpdate: Boolean = true,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
-    onViewReleaseUrl: (String) -> Unit = {},
+    onViewReleaseUrl: (String) -> Unit,
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
     onNavigateToChangelog: () -> Unit,
-    onVersionTap: () -> Unit = {},
+    onVersionTap: () -> Unit,
 ) {
     SettingsSectionHeader(stringResource(Res.string.ui_app_version_section))
     val supporting = when (state) {
