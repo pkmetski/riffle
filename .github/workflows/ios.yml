@@ -52,6 +52,11 @@ jobs:
       - uses: ./.github/actions/setup-gradle
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: 'false'
+
+      - name: Read Xcode version
+        id: xcode-version
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
 
       - name: Read Kotlin version
         id: kotlin-version
@@ -64,27 +69,65 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
 
+      - name: Cache SPM SourcePackages
+        uses: actions/cache@v6
+        with:
+          path: ~/spm-packages
+          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v6
+        with:
+          path: ~/derived-data
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt') }}
+          restore-keys: |
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
+
       - name: Assemble Riffle XCFramework
         run: ./gradlew assembleRiffleDebugXCFramework
+
+      - name: Select simulator
+        run: |
+          SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          UDID=$(xcrun simctl list devices available -j | SDK_VERSION="$SDK_VERSION" python3 -c "
+          import json, os, re, sys
+          data = json.load(sys.stdin)
+          sdk = os.environ['SDK_VERSION']
+          def version(key):
+            m = re.search(r'iOS-(\d+)-(\d+)', key)
+            return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          sdk_major = int(sdk.split('.')[0])
+          keys = [k for k in data['devices'] if 'iOS' in k]
+          exact = [k for k in keys if version(k) == tuple(int(x) for x in sdk.split('.')[:2])]
+          same_major = [k for k in keys if version(k)[0] == sdk_major]
+          ordered = exact + sorted(set(same_major) - set(exact), key=version, reverse=True) + sorted(set(keys) - set(same_major), key=version, reverse=True)
+          for runtime_key in ordered:
+            for d in data['devices'][runtime_key]:
+              if d.get('isAvailable') and 'iPhone' in d.get('name', ''):
+                print(d['udid'], runtime_key, d['name'], sep='|'); sys.exit()
+          ")
+          echo "Selected simulator: $UDID (SDK $SDK_VERSION)"
+          UDID=${UDID%%|*}
+          echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
 
       - name: Build Xcode project (simulator)
         run: |
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -scheme Riffle \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -configuration Debug \
-            ARCHS=arm64 \
+            -clonedSourcePackagesDirPath "$HOME/spm-packages" \
+            -derivedDataPath "$HOME/derived-data" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    # This job Kotlin/Native-compiles and runs 29 modules' iosSimulatorArm64Test plus the XCTest
-    # unit target; recent successful runs: 26–38 min. 35 min was too tight (killed mid-run on a
-    # slow runner); 50 min was killed once after feature:library-ui iosSimulatorArm64Test was
-    # added; recent runs have settled back into the 26–38 min range, so 50 is reinstated.
+    # 50 min: K/N compilation of 29 modules + XCTest unit target; raised from 35 (too tight on slow runners).
     timeout-minutes: 50
     concurrency:
       group: ios-unit-test-${{ github.ref }}
@@ -127,8 +170,6 @@ jobs:
           restore-keys: |
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
-      # Run every iOS-targeted module's commonTest on the iOS simulator so shared KMP logic is
-      # verified on iOS, not just Android. core:database and core:data have their own jobs.
       - name: Run iOS commonTest (all iOS-targeted modules)
         run: |
           ./gradlew \
@@ -199,18 +240,13 @@ jobs:
             feature/downloads/build/reports/tests/
           if-no-files-found: ignore
 
-      # Only the simulator slice is needed here: xcodebuild's embed phase links from
-      # shared/build/bin/iosSimulatorArm64/debugFramework. assembleRiffleDebugXCFramework also
-      # linked the arm64 device framework (~5 min) that nothing in this job uses.
+      # Simulator slice only; assembleRiffleDebugXCFramework also links the device framework (~5 min) unused here.
       - name: Link Riffle simulator framework
         run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Select and pre-boot simulator
         run: |
-          # Prefer the simulator runtime that matches the selected Xcode's iOS SDK. The runner image
-          # also carries newer runtimes (e.g. iOS 26.x for Xcode 26); pairing Xcode 16.4 with an
-          # iOS 26 device is unsupported and produced clone launch failures ("Failed to launch app
-          # with identifier ...xctrunner") that serialised the whole suite onto one clone.
+          # Match Xcode's SDK to avoid clone-launch failures with mismatched runtimes (e.g. Xcode 16.4 + iOS 26).
           SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
           UDID=$(xcrun simctl list devices available -j | SDK_VERSION="$SDK_VERSION" python3 -c "
           import json, os, re, sys
@@ -234,15 +270,11 @@ jobs:
           echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-          # Parallel testing boots clones of this device; hand the runner's cores to them.
-          xcrun simctl shutdown "$UDID"
+          xcrun simctl shutdown "$UDID" # parallel testing boots clones; hand the runner's cores to them
 
       - name: Run XCTest unit tests (iosAppUnitTests)
-        # Riffle.framework is a static K/N framework that the KMP Embed Framework script phase
-        # rsyncs into Products. Xcode's linker has no dependency edge to it, so on a warm
-        # DerivedData cache a Kotlin-only change does NOT relink the app or the test bundles and
-        # the tests run the previous build's Kotlin. Drop the linked products so Ld always runs.
         run: |
+          # Static K/N framework has no Xcode dependency edge; force relink so a warm cache doesn't ship stale Kotlin.
           rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
@@ -275,9 +307,6 @@ jobs:
         with:
           java-version: '17'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      # iOS mirror of the "Android integration tests (core:data)" job.
-      # Runs the core:data commonTest suite on the iOS simulator — covers DAO-backed stores
-      # and the reading-session repository, exercising the data layer end-to-end on iOS.
       - name: Run iOS data-layer integration tests (core:data)
         run: ./gradlew :core:data:iosSimulatorArm64Test
       - name: Upload iOS integration test reports
@@ -301,7 +330,6 @@ jobs:
         with:
           java-version: '17'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-      # Dedicated iOS mirror of the "Android database tests (core:database)" job.
       - name: Run iOS database tests
         run: ./gradlew :core:database:iosSimulatorArm64Test
       - name: Upload iOS database test reports
@@ -330,6 +358,17 @@ jobs:
         id: xcode-version
         run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
 
+      - name: Read Kotlin version
+        id: kotlin-version
+        run: |
+          echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
       - name: Cache SPM SourcePackages
         uses: actions/cache@v6
         with:
@@ -342,22 +381,18 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt') }}
+          # Excludes iosMain Kotlin: rm -rf forces relink on K/N changes; including Kotlin caused near-constant cache misses (~10 min extra/PR).
+          key: derived-data-harness-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: |
-            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
+            derived-data-harness-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
-      # Only the simulator slice is needed here: xcodebuild's embed phase links from
-      # shared/build/bin/iosSimulatorArm64/debugFramework. assembleRiffleDebugXCFramework also
-      # linked the arm64 device framework (~5 min) that nothing in this job uses.
+      # Simulator slice only; assembleRiffleDebugXCFramework also links the device framework (~5 min) unused here.
       - name: Link Riffle simulator framework
         run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
 
       - name: Select and pre-boot simulator
         run: |
-          # Prefer the simulator runtime that matches the selected Xcode's iOS SDK. The runner image
-          # also carries newer runtimes (e.g. iOS 26.x for Xcode 26); pairing Xcode 16.4 with an
-          # iOS 26 device is unsupported and produced clone launch failures ("Failed to launch app
-          # with identifier ...xctrunner") that serialised the whole suite onto one clone.
+          # Match Xcode's SDK to avoid clone-launch failures with mismatched runtimes (e.g. Xcode 16.4 + iOS 26).
           SDK_VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
           UDID=$(xcrun simctl list devices available -j | SDK_VERSION="$SDK_VERSION" python3 -c "
           import json, os, re, sys
@@ -379,40 +414,13 @@ jobs:
           echo "Selected simulator: $UDID (SDK $SDK_VERSION)"
           UDID=${UDID%%|*}
           echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
-          # Erase before boot to avoid stale data-migration state that causes xcodebuild to hang.
           xcrun simctl shutdown "$UDID" 2>/dev/null || true
-          xcrun simctl erase "$UDID"
+          xcrun simctl erase "$UDID" # avoid stale data-migration state that can hang xcodebuild
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
-          # Parallel testing boots two clones of this device. Leaving the original booted makes
-          # three simulators compete for the runner's three cores and has stalled app launch for
-          # 10+ minutes; the warm-up above is enough, so hand the cores to the clones.
-          xcrun simctl shutdown "$UDID"
+          xcrun simctl shutdown "$UDID" # parallel clones need the runner's cores; leaving it booted has stalled launch 10+ min
 
       - name: Run iOS harness tests
-        # Code signing stays enabled (ad-hoc "Sign to Run Locally", no team needed on the
-        # simulator): an unsigned app has no application-identifier entitlement, so every
-        # Keychain write fails with errSecMissingEntitlement. IosTokenStorage then never
-        # persists the ABS/Komga token, the library refresh finds no token and the harness
-        # sees an empty library after adding a source.
-        #
-        # Two simulator clones share one 3-core / 7 GB runner, so the job has two environmental
-        # (not code) failure modes, both proven by the same commit passing on one runner and
-        # failing on another:
-        #   1. A clone's test runner dies mid-run ("(ipc/mig) server died" / xctrunner launch
-        #      failure) under memory pressure. The suite then serialises or fails spuriously.
-        #   2. A contended runner runs every UI operation several times slower; the per-wait
-        #      timeouts in the harness absorb that, but a clone death (mode 1) does not recover.
-        # Tests run serially on the single pre-booted simulator (-parallel-testing-enabled NO):
-        # parallel mode buffers ALL per-test output until the whole suite finishes, so a run that
-        # hits the job timeout leaves a log with zero test lines and nothing to diagnose. Serial
-        # mode streams each result as it lands, so the uploaded log always shows how far the suite
-        # got and which test stalled. -test-timeouts-enabled caps any single test at 420 s (the
-        # heaviest healthy test, AddAbsSourceEndToEnd, takes ~190 s on CI) so a stalled test fails
-        # with its name in the log instead of silently consuming the whole job.
-        # The wrapper retries ONCE, and only when the log carries a simulator-
-        # infrastructure signature (mode 1); a genuine test-assertion failure has no such
-        # signature and fails the job on the first attempt without a retry.
         run: |
           set -o pipefail
           XCODEBUILD_COMMON=(
@@ -423,24 +431,11 @@ jobs:
             -derivedDataPath "$HOME/derived-data"
           )
           build_for_testing() {
-            # Force a relink so a warm DerivedData cache cannot ship stale Kotlin (see unit-test step).
-            # iosAppUnitTests.xctest is excluded: the Riffle scheme sets buildForTesting=NO for the
-            # unit-test bundle — only iosAppTests runs under this scheme. The unit-tests job (scheme
-            # iosApp) still builds and exercises it; keeping it out of the harness build saves ~10 min.
+            # Static K/N framework has no Xcode dependency edge; force relink so a warm cache doesn't ship stale Kotlin.
             rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppTests-Runner.app}
             xcodebuild build-for-testing "${XCODEBUILD_COMMON[@]}" 2>&1 | tee xcodebuild-harness.log
           }
-          # Every harness test begins with XCUIApplication.launch(). When the app dies during
-          # launch, XCUITest reports only "does not have a process ID" / "Failed to get background
-          # assertion for target app with pid 0" and each test burns its launch timeout on both
-          # iterations — a 46-test suite then runs for hours and says nothing useful. Launch the
-          # freshly built app once, the way the harness does, with its console attached: dyld
-          # errors, Kotlin exceptions and LaunchServices refusals all print here.
-          # dyld refuses to start the app when its binary strongly links a Swift overlay the
-          # runtime does not ship (e.g. libswiftWebKit.dylib, present from iOS 26, absent in 18).
-          # Xcode links the overlay as soon as a source file touches one of its APIs, so the
-          # build is green and the app dies before main(). Check every /usr/lib/swift dylib the
-          # app links against the selected runtime's root before trying to launch.
+          # dyld aborts if the app links a Swift overlay absent in the runtime (e.g. libswiftWebKit.dylib on iOS 18).
           check_swift_overlays() {
             local binary="$1"
             local runtime_root
@@ -477,11 +472,7 @@ jobs:
             xcrun simctl terminate "$SIMULATOR_UDID" com.riffle.iosApp 2>/dev/null || true
             kill "$launch_pid" 2>/dev/null || true
             wait "$launch_pid" 2>/dev/null || true
-            # Give the CoreSimulator bridge process time to fully disconnect before the caller
-            # erases and re-boots the simulator. Without this delay the bridge can outlive the
-            # `xcrun simctl shutdown` call and send a deferred 0xFBFBFBFB force-quit to the
-            # next app instance ~30 s after the first smoke-launch's console pty was torn down.
-            sleep 5
+            sleep 5 # CoreSimulator bridge outlives simctl shutdown; prevents deferred 0xFBFBFBFB force-quit on next launch
             echo "--- smoke-launch: app alive after 30 s = $alive"
             echo "--- smoke-launch console:"
             cat smoke-launch.log
@@ -497,12 +488,6 @@ jobs:
             [ "$alive" = 1 ]
           }
           run_harness() {
-            # -retry-tests-on-failure re-runs only the FAILED test (not the whole suite) up to
-            # -test-iterations times. It absorbs transient per-test infra hiccups — e.g. an
-            # app-launch that can't get a background assertion in time under CPU contention — for
-            # the cost of one test, not a 40-min suite re-run. A genuine regression fails every
-            # iteration, so nothing real is retried away. The whole-suite retry below stays for the
-            # heavier case where a clone's runner dies outright and its tests can't run at all.
             rm -rf harness.xcresult
             xcodebuild test-without-building "${XCODEBUILD_COMMON[@]}" \
               -resultBundlePath "$PWD/harness.xcresult" \
@@ -514,26 +499,14 @@ jobs:
               -test-iterations 2 \
               2>&1 | tee -a xcodebuild-harness.log
           }
-          # Signatures emitted only by the simulator/test-runner infrastructure, never by a test
-          # assertion. Keep this list narrow so real failures are never retried away.
-          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test|Timed out while acquiring background assertion'
-          # NOTE: The SLOW_RE bash-level retry (for tests taking 180 s+ due to CPU saturation)
-          # has been removed. The -retry-tests-on-failure -test-iterations 2 flags already give
-          # every failing test a second chance within the same xcodebuild invocation. A bash-level
-          # retry starts a fresh xcodebuild (rm + relink + full suite, ~30 min), which combined
-          # with the first run (~40 min) consistently exceeds the 70-min job timeout. On a
-          # saturated runner the retry also runs slowly and still fails, so the retry only adds
-          # time without improving reliability. Occasional slow-runner failures require a CI
-          # re-run, which is preferable to systematic job timeouts.
+          # Unsigned app lacks application-identifier entitlement → Keychain writes fail → empty library in tests.
+          # Code signing is therefore left enabled (ad-hoc "Sign to Run Locally"; no team needed on simulator).
           build_for_testing
           if ! smoke_launch; then
             echo "::warning::First smoke-launch failed — rebooting simulator and retrying once."
             xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl erase "$SIMULATOR_UDID" 2>/dev/null || true
-            # Post-erase migrations (LaunchServices, Keychain, MCProfile) run concurrently with
-            # the first few seconds after bootstatus reports ready. Launching the app before they
-            # finish causes SpringBoard force-quit (0xfbfbfbfb). Wait 20 s to let them settle.
-            sleep 20
+            sleep 20 # post-erase migrations (LaunchServices, Keychain) run async; launching before they finish causes SpringBoard force-quit
             if ! smoke_launch; then
               echo "::error::Riffle.app did not stay running for 30 s on the simulator — see the smoke-launch console above. Not running the suite."
               exit 1
@@ -542,9 +515,8 @@ jobs:
           if run_harness; then
             exit 0
           fi
-          # harness.xcresult is always created when xcodebuild runs test assertions, even failing
-          # ones. If it was not created at all, xcodebuild itself crashed (simulator death, runner
-          # memory pressure, etc.) before running any tests — always an infrastructure crash.
+          # Infra signatures only; kept narrow so genuine test failures are never retried away.
+          CRASH_RE='\(ipc/mig\) server died|Failed to launch app with identifier: com\.riffle|Unable to boot|Test runner never began executing|Lost connection to the test|Timed out while acquiring background assertion'
           if [ ! -d harness.xcresult ] || grep -qE "$CRASH_RE" xcodebuild-harness.log; then
             echo "::warning::Simulator infrastructure failure detected — retrying once on a clean simulator."
           else
@@ -558,8 +530,6 @@ jobs:
           xcrun simctl shutdown "$SIMULATOR_UDID" || true
           if run_harness; then exit 0; else exit 1; fi
 
-      # xcodebuild's console output carries test names only; the assertion text lives in the
-      # result bundle. Print it so a failure is diagnosable from the job log alone.
       - name: Print failed harness tests
         if: always()
         run: |
