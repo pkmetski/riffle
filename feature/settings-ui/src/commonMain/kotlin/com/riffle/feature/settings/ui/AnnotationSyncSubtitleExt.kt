@@ -1,11 +1,23 @@
 package com.riffle.feature.settings.ui
 import androidx.compose.runtime.Composable
 import com.riffle.feature.settings.AnnotationSyncSubtitle
-import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.ui_books_pending_sync_online
+import com.riffle.feature.settings.ui.generated.resources.ui_offline_sync_when_connected
+import com.riffle.feature.settings.ui.generated.resources.ui_source_http_retry_short
+import com.riffle.feature.settings.ui.generated.resources.ui_sync_failed_retry_short
+import com.riffle.feature.settings.ui.generated.resources.ui_synced_days_ago
+import com.riffle.feature.settings.ui.generated.resources.ui_synced_hours_ago
+import com.riffle.feature.settings.ui.generated.resources.ui_synced_identity
+import com.riffle.feature.settings.ui.generated.resources.ui_synced_just_now
+import com.riffle.feature.settings.ui.generated.resources.ui_synced_minutes_ago
+import com.riffle.feature.settings.ui.generated.resources.ui_waiting_for_first_sync
+import com.riffle.feature.settings.ui.generated.resources.ui_webdav_auth_failed_reenter
+import com.riffle.feature.settings.ui.generated.resources.ui_webdav_not_configured_status
+import com.riffle.feature.settings.ui.generated.resources.ui_webdav_tls_check_url
 import com.riffle.feature.settings.withoutDanglingSeparator
-import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Clock
 
 @Composable
 internal fun AnnotationSyncSubtitle.resolve(): String = when (this) {

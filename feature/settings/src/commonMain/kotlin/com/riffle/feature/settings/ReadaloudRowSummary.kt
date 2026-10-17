@@ -18,8 +18,10 @@ fun readaloudRowSummary(
     storyteller: Source?,
     serverVersions: Map<String, String>,
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
+    notConfiguredText: String = "Storyteller not configured · tap to set up",
+    countFragment: (ReadaloudMatchSummary) -> String = ::matchCountsFragment,
 ): String {
-    if (storyteller == null) return "Storyteller not configured · tap to set up"
+    if (storyteller == null) return notConfiguredText
     val username = storyteller.username.takeIf { it.isNotEmpty() }
     val version = serverVersions[storyteller.id]
     val summary = readaloudSummaries[storyteller.id]
@@ -35,7 +37,7 @@ fun readaloudRowSummary(
         }
         if (summary != null) {
             append(" · ")
-            append(matchCountsFragment(summary))
+            append(countFragment(summary))
         }
     }
 }

@@ -321,7 +321,6 @@ object TestTags {
 
     // ── Sources section (settings) ────────────────────────────────────────────
     const val SOURCES_ADD_SOURCE = "SourcesSection.AddSource"
-    const val SOURCE_SETTINGS_READALOUD_MATCHES = "SourceSettingsExpansion.ReadaloudMatches"
     const val LOCAL_FILES_ADD_FOLDER = "LocalFilesSourceRow.AddFolder"
     fun localFilesFolder(treeUri: Any) = "LocalFilesFolder.$treeUri"
     fun localFilesFolderRemove(treeUri: Any) = "LocalFilesFolder.Remove.$treeUri"

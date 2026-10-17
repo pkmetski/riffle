@@ -29,8 +29,11 @@ import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.settings.SettingsNavEvent
 import com.riffle.feature.settings.SettingsViewModel
-import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
+import com.riffle.feature.settings.ui.generated.resources.ui_developer_options_enabled
+import com.riffle.feature.settings.ui.generated.resources.ui_libraries_with_arrow
+import com.riffle.feature.settings.ui.generated.resources.ui_settings
+import com.riffle.feature.settings.ui.generated.resources.ui_sources
 import com.riffle.feature.settings.ui.panels.AutoScrollSettingsPanel
 import com.riffle.feature.settings.ui.panels.CadenceSettingsPanel
 import com.riffle.feature.settings.ui.panels.ComicDisplaySettingsPanel
@@ -77,7 +80,6 @@ fun SettingsScreen(
     val onNavigateToDictionaryPacks = actions.onNavigateToDictionaryPacks
     val onNavigateToDebugLogs = actions.onNavigateToDebugLogs
     val onNavigateToChangelog = actions.onNavigateToChangelog
-    val onNavigateToReadaloudMatches = actions.onNavigateToReadaloudMatches
     val platformHooks = actions.platformHooks
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
@@ -154,11 +156,9 @@ fun SettingsScreen(
                     singletonWebSources = singletonWebSources,
                     sourceVersions = serverVersions,
                     libraryItemsBySource = libraryItemsBySource,
-                    readaloudSummaries = readaloudSummaries,
                     expandedSources = expandedServers,
                     onNavigateToAddSourcePicker = onNavigateToAddSourcePicker,
                     onNavigateToAddLocalFolder = onNavigateToAddLocalFolder,
-                    onOpenReadaloudMatches = onNavigateToReadaloudMatches,
                     onRemoveSource = viewModel::removeServer,
                     onRemoveLocalFolder = viewModel::removeLocalFolder,
                     onRemoveLocalFilesSource = viewModel::removeLocalFilesSource,

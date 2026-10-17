@@ -48,11 +48,11 @@ import com.riffle.feature.settings.ui.generated.resources.ui_no_entries_match_cu
 import com.riffle.feature.settings.ui.generated.resources.ui_no_log_entries_yet
 import com.riffle.feature.settings.ui.generated.resources.ui_share
 import com.riffle.feature.settings.ui.generated.resources.ui_share_debug_log
-import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import kotlin.time.Instant
 
 /**
  * In-app viewer for [InMemoryLogBuffer]. Reverse-chronological (newest first), channel-filter

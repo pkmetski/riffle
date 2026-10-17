@@ -14,10 +14,8 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
 import com.riffle.feature.settings.LibraryUiItem
-import com.riffle.feature.settings.ReadaloudMatchSummary
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,10 +46,8 @@ class ServerSettingsExpansionTest {
             SourceSettingsExpansion(
                 source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
-                summary = null,
                 onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
-                onOpenReadaloudMatches = {},
             )
         }
 
@@ -67,10 +63,8 @@ class ServerSettingsExpansionTest {
             SourceSettingsExpansion(
                 source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction", visible = true)),
-                summary = null,
                 onSetLibraryVisible = { id, visible -> toggledLibrary = id; toggledVisible = visible },
                 onReorderLibraries = {},
-                onOpenReadaloudMatches = {},
             )
         }
 
@@ -87,10 +81,8 @@ class ServerSettingsExpansionTest {
             SourceSettingsExpansion(
                 source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
-                summary = null,
                 onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = { reordered = it },
-                onOpenReadaloudMatches = {},
             )
         }
 
@@ -106,10 +98,8 @@ class ServerSettingsExpansionTest {
             SourceSettingsExpansion(
                 source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
-                summary = null,
                 onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = { reordered = it },
-                onOpenReadaloudMatches = {},
             )
         }
 
@@ -124,10 +114,8 @@ class ServerSettingsExpansionTest {
             SourceSettingsExpansion(
                 source = server(ServerType.AUDIOBOOKSHELF, active = true),
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
-                summary = null,
                 onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
-                onOpenReadaloudMatches = {},
             )
         }
         composeTestRule.waitForIdle()
@@ -142,35 +130,12 @@ class ServerSettingsExpansionTest {
             SourceSettingsExpansion(
                 source = server(ServerType.AUDIOBOOKSHELF, active = false),
                 libraryItems = listOf(libraryItem("Fiction")),
-                summary = null,
                 onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
-                onOpenReadaloudMatches = {},
             )
         }
 
         // No activation required — a non-active server manages its own libraries.
         composeTestRule.onNodeWithText("Fiction").assertIsDisplayed()
-    }
-
-    @Test
-    fun storytellerServerShowsMatchesSummaryAndNavigates() {
-        var opened = false
-        composeTestRule.setContent {
-            SourceSettingsExpansion(
-                source = server(ServerType.STORYTELLER_SERVICE, active = true),
-                libraryItems = emptyList(),
-                summary = ReadaloudMatchSummary(unmatchedCount = 2, suggestedCount = 1, partiallyMatchedCount = 1, matchedCount = 3),
-                onSetLibraryVisible = { _, _ -> },
-                onReorderLibraries = {},
-                onOpenReadaloudMatches = { opened = true },
-            )
-        }
-
-        composeTestRule.onNodeWithText("Readaloud matches").assertIsDisplayed()
-        composeTestRule.onNodeWithText("2 unmatched · 1 suggested · 1 partially matched · 3 matched").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Review & match readalouds").performClick()
-
-        assertTrue(opened)
     }
 }

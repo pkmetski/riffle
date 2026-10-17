@@ -13,7 +13,6 @@ data class SettingsActions(
     val onNavigateToDictionaryPacks: () -> Unit,
     val onNavigateToDebugLogs: () -> Unit,
     val onNavigateToChangelog: () -> Unit,
-    val onNavigateToReadaloudMatches: (String) -> Unit,
     val platformHooks: PlatformSettingsHooks,
 )
 
@@ -28,5 +27,4 @@ fun SettingsActions.probeFields(): List<Pair<String, Any>> = listOf(
     "onNavigateToDictionaryPacks" to onNavigateToDictionaryPacks,
     "onNavigateToDebugLogs" to onNavigateToDebugLogs,
     "onNavigateToChangelog" to onNavigateToChangelog,
-    "onNavigateToReadaloudMatches" to onNavigateToReadaloudMatches,
 )
