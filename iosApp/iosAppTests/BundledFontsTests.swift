@@ -31,11 +31,18 @@ final class BundledFontsTests: XCTestCase {
     // Info.plist, making the fonts unloadable by UIFont and therefore invisible in the reader.
     // This test catches any future plist rewrite that omits one or more of the entries.
     func testUIAppFontsListsAllThreeBundledFonts() {
-        // infoDictionary is pre-loaded by the runtime from the bundle's Info.plist and is
-        // always available — unlike path(forResource:ofType:) which may return nil when
-        // the plist is compiled into the binary rather than kept as a standalone file.
-        guard let uiAppFonts = Bundle.main.infoDictionary?["UIAppFonts"] as? [String] else {
-            XCTFail("UIAppFonts is missing or not an array in the main bundle's Info.plist")
+        // iosAppUnitTests has no host application, so Bundle.main is the xctest daemon
+        // (not Riffle.app). Load the app bundle explicitly from the build products
+        // directory — Riffle.app and iosAppUnitTests.xctest share the same parent folder.
+        let productsDir = Bundle(for: BundledFontsTests.self).bundleURL
+            .deletingLastPathComponent()
+        let riffleAppURL = productsDir.appendingPathComponent("Riffle.app")
+        guard let riffleBundle = Bundle(url: riffleAppURL) else {
+            XCTFail("Could not load Riffle.app bundle at \(riffleAppURL.path)")
+            return
+        }
+        guard let uiAppFonts = riffleBundle.infoDictionary?["UIAppFonts"] as? [String] else {
+            XCTFail("UIAppFonts is missing or not an array in Riffle.app's Info.plist")
             return
         }
         XCTAssertTrue(uiAppFonts.contains("Literata-Regular.ttf"),
