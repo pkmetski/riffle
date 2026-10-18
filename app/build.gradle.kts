@@ -269,5 +269,4 @@ tasks.matching {
     dependsOn(":feature:library-ui:copyComposeResourcesForApk")
     dependsOn(":feature:reader-ui:copyComposeResourcesForApk")
     dependsOn(":feature:player-ui:copyComposeResourcesForApk")
-    dependsOn(":feature:shell-ui:copyComposeResourcesForApk")
 }

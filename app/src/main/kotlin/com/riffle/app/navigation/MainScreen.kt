@@ -107,8 +107,7 @@ fun MainScreen(
             }
 
             override fun onLanguageChanged(language: AppLanguage) {
-                val appLanguage = com.riffle.app.i18n.AppLanguage.fromTag(language.tag)
-                AppLocaleController.setLanguage(context, appLanguage)
+                AppLocaleController.setLanguage(context, language)
                 activity?.recreate()
             }
 
