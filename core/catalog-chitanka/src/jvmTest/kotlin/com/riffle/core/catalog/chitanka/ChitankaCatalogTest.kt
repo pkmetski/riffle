@@ -397,20 +397,6 @@ class ChitankaCatalogTest {
     }
 
     @Test
-    fun `fetchFile throws on ebook rootId with non-EPUB format`() = runTest {
-        // The catalog resolves the item first — for this hermetic test we can't call it against
-        // real URLs. Simpler: verify the ChitankaException surfaces on the audiobook branch.
-        val cat = catalog()
-        try {
-            cat.fetchFile("prikazki/foo", BookFormat.Audiobook)
-            // Should throw before reaching resolve — but resolve requires network. If the network
-            // fails first, we still assert something threw.
-        } catch (_: Exception) {
-            // ok
-        }
-    }
-
-    @Test
     fun `EDITORIAL_COLLECTIONS have distinct sortOrder from category chips`() {
         val editorialOrders = ChitankaCatalog.EDITORIAL_COLLECTIONS.map { it.sortOrder }
         assertTrue("editorial chips should sort last", editorialOrders.all { it > 1000 })
