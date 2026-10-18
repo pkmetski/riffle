@@ -48,6 +48,7 @@ object IosElidedEpubAssembler {
         chapters: List<ChapterElision>,
         emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
         dataUriByHref: Map<String, String> = emptyMap(),
+        publisherFontFaceCss: String = "",
     ): String? {
         val nonEmpty = chapters.filter { it.highlights.isNotEmpty() }
         if (nonEmpty.isEmpty()) return null
@@ -77,7 +78,12 @@ object IosElidedEpubAssembler {
             nonEmpty.forEachIndexed { i, chapter ->
                 put(
                     ElidedEpubPackager.chapterHref(i),
-                    renderChapterHtml(chapter, dataUriByHref = dataUriByHref, emphasisBarCss = emphasisBarCss),
+                    renderChapterHtml(
+                        chapter,
+                        dataUriByHref = dataUriByHref,
+                        emphasisBarCss = emphasisBarCss,
+                        publisherFontFaceCss = publisherFontFaceCss,
+                    ),
                 )
             }
         }

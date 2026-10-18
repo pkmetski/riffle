@@ -4181,19 +4181,8 @@ internal fun highlightsShouldCloseAfterDelete(rows: List<AnnotationEntity>): Boo
  * (∅-color emphasis-only annotations have `color = ""`). Called on the full row list from the
  * DAO so both types are available for joining before [buildChapterElisions] filters to highlights.
  */
-internal fun joinEmphasisStylesToHighlights(rows: List<AnnotationEntity>): List<AnnotationEntity> {
-    val emphasisByCfi = rows
-        .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted }
-        .groupBy { it.cfi }
-        .mapValues { (_, group) -> group.firstOrNull()?.emphasisStyles }
-    if (emphasisByCfi.isEmpty()) return rows
-    return rows.map { row ->
-        if (row.type == AnnotationEntity.TYPE_HIGHLIGHT) {
-            val styles = emphasisByCfi[row.cfi] ?: return@map row
-            row.copy(emphasisStyles = styles)
-        } else row
-    }
-}
+internal fun joinEmphasisStylesToHighlights(rows: List<AnnotationEntity>): List<AnnotationEntity> =
+    com.riffle.feature.reader.highlights.joinEmphasisStylesToHighlights(rows)
 
 internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> =
     com.riffle.feature.reader.highlights.buildChapterElisions(rows)

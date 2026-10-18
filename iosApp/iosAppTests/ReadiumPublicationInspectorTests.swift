@@ -48,4 +48,35 @@ final class ReadiumPublicationInspectorTests: XCTestCase {
 
         XCTAssertNil(resultJson, "inspectEpub must return nil when the file cannot be opened")
     }
+
+    func testExtractPublisherFontFaceCssReturnsCssStringForValidEpub() {
+        let inspector = ReadiumPublicationInspector()
+        let expectation = expectation(description: "extractPublisherFontFaceCss result")
+        var resultCss: String?
+
+        inspector.extractPublisherFontFaceCss(filePath: bundledEpubPath("test.epub")) { css in
+            resultCss = css
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 15)
+
+        XCTAssertNotNil(resultCss, "extractPublisherFontFaceCss must invoke the callback for a valid EPUB")
+        // resultCss may be empty when the test EPUB has no font-face rules — that is acceptable.
+    }
+
+    func testExtractPublisherFontFaceCssReturnsEmptyStringForMissingFile() {
+        let inspector = ReadiumPublicationInspector()
+        let expectation = expectation(description: "extractPublisherFontFaceCss missing file")
+        var resultCss: String?
+
+        inspector.extractPublisherFontFaceCss(filePath: "/nonexistent/path/does-not-exist.epub") { css in
+            resultCss = css
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 10)
+
+        XCTAssertEqual("", resultCss, "extractPublisherFontFaceCss must return an empty string when the file cannot be opened")
+    }
 }
