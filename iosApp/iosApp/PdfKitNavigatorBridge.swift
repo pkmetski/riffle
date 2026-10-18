@@ -67,16 +67,23 @@ import Riffle
         var result: [PdfOutlineNode] = []
         for idx in 0..<node.numberOfChildren {
             guard let child = node.child(at: idx) else { continue }
-            guard let destination = child.destination,
-                  let page = destination.page,
-                  let document = pdfViewController.pdfDocument else { continue }
-            let pageIndex = document.index(for: page)
             let children = buildOutlineNodes(from: child)
-            result.append(PdfOutlineNode(
-                title: child.label ?? "",
-                pageIndex: Int32(pageIndex),
-                children: children
-            ))
+            if let destination = child.destination,
+               let page = destination.page,
+               let document = pdfViewController.pdfDocument {
+                let pageIndex = document.index(for: page)
+                result.append(PdfOutlineNode(
+                    title: child.label ?? "",
+                    pageIndex: Int32(pageIndex),
+                    children: children
+                ))
+            } else if !children.isEmpty {
+                result.append(PdfOutlineNode(
+                    title: child.label ?? "",
+                    pageIndex: children.first?.pageIndex ?? 0,
+                    children: children
+                ))
+            }
         }
         return result
     }
