@@ -10,6 +10,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+// Android-only: tests the NavController route-string translation layer. iOS navigation
+// works directly with List<LibraryNav> — no route strings involved. reduceNavStack logic
+// is covered by NavigationReducerTest in commonTest (runs on iOS simulator).
 class LibraryNavToRouteTest {
 
     private fun epubItem(id: String = "item-1", sourceId: String = "src-1") = LibraryItem(
