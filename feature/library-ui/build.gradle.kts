@@ -69,6 +69,9 @@ kotlin {
             api(libs.androidx.lifecycle.viewmodel)
             // LibraryItemsScreen uses koinInject { parametersOf(...) } for its ViewModel defaults.
             implementation(libs.koin.compose)
+            // AppShell: NavigationDrawerViewModel, LibraryNav, shouldInterceptBackForDrawer.
+            // feature:navigation is jvm+iOS; androidTarget (here) consumes the jvm output.
+            api(project(":feature:navigation"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -109,6 +112,7 @@ tasks.withType<Test>().configureEach {
         excludeTestsMatching("com.riffle.feature.library.ui.LibraryItemDetailComponentsTest")
         excludeTestsMatching("com.riffle.feature.library.ui.LibrarySearchResultsRegressionTest")
         excludeTestsMatching("com.riffle.feature.library.ui.UploadPreflightDialogTest")
+        excludeTestsMatching("com.riffle.feature.library.ui.AppShellTest")
         isFailOnNoMatchingTests = false
     }
 }

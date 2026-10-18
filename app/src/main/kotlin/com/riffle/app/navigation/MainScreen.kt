@@ -4,44 +4,47 @@ import com.riffle.feature.navigation.committedTopRoute
 import com.riffle.feature.navigation.guardedNavigateBack
 import com.riffle.feature.navigation.isReaderRoute
 import com.riffle.feature.navigation.libraryEntryRoute
-import com.riffle.feature.navigation.libraryItemsBackEnabled
-import com.riffle.feature.navigation.NavigationDrawerViewModel
-import com.riffle.feature.navigation.shouldInterceptBackForDrawer
-import androidx.activity.compose.BackHandler
+import com.riffle.feature.navigation.LibraryNav
+import com.riffle.feature.navigation.openItemForReading
+import com.riffle.feature.navigation.openReadItemForReading
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.riffle.feature.library.LibrarySectionType
-import com.riffle.feature.library.HomeViewModel
 import com.riffle.app.BuildConfig
-import com.riffle.feature.library.ui.RiffleNavigationDrawer
-import com.riffle.feature.player.NowPlaying
 import com.riffle.app.ui.isTabletLayout
-import com.riffle.core.domain.WebSourceDescriptors
-import com.riffle.core.models.LibraryItem
-import com.riffle.core.models.SourceType
+import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.usecase.RecordItemOpened
+import com.riffle.feature.designsystem.NoOp
+import com.riffle.feature.downloads.DownloadsViewModel
+import com.riffle.feature.library.RiffleViewModel
+import com.riffle.feature.library.ui.AppSection
+import com.riffle.feature.library.ui.AppShell
+import com.riffle.feature.library.ui.DownloadsActions
+import com.riffle.feature.library.ui.DownloadsScreen
+import com.riffle.feature.library.ui.LibraryItemDetailActions
+import com.riffle.feature.library.ui.LibraryItemDetailScreen
+import com.riffle.feature.library.ui.RiffleScreen
 import java.net.URLEncoder
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 internal const val HOME = "home"
 internal const val RIFFLE = "riffle"
@@ -84,71 +87,15 @@ internal const val AUDIOBOOK_PLAYER = "audiobook_player/{sourceId}/{itemId}?star
 @Composable
 fun MainScreen(
     windowSizeClass: WindowSizeClass,
-    viewModel: NavigationDrawerViewModel = koinViewModel(),
 ) {
     val startupUpdateVm: com.riffle.app.feature.update.StartupUpdateViewModel = koinViewModel()
     val updateDialogState by startupUpdateVm.dialogState.collectAsState()
     val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
 
-    val navController = rememberNavController()
-
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
-    // Expanded width (≥ 840dp) and non-Compact height. A large phone in landscape crosses the
-    // Expanded width breakpoint but stays Compact in height, so it renders the phone UI (modal
-    // drawer, single-column detail). Re-evaluated at composition time, so rotation / unfold /
-    // resize switch automatically.
     val isTablet = windowSizeClass.isTabletLayout()
-
-    val activeServer by viewModel.activeServer.collectAsState()
-    val allServers by viewModel.allServers.collectAsState()
-    val visibleLibraries by viewModel.visibleLibraries.collectAsState()
-    val serverVersions by viewModel.serverVersions.collectAsState()
-    val showDownloadsLink by viewModel.showDownloadsLink.collectAsState()
-    val isRiffleMode by viewModel.isRiffleMode.collectAsState()
-
-    val currentBackStack by navController.currentBackStackEntryAsState()
-    val activeLibraryId = currentBackStack?.let { entry ->
-        val route = entry.destination.route ?: return@let null
-        when {
-            route.startsWith("library_items/") ->
-                entry.arguments?.getString("libraryId")
-            // Web-source browse routes: "$prefix/{libraryId}/{libraryName}" — highlight the
-            // active web-source library in the drawer just as a Room-backed library does.
-            SourceType.entries.filter { it.isUnboundedCatalog }.any { type ->
-                WebSourceDescriptors.forType(type)?.browseRoutePrefix
-                    ?.let { route.startsWith("$it/") } == true
-            } -> entry.arguments?.getString("libraryId")
-            else -> null
-        }
-    }
-    val currentRoute = currentBackStack?.destination?.route
-
-    val drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open
-    val drawerTargetOpen = drawerState.targetValue == DrawerValue.Open
-
-    // Committed top (synchronously up-to-date StateFlow; recomposes when the stack mutates).
-    // Using the COMMITTED route (not the preview from currentBackStackEntryAsState) keeps
-    // libBackEnabled=true even while a predictive-back gesture from library_items is in
-    // progress (the committed top stays library_items until the gesture commits), so the
-    // BackHandler intercepts and runs ClearSearch/ResetTab/Exit instead of letting NavHost
-    // pop library_items and flash the HOME spinner.
-    val committedRoute = navController.committedTopRouteAsState()
-    val libBackEnabled = libraryItemsBackEnabled(committedRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
-
-    val usePermanentDrawer = isTablet
-    // Reader screens are immersive — collapse the permanent side panel so the book/PDF
-    // fills the width, matching the modal drawer's gesture suppression on phones.
-    val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        // Gate on seenStop so that rotation (which replays ON_START on the new observer
-        // with a fresh seenStop=false) doesn't re-show the dialog after the user dismissed
-        // it. Only a genuine background→foreground transition sets seenStop=true first.
-        // Cold start is handled by StartupUpdateViewModel.init; this observer only covers
-        // subsequent foreground returns.
         var seenStop = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -161,144 +108,160 @@ fun MainScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // A media-notification tap jumps to whatever is playing. launchSingleTop makes this a no-op when
-    // that screen is already current (the common case, since audio only plays while its screen is) —
-    // so playback is never restarted; otherwise it opens the right player.
-    LaunchedEffect(Unit) {
-        viewModel.openNowPlayingRequests.collect {
-            val target = viewModel.currentNowPlaying() ?: return@collect
-            val encoded = URLEncoder.encode(target.itemId, "UTF-8")
-            val route = when (target) {
-                is NowPlaying.Audiobook -> {
-                    val encodedSource = URLEncoder.encode(target.sourceId, "UTF-8")
-                    "audiobook_player/$encodedSource/$encoded"
-                }
-                is NowPlaying.Readaloud -> "epub_reader/$encoded"
-            }
-            navController.navigate(route) { launchSingleTop = true }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.redirectToLibrary.collect { library ->
-            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
-            viewModel.setActiveLibrary(library.id)
-        }
-    }
-
-    RiffleNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = !isReaderRoute(currentRoute),
-        usePermanentDrawer = usePermanentDrawer,
-        hidePermanentDrawerPanel = hidePermanentDrawerPanel,
-        activeServer = activeServer,
-        allServers = allServers,
-        visibleLibraries = visibleLibraries,
-        activeLibraryId = activeLibraryId,
-        serverVersions = serverVersions,
-        showDownloadsLink = showDownloadsLink,
-        onServerSelected = { server ->
-            viewModel.setActiveServer(server.id)
-            scope.launch { drawerState.close() }
-            // Wait for setActiveServer's coroutine to commit the DB write before navigating.
-            // Navigating to HOME immediately causes getStartDestination() to run before the
-            // new source is active in the DB, returning NoLibraries → "Unable to connect" screen.
-            // drop(1) on activeServer is also unreliable in Riffle mode (all sources inactive →
-            // null→null deduplicated, so drop(1) is never consumed). Waiting here is the correct fix.
-            scope.launch {
-                // 5 s safety valve: if the source was deleted between drawer-open and tap,
-                // setActiveAtomic writes 0 rows and activeServer never emits a matching value.
-                // Timeout ensures we still navigate (getStartDestination handles the no-source case).
-                withTimeoutOrNull(5_000) {
-                    viewModel.activeServer.filterNotNull().first { it.id == server.id }
-                }
-                navController.navigateAsRoot(HOME)
-            }
-        },
-        onLibrarySelected = { library ->
-            viewModel.setActiveLibrary(library.id)
-            scope.launch { drawerState.close() }
-            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
-        },
-        onDownloadsSelected = {
-            scope.launch { drawerState.close() }
-            if (navController.currentDestination?.route != DOWNLOADS) navController.navigate(DOWNLOADS)
-        },
-        onSettingsSelected = {
-            scope.launch { drawerState.close() }
-            if (navController.currentDestination?.route != SETTINGS) navController.navigate(SETTINGS)
-        },
-        onRiffleSelected = {
-            viewModel.setRiffleActive()
-            scope.launch { drawerState.close() }
-            if (navController.currentDestination?.route != RIFFLE) navController.navigateAsRoot(RIFFLE)
-        },
-        isRiffleActive = isRiffleMode,
+    AppShell(
+        isTabletLayout = isTablet,
         appVersion = BuildConfig.VERSION_NAME,
         appSha = BuildConfig.GIT_SHA,
-    ) {
-        NavHost(
-            navController = navController,
-            startDestination = HOME,
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
-        ) {
-            libraryNavGraph(
-                navController = navController,
-                drawerState = drawerState,
-                scope = scope,
-                libBackEnabled = libBackEnabled,
-                windowSizeClass = windowSizeClass,
-                onSetActiveLibrary = { viewModel.setActiveLibrary(it) },
-            )
-            sourceNavGraph(
-                navController = navController,
-                windowSizeClass = windowSizeClass,
-                drawerState = drawerState,
-                scope = scope,
-            )
-            settingsNavGraph(
-                navController = navController,
-                windowSizeClass = windowSizeClass,
-            )
-            readerNavGraph(
-                navController = navController,
-                windowSizeClass = windowSizeClass,
-            )
-        }
-    }
+        libraryContent = {
+            val libraryNavController = rememberNavController()
+            val libCommittedRoute = libraryNavController.committedTopRouteAsState()
+            val libBackEnabled = libCommittedRoute?.startsWith("library_items/") == true
 
-    // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
-    // drawer is open or animating we add one here. Must be registered AFTER RiffleNavigationDrawer
-    // (and thus after NavHost and the NavController) so it has higher priority in the
-    // OnBackPressedDispatcher (last-registered wins). A position before NavHost gives the
-    // NavController's callback higher priority, causing it to pop library_items and trigger a
-    // library reload instead of closing the drawer.
-    //
-    // Check both currentValue and targetValue: targetValue flips to Open the instant
-    // drawerState.open() is called (catches Back during the open animation), and currentValue
-    // stays Open until the close animation finishes (catches Back during the close animation).
-    // Using only targetValue misses the close-animation window; using only isOpen (currentValue)
-    // misses the open-animation window that caused the burger-tap white-screen freeze.
-    BackHandler(enabled = shouldInterceptBackForDrawer(
-        usePermanentDrawer,
-        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
-        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
-    )) {
-        scope.launch { drawerState.close() }
-    }
+            val currentBackStack by libraryNavController.currentBackStackEntryAsState()
+            val currentRoute = currentBackStack?.destination?.route
+            LaunchedEffect(currentRoute) {
+                onReaderActiveChanged(isReaderRoute(currentRoute))
+            }
 
-    updateDialogState?.let { dialogState ->
-        com.riffle.app.feature.update.UpdateAvailableDialog(
-            state = dialogState,
-            downloadState = updateDownloadState,
-            onIgnore = startupUpdateVm::ignoreVersion,
-            onUpdate = startupUpdateVm::startUpdate,
-            onDismiss = startupUpdateVm::dismissDialog,
-        )
-    }
+            LaunchedEffect(pendingLibraryNav) {
+                val nav = pendingLibraryNav ?: return@LaunchedEffect
+                val route = libraryNavToAndroidRoute(nav)
+                    ?: if (nav is LibraryNav.ItemDetail) {
+                        val encodedId = URLEncoder.encode(nav.itemId, "UTF-8")
+                        val sourceParam = nav.sourceId?.let { "?sourceId=${URLEncoder.encode(it, "UTF-8")}" } ?: ""
+                        "library_item_detail/$encodedId$sourceParam"
+                    } else null
+                route?.let { r -> libraryNavController.navigate(r) { launchSingleTop = true } }
+                onPendingLibraryNavHandled()
+            }
+
+            NavHost(
+                navController = libraryNavController,
+                startDestination = HOME,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
+            ) {
+                libraryNavGraph(
+                    navController = libraryNavController,
+                    onOpenDrawer = onOpenDrawer,
+                    libBackEnabled = libBackEnabled,
+                    windowSizeClass = windowSizeClass,
+                    onSetActiveLibrary = { onActiveLibraryChanged(it) },
+                    onNavigateToRiffle = { onSwitchToSection(AppSection.Riffle) },
+                )
+                sourceNavGraph(
+                    navController = libraryNavController,
+                    windowSizeClass = windowSizeClass,
+                    onOpenDrawer = onOpenDrawer,
+                )
+                readerNavGraph(navController = libraryNavController, windowSizeClass = windowSizeClass)
+            }
+        },
+        riffleContent = {
+            val riffleViewModel: RiffleViewModel = koinViewModel()
+            RiffleScreen(
+                viewModel = riffleViewModel,
+                onOpenDrawer = onOpenDrawer,
+                onItemSelected = { sourceId, itemId ->
+                    onNavigateToLibraryWith(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
+                },
+                onAnnotatedBookClick = { sourceId, itemId ->
+                    onNavigateToLibraryWith(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+                },
+            )
+        },
+        downloadsContent = {
+            val downloadsViewModel: DownloadsViewModel = koinViewModel()
+            val applicationScope = koinInject<ApplicationScope>()
+            val recordItemOpened = koinInject<RecordItemOpened>()
+            var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
+            val detail = downloadsDetailNav
+            if (detail != null) {
+                LibraryItemDetailScreen(
+                    itemId = detail.itemId,
+                    sourceId = detail.sourceId,
+                    actions = LibraryItemDetailActions(
+                        onBack = { downloadsDetailNav = null },
+                        onRead = { item ->
+                            openReadItemForReading(item, applicationScope, recordItemOpened::invoke)
+                                ?.let { onNavigateToLibraryWith(it); downloadsDetailNav = null }
+                        },
+                        onListen = { item ->
+                            openItemForReading(item, applicationScope, recordItemOpened::invoke)
+                                ?.let { onNavigateToLibraryWith(it); downloadsDetailNav = null }
+                        },
+                        onReadItemAtHref = { item, href ->
+                            onNavigateToLibraryWith(LibraryNav.Reader(item, startHref = href))
+                            downloadsDetailNav = null
+                        },
+                        onListenItemAtSec = { item, sec ->
+                            onNavigateToLibraryWith(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
+                            downloadsDetailNav = null
+                        },
+                        onFacetSelected = NoOp.facetNavUnavailableInDownloads,
+                        onNavigateToSeries = NoOp.seriesNavUnavailableInDownloads,
+                    ),
+                )
+            } else {
+                DownloadsScreen(
+                    viewModel = downloadsViewModel,
+                    isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
+                    actions = DownloadsActions(
+                        onNavigateBack = onNavigateBack,
+                        onItemSelected = { item ->
+                            downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
+                        },
+                    ),
+                )
+            }
+        },
+        settingsContent = {
+            val settingsNavController = rememberNavController()
+            NavHost(
+                navController = settingsNavController,
+                startDestination = SETTINGS,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
+            ) {
+                settingsNavGraph(
+                    navController = settingsNavController,
+                    windowSizeClass = windowSizeClass,
+                    onNavigateBack = onNavigateBack,
+                )
+                sourceNavGraph(
+                    navController = settingsNavController,
+                    windowSizeClass = windowSizeClass,
+                    onOpenDrawer = onOpenDrawer,
+                )
+                // Source setup navigation from within settings completes by navigating to HOME.
+                // In the settings NavHost HOME is not a real destination, so intercept and
+                // return to SETTINGS instead.
+                composable(HOME) {
+                    LaunchedEffect(Unit) {
+                        settingsNavController.navigate(SETTINGS) {
+                            popUpTo(SETTINGS) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            }
+        },
+        updateDialogContent = {
+            updateDialogState?.let { dialogState ->
+                com.riffle.app.feature.update.UpdateAvailableDialog(
+                    state = dialogState,
+                    downloadState = updateDownloadState,
+                    onIgnore = startupUpdateVm::ignoreVersion,
+                    onUpdate = startupUpdateVm::startUpdate,
+                    onDismiss = startupUpdateVm::dismissDialog,
+                )
+            }
+        },
+    )
 }
 
 // Switches the active surface, keeping HOME as the permanent base of the back stack so [route]
@@ -361,4 +324,3 @@ internal fun NavController.committedTopRouteAsState(): String? {
     val backStack by currentBackStack.collectAsState()
     return committedTopRoute(backStack.map { it.destination.route })
 }
-

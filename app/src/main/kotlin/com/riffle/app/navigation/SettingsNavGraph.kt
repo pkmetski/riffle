@@ -37,6 +37,7 @@ import java.net.URLEncoder
 internal fun NavGraphBuilder.settingsNavGraph(
     navController: NavController,
     windowSizeClass: WindowSizeClass,
+    onNavigateBack: () -> Unit = { navController.popBackStack() },
 ) {
     composable(SETTINGS) { backStackEntry ->
         val context = LocalContext.current
@@ -79,7 +80,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
         SettingsScreen(
             isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
             actions = SettingsActions(
-                onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+                onNavigateBack = onNavigateBack,
                 // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
                 // form from their respective Settings drill-ins; editing an existing ABS
                 // Source also skips the picker (the Source Type is already known). All three

@@ -2,7 +2,6 @@ package com.riffle.app.navigation
 
 import com.riffle.feature.navigation.addSourceRouteFor
 import com.riffle.feature.navigation.librarySectionRoute
-import androidx.compose.material3.DrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.LaunchedEffect
@@ -32,15 +31,12 @@ import com.riffle.feature.source.ui.SourceTypePickerScreen
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 internal fun NavGraphBuilder.sourceNavGraph(
     navController: NavController,
     windowSizeClass: WindowSizeClass,
-    drawerState: DrawerState,
-    scope: CoroutineScope,
+    onOpenDrawer: () -> Unit,
 ) {
     // The shared source-onboarding screens take a plain boolean instead of Android's
     // WindowSizeClass (which has no iOS equivalent) — see :feature:source-ui.
@@ -89,7 +85,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             sourceType = SourceType.CHITANKA,
             libraryId = libraryId,
             libraryName = libraryName,
-            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onOpenDrawer = onOpenDrawer,
             onOpenDetail = { itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
@@ -132,7 +128,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             sourceType = SourceType.GUTENBERG,
             libraryId = libraryId,
             libraryName = libraryName,
-            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onOpenDrawer = onOpenDrawer,
             onOpenDetail = { itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
@@ -175,7 +171,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             sourceType = SourceType.RADIO_ES,
             libraryId = libraryId,
             libraryName = libraryName,
-            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onOpenDrawer = onOpenDrawer,
             onOpenDetail = { itemId ->
                 val encodedId = URLEncoder.encode(itemId, "UTF-8")
                 navController.navigate("library_item_detail/$encodedId")
@@ -200,7 +196,7 @@ internal fun NavGraphBuilder.sourceNavGraph(
             libraryId = libraryId,
             libraryName = libraryName,
             windowSizeClass = windowSizeClass,
-            onOpenDrawer = { scope.launch { drawerState.open() } },
+            onOpenDrawer = onOpenDrawer,
             onSectionSeeMore = { sectionType ->
                 navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
             },

@@ -43,48 +43,42 @@ class RouteBackCallbackGuardrailTest {
  * Pins the fix for Downloads and Settings being re-added to the back stack when re-selected from
  * the drawer while already on that screen.
  *
- * Previously both used a plain navController.navigate(DOWNLOADS/SETTINGS) with no guard, so
- * tapping the drawer item while already on the screen pushed a duplicate entry. Back then had to
- * be pressed once per duplicate before returning to the previous destination.
+ * After the AppShell refactor, drawer section navigation moved into AppShellContent. The
+ * deduplication guard is now inside AppShell.kt:
+ *   onSwitchToSection = { section -> if (section != appSection) { ... } }
+ * rather than a NavController route check in MainScreen.kt.
  *
- * The fix guards each navigate call with a currentDestination?.route check so re-selecting an
- * already-top destination is a no-op. The assertions below flip red if either guard is removed.
- *
- * Note: `launchSingleTop = true` was intentionally NOT used — it still fires the enter animation
- * on the existing composable in Navigation 2.9+, producing a bizarre re-enter animation when the
- * destination is already the top of the stack.
+ * The assertions below flip red if the guard is removed from AppShell.kt.
  */
 class DrawerNavigationDeduplicationTest {
 
     @Test
     fun `Downloads drawer navigation is guarded by route check`() {
-        assertNavCallHasRouteGuard("DOWNLOADS", "downloads")
+        assertSectionSwitchHasGuard("AppSection.Downloads")
     }
 
     @Test
     fun `Settings drawer navigation is guarded by route check`() {
-        assertNavCallHasRouteGuard("SETTINGS", "settings")
+        assertSectionSwitchHasGuard("AppSection.Settings")
     }
 
-    private fun assertNavCallHasRouteGuard(constName: String, literal: String) {
-        val lines = locateMainScreenSource().readLines()
-        val idx = lines.indexOfFirst { line ->
-            "navigate($constName)" in line || "navigate(\"$literal\")" in line
-        }
-        assertTrue("$constName navigate call not found in MainScreen.kt", idx >= 0)
-        // The guard must appear on the same line or the immediately preceding line.
-        val window = lines.subList(maxOf(0, idx - 1), minOf(idx + 2, lines.size)).joinToString("\n")
+    private fun assertSectionSwitchHasGuard(sectionRef: String) {
+        val source = locateAppShellSource()
+        val lines = source.readLines()
+        val sectionSwitchIdx = lines.indexOfFirst { "onSwitchToSection" in it && "section ->" in it }
+        assertTrue("onSwitchToSection lambda not found in AppShell.kt", sectionSwitchIdx >= 0)
+        val window = lines.subList(sectionSwitchIdx, minOf(sectionSwitchIdx + 5, lines.size)).joinToString("\n")
         assertTrue(
-            "navigate($constName) must be guarded by a currentDestination route check to prevent " +
-                "back-stack duplicates and spurious re-enter animations.\nFound:\n$window",
-            "currentDestination" in window,
+            "onSwitchToSection must guard against re-selecting the current section " +
+                "(if (section != appSection)) to prevent spurious re-entry. Found:\n$window",
+            "section != appSection" in window,
         )
     }
 
-    private fun locateMainScreenSource(): File =
+    private fun locateAppShellSource(): File =
         listOf(
-            File("src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
-            File("app/src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
+            File("feature/library-ui/src/commonMain/kotlin/com/riffle/feature/library/ui/AppShell.kt"),
+            File("../feature/library-ui/src/commonMain/kotlin/com/riffle/feature/library/ui/AppShell.kt"),
         ).first { it.exists() }
 }
 

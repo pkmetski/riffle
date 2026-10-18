@@ -5,8 +5,6 @@ import com.riffle.feature.navigation.libraryEntryRoute
 import com.riffle.feature.navigation.libraryItemDetailRoute
 import com.riffle.feature.navigation.librarySectionRoute
 import com.riffle.feature.navigation.seriesDetailRoute
-import androidx.compose.material3.DrawerState
-import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -18,21 +16,16 @@ import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.navigation.NavigationIntent
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.ui.CollectionDetailScreen
-import com.riffle.feature.library.ui.DownloadsActions
-import com.riffle.feature.library.ui.DownloadsScreen
 import com.riffle.feature.library.ui.LibraryItemDetailActions
 import com.riffle.feature.library.ui.LibraryItemDetailScreen
 import com.riffle.feature.library.ui.LibraryItemsActions
 import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
-import com.riffle.feature.library.RiffleViewModel
-import com.riffle.feature.library.ui.RiffleScreen
 import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.annotationSearchLabels
 import com.riffle.feature.library.ui.filteredBooksLabels
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.app.feature.navigation.HomeScreen
-import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.CollectionDetailViewModel
@@ -47,7 +40,6 @@ import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
 import com.riffle.feature.library.ui.FilteredBooksScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,31 +52,15 @@ import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import java.net.URLDecoder
 import java.net.URLEncoder
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 internal fun NavGraphBuilder.libraryNavGraph(
     navController: NavController,
-    drawerState: DrawerState,
-    scope: CoroutineScope,
+    onOpenDrawer: () -> Unit,
     libBackEnabled: Boolean = false,
     windowSizeClass: WindowSizeClass,
     onSetActiveLibrary: (String) -> Unit,
+    onNavigateToRiffle: () -> Unit,
 ) {
-    composable(RIFFLE) {
-        RiffleScreen(
-            viewModel = koinViewModel<RiffleViewModel>(),
-            onOpenDrawer = { scope.launch { drawerState.open() } },
-            onItemSelected = { sourceId, itemId ->
-                val encodedId = URLEncoder.encode(itemId, "UTF-8")
-                val encodedSourceId = URLEncoder.encode(sourceId, "UTF-8")
-                navController.navigate("library_item_detail/$encodedId?sourceId=$encodedSourceId")
-            },
-            onAnnotatedBookClick = { sourceId, itemId ->
-                navController.navigate(annotationsBookClickRoute(sourceId, itemId))
-            },
-        )
-    }
     composable(HOME) {
         HomeScreen(
             onNavigateToAddSource = {
@@ -98,19 +74,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
                     ),
                 )
             },
-            onNavigateToRiffle = {
-                navController.navigateAsRoot(RIFFLE)
-            },
-        )
-    }
-    composable(DOWNLOADS) { backStackEntry ->
-        DownloadsScreen(
-            viewModel = koinViewModel<DownloadsViewModel>(),
-            isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded,
-            actions = DownloadsActions(
-                onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
-                onItemSelected = { item -> navController.navigate(libraryItemDetailRoute(item)) },
-            ),
+            onNavigateToRiffle = onNavigateToRiffle,
         )
     }
     composable(
@@ -125,17 +89,6 @@ internal fun NavGraphBuilder.libraryNavGraph(
             backStackEntry.arguments?.getString("libraryName") ?: "",
             "UTF-8"
         )
-        // Close the drawer when the library destination first enters composition if it
-        // is open or animating open — e.g. the user tapped a library in the drawer and
-        // the composable re-enters before the close animation finishes. Skip the call
-        // when the drawer is already Closed: even a settled Closed state still triggers
-        // a spring animation that takes 14–125 ms, unnecessarily holding backEnabled=true
-        // during that window and creating a timing hazard on Back.
-        LaunchedEffect(Unit) {
-            if (drawerState.currentValue == DrawerValue.Open || drawerState.targetValue == DrawerValue.Open) {
-                drawerState.close()
-            }
-        }
         val libraryItemsPlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
         LibraryItemsScreen(
             libraryId = libraryId,
@@ -145,7 +98,7 @@ internal fun NavGraphBuilder.libraryNavGraph(
             backEnabled = libBackEnabled,
             actions = LibraryItemsActions(
                 onNavigateBack = { navController.navigateAsRoot(HOME) },
-                onOpenDrawer = { scope.launch { drawerState.open() } },
+                onOpenDrawer = onOpenDrawer,
                 onSeriesSelected = { series ->
                     navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                 },

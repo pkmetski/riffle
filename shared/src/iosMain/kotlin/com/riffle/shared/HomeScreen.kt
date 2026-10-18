@@ -5,19 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +40,9 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.ui.AnnotationSearchResultsScreen
+import com.riffle.feature.library.ui.AppSection
+import com.riffle.feature.library.ui.AppShell
+import com.riffle.feature.library.ui.AppShellSectionScope
 import com.riffle.feature.library.ui.CollectionDetailScreen
 import com.riffle.feature.library.ui.DownloadsActions
 import com.riffle.feature.library.ui.DownloadsScreen
@@ -55,7 +54,6 @@ import com.riffle.feature.library.ui.LibraryItemsScreen
 import com.riffle.feature.library.ui.LibrarySectionScreen
 import com.riffle.feature.library.ui.PlaylistDetailScreen
 import com.riffle.feature.library.ui.PlaylistItemRow
-import com.riffle.feature.library.ui.RiffleNavigationDrawer
 import com.riffle.feature.library.ui.RiffleScreen
 import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.SeriesDetailScreen
@@ -67,7 +65,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.LibraryNav
-import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.navigation.NavigationIntent
 import com.riffle.feature.navigation.isAlreadyAtPlayerDestination
 import com.riffle.feature.navigation.openItemForReading
@@ -75,7 +72,6 @@ import com.riffle.feature.navigation.openReadItemForReading
 import com.riffle.feature.navigation.playlistAdvanceNav
 import com.riffle.feature.navigation.playlistPlayerNav
 import com.riffle.feature.navigation.reduceNavStack
-import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.ui.ReaderHostActions
@@ -104,15 +100,12 @@ import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSBundle
 import com.riffle.shared.generated.resources.Res as SharedRes
-
-private enum class AppSection { Library, Settings, Downloads, Riffle }
 
 private sealed interface IosSettingsSubScreen {
     data class AddSource(val backend: AddSourceBackend? = null, val editId: String? = null) : IosSettingsSubScreen
@@ -127,27 +120,8 @@ private sealed interface IosSettingsSubScreen {
     data object DictionaryPacks : IosSettingsSubScreen
 }
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen() {
-    val viewModel = koinInject<HomeViewModel>()
-    val drawerViewModel = koinInject<NavigationDrawerViewModel>()
-    val libraryObserver = koinInject<LibraryObserver>()
-
-    val scope = rememberCoroutineScope()
-    var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
-    var settingsSubScreen by remember { mutableStateOf<IosSettingsSubScreen?>(null) }
-    var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
-    var refreshKey by remember { mutableStateOf(0) }
-    var activeLibraryId by remember { mutableStateOf<String?>(null) }
-    var isInReaderDestination by remember { mutableStateOf(false) }
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    // Pending nav from lock-screen / notification taps (openNowPlayingRequests). Cleared by
-    // LibraryHost after it pushes the destination onto its stack.
-    var pendingLibraryNav by remember { mutableStateOf<LibraryNav?>(null) }
-    var previousSection by remember { mutableStateOf(AppSection.Library) }
-    var pendingRiffleNav by remember { mutableStateOf<LibraryNav?>(null) }
-
     val isTabletLayout = isExpandedWidth()
     val iosAppVersion = remember {
         NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String
@@ -155,441 +129,363 @@ fun HomeScreen() {
     val iosAppSha = remember {
         NSBundle.mainBundle.infoDictionary?.get("CFBundleGitSHA") as? String
     }
+    AppShell(
+        isTabletLayout = isTabletLayout,
+        appVersion = iosAppVersion,
+        appSha = iosAppSha,
+        libraryContent = { IosLibrarySection(this) },
+        riffleContent = { IosRiffleSection(this) },
+        downloadsContent = { IosDownloadsSection(this) },
+        settingsContent = { IosSettingsSection(this, isTabletLayout) },
+        updateDialogContent = { LanguageChangeRestartDialog(onDismiss = NoOp.unit) },
+    )
+}
 
-    val allServers by drawerViewModel.allServers.collectAsState()
-    val activeServer by drawerViewModel.activeServer.collectAsState()
-    val visibleLibraries by drawerViewModel.visibleLibraries.collectAsState()
-    val isRiffleMode by drawerViewModel.isRiffleMode.collectAsState()
-    val showDownloadsLink by drawerViewModel.showDownloadsLink.collectAsState()
-    val serverVersions by drawerViewModel.serverVersions.collectAsState()
+@Composable
+private fun IosLibrarySection(scope: AppShellSectionScope) {
+    val viewModel = koinInject<HomeViewModel>()
+    var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
+    var refreshKey by remember { mutableStateOf(0) }
 
     LaunchedEffect(refreshKey) {
         destination = viewModel.getStartDestination()
     }
 
-    // Lock-screen / notification tap → open the active player.
-    LaunchedEffect(drawerViewModel) {
-        drawerViewModel.openNowPlayingRequests.collect {
-            val target = drawerViewModel.currentNowPlaying() ?: return@collect
-            val item = when (target) {
-                is NowPlaying.Audiobook -> libraryObserver.getItem(target.sourceId, target.itemId)
-                is NowPlaying.Readaloud -> libraryObserver.getItem(target.itemId)
-            } ?: return@collect
-            val nav = when (target) {
-                is NowPlaying.Audiobook -> LibraryNav.AudiobookPlayer(item)
-                is NowPlaying.Readaloud -> LibraryNav.Reader(item)
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when (val dest = destination) {
+            null -> CircularProgressIndicator()
+            is HomeViewModel.StartDestination.AddSource ->
+                SourceOnboardingHost(
+                    onFinished = { refreshKey++ },
+                    onCancelled = { refreshKey++ },
+                    canNavigateBack = false,
+                )
+            is HomeViewModel.StartDestination.Riffle -> {
+                LaunchedEffect(Unit) { scope.onSwitchToSection(AppSection.Riffle) }
             }
-            pendingLibraryNav = nav
-            appSection = AppSection.Library
-        }
-    }
-
-    LanguageChangeRestartDialog(onDismiss = NoOp.unit)
-
-    LaunchedEffect(drawerViewModel) {
-        drawerViewModel.redirectToLibrary.collect { library ->
-            val srcType = activeServer?.type ?: return@collect
-            destination = HomeViewModel.StartDestination.Library(
-                sourceType = srcType,
-                libraryId = library.id,
-                libraryName = library.name,
-            )
-            activeLibraryId = library.id
-            drawerViewModel.setActiveLibrary(library.id)
-        }
-    }
-
-    // Swipe-to-open is disabled while a reader is covering the screen — mirrors Android's
-    // gesturesEnabled = !isReaderRoute(currentRoute). `isInReaderDestination` is set by both
-    // LibraryHost (via SideEffect/DisposableEffect) and the Riffle section.
-    val drawerGesturesEnabled = !isInReaderDestination
-
-    RiffleNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerGesturesEnabled,
-        usePermanentDrawer = isTabletLayout,
-        hidePermanentDrawerPanel = isTabletLayout && isInReaderDestination,
-        activeServer = activeServer,
-        allServers = allServers,
-        visibleLibraries = visibleLibraries,
-        activeLibraryId = if (appSection == AppSection.Library) activeLibraryId else null,
-        serverVersions = serverVersions,
-        showDownloadsLink = showDownloadsLink,
-        isRiffleActive = appSection == AppSection.Riffle || isRiffleMode,
-        appVersion = iosAppVersion,
-        appSha = iosAppSha,
-        onRiffleSelected = {
-            scope.launch { drawerState.close() }
-            drawerViewModel.setRiffleActive()
-            appSection = AppSection.Riffle
-        },
-        onServerSelected = { source ->
-            scope.launch { drawerState.close() }
-            appSection = AppSection.Library
-            activeLibraryId = null
-            drawerViewModel.setActiveServer(source.id)
-            scope.launch {
-                withTimeoutOrNull(5_000) {
-                    drawerViewModel.activeServer.first { it?.id == source.id }
+            is HomeViewModel.StartDestination.NoLibraries -> Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(stringResource(Res.string.ui_unable_to_connect_to_source))
+                Button(onClick = { refreshKey++ }) { Text(stringResource(Res.string.ui_retry)) }
+            }
+            is HomeViewModel.StartDestination.Library -> {
+                LaunchedEffect(dest.libraryId) {
+                    scope.onActiveLibraryChanged(dest.libraryId)
                 }
-                refreshKey++
-            }
-        },
-        onLibrarySelected = { library ->
-            scope.launch { drawerState.close() }
-            val srcType = activeServer?.type
-            if (srcType != null) {
-                activeLibraryId = library.id
-                drawerViewModel.setActiveLibrary(library.id)
-                destination = HomeViewModel.StartDestination.Library(
-                    sourceType = srcType,
-                    libraryId = library.id,
-                    libraryName = library.name,
+                LibraryHost(
+                    sourceType = dest.sourceType,
+                    libraryId = dest.libraryId,
+                    libraryName = dest.libraryName,
+                    onOpenDrawer = scope.onOpenDrawer,
+                    onReaderActiveChanged = scope.onReaderActiveChanged,
+                    pendingNav = scope.pendingLibraryNav,
+                    onPendingNavHandled = scope.onPendingLibraryNavHandled,
                 )
             }
-        },
-        onSettingsSelected = {
-            scope.launch { drawerState.close() }
-            previousSection = appSection
-            settingsSubScreen = null
-            appSection = AppSection.Settings
-        },
-        onDownloadsSelected = {
-            scope.launch { drawerState.close() }
-            previousSection = appSection
-            appSection = AppSection.Downloads
-        },
-    ) {
-        when (appSection) {
-            AppSection.Settings -> {
-                val folderPicker = koinInject<FolderPickerInterface>()
-                val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
-                val localFilesLogger = koinInject<Logger>()
-                BackHandler(enabled = settingsSubScreen != null) { settingsSubScreen = null }
-                when (val sub = settingsSubScreen) {
-                    is IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
-                        onFinished = { settingsSubScreen = null },
-                        onCancelled = { settingsSubScreen = null },
-                        editId = sub.editId,
-                    )
-                    is IosSettingsSubScreen.AddSource -> SourceOnboardingHost(
-                        onFinished = { settingsSubScreen = null },
-                        onCancelled = { settingsSubScreen = null },
-                        initialBackend = sub.backend,
-                        editId = sub.editId,
-                    )
-                    IosSettingsSubScreen.AnnotationsSync -> AnnotationsSyncSettingsScreen(
-                        onNavigateBack = { settingsSubScreen = null },
-                        onNavigateToAddSource = { backend, editId ->
-                            settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
-                                else -> IosSettingsSubScreen.AddSource(backend, editId)
-                            }
-                        },
-                        onNavigateToMaintenance = { settingsSubScreen = IosSettingsSubScreen.AnnotationSyncMaintenance },
-                    )
-                    IosSettingsSubScreen.AnnotationSyncMaintenance -> {
-                        val maintenanceViewModel = koinInject<AnnotationSyncMaintenanceViewModel>()
-                        AnnotationSyncMaintenanceScreen(
-                            onNavigateBack = { settingsSubScreen = null },
-                            viewModel = maintenanceViewModel,
-                        )
-                    }
-                    IosSettingsSubScreen.ReadaloudSettings -> ReadaloudSettingsScreen(
-                        onNavigateBack = { settingsSubScreen = null },
-                        onNavigateToAddSource = { backend, editId ->
-                            settingsSubScreen = when (backend) {
-                                is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
-                                else -> IosSettingsSubScreen.AddSource(backend, editId)
-                            }
-                        },
-                        onNavigateToReadaloudMatches = { sourceId -> settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId) },
-                    )
-                    is IosSettingsSubScreen.ReadaloudMatches -> {
-                        val koin = getKoin()
-                        val host = remember(sub.sourceId) { ScreenScopedViewModelHost() }
-                        val matchesViewModel: ReadaloudMatchesViewModel = remember(sub.sourceId) {
-                            host.adopt(koin.get { parametersOf(sub.sourceId) })
-                        }
-                        DisposableEffect(sub.sourceId) { onDispose { host.clear() } }
-                        ReadaloudMatchesScreen(
-                            onNavigateBack = { settingsSubScreen = null },
-                            viewModel = matchesViewModel,
-                        )
-                    }
-                    IosSettingsSubScreen.Changelog -> {
-                        val changelogViewModel = koinInject<ChangelogViewModel>()
-                        ChangelogScreen(
-                            onNavigateBack = { settingsSubScreen = null },
-                            viewModel = changelogViewModel,
-                        )
-                    }
-                    IosSettingsSubScreen.DeveloperOptions -> {
-                        val koin = getKoin()
-                        val settingsViewModel = remember { koin.get<SettingsViewModel>() }
-                        DeveloperOptionsScreen(
-                            onNavigateBack = { settingsSubScreen = null },
-                            onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
-                            viewModel = settingsViewModel,
-                        )
-                    }
-                    IosSettingsSubScreen.DebugLogs -> DebugLogScreen(
-                        onNavigateBack = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
-                    )
-                    IosSettingsSubScreen.DictionaryPacks -> DictionaryPacksScreen(
-                        onNavigateBack = { settingsSubScreen = null },
-                    )
-                    null -> SettingsScreen(
-                        isExpandedWidth = isTabletLayout,
-                        actions = SettingsActions(
-                            onNavigateBack = { appSection = previousSection },
-                            onNavigateToAddSource = { backend, editId ->
-                                settingsSubScreen = when (backend) {
-                                    is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
-                                    else -> IosSettingsSubScreen.AddSource(backend, editId)
-                                }
-                            },
-                            onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
-                            onNavigateToAddLocalFolder = {
-                                folderPicker.pickFolder { uri ->
-                                    if (uri != null) {
-                                        scope.launch {
-                                            runCatching { localFilesInstaller.installFolder(uri) }
-                                                .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
-                                        }
-                                    }
-                                }
-                            },
-                            onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
-                            onNavigateToAnnotationsSyncSettings = { settingsSubScreen = IosSettingsSubScreen.AnnotationsSync },
-                            onNavigateToDeveloperOptions = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
-                            onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
-                            onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
-                            onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
-                            platformHooks = IosPlatformSettingsHooks,
-                        ),
-                    )
-                }
-            }
-            AppSection.Downloads -> {
-                val downloadsViewModel = koinInject<DownloadsViewModel>()
-                val downloadsApplicationScope = koinInject<ApplicationScope>()
-                val downloadsRecordItemOpened = koinInject<RecordItemOpened>()
-                var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
-                BackHandler(enabled = downloadsDetailNav != null) { downloadsDetailNav = null }
-                val detail = downloadsDetailNav
-                if (detail != null) {
-                    LibraryItemDetailScreen(
-                        itemId = detail.itemId,
-                        sourceId = detail.sourceId,
-                        actions = LibraryItemDetailActions(
-                            onBack = { downloadsDetailNav = null },
-                            onRead = { item ->
-                                openReadItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
-                                    ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
-                            },
-                            onListen = { item ->
-                                openItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
-                                    ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
-                            },
-                            onReadItemAtHref = { item, href ->
-                                pendingLibraryNav = LibraryNav.Reader(item, startHref = href)
-                                appSection = AppSection.Library
-                                downloadsDetailNav = null
-                            },
-                            onListenItemAtSec = { item, sec ->
-                                pendingLibraryNav = LibraryNav.AudiobookPlayer(item, startAtSec = sec)
-                                appSection = AppSection.Library
-                                downloadsDetailNav = null
-                            },
-                            onFacetSelected = NoOp.facetNavUnavailableInDownloads,
-                            onNavigateToSeries = NoOp.seriesNavUnavailableInDownloads,
-                        ),
-                    )
-                } else {
-                    DownloadsScreen(
-                        actions = DownloadsActions(
-                            onNavigateBack = { appSection = previousSection },
-                            onItemSelected = { item ->
-                                downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
-                            },
-                        ),
-                        viewModel = downloadsViewModel,
-                    )
-                }
-            }
-            AppSection.Riffle -> {
-                val riffleViewModel = koinInject<RiffleViewModel>()
-                val riffleApplicationScope = koinInject<ApplicationScope>()
-                val riffleRecordItemOpened = koinInject<RecordItemOpened>()
-                val rifflePlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
-                var riffleNavStack by remember { mutableStateOf(listOf<LibraryNav>()) }
-
-                fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
-                fun rifflePop() { riffleNavStack = riffleNavStack.dropLast(1) }
-
-                SideEffect {
-                    val last = riffleNavStack.lastOrNull()
-                    isInReaderDestination = last is LibraryNav.ReaderDestination ||
-                        last is LibraryNav.ElidedReader ||
-                        last is LibraryNav.AnnotationReader
-                }
-                DisposableEffect(Unit) { onDispose { isInReaderDestination = false } }
-
-                when (val current = riffleNavStack.lastOrNull()) {
-                    is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
-                        itemId = current.itemId,
-                        sourceId = current.sourceId,
-                        actions = LibraryItemDetailActions(
-                            onBack = ::rifflePop,
-                            onRead = { item ->
-                                openReadItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
-                                    ?.let { rifflePush(it) }
-                            },
-                            onListen = { item ->
-                                rifflePlayIntentRegistry.recordIntent(item.sourceId, item.id)
-                                openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
-                                    ?.let { rifflePush(it) }
-                            },
-                            onReadItemAtHref = { item, href -> rifflePush(LibraryNav.Reader(item, startHref = href)) },
-                            onListenItemAtSec = { item, sec ->
-                                rifflePlayIntentRegistry.recordIntent(item.sourceId, item.id)
-                                rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
-                            },
-                            onNavigateToSeries = { libraryId, seriesId, seriesName -> rifflePush(LibraryNav.SeriesDetail(seriesId, libraryId, seriesName)) },
-                            onFacetSelected = { facetLibraryId, facet, value ->
-                                rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
-                            },
-                        ),
-                    )
-                    is LibraryNav.AnnotationReader -> AnnotationReaderLoader(
-                        itemId = current.itemId,
-                        sourceId = current.sourceId,
-                        locatorJson = current.locatorJson,
-                        onBack = ::rifflePop,
-                    )
-                    is LibraryNav.ElidedReader -> ElidedReaderLoader(
-                        itemId = current.itemId,
-                        sourceId = current.sourceId,
-                        onBack = ::rifflePop,
-                        onOpenInBook = { openItem, locatorJson ->
-                            rifflePop()
-                            rifflePush(LibraryNav.Reader(openItem, locatorJson))
-                        },
-                    )
-                    is LibraryNav.FilteredBooks -> FilteredBooksHost(
-                        destination = current,
-                        onBack = ::rifflePop,
-                        onItemSelected = { item ->
-                            rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
-                        },
-                    )
-                    is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
-                        destination = current,
-                        onBack = ::rifflePop,
-                        onAnnotationSelected = { sourceId, itemId, locatorJson ->
-                            rifflePush(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson))
-                        },
-                        onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
-                            rifflePlayIntentRegistry.recordIntent(sourceId, itemId)
-                            rifflePush(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
-                        },
-                    )
-                    is LibraryNav.SeriesDetail -> SeriesDetailScreen(
-                        seriesId = current.seriesId,
-                        libraryId = current.seriesLibraryId,
-                        seriesName = current.seriesName,
-                        onItemSelected = { item ->
-                            rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
-                        },
-                        onNavigateBack = ::rifflePop,
-                    )
-                    is LibraryNav.CollectionDetail -> CollectionDetailScreen(
-                        collectionId = current.collectionId,
-                        libraryId = current.collectionLibraryId,
-                        collectionName = current.collectionName,
-                        onItemSelected = { item ->
-                            rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
-                        },
-                        onNavigateBack = ::rifflePop,
-                    )
-                    is LibraryNav.AudiobookBookmark -> AudiobookBookmarkLoader(
-                        itemId = current.itemId,
-                        sourceId = current.sourceId,
-                        startAtSec = current.startAtSec,
-                        playerActions = PlayerHostActions(
-                            onBack = ::rifflePop,
-                            onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
-                        ),
-                    )
-                    is LibraryNav.ReaderDestination -> ReaderHost(
-                        destination = current,
-                        readerActions = ReaderHostActions(
-                            onBack = ::rifflePop,
-                            onSwitchToAudiobook = {
-                                val readerDest = current as? LibraryNav.Reader ?: return@ReaderHostActions
-                                rifflePop()
-                                rifflePush(LibraryNav.AudiobookPlayer(readerDest.item))
-                            },
-                        ),
-                        playerActions = PlayerHostActions(
-                            onBack = ::rifflePop,
-                            onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
-                            onSwitchToReadaloud = { ebookItemId, atSec ->
-                                scope.launch {
-                                    val item = libraryObserver.getItem(ebookItemId) ?: return@launch
-                                    rifflePush(LibraryNav.Reader(item, startReadaloudAtSec = atSec))
-                                }
-                            },
-                        ),
-                    )
-                    else -> RiffleScreen(
-                        viewModel = riffleViewModel,
-                        onOpenDrawer = { scope.launch { drawerState.open() } },
-                        onItemSelected = { sourceId, itemId ->
-                            rifflePush(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
-                        },
-                        onAnnotatedBookClick = { sourceId, itemId ->
-                            rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
-                        },
-                    )
-                }
-            }
-            AppSection.Library -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                when (val dest = destination) {
-                    null -> CircularProgressIndicator()
-                    is HomeViewModel.StartDestination.AddSource ->
-                        SourceOnboardingHost(
-                            onFinished = { refreshKey++ },
-                            onCancelled = { refreshKey++ },
-                            canNavigateBack = false,
-                        )
-                    is HomeViewModel.StartDestination.Riffle -> {
-                        LaunchedEffect(Unit) { appSection = AppSection.Riffle }
-                    }
-                    is HomeViewModel.StartDestination.NoLibraries -> Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(stringResource(Res.string.ui_unable_to_connect_to_source))
-                        Button(onClick = { refreshKey++ }) { Text(stringResource(Res.string.ui_retry)) }
-                    }
-                    is HomeViewModel.StartDestination.Library -> {
-                        LaunchedEffect(dest.libraryId) {
-                            if (activeLibraryId == null) activeLibraryId = dest.libraryId
-                        }
-                        LibraryHost(
-                            sourceType = dest.sourceType,
-                            libraryId = dest.libraryId,
-                            libraryName = dest.libraryName,
-                            onOpenDrawer = { scope.launch { drawerState.open() } },
-                            onReaderActiveChanged = { isInReaderDestination = it },
-                            pendingNav = pendingLibraryNav,
-                            onPendingNavHandled = { pendingLibraryNav = null },
-                        )
-                    }
-                }
-            }
         }
+    }
+}
+
+@Composable
+private fun IosRiffleSection(scope: AppShellSectionScope) {
+    val riffleViewModel = koinInject<RiffleViewModel>()
+    val riffleApplicationScope = koinInject<ApplicationScope>()
+    val riffleRecordItemOpened = koinInject<RecordItemOpened>()
+    val rifflePlayIntentRegistry = koinInject<com.riffle.feature.player.AudiobookPlayIntentRegistry>()
+    val libraryObserver = koinInject<LibraryObserver>()
+    val coroutineScope = rememberCoroutineScope()
+    var riffleNavStack by remember { mutableStateOf(listOf<LibraryNav>()) }
+
+    fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
+    fun rifflePop() { riffleNavStack = riffleNavStack.dropLast(1) }
+
+    SideEffect { scope.onReaderActiveChanged(riffleNavStack.lastOrNull() is LibraryNav.ReaderDestination) }
+    DisposableEffect(Unit) { onDispose { scope.onReaderActiveChanged(false) } }
+
+    when (val current = riffleNavStack.lastOrNull()) {
+        is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            actions = LibraryItemDetailActions(
+                onBack = ::rifflePop,
+                onRead = { item ->
+                    openReadItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                        ?.let { rifflePush(it) }
+                },
+                onListen = { item ->
+                    rifflePlayIntentRegistry.recordIntent(item.sourceId, item.id)
+                    openItemForReading(item, riffleApplicationScope, riffleRecordItemOpened::invoke)
+                        ?.let { rifflePush(it) }
+                },
+                onReadItemAtHref = { item, href -> rifflePush(LibraryNav.Reader(item, startHref = href)) },
+                onListenItemAtSec = { item, sec ->
+                    rifflePlayIntentRegistry.recordIntent(item.sourceId, item.id)
+                    rifflePush(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
+                },
+                onNavigateToSeries = { libraryId, seriesId, seriesName ->
+                    rifflePush(LibraryNav.SeriesDetail(seriesId, libraryId, seriesName))
+                },
+                onFacetSelected = { facetLibraryId, facet, value ->
+                    rifflePush(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
+                },
+            ),
+        )
+        is LibraryNav.AnnotationReader -> AnnotationReaderLoader(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            locatorJson = current.locatorJson,
+            onBack = ::rifflePop,
+        )
+        is LibraryNav.ElidedReader -> ElidedReaderLoader(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            onBack = ::rifflePop,
+            onOpenInBook = { openItem, locatorJson ->
+                rifflePop()
+                rifflePush(LibraryNav.Reader(openItem, locatorJson))
+            },
+        )
+        is LibraryNav.FilteredBooks -> FilteredBooksHost(
+            destination = current,
+            onBack = ::rifflePop,
+            onItemSelected = { item ->
+                rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
+            },
+        )
+        is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
+            destination = current,
+            onBack = ::rifflePop,
+            onAnnotationSelected = { sourceId, itemId, locatorJson ->
+                rifflePush(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson))
+            },
+            onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
+                rifflePlayIntentRegistry.recordIntent(sourceId, itemId)
+                rifflePush(LibraryNav.AudiobookBookmark(itemId, sourceId.ifEmpty { null }, startAtSec))
+            },
+        )
+        is LibraryNav.SeriesDetail -> SeriesDetailScreen(
+            seriesId = current.seriesId,
+            libraryId = current.seriesLibraryId,
+            seriesName = current.seriesName,
+            onItemSelected = { item ->
+                rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
+            },
+            onNavigateBack = ::rifflePop,
+        )
+        is LibraryNav.CollectionDetail -> CollectionDetailScreen(
+            collectionId = current.collectionId,
+            libraryId = current.collectionLibraryId,
+            collectionName = current.collectionName,
+            onItemSelected = { item ->
+                rifflePush(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null }))
+            },
+            onNavigateBack = ::rifflePop,
+        )
+        is LibraryNav.AudiobookBookmark -> AudiobookBookmarkLoader(
+            itemId = current.itemId,
+            sourceId = current.sourceId,
+            startAtSec = current.startAtSec,
+            playerActions = PlayerHostActions(
+                onBack = ::rifflePop,
+                onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+            ),
+        )
+        is LibraryNav.ReaderDestination -> ReaderHost(
+            destination = current,
+            readerActions = ReaderHostActions(
+                onBack = ::rifflePop,
+                onSwitchToAudiobook = {
+                    val readerDest = current as? LibraryNav.Reader ?: return@ReaderHostActions
+                    rifflePop()
+                    rifflePush(LibraryNav.AudiobookPlayer(readerDest.item))
+                },
+            ),
+            playerActions = PlayerHostActions(
+                onBack = ::rifflePop,
+                onPlaylistAdvance = NoOp.playlistAdvanceUnavailable,
+                onSwitchToReadaloud = { ebookItemId, atSec ->
+                    coroutineScope.launch {
+                        val item = libraryObserver.getItem(ebookItemId) ?: return@launch
+                        rifflePush(LibraryNav.Reader(item, startReadaloudAtSec = atSec))
+                    }
+                },
+            ),
+        )
+        else -> RiffleScreen(
+            viewModel = riffleViewModel,
+            onOpenDrawer = scope.onOpenDrawer,
+            onItemSelected = { sourceId, itemId ->
+                rifflePush(LibraryNav.ItemDetail(itemId, sourceId.ifEmpty { null }))
+            },
+            onAnnotatedBookClick = { sourceId, itemId ->
+                rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
+            },
+        )
+    }
+}
+
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+private fun IosDownloadsSection(scope: AppShellSectionScope) {
+    val downloadsViewModel = koinInject<DownloadsViewModel>()
+    val downloadsApplicationScope = koinInject<ApplicationScope>()
+    val downloadsRecordItemOpened = koinInject<RecordItemOpened>()
+    var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
+    BackHandler(enabled = downloadsDetailNav != null) { downloadsDetailNav = null }
+    val detail = downloadsDetailNav
+    if (detail != null) {
+        LibraryItemDetailScreen(
+            itemId = detail.itemId,
+            sourceId = detail.sourceId,
+            actions = LibraryItemDetailActions(
+                onBack = { downloadsDetailNav = null },
+                onRead = { item ->
+                    openReadItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                        ?.let { scope.onNavigateToLibraryWith(it); downloadsDetailNav = null }
+                },
+                onListen = { item ->
+                    openItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
+                        ?.let { scope.onNavigateToLibraryWith(it); downloadsDetailNav = null }
+                },
+                onReadItemAtHref = { item, href ->
+                    scope.onNavigateToLibraryWith(LibraryNav.Reader(item, startHref = href))
+                    downloadsDetailNav = null
+                },
+                onListenItemAtSec = { item, sec ->
+                    scope.onNavigateToLibraryWith(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
+                    downloadsDetailNav = null
+                },
+                onFacetSelected = NoOp.facetNavUnavailableInDownloads,
+                onNavigateToSeries = NoOp.seriesNavUnavailableInDownloads,
+            ),
+        )
+    } else {
+        DownloadsScreen(
+            actions = DownloadsActions(
+                onNavigateBack = { scope.onNavigateBack() },
+                onItemSelected = { item ->
+                    downloadsDetailNav = LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })
+                },
+            ),
+            viewModel = downloadsViewModel,
+        )
+    }
+}
+
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+private fun IosSettingsSection(scope: AppShellSectionScope, isTabletLayout: Boolean) {
+    val folderPicker = koinInject<FolderPickerInterface>()
+    val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
+    val localFilesLogger = koinInject<Logger>()
+    val coroutineScope = rememberCoroutineScope()
+    var settingsSubScreen by remember { mutableStateOf<IosSettingsSubScreen?>(null) }
+    BackHandler(enabled = settingsSubScreen != null) { settingsSubScreen = null }
+    when (val sub = settingsSubScreen) {
+        is IosSettingsSubScreen.WebdavAddSource -> WebdavOnboardingHost(
+            onFinished = { settingsSubScreen = null },
+            onCancelled = { settingsSubScreen = null },
+            editId = sub.editId,
+        )
+        is IosSettingsSubScreen.AddSource -> SourceOnboardingHost(
+            onFinished = { settingsSubScreen = null },
+            onCancelled = { settingsSubScreen = null },
+            initialBackend = sub.backend,
+            editId = sub.editId,
+        )
+        IosSettingsSubScreen.AnnotationsSync -> AnnotationsSyncSettingsScreen(
+            onNavigateBack = { settingsSubScreen = null },
+            onNavigateToAddSource = { backend, editId ->
+                settingsSubScreen = when (backend) {
+                    is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
+                    else -> IosSettingsSubScreen.AddSource(backend, editId)
+                }
+            },
+            onNavigateToMaintenance = { settingsSubScreen = IosSettingsSubScreen.AnnotationSyncMaintenance },
+        )
+        IosSettingsSubScreen.AnnotationSyncMaintenance -> {
+            val maintenanceViewModel = koinInject<AnnotationSyncMaintenanceViewModel>()
+            AnnotationSyncMaintenanceScreen(
+                onNavigateBack = { settingsSubScreen = null },
+                viewModel = maintenanceViewModel,
+            )
+        }
+        IosSettingsSubScreen.ReadaloudSettings -> ReadaloudSettingsScreen(
+            onNavigateBack = { settingsSubScreen = null },
+            onNavigateToAddSource = { backend, editId ->
+                settingsSubScreen = when (backend) {
+                    is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
+                    else -> IosSettingsSubScreen.AddSource(backend, editId)
+                }
+            },
+            onNavigateToReadaloudMatches = { sourceId ->
+                settingsSubScreen = IosSettingsSubScreen.ReadaloudMatches(sourceId)
+            },
+        )
+        is IosSettingsSubScreen.ReadaloudMatches -> {
+            val koin = getKoin()
+            val host = remember(sub.sourceId) { ScreenScopedViewModelHost() }
+            val matchesViewModel: ReadaloudMatchesViewModel = remember(sub.sourceId) {
+                host.adopt(koin.get { parametersOf(sub.sourceId) })
+            }
+            DisposableEffect(sub.sourceId) { onDispose { host.clear() } }
+            ReadaloudMatchesScreen(
+                onNavigateBack = { settingsSubScreen = null },
+                viewModel = matchesViewModel,
+            )
+        }
+        IosSettingsSubScreen.Changelog -> {
+            val changelogViewModel = koinInject<ChangelogViewModel>()
+            ChangelogScreen(
+                onNavigateBack = { settingsSubScreen = null },
+                viewModel = changelogViewModel,
+            )
+        }
+        IosSettingsSubScreen.DeveloperOptions -> {
+            val settingsViewModel = koinInject<SettingsViewModel>()
+            DeveloperOptionsScreen(
+                onNavigateBack = { settingsSubScreen = null },
+                onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
+                viewModel = settingsViewModel,
+            )
+        }
+        IosSettingsSubScreen.DebugLogs -> DebugLogScreen(
+            onNavigateBack = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
+        )
+        IosSettingsSubScreen.DictionaryPacks -> DictionaryPacksScreen(
+            onNavigateBack = { settingsSubScreen = null },
+        )
+        null -> SettingsScreen(
+            isExpandedWidth = isTabletLayout,
+            actions = SettingsActions(
+                onNavigateBack = { scope.onNavigateBack() },
+                onNavigateToAddSource = { backend, editId ->
+                    settingsSubScreen = when (backend) {
+                        is AddSourceBackend.Webdav -> IosSettingsSubScreen.WebdavAddSource(editId)
+                        else -> IosSettingsSubScreen.AddSource(backend, editId)
+                    }
+                },
+                onNavigateToAddSourcePicker = { settingsSubScreen = IosSettingsSubScreen.AddSource() },
+                onNavigateToAddLocalFolder = {
+                    folderPicker.pickFolder { uri ->
+                        if (uri != null) {
+                            coroutineScope.launch {
+                                runCatching { localFilesInstaller.installFolder(uri) }
+                                    .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
+                            }
+                        }
+                    }
+                },
+                onNavigateToReadaloudSettings = { settingsSubScreen = IosSettingsSubScreen.ReadaloudSettings },
+                onNavigateToAnnotationsSyncSettings = { settingsSubScreen = IosSettingsSubScreen.AnnotationsSync },
+                onNavigateToDeveloperOptions = { settingsSubScreen = IosSettingsSubScreen.DeveloperOptions },
+                onNavigateToDictionaryPacks = { settingsSubScreen = IosSettingsSubScreen.DictionaryPacks },
+                onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
+                onNavigateToChangelog = { settingsSubScreen = IosSettingsSubScreen.Changelog },
+                platformHooks = IosPlatformSettingsHooks,
+            ),
+        )
     }
 }
 
