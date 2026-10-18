@@ -14,7 +14,13 @@ sealed interface LibraryNav {
 
     data class ElidedReader(val itemId: String, val sourceId: String?) : LibraryNav
     /** Opens the full EPUB reader at [locatorJson], loading the item by id first. Used by annotation search so the user lands on the annotated page rather than the highlights view. */
-    data class AnnotationReader(val itemId: String, val sourceId: String?, val locatorJson: String) : LibraryNav
+    data class AnnotationReader(
+        val itemId: String,
+        val sourceId: String?,
+        val locatorJson: String,
+        val rawCfi: String = "",
+        val annotationId: String? = null,
+    ) : LibraryNav
     data class SeriesDetail(val seriesId: String, val seriesLibraryId: String, val seriesName: String) : LibraryNav
     data class CollectionDetail(val collectionId: String, val collectionLibraryId: String, val collectionName: String) : LibraryNav
 
@@ -44,6 +50,8 @@ sealed interface LibraryNav {
         val initialLocatorJson: String? = null,
         val startHref: String? = null,
         val startReadaloudAtSec: Double = -1.0,
+        val openAtRawCfi: String? = null,
+        val openAtAnnotationId: String? = null,
     ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination

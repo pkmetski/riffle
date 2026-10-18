@@ -456,6 +456,8 @@ fun AppShell(
                         itemId = current.itemId,
                         sourceId = current.sourceId,
                         locatorJson = current.locatorJson,
+                        rawCfi = current.rawCfi,
+                        annotationId = current.annotationId,
                         onBack = ::rifflePop,
                         slots = slots,
                     )
@@ -479,8 +481,8 @@ fun AppShell(
                     is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
                         destination = current,
                         onBack = ::rifflePop,
-                        onAnnotationSelected = { sourceId, itemId, locatorJson ->
-                            rifflePush(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson))
+                        onAnnotationSelected = { sourceId, itemId, locatorJson, rawCfi, annotationId ->
+                            rifflePush(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson, rawCfi, annotationId))
                         },
                         onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
                             rifflePlayIntentRegistry.recordIntent(sourceId, itemId)
@@ -670,7 +672,13 @@ internal fun LibraryHost(
                                 result.annotation.progression,
                             )
                             navStack = reduceNavStack(
-                                NavigationIntent.OpenAnnotationReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null }, locatorJson),
+                                NavigationIntent.OpenAnnotationReader(
+                                    itemId = result.annotation.itemId,
+                                    sourceId = result.annotation.sourceId.ifEmpty { null },
+                                    locatorJson = locatorJson,
+                                    rawCfi = result.annotation.cfi,
+                                    annotationId = result.annotation.id,
+                                ),
                                 navStack,
                             )
                         },
@@ -756,8 +764,8 @@ internal fun LibraryHost(
         is LibraryNav.AnnotationSearch -> AnnotationSearchHost(
             destination = current,
             onBack = ::pop,
-            onAnnotationSelected = { sourceId, itemId, locatorJson ->
-                push(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson))
+            onAnnotationSelected = { sourceId, itemId, locatorJson, rawCfi, annotationId ->
+                push(LibraryNav.AnnotationReader(itemId, sourceId.ifEmpty { null }, locatorJson, rawCfi, annotationId))
             },
             onOpenAudiobookBookmark = { sourceId, itemId, startAtSec ->
                 playIntentRegistry.recordIntent(sourceId, itemId)
@@ -768,6 +776,8 @@ internal fun LibraryHost(
             itemId = current.itemId,
             sourceId = current.sourceId,
             locatorJson = current.locatorJson,
+            rawCfi = current.rawCfi,
+            annotationId = current.annotationId,
             onBack = ::pop,
             slots = slots,
         )
@@ -899,6 +909,8 @@ internal fun AnnotationReaderLoader(
     itemId: String,
     sourceId: String?,
     locatorJson: String,
+    rawCfi: String = "",
+    annotationId: String? = null,
     onBack: () -> Unit,
     slots: AppShellSlots,
 ) {
@@ -912,7 +924,7 @@ internal fun AnnotationReaderLoader(
     val loadedItem = item
     when {
         loadedItem != null -> slots.readerHost(
-            LibraryNav.Reader(loadedItem, initialLocatorJson = locatorJson),
+            LibraryNav.Reader(loadedItem, initialLocatorJson = locatorJson, openAtRawCfi = rawCfi.ifEmpty { null }, openAtAnnotationId = annotationId),
             ReaderHostActions(onBack = onBack),
             PlayerHostActions(onBack = onBack, onPlaylistAdvance = NoOp.playlistAdvanceUnavailable),
         )
@@ -983,7 +995,7 @@ internal fun FilteredBooksHost(
 internal fun AnnotationSearchHost(
     destination: LibraryNav.AnnotationSearch,
     onBack: () -> Unit,
-    onAnnotationSelected: (sourceId: String, itemId: String, locatorJson: String) -> Unit,
+    onAnnotationSelected: (sourceId: String, itemId: String, locatorJson: String, rawCfi: String, annotationId: String?) -> Unit,
     onOpenAudiobookBookmark: (sourceId: String, itemId: String, startAtSec: Double) -> Unit,
 ) {
     val koin = org.koin.mp.KoinPlatform.getKoin()
@@ -1003,7 +1015,7 @@ internal fun AnnotationSearchHost(
                 result.annotation.cfi,
                 result.annotation.progression,
             )
-            onAnnotationSelected(result.annotation.sourceId, result.annotation.itemId, locatorJson)
+            onAnnotationSelected(result.annotation.sourceId, result.annotation.itemId, locatorJson, result.annotation.cfi, result.annotation.id)
         },
         onAudiobookBookmarkSelected = { result ->
             onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec)

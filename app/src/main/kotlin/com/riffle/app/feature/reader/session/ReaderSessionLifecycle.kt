@@ -225,8 +225,8 @@ class ReaderSessionLifecycle constructor(
         // A search-result / annotation-tap open overrides the saved position. Requires `publication`
         // (set above) — cfiStringToLocator resolves against it.
         // openAtCfi accepts two formats:
-        //   1. Raw CFI string ("epubcfi(...)") — legacy deep-link and old nav-graph routes
-        //   2. Readium Locator JSON ("{...}") — new shell-ui AnnotationReaderLoader path
+        //   1. Raw CFI string ("epubcfi(...)") — primary path for annotation and deep-link navigation
+        //   2. Readium Locator JSON ("{...}") — fallback for callers that only have locator JSON
         val isLocatorJson = openAtCfiNonBlank?.startsWith("{") == true
         val resolvedOpenAtLocator = openAtCfiNonBlank?.let { cfiOrJson ->
             if (isLocatorJson) {

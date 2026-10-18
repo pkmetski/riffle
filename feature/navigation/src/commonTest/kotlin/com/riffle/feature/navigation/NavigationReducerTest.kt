@@ -110,11 +110,15 @@ class NavigationReducerTest {
     @Test
     fun openAnnotationReader_pushesAnnotationReader() {
         val locatorJson = """{"href":"ch.xhtml","type":"application/xhtml+xml","locations":{"cfi":"/4/2","progression":0.5}}"""
-        val result = reduceNavStack(NavigationIntent.OpenAnnotationReader("item-1", "src-1", locatorJson), emptyList())
+        val rawCfi = "epubcfi(/4/2[ch]!/4/2)"
+        val annotationId = "ann-abc"
+        val result = reduceNavStack(NavigationIntent.OpenAnnotationReader("item-1", "src-1", locatorJson, rawCfi, annotationId), emptyList())
         val dest = assertIs<LibraryNav.AnnotationReader>(result.last())
         assertEquals("item-1", dest.itemId)
         assertEquals("src-1", dest.sourceId)
         assertEquals(locatorJson, dest.locatorJson)
+        assertEquals(rawCfi, dest.rawCfi)
+        assertEquals(annotationId, dest.annotationId)
     }
 
     @Test

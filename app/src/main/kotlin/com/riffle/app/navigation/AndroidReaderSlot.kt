@@ -129,8 +129,8 @@ private fun AndroidEpubReaderSlot(
                     item.id,
                     ReaderSource.FullBook,
                     destination.startReadaloudAtSec,
-                    destination.initialLocatorJson,
-                    null as String?,
+                    destination.openAtRawCfi ?: destination.initialLocatorJson,
+                    destination.openAtAnnotationId,
                     destination.startHref,
                     item.sourceId.ifEmpty { null },
                 )
