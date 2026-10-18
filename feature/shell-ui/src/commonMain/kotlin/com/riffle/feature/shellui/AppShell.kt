@@ -245,6 +245,7 @@ fun AppShell(
         when (appSection) {
             AppSection.Settings -> {
                 BackHandler(enabled = settingsSubScreen != null) { settingsSubScreen = null }
+                BackHandler(enabled = settingsSubScreen == null) { appSection = previousSection }
                 when (val sub = settingsSubScreen) {
                     is SettingsSubScreen.WebdavAddSource -> {
                         val webdav = slots.webdavOnboardingHost
@@ -367,6 +368,7 @@ fun AppShell(
                 val downloadsRecordItemOpened = koinInject<RecordItemOpened>()
                 var downloadsDetailNav by remember { mutableStateOf<LibraryNav.ItemDetail?>(null) }
                 BackHandler(enabled = downloadsDetailNav != null) { downloadsDetailNav = null }
+                BackHandler(enabled = downloadsDetailNav == null) { appSection = previousSection }
                 val detail = downloadsDetailNav
                 if (detail != null) {
                     LibraryItemDetailScreen(
