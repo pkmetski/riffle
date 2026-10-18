@@ -170,8 +170,8 @@ private val libraryViewModelModule = module {
     }
     viewModel { params ->
         LibraryItemDetailViewModel(
-            itemId = params.get(),
-            sourceId = params.get(),
+            itemId = params[0],
+            sourceId = params[1],
             libraryObserver = get(),
             recordItemOpened = get(),
             updateReadingProgressUseCase = get(),
@@ -546,13 +546,13 @@ private val readerViewModelModule = module {
     viewModel { params ->
         EpubReaderViewModel(
             application = androidApplication(),
-            itemId = params.get(),
-            source = params.get(),
-            startReadaloudAtSecParam = params.get(),
-            openAtCfiParam = params.get(),
-            openAnnotationIdParam = params.get(),
-            startTocHrefParam = params.get(),
-            navServerIdParam = params.get(),
+            itemId = params[0],
+            source = params[1],
+            startReadaloudAtSecParam = params[2],
+            openAtCfiParam = params[3],
+            openAnnotationIdParam = params[4],
+            startTocHrefParam = params[5],
+            navServerIdParam = params[6],
             libraryObserver = get(),
             updateReadingProgressUseCase = get(),
             epubRepository = get(),
@@ -626,8 +626,8 @@ private val readerViewModelModule = module {
     } bind SharedPdfRepository::class
     viewModel { params ->
         PdfReaderViewModel(
-            itemId = params.get(),
-            navSourceId = params.get(),
+            itemId = params[0],
+            navSourceId = params[1],
             sharedPdfRepository = get(),
             readingSessionRepository = get(),
             updateReadingProgressUseCase = get(),
@@ -649,8 +649,8 @@ private val readerViewModelModule = module {
     }
     viewModel { params ->
         CbzReaderViewModel(
-            itemId = params.get(),
-            sourceId = params.get(),
+            itemId = params[0],
+            sourceId = params[1],
             libraryObserver = get(),
             cbzRepository = get(),
             readingSessionRepository = get(),
@@ -677,11 +677,11 @@ private val readerViewModelModule = module {
 private val audiobookViewModelModule = module {
     viewModel { params ->
         AudiobookPlayerViewModel(
-            navItemId = params.get(),
-            navSourceId = params.get(),
-            navPlaylistId = params.get(),
-            navPlaylistLibraryId = params.get(),
-            navStartAtSec = params.get(),
+            navItemId = params[0],
+            navSourceId = params[1],
+            navPlaylistId = params[2],
+            navPlaylistLibraryId = params[3],
+            navStartAtSec = params[4],
             playIntentRegistry = get(),
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),
