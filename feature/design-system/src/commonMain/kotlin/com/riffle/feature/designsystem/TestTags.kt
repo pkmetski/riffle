@@ -271,6 +271,7 @@ object TestTags {
     const val ANNOTATION_DELETE = "annotation_delete"
     const val ANNOTATION_NOTE_ROW = "annotation_note_row"
     const val ANNOTATION_OPEN_IN_BOOK = "annotation_open_in_book"
+    const val ANNOTATION_PLAY_FROM_HERE = "annotation_play_from_here"
     const val NOTE_EDITOR_FIELD = "note_editor_field"
     const val NOTE_EDITOR_REMOVE = "note_editor_remove"
     const val NOTE_EDITOR_CANCEL = "note_editor_cancel"

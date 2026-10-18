@@ -178,6 +178,55 @@ class AnnotationActionsSheetTest {
         assertEquals(1, dismissed)
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playFromHereRowIsHiddenWhenCallbackIsNull() = runComposeUiTest {
+        // Regression for #1237: before the fix the row was never shown because the parameter did
+        // not exist; the guard here would also catch a future accidental unconditional render.
+        setContent {
+            AnnotationActionsSheet(
+                selectedColor = HighlightColor.YELLOW,
+                emphasisStyles = emptySet(),
+                note = null,
+                readerBackground = Color.White,
+                labels = labels,
+                onPickColor = {},
+                onRemoveColor = {},
+                onToggleEmphasis = {},
+                onOpenNoteEditor = {},
+                onDelete = {},
+                onOpenInBook = {},
+                onPlayFromHere = null,
+            )
+        }
+        onNodeWithTag("annotation_play_from_here").assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playFromHereRowIsVisibleAndFiresCallbackWhenProvided() = runComposeUiTest {
+        var fired = false
+        setContent {
+            AnnotationActionsSheet(
+                selectedColor = HighlightColor.YELLOW,
+                emphasisStyles = emptySet(),
+                note = null,
+                readerBackground = Color.White,
+                labels = labels,
+                onPickColor = {},
+                onRemoveColor = {},
+                onToggleEmphasis = {},
+                onOpenNoteEditor = {},
+                onDelete = {},
+                onOpenInBook = {},
+                onPlayFromHere = { fired = true },
+            )
+        }
+        onNodeWithTag("annotation_play_from_here").assertIsDisplayed()
+        onNodeWithTag("annotation_play_from_here").performClick()
+        assertTrue(fired, "onPlayFromHere must fire when the row is tapped")
+    }
+
     @Test
     fun theEnglishLabelsAreAllPopulated() {
         // The host supplies these; an empty one would render a blank, untappable control and an
