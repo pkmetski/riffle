@@ -130,6 +130,20 @@ class PdfReaderViewModelTest {
     }
 
     @Test
+    fun syncErrorEventsFlowIsAccessibleAndDoesNotEmitWithoutError() = runTest(testDispatcher) {
+        val vm = buildVm()
+        runCurrent()
+
+        var emitted = false
+        val job = launch { vm.syncErrorEvents.collect { emitted = true } }
+        runCurrent()
+
+        assertFalse(emitted, "syncErrorEvents must not emit without a sync error")
+        job.cancel()
+        vm.onReaderClosed()
+    }
+
+    @Test
     fun pageChangeGateSkipsFirstCallAfterResumed() = runTest(testDispatcher) {
         val pdfRepo = FakePdfRepository()
         val vm = buildVm(pdfRepo = pdfRepo, navSourceId = "src1")

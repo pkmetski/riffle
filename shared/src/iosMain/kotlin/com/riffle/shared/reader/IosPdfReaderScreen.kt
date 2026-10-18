@@ -37,13 +37,19 @@ import com.riffle.feature.settings.ui.readersettings.ReaderSettingsSheet
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
+import com.riffle.feature.source.ui.RiffleSnackbarHost
+import com.riffle.feature.source.ui.rememberTransientMessages
+import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_could_not_download_pdf
-import com.riffle.shared.generated.resources.ui_error
+import com.riffle.shared.generated.resources.ui_could_not_sync_reading_progress
 import com.riffle.shared.generated.resources.ui_opening_pdf
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
@@ -52,6 +58,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val vm = koinInject<PdfReaderViewModel> { parametersOf(item.id, item.sourceId) }
     val pdfRepo = koinInject<IosPdfSharedRepository>()
     val bridgeFactory = koinInject<IosPdfNavigatorBridgeFactory>()
+    val appActiveEvents = koinInject<IosAppActiveEvents>()
 
     val state by vm.state.collectAsState()
     val currentPage by vm.currentPage.collectAsState()
@@ -71,10 +78,11 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var settingsVisible by remember { mutableStateOf(false) }
 
     val bridge = remember { bridgeFactory.create() }
+    val messages = rememberTransientMessages()
 
-    val errorText = stringResource(Res.string.ui_error)
     val openingPdfText = stringResource(Res.string.ui_opening_pdf)
     val couldNotDownloadPdf = stringResource(Res.string.ui_could_not_download_pdf)
+    val syncErrorText = stringResource(Res.string.ui_could_not_sync_reading_progress)
 
     LaunchedEffect(state) {
         val awaiting = state as? PdfReaderState.AwaitingNavigator ?: return@LaunchedEffect
@@ -87,6 +95,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     totalPages = count,
                     progression = if (count > 0) page.toFloat() / count else 0f,
                 )
+                chromeVisible = false
             }
         })
         bridge.setTapCallback(handler = object : IosPdfTapCallback {
@@ -104,14 +113,35 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        vm.syncErrorEvents.collect { messages.show(syncErrorText) }
+    }
+
+    LaunchedEffect(appActiveEvents) {
+        appActiveEvents.becameActive.collect { vm.onReaderResumed() }
+    }
+
     DisposableEffect(item.id) {
         vm.onReaderResumed()
+        val observer = NSNotificationCenter.defaultCenter.addObserverForName(
+            name = UIApplicationDidEnterBackgroundNotification,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { _ -> vm.onReaderClosed() }
         onDispose {
+            NSNotificationCenter.defaultCenter.removeObserver(observer)
             bridge.setPageChangeCallback(null)
             bridge.setTapCallback(handler = null)
             vm.onReaderClosed()
             bridge.disposePdf()
         }
+    }
+
+    LaunchedEffect(chromeVisible) {
+        IosStatusBarBridge.setHidden(!chromeVisible)
+    }
+    DisposableEffect(Unit) {
+        onDispose { IosStatusBarBridge.setHidden(false) }
     }
 
     val isReady = state is PdfReaderState.Ready
@@ -171,7 +201,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             TocPanel(
                 entries = toc,
                 activeHref = currentPage?.let { pdfActiveHref(it.coerceAtLeast(0)) },
-                onEntryClick = { entry -> vm.navigateToEntry(entry) },
+                onEntryClick = { entry -> vm.navigateToEntry(entry); chromeVisible = false },
                 onDismiss = { vm.closeToc() },
             )
         }
@@ -208,6 +238,8 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             onFormat = { settingsVisible = true },
             extraActions = {},
         )
+
+        RiffleSnackbarHost(messages)
 
         if (isReady && formattingPrefs.showChapterMap && railSegments.isNotEmpty()) {
             val templates = chapterMapProgressLabelTemplates()

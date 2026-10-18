@@ -80,6 +80,43 @@ final class PdfBridgeUnitTests: XCTestCase {
         XCTAssertTrue(outline.isEmpty,
                       "outline() must return empty list when no document is open")
     }
+
+    // Regression for #1285: buildOutlineNodes previously dropped entire subtrees of container
+    // nodes (nodes with children but no destination/page) because the guard dropped `continue`d
+    // before recursing. Fixed so container nodes with children are still emitted as wrapper nodes
+    // using the first child's pageIndex.
+    func testOutlineIncludesContainerNodeChildren() throws {
+        let document = PDFDocument()
+        let page = PDFPage()
+        document.insert(page, at: 0)
+
+        let root = PDFOutline()
+        let section = PDFOutline()
+        section.label = "Section A"
+        let chapter = PDFOutline()
+        chapter.label = "Chapter 1"
+        chapter.destination = PDFDestination(page: page, at: .zero)
+        section.insertChild(chapter, at: 0)
+        root.insertChild(section, at: 0)
+        document.outlineRoot = root
+
+        let tempUrl = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        XCTAssertTrue(document.write(to: tempUrl), "Must be able to write PDF to temp file")
+        defer { try? FileManager.default.removeItem(at: tempUrl) }
+
+        let bridge = PdfKitNavigatorBridgeImpl()
+        bridge.openPdf(filePath: tempUrl.path, initialPage: 0)
+        let outline = bridge.outline()
+
+        XCTAssertFalse(outline.isEmpty, "Outline must be non-empty: container node subtree must not be dropped")
+        let topLevel = outline[0]
+        XCTAssertEqual(topLevel.title, "Section A", "Container node must appear at the top level")
+        XCTAssertFalse(topLevel.children.isEmpty, "Container node must carry its child Chapter 1")
+        XCTAssertEqual(topLevel.children[0].title, "Chapter 1")
+        bridge.disposePdf()
+    }
 }
 
 // Minimal Riffle-protocol-conforming callbacks for unit tests.
