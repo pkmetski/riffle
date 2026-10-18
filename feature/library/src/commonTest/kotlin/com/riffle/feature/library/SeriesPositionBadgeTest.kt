@@ -1,8 +1,7 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import com.riffle.feature.library.CoverGridLayout
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class SeriesPositionBadgeTest {
 

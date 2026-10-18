@@ -1,14 +1,11 @@
-package com.riffle.app.feature.library
+package com.riffle.feature.library
 
-import com.riffle.feature.library.AnnotationSearchResult
-import com.riffle.feature.library.AudiobookBookmarkSearchResult
-import com.riffle.feature.library.searchAnnotations
-import com.riffle.feature.library.searchAudiobookBookmarks
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.AudiobookBookmark
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class AnnotationSearchTest {
 
@@ -22,7 +19,7 @@ class AnnotationSearchTest {
         readingProgress = 0f,
         isCached = false,
         isDownloaded = false,
-        ebookFormat = com.riffle.core.models.EbookFormat.Epub,
+        ebookFormat = EbookFormat.Epub,
     )
 
     private fun annotation(
@@ -88,8 +85,6 @@ class AnnotationSearchTest {
         assertEquals("Children of Dune", r.bookTitle)
         assertEquals("https://cover/b1.jpg", r.bookCoverUrl)
     }
-
-    // --- audiobook bookmark search ---
 
     private fun audiobookBookmark(id: String, itemId: String, title: String) =
         AudiobookBookmark(id = id, sourceId = "srv1", itemId = itemId, positionSec = 0.0, title = title, createdAt = 0L)
