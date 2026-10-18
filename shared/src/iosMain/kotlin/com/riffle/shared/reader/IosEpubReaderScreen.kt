@@ -1,6 +1,7 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -1187,6 +1188,32 @@ fun EpubReaderScreen(
             if (!open) navigator.applyDecorations(DECORATION_GROUP_READALOUD, emptyList())
         }
     }
+    // Intra-sentence column follow for readaloud in paginated mode: when a narrated sentence spans
+    // more than one column, turn the page as narration crosses the column boundary. Mirrors Android's
+    // EpubReaderScreen.kt:2475–2503 using the same NarratedColumnProgression + measureReadaloudColumns.
+    // Empty in scroll mode (Vertical/Continuous) — the progression never advances, which is correct.
+    val readaloudColumns = remember(item.id) { NarratedColumnProgression() }
+    LaunchedEffect(readaloudSession, navigator) {
+        var measuredRef: String? = null
+        readaloudSession.narrationProgress.collect { progress ->
+            if (progress == null) {
+                readaloudColumns.reset()
+                measuredRef = null
+                return@collect
+            }
+            val ref = progress.fragmentRef
+            val sid = ref.substringAfter('#', "")
+            val quotes = readaloudSession.sentenceQuotes.value
+            val quote = quotes[ref] ?: quotes[sid] ?: return@collect
+            if (ref != measuredRef) {
+                readaloudColumns.onSentence(navigator.measureReadaloudColumns(quote.highlight))
+                measuredRef = ref
+            }
+            readaloudColumns.advance(progress.fraction)?.let { column ->
+                navigator.snapReadaloudColumn(quote.highlight, column)
+            }
+        }
+    }
     // Handoff from audiobook player: open readaloud at the given global second once the reader
     // is ready (navigator non-null). Fires exactly once per screen open.
     if (startReadaloudAtSec >= 0.0) {
@@ -1589,6 +1616,18 @@ fun EpubReaderScreen(
                     editTargetId = null
                     onOpenInBook?.invoke(locatorJson)
                 },
+                onPlayFromHere = if (liveSelection != null && editTarget == null && readaloudVisible) {
+                    {
+                        val href = liveSelection.href
+                        navigator.clearSelection()
+                        scope.launch {
+                            readaloudSession.ensureSentenceQuotesReady()
+                            readaloudSession.playFromHere(href)
+                        }
+                    }
+                } else {
+                    null
+                },
                 modifier = annotationSheetModifier,
             )
         }
@@ -1709,42 +1748,7 @@ fun EpubReaderScreen(
             onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
         )
 
-        // Readaloud mini-player — shown when the session is open, docked to the bottom.
-        if (readaloudOpen && source != ReaderSource.Highlights) {
-            val readerPalette = (resolvedPrefs ?: FormattingPreferences()).theme.readerPalette
-            ReadaloudMiniPlayer(
-                isPlaying = readaloudPlayback.isPlaying,
-                speed = readaloudPlayback.speed,
-                skipIntervalSeconds = readaloudSkipIntervalSeconds,
-                rewindIntervalSeconds = readaloudRewindIntervalSeconds,
-                canPreviousChapter = readaloudPlayback.currentChapterIndex > 0,
-                canNextChapter = readaloudPlayback.currentChapterIndex < readaloudPlayback.chapterCount - 1,
-                barMessage = readaloudBarMessage,
-                downloadProgress = readaloudDownloadProgress,
-                containerColor = readerPalette.background.copy(alpha = 0.65f),
-                contentColor = readerPalette.foreground,
-                onPlayPause = readaloudSession::togglePlayPause,
-                onRewind = readaloudSession::rewind,
-                onForward = readaloudSession::forward,
-                onPreviousChapter = readaloudSession::previousChapter,
-                onNextChapter = readaloudSession::nextChapter,
-                onSpeedChange = readaloudSession::setSpeed,
-                onClose = readaloudSession::closeReadaloud,
-                onSwitchToAudiobook = if (onSwitchToAudiobook != null && readaloudAudiobookItemId != null) {
-                    {
-                        readaloudSession.prepareAudiobookHandoff()
-                        onSwitchToAudiobook()
-                    }
-                } else {
-                    null
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth(),
-            )
-        }
-
-        // Readaloud download confirmation dialog.
+        // Readaloud download confirmation dialog — shown as a dialog above everything.
         readaloudDownloadPromptBytes?.let { bytes ->
             ReadaloudDownloadDialog(
                 sizeLabel = formatBytesOrUnknown(bytes),
@@ -1753,9 +1757,9 @@ fun EpubReaderScreen(
             )
         }
 
-        // On-screen info: the chapter map and the reading-progress labels, gated by the same five
-        // FormattingPreferences flags Android's EpubReaderScreen gates them with. The composable
-        // itself is the shared one in :feature:reader-ui, so the two platforms cannot drift.
+        // Bottom stack: readaloud mini-player above the chapter rail, both anchored to the screen
+        // bottom in one Column so the player never covers the rail. Mirrors Android's EpubReaderScreen
+        // Column layout (EpubReaderScreen.kt:784–850).
         val prefs = resolvedPrefs
         val bookmarkPositions = remember(annotations, chapterMap.segments, spine.hrefs) {
             annotations
@@ -1769,36 +1773,76 @@ fun EpubReaderScreen(
                     )
                 }
         }
-        if (prefs != null && chapterMap.segments.isNotEmpty() && chapterMapVisible(prefs)) {
-            ChapterMapOverlay(
-                segments = chapterMap.segments,
-                activeIndex = chapterMap.activeIndex,
-                cursorPosition = chapterMap.cursorPosition,
-                totalProgress = chapterMap.labelProgress,
-                readerTheme = prefs.theme,
-                showRail = prefs.showChapterMap,
-                coloredChapterMap = prefs.coloredChapterMap,
-                showCurrentChapterLabel = prefs.showCurrentChapterLabel,
-                showProgressLabels = prefs.showReadingProgressLabels,
-                showReadingTimeEstimate = prefs.showReadingTimeEstimate,
-                templates = chapterMapProgressLabelTemplates(),
-                bookmarkPositions = bookmarkPositions,
-                chapterTimeRemaining = chapterMap.chapterTimeRemaining,
-                bookTimeRemaining = chapterMap.bookTimeRemaining,
-                onSegmentClick = { segment ->
-                    scope.launch {
-                        goTo(
-                            NavigatorNavigationTarget.ToHref(
-                                href = segment.href.substringBefore("#"),
-                                fragment = segment.href.substringAfter("#", "").ifEmpty { null },
-                            ),
-                        )
-                    }
-                },
+        val showReadaloudUi = readaloudOpen && source != ReaderSource.Highlights
+        val showRailOverlay = prefs != null && chapterMap.segments.isNotEmpty() && chapterMapVisible(prefs)
+        if (showReadaloudUi || showRailOverlay) {
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
-            )
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (showReadaloudUi) {
+                    val readerPalette = (resolvedPrefs ?: FormattingPreferences()).theme.readerPalette
+                    ReadaloudMiniPlayer(
+                        isPlaying = readaloudPlayback.isPlaying,
+                        speed = readaloudPlayback.speed,
+                        skipIntervalSeconds = readaloudSkipIntervalSeconds,
+                        rewindIntervalSeconds = readaloudRewindIntervalSeconds,
+                        canPreviousChapter = readaloudPlayback.currentChapterIndex > 0,
+                        canNextChapter = readaloudPlayback.currentChapterIndex < readaloudPlayback.chapterCount - 1,
+                        barMessage = readaloudBarMessage,
+                        downloadProgress = readaloudDownloadProgress,
+                        containerColor = readerPalette.background.copy(alpha = 0.65f),
+                        contentColor = readerPalette.foreground,
+                        onPlayPause = readaloudSession::togglePlayPause,
+                        onRewind = readaloudSession::rewind,
+                        onForward = readaloudSession::forward,
+                        onPreviousChapter = readaloudSession::previousChapter,
+                        onNextChapter = readaloudSession::nextChapter,
+                        onSpeedChange = readaloudSession::setSpeed,
+                        onClose = readaloudSession::closeReadaloud,
+                        onSwitchToAudiobook = if (onSwitchToAudiobook != null && readaloudAudiobookItemId != null) {
+                            {
+                                readaloudSession.prepareAudiobookHandoff()
+                                onSwitchToAudiobook()
+                            }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (showRailOverlay && prefs != null) {
+                    ChapterMapOverlay(
+                        segments = chapterMap.segments,
+                        activeIndex = chapterMap.activeIndex,
+                        cursorPosition = chapterMap.cursorPosition,
+                        totalProgress = chapterMap.labelProgress,
+                        readerTheme = prefs.theme,
+                        showRail = prefs.showChapterMap,
+                        coloredChapterMap = prefs.coloredChapterMap,
+                        showCurrentChapterLabel = prefs.showCurrentChapterLabel,
+                        showProgressLabels = prefs.showReadingProgressLabels,
+                        showReadingTimeEstimate = prefs.showReadingTimeEstimate,
+                        templates = chapterMapProgressLabelTemplates(),
+                        bookmarkPositions = bookmarkPositions,
+                        chapterTimeRemaining = chapterMap.chapterTimeRemaining,
+                        bookTimeRemaining = chapterMap.bookTimeRemaining,
+                        onSegmentClick = { segment ->
+                            scope.launch {
+                                goTo(
+                                    NavigatorNavigationTarget.ToHref(
+                                        href = segment.href.substringBefore("#"),
+                                        fragment = segment.href.substringAfter("#", "").ifEmpty { null },
+                                    ),
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
 
         KoFiNudgeOverlay(

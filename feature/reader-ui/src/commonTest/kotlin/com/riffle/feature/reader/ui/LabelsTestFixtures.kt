@@ -16,6 +16,7 @@ val testAnnotationSheetLabels = AnnotationSheetLabels(
     bookmark = "Bookmark this page",
     removeBookmark = "Remove bookmark",
     openInBook = "Open in book",
+    playFromHere = "Play from here",
 )
 
 val testSpeedHudLabels = SpeedHudLabels(

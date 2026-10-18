@@ -65,6 +65,7 @@ data class AnnotationSheetLabels(
     val bookmark: String,
     val removeBookmark: String,
     val openInBook: String,
+    val playFromHere: String = "Play from here",
 )
 
 /**
@@ -238,6 +239,7 @@ fun AnnotationActionsSheet(
     modifier: Modifier = Modifier,
     showOpenInBook: Boolean = false,
     onOpenInBook: () -> Unit,
+    onPlayFromHere: (() -> Unit)? = null,
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -325,6 +327,22 @@ fun AnnotationActionsSheet(
                 ) {
                     Text(
                         text = labels.openInBook,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            if (onPlayFromHere != null) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(TestTags.ANNOTATION_PLAY_FROM_HERE)
+                        .clickable(onClick = onPlayFromHere)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = labels.playFromHere,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

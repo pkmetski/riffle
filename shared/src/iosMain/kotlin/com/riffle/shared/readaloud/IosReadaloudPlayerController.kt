@@ -6,7 +6,6 @@ import com.riffle.feature.reader.ReadaloudPlaybackState
 import com.riffle.feature.reader.ReadaloudPlayerController
 import com.riffle.feature.reader.ReadaloudStreamingSession
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -44,7 +43,13 @@ internal class IosReadaloudPlayerController(
         t.activeClipAt(src, s.positionSec)?.textFragmentRef
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    override val narrationProgress: StateFlow<ReadaloudNarrationProgress?> = MutableStateFlow(null)
+    override val narrationProgress: StateFlow<ReadaloudNarrationProgress?> = controller.state.map { s ->
+        val t = track ?: return@map null
+        val src = s.currentAudioSrc ?: return@map null
+        val clip = t.activeClipAt(src, s.positionSec) ?: return@map null
+        val fragmentRef = clip.textFragmentRef.takeIf { it.isNotEmpty() } ?: return@map null
+        ReadaloudNarrationProgress(fragmentRef, clip.progressAt(s.positionSec))
+    }.stateIn(scope, SharingStarted.Eagerly, null)
 
     override fun pause() = controller.pause()
     override fun play() = controller.play()
