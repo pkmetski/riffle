@@ -85,9 +85,9 @@ import com.riffle.app.R
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import com.riffle.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.highlights.ReaderSource
-import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
-import com.riffle.app.feature.reader.highlights.shouldShowReadaloudUi
-import com.riffle.app.feature.reader.highlights.shouldShowShareHighlights
+import com.riffle.feature.reader.highlights.shouldShowOpenInBook
+import com.riffle.feature.reader.highlights.shouldShowReadaloudUi
+import com.riffle.feature.reader.highlights.shouldShowShareHighlights
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.NavigationOptions
 import com.riffle.app.feature.reader.presenter.NavigationTarget
