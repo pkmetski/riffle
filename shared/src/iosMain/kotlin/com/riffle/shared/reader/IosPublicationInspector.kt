@@ -67,13 +67,6 @@ interface IosPublicationInspector {
     )
 }
 
-/**
- * Suspending wrapper over [IosPublicationInspector.locateProgression] for the reader's open path.
- *
- * Returns null — meaning "open at the start, as before" — for a progression that carries no
- * information (0, or outside 0..1), so the fallback never costs a publication open when there is
- * nothing to resolve.
- */
 /** Suspending wrapper over [IosPublicationInspector.extractPublisherFontFaceCss]. */
 internal suspend fun extractPublisherFontFaceCss(
     inspector: IosPublicationInspector,
@@ -91,6 +84,13 @@ internal suspend fun readEpubResourceBase64(
     inspector.readEpubResourceBase64(filePath, href) { base64 -> cont.resume(base64) }
 }
 
+/**
+ * Suspending wrapper over [IosPublicationInspector.locateProgression] for the reader's open path.
+ *
+ * Returns null — meaning "open at the start, as before" — for a progression that carries no
+ * information (0, or outside 0..1), so the fallback never costs a publication open when there is
+ * nothing to resolve.
+ */
 internal suspend fun locatorForProgression(
     inspector: IosPublicationInspector,
     filePath: String,
