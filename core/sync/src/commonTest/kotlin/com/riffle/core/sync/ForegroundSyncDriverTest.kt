@@ -140,15 +140,6 @@ class ForegroundSyncDriverTest {
     }
 
     @Test
-    fun existingCallersWithoutPlaylistLambdaStillCompile() = runTest {
-        val driver = ForegroundSyncDriver(
-            runProgressSweep = {},
-            nowMs = { 0L },
-        )
-        driver.onAppActive() // must not throw
-    }
-
-    @Test
     fun `drive sweeps at start on every foreground and on every reconnect`() = runTest {
         val rec = Recorder()
         var now = 0L

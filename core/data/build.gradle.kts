@@ -156,7 +156,7 @@ tasks.withType<Test>().configureEach {
                 includeTestsMatching("com.riffle.core.data.ProgressSyncCycleTest")
                 includeTestsMatching("com.riffle.core.data.ProgressSyncIntegrationTest")
                 includeTestsMatching("com.riffle.core.data.ReadingSessionIntegrationTest")
-                isFailOnNoMatchingTests = false
+                isFailOnNoMatchingTests = true
             }
         } else {
             filter {

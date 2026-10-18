@@ -112,7 +112,7 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       - uses: ./.github/actions/setup-fonts
-      # testAndroidHostTest runs core:data's commonTest suite on Robolectric.
+      # testAndroidHostTest runs core:data's androidHostTest suite on Robolectric.
       # jvmTest -PintegrationTests runs only the MockWebServer suites (ProgressSyncCycleTest,
       # ProgressSyncIntegrationTest, ReadingSessionIntegrationTest) which use JVM-only APIs
       # and are filtered OUT of the Unit job's jvmTest run.
@@ -315,7 +315,14 @@ jobs:
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           script: |
             adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
+            rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-tablet.txt || true; exit $rc
+      - name: Upload tablet logcat
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-test-tablet-logcat
+          path: logcat-tablet.txt
+          if-no-files-found: ignore
       - name: Print failed tablet harness tests
         if: failure()
         run: |
