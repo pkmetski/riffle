@@ -71,8 +71,8 @@ class CadenceSettingsPanelTest {
                 onDismiss = {},
             )
         }
-        composeTestRule.onNodeWithText("Show Cadence").performClick()
-        assertEquals(false, latest?.showCadence)
+        composeTestRule.onNodeWithText("Show Cadence").assertIsDisplayed().performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) { latest?.showCadence == false }
     }
 
     @Test
@@ -139,7 +139,7 @@ class CadenceSettingsPanelTest {
                 onDismiss = {},
             )
         }
-        composeTestRule.onNodeWithText("Show Auto-Scroll").performClick()
-        assertEquals(false, latest?.showAutoScroll)
+        composeTestRule.onNodeWithText("Show Auto-Scroll").assertIsDisplayed().performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) { latest?.showAutoScroll == false }
     }
 }
