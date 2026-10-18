@@ -33,4 +33,5 @@
     <string name="error_comic_page_load_failed">Couldn\'t load this page</string>
     <string name="ui_report_panel_detection_issue">Report panel detection issue</string>
     <string name="ui_more_options">More options</string>
+    <string name="ui_submit">Submit</string>
 </resources>

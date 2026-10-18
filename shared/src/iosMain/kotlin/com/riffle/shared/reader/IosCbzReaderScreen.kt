@@ -47,8 +47,10 @@ import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.error_comic_page_load_failed
+import com.riffle.shared.generated.resources.ui_cancel
 import com.riffle.shared.generated.resources.ui_more_options
 import com.riffle.shared.generated.resources.ui_report_panel_detection_issue
+import com.riffle.shared.generated.resources.ui_submit
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -295,7 +297,7 @@ private fun IosPanelReportSheet(
                     horizontalArrangement = Arrangement.End,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) }
                     TextButton(onClick = {
                         coroutineScope.launch(Dispatchers.IO) {
                             repository.submit(
@@ -316,7 +318,7 @@ private fun IosPanelReportSheet(
                             )
                         }
                         onDismiss()
-                    }) { Text("Submit") }
+                    }) { Text(stringResource(Res.string.ui_submit)) }
                 }
             }
         }

@@ -26,4 +26,11 @@
     <string name="ui_oreilly_signing_in_sub">Securing your O\'Reilly session on this device</string>
     <string name="ui_oreilly_sign_in_failed">Couldn\'t save your O\'Reilly session. Please try signing in again.</string>
     <string name="ui_try_again">Try again</string>
+
+    <!-- PDF / CBZ reader error feedback -->
+    <string name="ui_could_not_sync_reading_progress">No se pudo sincronizar el progreso de lectura</string>
+    <string name="error_comic_page_load_failed">No se pudo cargar esta página</string>
+    <string name="ui_report_panel_detection_issue">Reportar problema de detección de paneles</string>
+    <string name="ui_more_options">Más opciones</string>
+    <string name="ui_submit">Enviar</string>
 </resources>
