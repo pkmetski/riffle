@@ -68,12 +68,13 @@ import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.LibraryNav
 import com.riffle.feature.navigation.NavigationDrawerViewModel
+import com.riffle.feature.navigation.NavigationIntent
 import com.riffle.feature.navigation.isAlreadyAtPlayerDestination
 import com.riffle.feature.navigation.openItemForReading
-import com.riffle.feature.navigation.openReadItemAtHref
 import com.riffle.feature.navigation.openReadItemForReading
 import com.riffle.feature.navigation.playlistAdvanceNav
 import com.riffle.feature.navigation.playlistPlayerNav
+import com.riffle.feature.navigation.reduceNavStack
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.highlights.ReaderSource
@@ -668,10 +669,23 @@ private fun LibraryHost(
                             push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                         },
                         onAnnotationSelected = { result ->
-                            push(LibraryNav.ElidedReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null }))
+                            val locatorJson = annotationLocatorJson(
+                                result.annotation.chapterHref,
+                                result.annotation.cfi,
+                                result.annotation.progression,
+                            )
+                            navStack = reduceNavStack(
+                                NavigationIntent.OpenAnnotationReader(result.annotation.itemId, result.annotation.sourceId.ifEmpty { null }, locatorJson),
+                                navStack,
+                            )
                         },
                         onAudiobookBookmarkSelected = { result ->
-                            push(LibraryNav.ElidedReader(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }))
+                            playIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
+                            val bookmarkSourceId = result.bookmark.sourceId.ifEmpty { null }
+                            navStack = reduceNavStack(
+                                NavigationIntent.OpenAudiobookBookmark(result.bookmark.itemId, bookmarkSourceId, result.bookmark.positionSec),
+                                navStack,
+                            )
                         },
                         onSeriesSelected = { series ->
                             push(
@@ -722,21 +736,35 @@ private fun LibraryHost(
             sourceId = current.sourceId,
             actions = LibraryItemDetailActions(
                 onBack = ::pop,
-                // Read: routes by ebook format so ebook+audio items open the EPUB reader.
-                // Listen: isListenable wins so ebook+audio items open the audiobook player.
                 onRead = { item ->
-                    openReadItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                    val newStack = reduceNavStack(NavigationIntent.ReadItem(item), navStack)
+                    if (newStack.size > navStack.size) {
+                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                        navStack = newStack
+                    }
                 },
                 onListen = { item ->
                     playIntentRegistry.recordIntent(item.sourceId, item.id)
-                    openItemForReading(item, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                    val newStack = reduceNavStack(NavigationIntent.ListenItem(item), navStack)
+                    if (newStack.size > navStack.size) {
+                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                        navStack = newStack
+                    }
                 },
                 onReadItemAtHref = { item, href ->
-                    openReadItemAtHref(item, href, applicationScope, recordItemOpened::invoke)?.let { push(it) }
+                    val newStack = reduceNavStack(NavigationIntent.ReadItemAtHref(item, href), navStack)
+                    if (newStack.size > navStack.size) {
+                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                        navStack = newStack
+                    }
                 },
                 onListenItemAtSec = { item, sec ->
                     playIntentRegistry.recordIntent(item.sourceId, item.id)
-                    push(LibraryNav.AudiobookPlayer(item, startAtSec = sec))
+                    val newStack = reduceNavStack(NavigationIntent.ListenItemAtSec(item, sec), navStack)
+                    if (newStack.size > navStack.size) {
+                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                        navStack = newStack
+                    }
                 },
                 onNavigateToSeries = { libId, seriesId, seriesName ->
                     push(LibraryNav.SeriesDetail(seriesId, libId, seriesName))

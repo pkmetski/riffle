@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.navigation.NavigationIntent
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.ui.CollectionDetailScreen
 import com.riffle.feature.library.ui.DownloadsActions
@@ -161,10 +162,10 @@ internal fun NavGraphBuilder.libraryNavGraph(
                     )
                 },
                 onAudiobookBookmarkSelected = { result ->
-                    val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
-                    val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
                     libraryItemsPlayIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
-                    navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                    navController.navigateForIntent(
+                        NavigationIntent.OpenAudiobookBookmark(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }, result.bookmark.positionSec),
+                    )
                 },
                 onShowAllAnnotations = { query ->
                     val encodedQuery = URLEncoder.encode(query, "UTF-8")
@@ -320,28 +321,17 @@ internal fun NavGraphBuilder.libraryNavGraph(
             vm = vm,
             actions = LibraryItemDetailActions(
                 onBack = { navController.popBackStackIfTop(backStackEntry) },
-                onRead = { item -> readerRouteFor(item)?.let { navController.navigate(it) } },
+                onRead = { item -> navController.navigateForIntent(NavigationIntent.ReadItem(item)) },
                 onListen = { item ->
-                    val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
-                    val encodedId = URLEncoder.encode(item.id, "UTF-8")
                     detailPlayIntentRegistry.recordIntent(item.sourceId, item.id)
-                    navController.navigate("audiobook_player/$encodedSourceId/$encodedId")
+                    navController.navigateForIntent(NavigationIntent.ListenItem(item))
                 },
                 onReadItemAtHref = { item, href ->
-                    val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                    val encodedHref = URLEncoder.encode(href, "UTF-8")
-                    val sourceParam = if (item.sourceId.isNotBlank()) {
-                        "&sourceId=${URLEncoder.encode(item.sourceId, "UTF-8")}"
-                    } else {
-                        ""
-                    }
-                    navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref$sourceParam")
+                    navController.navigateForIntent(NavigationIntent.ReadItemAtHref(item, href))
                 },
                 onListenItemAtSec = { item, startSec ->
-                    val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
-                    val encodedId = URLEncoder.encode(item.id, "UTF-8")
                     detailPlayIntentRegistry.recordIntent(item.sourceId, item.id)
-                    navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=$startSec")
+                    navController.navigateForIntent(NavigationIntent.ListenItemAtSec(item, startSec))
                 },
                 onFacetSelected = { libId, facet, value ->
                     val encoded = URLEncoder.encode(value, "UTF-8")
@@ -415,10 +405,10 @@ internal fun NavGraphBuilder.libraryNavGraph(
                 )
             },
             onAudiobookBookmarkSelected = { result ->
-                val encodedSourceId = URLEncoder.encode(result.bookmark.sourceId, "UTF-8")
-                val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
                 annotationSearchPlayIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
-                navController.navigate("audiobook_player/$encodedSourceId/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                navController.navigateForIntent(
+                    NavigationIntent.OpenAudiobookBookmark(result.bookmark.itemId, result.bookmark.sourceId.ifEmpty { null }, result.bookmark.positionSec),
+                )
             },
         )
     }

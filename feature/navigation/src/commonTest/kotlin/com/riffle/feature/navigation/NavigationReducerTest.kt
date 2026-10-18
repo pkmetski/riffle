@@ -108,6 +108,34 @@ class NavigationReducerTest {
     }
 
     @Test
+    fun openAnnotationReader_pushesAnnotationReader() {
+        val locatorJson = """{"href":"ch.xhtml","type":"application/xhtml+xml","locations":{"cfi":"/4/2","progression":0.5}}"""
+        val result = reduceNavStack(NavigationIntent.OpenAnnotationReader("item-1", "src-1", locatorJson), emptyList())
+        val dest = assertIs<LibraryNav.AnnotationReader>(result.last())
+        assertEquals("item-1", dest.itemId)
+        assertEquals("src-1", dest.sourceId)
+        assertEquals(locatorJson, dest.locatorJson)
+    }
+
+    @Test
+    fun openAnnotationReader_nullSourceId_pushesAnnotationReaderWithNullSource() {
+        val locatorJson = """{"href":"ch.xhtml","type":"application/xhtml+xml","locations":{"cfi":"","progression":0.0}}"""
+        val result = reduceNavStack(NavigationIntent.OpenAnnotationReader("item-2", null, locatorJson), emptyList())
+        val dest = assertIs<LibraryNav.AnnotationReader>(result.last())
+        assertEquals("item-2", dest.itemId)
+        assertEquals(null, dest.sourceId)
+    }
+
+    @Test
+    fun openAnnotationReader_appendsToExistingStack() {
+        val existing = listOf(LibraryNav.Items, LibraryNav.ItemDetail("x", null))
+        val locatorJson = """{"href":"c.xhtml","type":"application/xhtml+xml","locations":{"cfi":"","progression":0.0}}"""
+        val result = reduceNavStack(NavigationIntent.OpenAnnotationReader("item-3", "src-3", locatorJson), existing)
+        assertEquals(existing.size + 1, result.size)
+        assertIs<LibraryNav.AnnotationReader>(result.last())
+    }
+
+    @Test
     fun openAudiobookBookmark_pushesAudiobookBookmark() {
         val result = reduceNavStack(NavigationIntent.OpenAudiobookBookmark("item-1", "src-1", 77.0), emptyList())
         val dest = assertIs<LibraryNav.AudiobookBookmark>(result.last())
