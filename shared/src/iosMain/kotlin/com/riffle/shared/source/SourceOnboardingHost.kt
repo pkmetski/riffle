@@ -73,11 +73,18 @@ fun SourceOnboardingHost(
     var step by remember(initialBackend) { mutableStateOf(startStep) }
 
     // Intercept the system / swipe-back gesture when the user is past the picker step, so that
-    // backing out within the flow returns to the picker rather than dismissing the host view
-    // controller. At the picker level with canNavigateBack=false (first-run onboarding) there is
-    // intentionally no BackHandler — the user must complete the flow.
+    // backing out within the flow returns to the appropriate previous step rather than dismissing
+    // the host view controller. At the picker level with canNavigateBack=false (first-run
+    // onboarding) there is intentionally no BackHandler — the user must complete the flow.
+    // SelectLibraries goes back to Credentials (mirroring Android's nav-graph popBackStack), not
+    // all the way to Picker.
     val isSubStep = step != OnboardingStep.Picker
-    BackHandler(enabled = isSubStep) { step = OnboardingStep.Picker }
+    BackHandler(enabled = isSubStep) {
+        step = when (val s = step) {
+            is OnboardingStep.SelectLibraries -> OnboardingStep.Credentials(s.sourceType)
+            else -> OnboardingStep.Picker
+        }
+    }
 
     // iOS used to hardcode `false` at all four of these call sites, so an iPad — in landscape, in
     // Split View, or a 12.9" in portrait — rendered the phone layout and stretched the credential
@@ -126,7 +133,7 @@ fun SourceOnboardingHost(
                 isExpandedWidth = expandedWidth,
                 showNavigationIcon = canNavigateBack || isEditRouting,
                 onNavigateBack = { step = OnboardingStep.Picker },
-                onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending) },
+                onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending, current.type) },
                 onAutoCompleted = onFinished,
                 viewModel = viewModel,
             )
@@ -147,7 +154,7 @@ fun SourceOnboardingHost(
             SelectLibrariesScreen(
                 isExpandedWidth = expandedWidth,
                 pending = current.pending,
-                onNavigateBack = { step = OnboardingStep.Picker },
+                onNavigateBack = { step = OnboardingStep.Credentials(current.sourceType) },
                 onContinueComplete = onFinished,
                 viewModel = viewModel,
             )
@@ -165,7 +172,7 @@ private sealed interface OnboardingStep {
     data object OReillyLogin : OnboardingStep
     data class Confirm(val type: SourceType) : OnboardingStep
     data class Credentials(val type: SourceType) : OnboardingStep
-    data class SelectLibraries(val pending: PendingSource) : OnboardingStep
+    data class SelectLibraries(val pending: PendingSource, val sourceType: SourceType) : OnboardingStep
 }
 
 /**

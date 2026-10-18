@@ -110,6 +110,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_no_series
 import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
 import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
+import com.riffle.feature.library.ui.generated.resources.ui_nothing_to_show_here
 import com.riffle.feature.library.ui.generated.resources.ui_offline_banner
 import com.riffle.feature.library.ui.generated.resources.ui_show_all_annotations
 import com.riffle.feature.library.ui.generated.resources.ui_sort
@@ -645,6 +646,20 @@ private fun HomeTabContent(
     val continueSeries = stringResource(Res.string.ui_section_continue_series)
     val recentlyAdded = stringResource(Res.string.ui_section_recently_added)
     val completed = stringResource(Res.string.ui_section_completed)
+    val allEmpty = projection.inProgress.isEmpty() &&
+        projection.continueSeries.isEmpty() &&
+        (!showRecentlyAdded || projection.recentlyAdded.isEmpty()) &&
+        projection.finished.isEmpty()
+    if (allEmpty) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                stringResource(LibRes.string.ui_nothing_to_show_here),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
     CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
         // Deliberately unkeyed items: the sections stream in from separate flows, and with keys
         // LazyListState anchors on the first visible KEY — a Series header that emitted first
