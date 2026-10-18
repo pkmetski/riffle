@@ -667,6 +667,17 @@ tasks.register("checkParityClosingGate") {
             return if (process.waitFor() == 0) stdout.trim() else null
         }
 
+        fun queryOpenSubIssues(issueNumber: Int): List<Int> {
+            val query = "{ repository(owner: \"pkmetski\", name: \"riffle\") { issue(number: $issueNumber) { subIssues(first: 100) { nodes { number state } } } } }"
+            val csv = gh(
+                "api", "graphql",
+                "-f", "query=$query",
+                "--jq", "[.data.repository.issue.subIssues.nodes[] | select(.state==\"OPEN\") | .number] | join(\",\")",
+            ) ?: return emptyList()
+            return if (csv.isBlank()) emptyList()
+            else csv.split(",").mapNotNull { it.trim().toIntOrNull() }
+        }
+
         // Resolve the current PR number: prefer the env var CI sets, fall back to `gh pr view`.
         val prNumber = System.getenv("GITHUB_PR_NUMBER")?.toIntOrNull()
             ?: gh("pr", "view", "--json", "number", "--jq", ".number")?.toIntOrNull()
@@ -703,6 +714,11 @@ tasks.register("checkParityClosingGate") {
         val violations = closedIssues.flatMap { issueNumber ->
             val issueBody = gh("issue", "view", issueNumber.toString(), "--json", "body", "--jq", ".body")
                 ?: return@flatMap emptyList()
+
+            val openSubIssues = queryOpenSubIssues(issueNumber)
+            val subIssueViolation = ParityClosingGateLint.checkOpenSubIssues(issueNumber, openSubIssues)
+            if (subIssueViolation != null) return@flatMap listOf(subIssueViolation)
+
             ParityClosingGateLint.checkAcceptanceTests(
                 issueNumber = issueNumber,
                 issueBody = issueBody,

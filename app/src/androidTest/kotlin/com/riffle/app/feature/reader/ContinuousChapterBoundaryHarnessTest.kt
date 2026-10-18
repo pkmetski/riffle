@@ -330,6 +330,10 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.openWindowAtNonSmoothForTest("OEBPS/ch06.html", progression = 0.5f)
         }
+        // waitForIdle drains the Compose frame that propagates isFirstLoadComplete = false before
+        // the waitUntil poll starts, preventing a race where the poll finds the pre-reset true and
+        // returns immediately (leaving firstRevealGatedOnPaint unset).
+        composeTestRule.waitForIdle()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             reader.isFirstLoadComplete.value
         }
