@@ -39,6 +39,7 @@ object ParityClosingGateLint {
         MISSING_TEST,
         UNWIRED_MODULE,
         SWIFT_NOT_IN_PBXPROJ,
+        OPEN_SUB_ISSUES,
     }
 
     data class Violation(
@@ -131,6 +132,21 @@ object ParityClosingGateLint {
     fun isSwiftFilePbxprojMember(swiftFilename: String, pbxprojContent: String): Boolean =
         pbxprojContent.contains("/* $swiftFilename */") ||
             pbxprojContent.contains("/* $swiftFilename in Sources */")
+
+    // Returns null when all sub-issues are closed; callers pre-fetch open sub-issue numbers via GraphQL.
+    fun checkOpenSubIssues(
+        issueNumber: Int,
+        openSubIssueNumbers: List<Int>,
+    ): Violation? {
+        if (openSubIssueNumbers.isEmpty()) return null
+        val formatted = openSubIssueNumbers.joinToString(", ") { "#$it" }
+        return Violation(
+            issueNumber = issueNumber,
+            acceptance = "",
+            kind = ViolationKind.OPEN_SUB_ISSUES,
+            detail = "issue #$issueNumber has open sub-issues: $formatted — use `Part of #$issueNumber` instead of `Closes #$issueNumber` until all sub-issues are closed",
+        )
+    }
 
     /**
      * Checks all `Acceptance:` lines in [issueBody] for issue [issueNumber].
