@@ -35,6 +35,18 @@ interface IosPublicationInspector {
     )
 
     /**
+     * Extracts all `@font-face` rules from an EPUB's CSS resources and rewrites each font `src`
+     * to an inline `data:` URI, returning the combined CSS string. Empty string when the EPUB
+     * has no CSS font-face rules or cannot be opened.
+     *
+     * Used by the elided Annotations View to populate [publisherFontFaceCss] so the synthetic
+     * EPUB's WebView renders the same publisher typeface as the real book.
+     *
+     * [onResult] is invoked exactly once on the main thread.
+     */
+    fun extractPublisherFontFaceCss(filePath: String, onResult: (css: String) -> Unit)
+
+    /**
      * Resolves a whole-book progression (0.0..1.0) to a Locator, the **fallback** inbound-sync
      * path for when the server gives us a bare `ebookProgress` float and no usable `ebookLocation`
      * CFI (ADR-0013's primary path).
@@ -62,6 +74,14 @@ interface IosPublicationInspector {
  * information (0, or outside 0..1), so the fallback never costs a publication open when there is
  * nothing to resolve.
  */
+/** Suspending wrapper over [IosPublicationInspector.extractPublisherFontFaceCss]. */
+internal suspend fun extractPublisherFontFaceCss(
+    inspector: IosPublicationInspector,
+    filePath: String,
+): String = suspendCancellableCoroutine { cont ->
+    inspector.extractPublisherFontFaceCss(filePath) { css -> cont.resume(css) }
+}
+
 /** Suspending wrapper over [IosPublicationInspector.readEpubResourceBase64]. */
 internal suspend fun readEpubResourceBase64(
     inspector: IosPublicationInspector,

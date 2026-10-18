@@ -185,6 +185,8 @@ class IosKoinGraphTest {
         ) = onResult(null)
 
         override fun readEpubResourceBase64(filePath: String, href: String, onResult: (String?) -> Unit) = onResult(null)
+
+        override fun extractPublisherFontFaceCss(filePath: String, onResult: (css: String) -> Unit) = onResult("")
     }
 
     @Test

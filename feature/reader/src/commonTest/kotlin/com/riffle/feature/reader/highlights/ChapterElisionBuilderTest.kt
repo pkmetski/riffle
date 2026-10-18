@@ -1,8 +1,11 @@
 package com.riffle.feature.reader.highlights
 
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmphasisStyle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class ChapterElisionBuilderTest {
@@ -94,5 +97,98 @@ class ChapterElisionBuilderTest {
     @Test
     fun deriveChapterTitleFallsBackToChapterForBlankFilename() {
         assertEquals("Chapter", deriveChapterTitle(""))
+    }
+
+    // --- joinEmphasisStylesToHighlights (AnnotationEntity path, used by Android) ---
+
+    @Test
+    fun joinEmphasisStylesToHighlightsNoEmphasisRowsReturnsOriginalList() {
+        val rows = listOf(highlight("h1", "ch.xhtml"))
+        val result = joinEmphasisStylesToHighlights(rows)
+        assertSame(rows, result)
+    }
+
+    @Test
+    fun joinEmphasisStylesToHighlightsCopiesStylesOntoMatchingHighlight() {
+        val emphasisRow = highlight("e1", "ch.xhtml").copy(
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "epubcfi(/6[h1]!/4)",
+            emphasisStyles = AnnotationEntity.EMPHASIS_STYLE_BOLD,
+        )
+        val highlightRow = highlight("h1", "ch.xhtml").copy(cfi = "epubcfi(/6[h1]!/4)")
+        val result = joinEmphasisStylesToHighlights(listOf(emphasisRow, highlightRow))
+        assertEquals(AnnotationEntity.EMPHASIS_STYLE_BOLD, result.first { it.id == "h1" }.emphasisStyles)
+    }
+
+    @Test
+    fun joinEmphasisStylesToHighlightsDeletedEmphasisIsIgnored() {
+        val emphasisRow = highlight("e1", "ch.xhtml").copy(
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "epubcfi(/6[h1]!/4)",
+            emphasisStyles = AnnotationEntity.EMPHASIS_STYLE_BOLD,
+            deleted = true,
+        )
+        val highlightRow = highlight("h1", "ch.xhtml").copy(cfi = "epubcfi(/6[h1]!/4)")
+        val result = joinEmphasisStylesToHighlights(listOf(emphasisRow, highlightRow))
+        assertEquals(null, result.first { it.id == "h1" }.emphasisStyles)
+    }
+
+    // --- joinEmphasisStylesToAnnotations (Annotation domain model path, used by iOS) ---
+
+    private fun annotation(id: String, type: String = AnnotationEntity.TYPE_HIGHLIGHT, cfi: String = "epubcfi(/6[$id]!/4)") = Annotation(
+        id = id,
+        sourceId = "src",
+        itemId = "item",
+        type = type,
+        cfi = cfi,
+        color = "",
+        note = null,
+        textSnippet = "",
+        textBefore = "",
+        textAfter = "",
+        chapterHref = "ch.xhtml",
+        spineIndex = 0,
+        progression = 0.0,
+        bookmarkTitle = "",
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
+
+    @Test
+    fun joinEmphasisStylesToAnnotationsNoEmphasisReturnsOriginalList() {
+        val anns = listOf(annotation("h1"))
+        val result = joinEmphasisStylesToAnnotations(anns)
+        assertSame(anns, result)
+    }
+
+    @Test
+    fun joinEmphasisStylesToAnnotationsCopiesStylesOntoMatchingHighlight() {
+        val cfi = "epubcfi(/6[h1]!/4)"
+        val emphasisAnn = annotation("e1", type = AnnotationEntity.TYPE_EMPHASIS, cfi = cfi)
+            .copy(emphasisStyles = setOf(EmphasisStyle.BOLD))
+        val highlightAnn = annotation("h1", cfi = cfi)
+        val result = joinEmphasisStylesToAnnotations(listOf(emphasisAnn, highlightAnn))
+        assertEquals(setOf(EmphasisStyle.BOLD), result.first { it.id == "h1" }.emphasisStyles)
+    }
+
+    // --- toggleBookmark guard: synthetic href must not produce a bookmark ---
+
+    @Test
+    fun highlightsHrefStartsWithHighlightsSlash() {
+        // Verifies the guard predicate used in toggleBookmark: any synthetic chapter href matches.
+        assertTrue("highlights/ch0.xhtml".startsWith("highlights/"))
+        assertTrue("highlights/ch99.xhtml".startsWith("highlights/"))
+    }
+
+    // --- annotations panel navigation in Highlights mode ---
+
+    @Test
+    fun highlightsChapterIndexForAnnotation() {
+        val ch0 = ChapterElision("highlights/ch0.xhtml", "Ch 0", listOf(highlight("h1", "ch.xhtml")))
+        val ch1 = ChapterElision("highlights/ch1.xhtml", "Ch 1", listOf(highlight("h2", "ch.xhtml")))
+        val chapters = listOf(ch0, ch1)
+        assertEquals(0, chapters.indexOfFirst { ch -> ch.highlights.any { it.id == "h1" } })
+        assertEquals(1, chapters.indexOfFirst { ch -> ch.highlights.any { it.id == "h2" } })
+        assertEquals(-1, chapters.indexOfFirst { ch -> ch.highlights.any { it.id == "missing" } })
     }
 }

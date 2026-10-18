@@ -123,6 +123,7 @@ import com.riffle.feature.reader.highlights.buildPdfFileName
 import com.riffle.feature.reader.highlights.figureHrefsFromChapters
 import com.riffle.feature.reader.highlights.highlightsResumeAnnotationIdForHref
 import com.riffle.feature.reader.highlights.highlightsResumeChapterHref
+import com.riffle.feature.reader.highlights.joinEmphasisStylesToAnnotations
 import com.riffle.feature.reader.highlights.mimeForHref
 import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
@@ -356,6 +357,8 @@ fun EpubReaderScreen(
     val highlightsRenderedChaptersRef = remember { mutableStateOf<List<ChapterElision>>(emptyList()) }
     // Figure data-URIs computed at open time — reused by the PDF share button.
     var highlightsDataUriByHref by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // Publisher font-face CSS extracted from the EPUB at open time — reused by the PDF share button.
+    var highlightsPublisherFontFaceCss by remember { mutableStateOf("") }
 
     // Load per-book formatting overrides on open. When the dimension bucket changes (fold/rotate),
     // reload the row for the new bucket — each screen-size class has its own settings (ADR 0031).
@@ -381,7 +384,8 @@ fun EpubReaderScreen(
             var renderedFingerprints: Set<Pair<String, Long>> = emptySet()
             annotationStore.observeAnnotations(item.sourceId, item.id).collect { annotations ->
                 highlightsAnnotations = annotations
-                val chapters = buildChapterElisionsFromAnnotations(annotations)
+                val annotationsWithEmphasis = joinEmphasisStylesToAnnotations(annotations)
+                val chapters = buildChapterElisionsFromAnnotations(annotationsWithEmphasis)
 
                 if (chapters.isEmpty()) {
                     onBack()
@@ -397,22 +401,22 @@ fun EpubReaderScreen(
                 // Embed figure bytes as data-URIs — mirrors Android's HighlightsPublicationFactory.
                 // Skipped for lazy publications (no local EPUB file to read from).
                 val cap = catalogRegistry.forSourceId(item.sourceId) as? LazyPublicationCapability
-                val dataUriByHref: Map<String, String> = if (cap?.lazyPublication(item.id) != null) {
-                    emptyMap()
+                val epubPath = if (cap?.lazyPublication(item.id) != null) null else downloader.localPath(item)
+                val dataUriByHref: Map<String, String> = if (epubPath != null) {
+                    val hrefs = figureHrefsFromChapters(chapters)
+                    hrefs.mapNotNull { href ->
+                        val base64 = readEpubResourceBase64(publicationInspector, epubPath, href)
+                            ?: return@mapNotNull null
+                        href to "data:${mimeForHref(href)};base64,$base64"
+                    }.toMap()
                 } else {
-                    val epubPath = downloader.localPath(item)
-                    if (epubPath != null) {
-                        val hrefs = figureHrefsFromChapters(chapters)
-                        hrefs.mapNotNull { href ->
-                            val base64 = readEpubResourceBase64(publicationInspector, epubPath, href)
-                                ?: return@mapNotNull null
-                            href to "data:${mimeForHref(href)};base64,$base64"
-                        }.toMap()
-                    } else {
-                        emptyMap()
-                    }
+                    emptyMap()
                 }
                 highlightsDataUriByHref = dataUriByHref
+                // Extract publisher font-face CSS once at first open — reused by assemble() and PDF share.
+                if (isFirstOpen && epubPath != null) {
+                    highlightsPublisherFontFaceCss = extractPublisherFontFaceCss(publicationInspector, epubPath)
+                }
 
                 // Resume: on first open navigate to the chapter the user last read.
                 val resumeLocator: String? = if (isFirstOpen) {
@@ -424,6 +428,7 @@ fun EpubReaderScreen(
 
                 val dirPath = IosElidedEpubAssembler.assemble(
                     item, chapters, emphasisBarCss = emphasisBarCss, dataUriByHref = dataUriByHref,
+                    publisherFontFaceCss = highlightsPublisherFontFaceCss,
                 )
                 if (dirPath == null) {
                     loadError = noHighlightsText
@@ -1429,7 +1434,7 @@ fun EpubReaderScreen(
                                     chapters = chapters,
                                     bookTitle = item.title,
                                     figureBytesByHref = highlightsDataUriByHref,
-                                    publisherFontFaceCss = "",
+                                    publisherFontFaceCss = highlightsPublisherFontFaceCss,
                                     bookBodyFontFamily = bookBodyFont,
                                 )
                                 val fileName = buildPdfFileName(item.title, item.id)
@@ -1673,6 +1678,20 @@ fun EpubReaderScreen(
                 annotations = annotations.filter { it.type != AnnotationEntity.TYPE_EMPHASIS },
                 onNavigate = { id ->
                     annotationsPanelOpen = false
+                    if (source == ReaderSource.Highlights) {
+                        // In Highlights mode the Readium navigator holds a synthetic EPUB whose
+                        // hrefs are "highlights/chN.xhtml" — real-book locators cannot navigate it.
+                        // Instead find the synthetic chapter that contains the tapped annotation.
+                        val chapters = highlightsRenderedChaptersRef.value
+                        val chapterIndex = chapters.indexOfFirst { ch -> ch.highlights.any { it.id == id } }
+                        if (chapterIndex >= 0) {
+                            scope.launch {
+                                goTo(NavigatorNavigationTarget.ToHref("highlights/ch$chapterIndex.xhtml"))
+                            }
+                        }
+                        editTargetId = id
+                        return@SharedAnnotationsPanel
+                    }
                     val target = annotations.firstOrNull { it.id == id }
                     if (target != null) {
                         scope.launch {
@@ -2149,6 +2168,8 @@ internal suspend fun toggleBookmark(
     }
     val position = navigator.snapshotPosition() ?: return false
     val href = position.href
+    // Synthetic Annotations View hrefs must never produce real-book bookmarks.
+    if (href.startsWith("highlights/")) return false
     val spineHrefs = spineRef.value.hrefs
     val spineIndex = com.riffle.feature.reader.spineIndexOfHref(spineHrefs, href).takeIf { it >= 0 } ?: 0
     val progression = position.progression.toDouble()

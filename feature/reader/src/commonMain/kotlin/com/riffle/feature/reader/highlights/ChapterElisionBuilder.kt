@@ -94,6 +94,52 @@ private fun List<EmbeddedFigure>?.toEntityJson(): String? =
     this?.let { Json.encodeToString(ListSerializer(EmbeddedFigure.serializer()), it) }
 
 /**
+ * Joins TYPE_EMPHASIS rows onto their matching TYPE_HIGHLIGHT rows by CFI.
+ *
+ * Returns a new list where every TYPE_HIGHLIGHT row whose CFI has a corresponding
+ * non-deleted TYPE_EMPHASIS row has its [AnnotationEntity.emphasisStyles] replaced with
+ * the emphasis row's styles. All other rows are returned unchanged.
+ *
+ * Used by Android (EpubReaderViewModel) before building chapter elisions, so highlight
+ * rows rendered in the Annotations View carry the correct typographic decoration.
+ */
+fun joinEmphasisStylesToHighlights(rows: List<AnnotationEntity>): List<AnnotationEntity> {
+    val emphasisByCfi = rows
+        .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted }
+        .groupBy { it.cfi }
+        .mapValues { (_, group) -> group.firstOrNull()?.emphasisStyles }
+    if (emphasisByCfi.isEmpty()) return rows
+    return rows.map { row ->
+        if (row.type == AnnotationEntity.TYPE_HIGHLIGHT) {
+            val styles = emphasisByCfi[row.cfi] ?: return@map row
+            row.copy(emphasisStyles = styles)
+        } else row
+    }
+}
+
+/**
+ * Joins TYPE_EMPHASIS annotations onto their matching TYPE_HIGHLIGHT annotations by CFI.
+ *
+ * Domain-model counterpart of [joinEmphasisStylesToHighlights] for the iOS path, where the
+ * annotation store returns [Annotation] objects rather than [AnnotationEntity] rows. The
+ * result is passed to [buildChapterElisionsFromAnnotations] so the rendered chapter HTML
+ * carries the user's bold/italic/underline/strike decoration.
+ */
+fun joinEmphasisStylesToAnnotations(annotations: List<Annotation>): List<Annotation> {
+    val emphasisByCfi = annotations
+        .filter { it.type == AnnotationEntity.TYPE_EMPHASIS }
+        .groupBy { it.cfi }
+        .mapValues { (_, group) -> group.firstOrNull()?.emphasisStyles }
+    if (emphasisByCfi.isEmpty()) return annotations
+    return annotations.map { ann ->
+        if (ann.type == AnnotationEntity.TYPE_HIGHLIGHT) {
+            val styles = emphasisByCfi[ann.cfi] ?: return@map ann
+            ann.copy(emphasisStyles = styles)
+        } else ann
+    }
+}
+
+/**
  * Derives a human-readable chapter title from a spine href.
  *
  * Strips the path prefix and file extension from [href], returning the bare filename.
