@@ -1,5 +1,6 @@
-import XCTest
+import PDFKit
 import Riffle
+import XCTest
 
 // Unit tests for PdfKitNavigatorBridgeImpl. In the iosAppUnitTests target so the bridge
 // Swift class and the Riffle KMP framework are both available.
