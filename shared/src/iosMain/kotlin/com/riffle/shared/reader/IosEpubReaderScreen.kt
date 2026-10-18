@@ -59,6 +59,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
+import com.riffle.core.domain.effectiveOrientation
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
@@ -524,16 +525,17 @@ fun EpubReaderScreen(
         }
             .collect { (stored, prefs, overrides) ->
                 val effective = overrides.applyTo(prefs)
+                val effectiveOrient = effective.effectiveOrientation(isLandscape)
                 storedPrefs = stored
                 resolvedPrefs = effective
-                orientationRef.value = effective.orientation
+                orientationRef.value = effectiveOrient
                 val isDoublePage = effective.doublePageSpread &&
-                    effective.orientation == ReaderOrientation.Horizontal &&
+                    effectiveOrient == ReaderOrientation.Horizontal &&
                     isLandscape
                 val styling = effective.toReadiumTextStyling(isLandscape = isLandscape, isDoublePage = isDoublePage)
                 navigator.applyReaderPreferences(
                     fontSizePercent = effective.fontSize,
-                    scrollMode = epubScrollMode(effective.orientation),
+                    scrollMode = epubScrollMode(effectiveOrient),
                     theme = styling.theme.value,
                     // The bridge takes "" for "leave the publisher's font alone"; the shared
                     // mapping expresses that as null.
@@ -637,8 +639,8 @@ fun EpubReaderScreen(
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
         navigator.navigateTo(target)
     }
-    LaunchedEffect(navigator, localPath, resolvedPrefs?.orientation, spine) {
-        val orientation = resolvedPrefs?.orientation ?: return@LaunchedEffect
+    LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape), spine) {
+        val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
         if (localPath == null || orientation != ReaderOrientation.Continuous) return@LaunchedEffect
         // The reader lands on whatever resource was open when the mode became Continuous, very
         // possibly at its top or bottom. That landing is not a crossing.
@@ -746,7 +748,7 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator) {
         navigator.pageLoadEvents.first()
         navigator.scrollStartEvents.collect {
-            if (!inhibitAutoHide && orientationRef.value != ReaderOrientation.Horizontal) {
+            if (!inhibitAutoHide) {
                 chromeVisible = false
             }
         }
@@ -1493,7 +1495,7 @@ fun EpubReaderScreen(
                     }
                 },
                 onClose = { searchOpen = false; searchQuery = ""; searchResults = emptyList(); searchResultIndex = 0 },
-                onNavigateBack = { searchOpen = false; searchQuery = ""; searchResults = emptyList(); searchResultIndex = 0 },
+                onNavigateBack = onBack,
                 modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
             )
         }
@@ -1903,10 +1905,15 @@ fun EpubReaderScreen(
         }
 
         // Footnote popup.
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
         footnotePopupState?.let { state ->
             FootnotePopup(
                 state = state,
                 onDismiss = { footnotePopupState = null },
+                onLinkTap = { url ->
+                    footnotePopupState = null
+                    uriHandler.openUri(url)
+                },
             )
         }
 

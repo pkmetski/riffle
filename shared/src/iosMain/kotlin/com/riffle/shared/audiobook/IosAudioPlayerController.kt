@@ -247,7 +247,7 @@ class IosAudioPlayerController(
     }
 
     override fun currentAbsoluteSec(): Double =
-        AudiobookTracks.absoluteSec(bridge.currentTrackIndex(), bridge.currentTrackOffsetSec(), spans)
+        pendingSeek.sample { AudiobookTracks.absoluteSec(bridge.currentTrackIndex(), bridge.currentTrackOffsetSec(), spans) }
 
     override fun swapTracksFromIndex(fromIndex: Int, newUrls: List<String>) {
         if (newUrls.isEmpty()) return

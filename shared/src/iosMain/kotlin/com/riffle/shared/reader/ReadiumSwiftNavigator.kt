@@ -159,8 +159,16 @@ class ReadiumSwiftNavigator(
                 val yFrac = coords.y / coords.viewHeight
                 if (yFrac > PAGE_EDGE_TAP_VERTICAL_GUARD && yFrac < 1.0 - PAGE_EDGE_TAP_VERTICAL_GUARD) {
                     when {
-                        xFrac < PAGE_EDGE_TAP_FRACTION -> { bridge.goBackward(); return@setTapCallback }
-                        xFrac > 1.0 - PAGE_EDGE_TAP_FRACTION -> { bridge.goForward(); return@setTapCallback }
+                        xFrac < PAGE_EDGE_TAP_FRACTION -> {
+                            bridge.goBackward()
+                            _scrollStartEvents.tryEmit(Unit)
+                            return@setTapCallback
+                        }
+                        xFrac > 1.0 - PAGE_EDGE_TAP_FRACTION -> {
+                            bridge.goForward()
+                            _scrollStartEvents.tryEmit(Unit)
+                            return@setTapCallback
+                        }
                     }
                 }
             }

@@ -152,6 +152,9 @@ fun HomeScreen() {
     val iosAppVersion = remember {
         NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String
     }
+    val iosAppSha = remember {
+        NSBundle.mainBundle.infoDictionary?.get("CFBundleGitSHA") as? String
+    }
 
     val allServers by drawerViewModel.allServers.collectAsState()
     val activeServer by drawerViewModel.activeServer.collectAsState()
@@ -209,11 +212,12 @@ fun HomeScreen() {
         activeServer = activeServer,
         allServers = allServers,
         visibleLibraries = visibleLibraries,
-        activeLibraryId = activeLibraryId,
+        activeLibraryId = if (appSection == AppSection.Library) activeLibraryId else null,
         serverVersions = serverVersions,
         showDownloadsLink = showDownloadsLink,
         isRiffleActive = appSection == AppSection.Riffle || isRiffleMode,
         appVersion = iosAppVersion,
+        appSha = iosAppSha,
         onRiffleSelected = {
             scope.launch { drawerState.close() }
             drawerViewModel.setRiffleActive()
@@ -321,7 +325,8 @@ fun HomeScreen() {
                         )
                     }
                     IosSettingsSubScreen.DeveloperOptions -> {
-                        val settingsViewModel = koinInject<SettingsViewModel>()
+                        val koin = getKoin()
+                        val settingsViewModel = remember { koin.get<SettingsViewModel>() }
                         DeveloperOptionsScreen(
                             onNavigateBack = { settingsSubScreen = null },
                             onNavigateToDebugLogs = { settingsSubScreen = IosSettingsSubScreen.DebugLogs },
@@ -423,7 +428,12 @@ fun HomeScreen() {
                 fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
                 fun rifflePop() { riffleNavStack = riffleNavStack.dropLast(1) }
 
-                SideEffect { isInReaderDestination = riffleNavStack.lastOrNull() is LibraryNav.ReaderDestination }
+                SideEffect {
+                    val last = riffleNavStack.lastOrNull()
+                    isInReaderDestination = last is LibraryNav.ReaderDestination ||
+                        last is LibraryNav.ElidedReader ||
+                        last is LibraryNav.AnnotationReader
+                }
                 DisposableEffect(Unit) { onDispose { isInReaderDestination = false } }
 
                 when (val current = riffleNavStack.lastOrNull()) {

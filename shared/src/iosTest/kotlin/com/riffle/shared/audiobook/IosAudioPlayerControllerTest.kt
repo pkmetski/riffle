@@ -759,4 +759,30 @@ class IosAudioPlayerControllerTest {
         assertEquals(0, receivedAfterClear, "clearEndOfBookCache must prevent stale replay")
         job.cancel()
     }
+
+    // ── currentAbsoluteSec pending-seek gate (#1242) ───────────────────────────────
+
+    /**
+     * Regression: before the fix, currentAbsoluteSec() read the raw bridge position directly,
+     * so calling skipBy() during an in-flight seek could compute the delta from the stale
+     * pre-seek offset instead of the pending seek target. The gate must return the seek target
+     * when a seek is pending and the bridge has not yet reported the new position.
+     */
+    @Test
+    fun currentAbsoluteSecReturnsPendingSeekTargetDuringInflightSeek() = runTest {
+        val bridge = FakeBridge()
+        val controller = prepared(bridge)
+        // Bridge is still at track 0, offset 0 — the AVFoundation seek has not landed yet.
+        bridge.reportedTrackIndex = 0
+        bridge.reportedOffsetSec = 0.0
+        // Issue a seek to 250 s (track 2, offset 50 s).
+        controller.seekTo(250.0)
+        // Before the bridge reports the new position, currentAbsoluteSec() must return the
+        // seek target (250 s) rather than the stale track-0/offset-0 value (0 s).
+        assertEquals(
+            250.0,
+            controller.currentAbsoluteSec(),
+            "currentAbsoluteSec must be gated through pendingSeek during an in-flight seek",
+        )
+    }
 }
