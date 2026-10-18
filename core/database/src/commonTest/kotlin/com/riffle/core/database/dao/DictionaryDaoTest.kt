@@ -10,16 +10,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Behavioural coverage for the dictionary DAOs on iOS (`IosDictionaryPackDao`,
- * `IosLookupHistoryDao`).
- *
- * `state` is stored as opaque TEXT: the enum it mirrors (`DictionaryPackState`) lives in
- * `core:dictionary`, which `core:database` deliberately does not depend on, so the values below
- * are fixtures for a column the DAO never interprets — the assertions are about persistence and
- * the scope of each statement, never about a particular state's meaning.
- */
-class IosDictionaryDaoTest : IosDaoTestBase() {
+class DictionaryDaoTest : DaoTestBase() {
 
     private fun pack(
         languageTag: String,

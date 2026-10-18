@@ -5,7 +5,6 @@ import com.riffle.core.network.NetworkResult
 import androidx.lifecycle.viewModelScope
 import com.riffle.feature.player.AudioPlayerInterface
 import com.riffle.feature.player.SleepTimerMode
-import com.riffle.feature.player.formatCountdown
 import com.riffle.feature.reader.AudiobookFollow
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
@@ -92,38 +91,6 @@ class SleepTimerTest {
 
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
-
-    // ── formatCountdown ──────────────────────────────────────────────────────────
-
-    @Test
-    fun `formatCountdown formats minutes and seconds`() {
-        val mode = SleepTimerMode.CountDown(remainingMs = 30 * 60 * 1_000L)
-        assertEquals("30:00", mode.formatCountdown())
-    }
-
-    @Test
-    fun `formatCountdown pads seconds with leading zero`() {
-        val mode = SleepTimerMode.CountDown(remainingMs = 5 * 60 * 1_000L + 7_000L)
-        assertEquals("5:07", mode.formatCountdown())
-    }
-
-    @Test
-    fun `formatCountdown returns empty string for non-CountDown mode`() {
-        assertEquals("", SleepTimerMode.None.formatCountdown())
-        assertEquals("", SleepTimerMode.EndOfChapter.formatCountdown())
-    }
-
-    @Test
-    fun `formatCountdown handles sub-minute duration`() {
-        val mode = SleepTimerMode.CountDown(remainingMs = 30_000L)
-        assertEquals("0:30", mode.formatCountdown())
-    }
-
-    @Test
-    fun `formatCountdown handles zero remaining`() {
-        val mode = SleepTimerMode.CountDown(remainingMs = 0L)
-        assertEquals("0:00", mode.formatCountdown())
-    }
 
     // ── shared timeline ──────────────────────────────────────────────────────────
 

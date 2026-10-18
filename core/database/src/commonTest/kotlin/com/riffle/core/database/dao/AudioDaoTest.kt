@@ -12,15 +12,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Behavioural coverage for the audio-side DAOs on iOS (`IosAudioPlaybackPreferencesDao`,
- * `IosAudiobookBookmarkDao`, `IosAudiobookChapterCacheDao`).
- *
- * The bookmark scenarios mirror Android's `AudiobookBookmarkDaoTest` assertion for assertion, so
- * the ADR 0036 dirty-tracking and soft-delete contract is pinned on the iOS code path too — that
- * DAO has its own hand-written SQL, so a green Android test proves nothing about it.
- */
-class IosAudioDaoTest : IosDaoTestBase() {
+class AudioDaoTest : DaoTestBase() {
 
     private fun bookmark(
         id: String,

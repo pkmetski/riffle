@@ -9,8 +9,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** iOS coverage for the shared Ksoup-backed CFI translator functions now in commonMain. */
-class IosEpubCfiTranslatorTest {
+class KsoupEpubCfiTranslatorTest {
 
     // ── ksoupExtractCfiDocPath ──────────────────────────────────────────────────
 

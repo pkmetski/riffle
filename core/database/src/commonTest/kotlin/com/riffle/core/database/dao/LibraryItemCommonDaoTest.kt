@@ -8,16 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Behavioural coverage for [IosLibraryItemDao], focussed on the batch operations that are
- * most performance-sensitive on iOS: replaceAllForLibrary and batchUpdateReadingProgressFromServer.
- *
- * Both operations were previously executed as O(N) implicit SQLite auto-commit transactions
- * (one fsync per row), causing 20+ second load times for a large ABS library. The iOS
- * overrides in IosLibraryItemDao wrap each batch in a single explicit transaction; these
- * tests pin the correctness of that refactored implementation.
- */
-class IosLibraryItemDaoTest : IosDaoTestBase() {
+class LibraryItemCommonDaoTest : DaoTestBase() {
 
     private val libraryId = "lib-1"
     private val otherLibraryId = "lib-2"
