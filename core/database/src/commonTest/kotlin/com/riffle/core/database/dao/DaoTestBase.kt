@@ -15,15 +15,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 
-/**
- * Shared fixture for the iOS DAO suites.
- *
- * Creates an in-memory Room database backed by BundledSQLiteDriver — the same driver production
- * uses — so the assertions cover the real Room-generated DAO SQL, not a fake.
- * In-memory databases are automatically destroyed when closed, which keeps the test runner's
- * file system clean without any explicit cleanup.
- */
-abstract class IosDaoTestBase {
+abstract class DaoTestBase {
 
     protected lateinit var db: RiffleDatabaseAccess
 
@@ -31,9 +23,6 @@ abstract class IosDaoTestBase {
     fun openDatabase() {
         val roomDb = Room.inMemoryDatabaseBuilder<RiffleDatabase>()
             .setDriver(BundledSQLiteDriver())
-            // Dispatchers.Unconfined makes Room re-execute queries on the calling coroutine's
-            // thread (the test thread) instead of a real background pool. This lets the test
-            // scheduler control flow-emission timing without real thread delays.
             .setQueryCoroutineContext(Dispatchers.Unconfined)
             .build()
         db = DefaultRiffleDatabaseAccess(roomDb)
@@ -44,10 +33,6 @@ abstract class IosDaoTestBase {
         db.close()
     }
 
-    /**
-     * Seeds a `sources` row. Most of the tables these DAOs own carry a `sourceId` foreign key to
-     * `sources(id)`, so production always has the parent row in place; the fixtures mirror that.
-     */
     protected suspend fun seedSource(id: String) {
         db.sourceDao().upsert(
             SourceEntity(
@@ -68,16 +53,6 @@ abstract class IosDaoTestBase {
     }
 }
 
-/**
- * Subscribes to [flow] for the remainder of the test and returns the live list of everything it
- * emits. The list is mutated in place as emissions arrive, so a caller can assert on `size` before
- * and after a write to prove that the write actually pushed a new value to an *existing*
- * subscriber.
- *
- * The collector runs on an [UnconfinedTestDispatcher] so it starts eagerly and resumes inline;
- * [settleEmissions] drains anything the flow operators still have queued. `backgroundScope` means
- * `runTest` cancels the collector at the end of the test without any explicit bookkeeping.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun <T> TestScope.recordEmissions(flow: Flow<T>): List<T> {
     val recorded = mutableListOf<T>()

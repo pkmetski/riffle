@@ -14,18 +14,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Behavioural coverage for the readaloud-matching DAOs on iOS (`IosReadaloudLinkDao`,
- * `IosReadaloudCandidateDao`, `IosReadaloudDismissalDao`, `IosReadaloudResumePositionDao`,
- * `IosCrossEpubIndexDao`) — the iOS halves of the tables ADR 0025 defines.
- *
- * `IosRiffleDatabaseSchemaTest` already pins the single-row insert/read/delete shape of each of
- * these. What it does not pin, and what actually breaks on device, is the query *semantics*:
- * which rows a filtered query includes, whether a scoped delete takes its neighbours with it,
- * whether nullable columns and schema defaults survive the round trip, and whether a live Flow
- * subscriber is told about a write at all.
- */
-class IosReadaloudDaoTest : IosDaoTestBase() {
+class ReadaloudDaoTest : DaoTestBase() {
 
     private val storytellerBookId = "st-book-1"
     private val otherStorytellerBookId = "st-book-2"

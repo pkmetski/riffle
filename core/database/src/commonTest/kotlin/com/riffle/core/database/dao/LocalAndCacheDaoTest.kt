@@ -11,16 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-/**
- * Behavioural coverage for the local-file, freshness, metrics and cover-grid DAOs on iOS
- * (`IosLocalFileMetadataOverrideDao`, `IosRemoteItemFreshnessDao`, `IosPublicationMetricsCacheDao`,
- * `IosCoverGridScaleDao`).
- *
- * Every one of these tables is dominated by nullable columns or composite keys, which is exactly
- * where the hand-written iOS cursor mapping can silently diverge from Room's generated mapping —
- * a null read back as `0` or `""` looks like a value the user set.
- */
-class IosLocalAndCacheDaoTest : IosDaoTestBase() {
+class LocalAndCacheDaoTest : DaoTestBase() {
 
     private val bucket = "Compact_Medium"
     private val otherBucket = "Expanded_Medium"

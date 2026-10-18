@@ -8,7 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class IosRiffleDatabaseTest {
+class RiffleDatabaseTest {
     @Test
     fun nativeSqliteDriverCreatesDatabaseAndPreservesFlowQueriesOnIos() = runTest {
         val db = Room.inMemoryDatabaseBuilder<RiffleDatabase>()

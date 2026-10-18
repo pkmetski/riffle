@@ -1,10 +1,8 @@
-package com.riffle.app.playback
+package com.riffle.feature.player
 
-import com.riffle.feature.player.NowPlaying
-import com.riffle.feature.player.NowPlayingStore
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class NowPlayingStoreTest {
 
@@ -40,7 +38,6 @@ class NowPlayingStoreTest {
     fun `clearIf leaves a non-matching session intact`() {
         val store = NowPlayingStore()
         store.set(NowPlaying.Audiobook("source-1", "item-1"))
-        // A readaloud teardown for a different item must not wipe the audiobook entry.
         store.clearIf { it is NowPlaying.Readaloud && it.itemId == "item-1" }
         assertEquals(NowPlaying.Audiobook("source-1", "item-1"), store.current)
     }

@@ -12,15 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-/**
- * Regression for #1101: six of `IosSourceDao`'s per-table source-graph deletes were `= Unit`,
- * so removing a source on iOS left its reading positions, audiobook positions, formatting
- * preferences and local-file records behind (the driver never enables `PRAGMA foreign_keys`, so
- * the schema's `ON DELETE CASCADE` never fired either). Each test seeds the same table for two
- * sources, calls the *specific* delete method, and asserts one source's rows are gone while the
- * other's survive — reverting any single stub to `= Unit` turns its test red.
- */
-class IosSourceDaoGraphDeleteTest : IosDaoTestBase() {
+class SourceDaoGraphDeleteCommonTest : DaoTestBase() {
 
     private val folderUri = "file:///folders/a"
     private val otherFolderUri = "file:///folders/b"
