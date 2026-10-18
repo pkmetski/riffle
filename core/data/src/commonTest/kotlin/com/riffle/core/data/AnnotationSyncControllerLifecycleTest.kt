@@ -22,10 +22,10 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 /**
  * Pure-JVM lifecycle tests for [AnnotationSyncController]. Exercises the full
@@ -69,7 +69,7 @@ class AnnotationSyncControllerLifecycleTest {
     // ===== syncOnOpen =====
 
     @Test
-    fun `syncOnOpen with no target is a no-op (no list, no upsert)`() = runTest {
+    fun syncOnOpenWithNoTargetIsANoopNoListNoUpsert() = runTest {
         currentTarget = null
 
         newController().syncOnOpen(SRV, NS, ITEM)
@@ -79,7 +79,7 @@ class AnnotationSyncControllerLifecycleTest {
     }
 
     @Test
-    fun `syncOnOpen reads each device file, parses the JSON array, and upserts merged annotations`() = runTest {
+    fun syncOnOpenReadsEachDeviceFileAndUpsertsAnnotations() = runTest {
         target.files["annotations-device-A.jsonld"] = jsonArrayOf(
             w3c("uuid-1", updatedAt = 100L, deviceId = "device-A"),
             w3c("uuid-2", updatedAt = 200L, deviceId = "device-A"),
@@ -161,7 +161,7 @@ class AnnotationSyncControllerLifecycleTest {
         newController().scheduleDebounce(SRV, NS, ITEM)
         advanceUntilIdle()
 
-        assertTrue("write should not have been called", target.writes.isEmpty())
+        assertTrue(target.writes.isEmpty(), "write should not have been called")
     }
 
     @Test
@@ -311,11 +311,11 @@ class AnnotationSyncControllerLifecycleTest {
         newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
-        assertTrue("expected no write when local is empty, got ${target.writes}", target.writes.isEmpty())
+        assertTrue(target.writes.isEmpty(), "expected no write when local is empty, got ${target.writes}")
         assertTrue(
+            target.deletes.isEmpty(),
             "must not DELETE either — Room-already-empty is not a sweep transition, " +
                 "got ${target.deletes}",
-            target.deletes.isEmpty()
         )
     }
 
@@ -338,7 +338,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         val payload = target.writes.single().content
         val ids = AnnotationW3CCodec.w3cFileToAnnotations(payload).map { it.id }.toSet()
-        assertEquals("aged tomb must be purged; live row must be pushed", setOf("live-1"), ids)
+        assertEquals(setOf("live-1"), ids, "aged tomb must be purged; live row must be pushed")
     }
 
     @Test
@@ -354,8 +354,8 @@ class AnnotationSyncControllerLifecycleTest {
         val payload = target.writes.single().content
         val ids = AnnotationW3CCodec.w3cFileToAnnotations(payload).map { it.id }.toSet()
         assertEquals(
+            setOf("tomb-unsynced"), ids,
             "unsynced tomb must survive sweep and reach the file",
-            setOf("tomb-unsynced"), ids
         )
     }
 
@@ -371,7 +371,7 @@ class AnnotationSyncControllerLifecycleTest {
         newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
-        assertTrue("must not write an empty file: ${target.writes}", target.writes.isEmpty())
+        assertTrue(target.writes.isEmpty(), "must not write an empty file: ${target.writes}")
         val delete = target.deletes.single()
         assertEquals(NS, delete.namespace)
         assertEquals(ITEM, delete.itemId)
@@ -379,7 +379,7 @@ class AnnotationSyncControllerLifecycleTest {
     }
 
     @Test
-    fun `pushPending does NOT DELETE when Room was already empty (no sweep transition)`() = runTest {
+    fun pushPendingDoesNotDeleteWhenRoomAlreadyEmpty() = runTest {
         val nowMs = 100L * 24L * 60L * 60L * 1000L
         // No local rows at all — Room-already-empty is the transient/clear-data state, not a
         // sweep transition. Same protection the pre-ADR-0045 code carried: don't DELETE, don't
@@ -387,8 +387,8 @@ class AnnotationSyncControllerLifecycleTest {
         newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
-        assertTrue("must not write empty", target.writes.isEmpty())
-        assertTrue("must not DELETE either", target.deletes.isEmpty())
+        assertTrue(target.writes.isEmpty(), "must not write empty")
+        assertTrue(target.deletes.isEmpty(), "must not DELETE either")
     }
 
     @Test
@@ -412,8 +412,8 @@ class AnnotationSyncControllerLifecycleTest {
 
         val delete = target.deletes.singleOrNull { it.filename == ownFile }
         assertTrue(
+            delete != null,
             "expected own-file DELETE fired from syncOnOpen sweep, got ${target.deletes}",
-            delete != null
         )
         assertEquals(NS, delete!!.namespace)
         assertEquals(ITEM, delete.itemId)
@@ -433,8 +433,8 @@ class AnnotationSyncControllerLifecycleTest {
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
         assertTrue(
+            target.deletes.none { it.filename == "annotations-$DEVICE_ID.jsonld" },
             "must not DELETE when own file isn't present, got ${target.deletes}",
-            target.deletes.none { it.filename == "annotations-$DEVICE_ID.jsonld" }
         )
     }
 
@@ -458,8 +458,8 @@ class AnnotationSyncControllerLifecycleTest {
         // Room must still hold the aged tomb — the sweep was NOT committed because DELETE threw.
         val stillHasTomb = dao.localAnnotations.any { it.id == "tomb-aged" && it.deleted }
         assertTrue(
+            stillHasTomb,
             "aged tomb must remain in Room when DELETE fails so retry sees the transition",
-            stillHasTomb
         )
 
         // Clear the fault; the next syncOnOpen must retry the DELETE and succeed.
@@ -467,12 +467,12 @@ class AnnotationSyncControllerLifecycleTest {
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
         assertTrue(
+            target.deletes.any { it.filename == ownFile },
             "second attempt must actually DELETE the file",
-            target.deletes.any { it.filename == ownFile }
         )
         assertTrue(
+            dao.localAnnotations.none { it.id == "tomb-aged" },
             "second attempt must finally purge the tomb from Room",
-            dao.localAnnotations.none { it.id == "tomb-aged" }
         )
     }
 
@@ -488,8 +488,8 @@ class AnnotationSyncControllerLifecycleTest {
         newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
 
         assertTrue(
+            dao.upserts.none { it.id == "uuid-ghost" },
             "stale orphan must not be upserted — resurrection blocked, got ${dao.upserts}",
-            dao.upserts.none { it.id == "uuid-ghost" }
         )
     }
 
@@ -523,7 +523,7 @@ class AnnotationSyncControllerLifecycleTest {
         newController().syncOnOpen(SRV, NS, ITEM)
 
         val merged = dao.upserts.single { it.id == "uuid-x" }
-        assertTrue("expected the tombstone to win the merge", merged.deleted)
+        assertTrue(merged.deleted, "expected the tombstone to win the merge")
     }
 
     // ===== startLiveSync =====
@@ -573,7 +573,7 @@ class AnnotationSyncControllerLifecycleTest {
         advanceTimeBy(120_000L)
         runCurrent()
 
-        assertEquals("no further cycles should run after cancel", 1, target.listCalls)
+        assertEquals(1, target.listCalls, "no further cycles should run after cancel")
     }
 
     @Test
@@ -615,18 +615,18 @@ class AnnotationSyncControllerLifecycleTest {
         advanceTimeBy(30_000L)
         runCurrent()
 
-        assertEquals("PROPFIND should have run", 1, target.listCalls)
-        assertTrue("no upserts — solo-device tick is a no-op merge", dao.upserts.isEmpty())
+        assertEquals(1, target.listCalls, "PROPFIND should have run")
+        assertTrue(dao.upserts.isEmpty(), "no upserts — solo-device tick is a no-op merge")
         assertTrue(
-            "solo tick still reports Success so the badge can recover",
             status.lastCycleOutcome.value is CycleOutcome.Success,
+            "solo tick still reports Success so the badge can recover",
         )
 
         job.cancelAndJoin()
     }
 
     @Test
-    fun `startLiveSync skips when the namespace is empty (no files at all yet)`() = runTest {
+    fun startLiveSyncSkipsWhenNamespaceIsEmpty() = runTest {
         // No files anywhere — first tick should not merge.
         val controller = newController()
 
@@ -651,7 +651,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         advanceTimeBy(30_000L)
         runCurrent()
-        assertTrue("tick 1 skipped the merge", dao.upserts.isEmpty())
+        assertTrue(dao.upserts.isEmpty(), "tick 1 skipped the merge")
 
         // Tick 2: a peer device just pushed its file. Now the merge must fire.
         target.files["annotations-device-B.jsonld"] = jsonArrayOf(
@@ -683,8 +683,8 @@ class AnnotationSyncControllerLifecycleTest {
         advanceTimeBy(30_000L)
         runCurrent()
         assertTrue(
-            "skip-tick must report Success after a recovered PROPFIND",
             status.lastCycleOutcome.value is CycleOutcome.Success,
+            "skip-tick must report Success after a recovered PROPFIND",
         )
 
         job.cancelAndJoin()
@@ -783,7 +783,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         // The upserted row must still carry lastSyncedAt = 500, not 0.
         val upserted = dao.upserts.single { it.id == "uuid-local-win" }
-        assertEquals("local wins — lastSyncedAt must be preserved", 500L, upserted.lastSyncedAt)
+        assertEquals(500L, upserted.lastSyncedAt, "local wins — lastSyncedAt must be preserved")
     }
 
     // ===== Fix 2: syncOnOpen preserves spineIndex/progression on existing rows =====
@@ -806,8 +806,8 @@ class AnnotationSyncControllerLifecycleTest {
         newController().syncOnOpen(SRV, NS, ITEM)
 
         val upserted = dao.upserts.single { it.id == "uuid-bookmark" }
-        assertEquals("spineIndex must survive the sync round-trip", 5, upserted.spineIndex)
-        assertEquals("progression must survive the sync round-trip", 0.3, upserted.progression, 0.0)
+        assertEquals(5, upserted.spineIndex, "spineIndex must survive the sync round-trip")
+        assertEquals(0.3, upserted.progression, "progression must survive the sync round-trip")
     }
 
     @Test
@@ -828,8 +828,8 @@ class AnnotationSyncControllerLifecycleTest {
         newController().syncOnOpen(SRV, NS, ITEM)
 
         val upserted = dao.upserts.single { it.id == "uuid-peer-bookmark" }
-        assertEquals("cross-device: adopt peer spineIndex", 7, upserted.spineIndex)
-        assertEquals("cross-device: adopt peer progression", 0.42, upserted.progression, 0.0)
+        assertEquals(7, upserted.spineIndex, "cross-device: adopt peer spineIndex")
+        assertEquals(0.42, upserted.progression, "cross-device: adopt peer progression")
     }
 
     // ===== Fix 3: syncOnOpen preserves chapterHref on existing rows =====
@@ -858,7 +858,7 @@ class AnnotationSyncControllerLifecycleTest {
         newController().syncOnOpen(SRV, NS, ITEM)
 
         val upserted = dao.upserts.single { it.id == "uuid-bookmark" }
-        assertEquals("chapterHref must survive the sync round-trip", realChapterHref, upserted.chapterHref)
+        assertEquals(realChapterHref, upserted.chapterHref, "chapterHref must survive the sync round-trip")
     }
 
     @Test
@@ -877,7 +877,7 @@ class AnnotationSyncControllerLifecycleTest {
         val upserted = dao.upserts.single { it.id == "uuid-peer-bookmark" }
         // The w3c() helper builds the entity with chapterHref = "c1"; the extension carries that
         // through the round-trip. Before the extension existed this would have been ITEM.
-        assertEquals("cross-device: adopt peer chapterHref via extension", "c1", upserted.chapterHref)
+        assertEquals("c1", upserted.chapterHref, "cross-device: adopt peer chapterHref via extension")
     }
 
     // ===== Fix 4: syncOnOpen preserves originFontFamily on existing rows =====
@@ -906,9 +906,9 @@ class AnnotationSyncControllerLifecycleTest {
 
         val upserted = dao.upserts.single { it.id == "uuid-font-preserve" }
         assertEquals(
-            "originFontFamily must survive the sync round-trip",
             publisherFont,
             upserted.originFontFamily,
+            "originFontFamily must survive the sync round-trip",
         )
     }
 
@@ -935,9 +935,9 @@ class AnnotationSyncControllerLifecycleTest {
 
         val upserted = dao.upserts.single { it.id == "uuid-html-preserve" }
         assertEquals(
-            "textSnippetHtml must survive the sync round-trip",
             formatted,
             upserted.textSnippetHtml,
+            "textSnippetHtml must survive the sync round-trip",
         )
     }
 
@@ -963,9 +963,9 @@ class AnnotationSyncControllerLifecycleTest {
 
         val upserted = dao.upserts.single { it.id == "uuid-anchor-preserve" }
         assertEquals(
-            "fragmentAnchor must survive the sync round-trip",
             anchor,
             upserted.fragmentAnchor,
+            "fragmentAnchor must survive the sync round-trip",
         )
     }
 
