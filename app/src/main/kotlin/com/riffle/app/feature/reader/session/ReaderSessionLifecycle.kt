@@ -224,14 +224,27 @@ class ReaderSessionLifecycle constructor(
         val openAtCfiNonBlank = params.openAtCfi?.takeIf { it.isNotBlank() }
         // A search-result / annotation-tap open overrides the saved position. Requires `publication`
         // (set above) — cfiStringToLocator resolves against it.
-        val resolvedOpenAtLocator = openAtCfiNonBlank?.let { cfiStringToLocator(it) }
+        // openAtCfi accepts two formats:
+        //   1. Raw CFI string ("epubcfi(...)") — primary path for annotation and deep-link navigation
+        //   2. Readium Locator JSON ("{...}") — fallback for callers that only have locator JSON
+        val isLocatorJson = openAtCfiNonBlank?.startsWith("{") == true
+        val resolvedOpenAtLocator = openAtCfiNonBlank?.let { cfiOrJson ->
+            if (isLocatorJson) {
+                runCatching { Locator.fromJSON(JSONObject(cfiOrJson)) }.getOrNull()
+            } else {
+                cfiStringToLocator(cfiOrJson)
+            }
+        }
         // openAtCfiNonBlank is non-null whenever resolvedOpenAtLocator is (the locator is derived
         // from it). Fetch the matching row once: its id drives Continuous mark focus, its
         // TextQuote makes highlight locators exact, and its persisted progression restores a
         // bookmark's original live-reader page boundary.
+        // CFI lookup only applies when openAtCfi is a raw CFI — a JSON locator carries no
+        // standalone CFI to match against, and annotationStore.findByItemAndCfi would return null.
         val openAtAnnotation = if (
             resolvedOpenAtLocator != null &&
-            resolvedReaderServerId != null
+            resolvedReaderServerId != null &&
+            !isLocatorJson
         ) {
             runCatching {
                 annotationStore.findByItemAndCfi(

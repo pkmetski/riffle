@@ -199,6 +199,7 @@ jobs:
             :feature:source-ui:iosSimulatorArm64Test \
             :feature:settings:iosSimulatorArm64Test \
             :feature:settings-ui:iosSimulatorArm64Test \
+            :feature:shell-ui:iosSimulatorArm64Test \
             :feature:downloads:iosSimulatorArm64Test \
             :core:logging:iosSimulatorArm64Test \
             :core:database-api:iosSimulatorArm64Test

@@ -55,6 +55,8 @@ class KoinModuleVerificationTest {
         "com.riffle.feature.library.LibrarySectionViewModel.sectionType",
         // Constructed inline as ProgressSweepRunner { get<ProgressSweep>().run() }, not via get().
         "com.riffle.feature.player.AudiobookPlayerViewModel.progressSweep",
+        // Provided via parametersOf() at the call site (LibraryNav.ReaderDestination fields).
+        "com.riffle.app.feature.reader.EpubReaderViewModel.source",
     )
 
     @OptIn(KoinInternalApi::class)

@@ -1,47 +1,31 @@
 package com.riffle.app.navigation
 
-import com.riffle.feature.navigation.committedTopRoute
-import com.riffle.feature.navigation.guardedNavigateBack
-import com.riffle.feature.navigation.isReaderRoute
-import com.riffle.feature.navigation.libraryEntryRoute
-import com.riffle.feature.navigation.libraryItemsBackEnabled
-import com.riffle.feature.navigation.NavigationDrawerViewModel
-import com.riffle.feature.navigation.shouldInterceptBackForDrawer
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
-import org.koin.androidx.compose.koinViewModel
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import com.riffle.feature.library.LibrarySectionType
-import com.riffle.feature.library.HomeViewModel
 import com.riffle.app.BuildConfig
-import com.riffle.feature.library.ui.RiffleNavigationDrawer
-import com.riffle.feature.player.NowPlaying
-import com.riffle.app.ui.isTabletLayout
-import com.riffle.core.domain.WebSourceDescriptors
-import com.riffle.core.models.LibraryItem
-import com.riffle.core.models.SourceType
-import java.net.URLEncoder
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
+import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
+import com.riffle.app.feature.update.StartupUpdateViewModel
+import com.riffle.app.feature.update.UpdateAvailableDialog
+import com.riffle.app.i18n.AppLocaleController
+import com.riffle.app.i18n.findActivity
+import com.riffle.feature.navigation.guardedNavigateBack
+import com.riffle.feature.settings.ui.PlatformSettingsHooks
+import com.riffle.feature.settings.ui.i18n.AppLanguage
+import com.riffle.feature.shellui.AppShell
+import com.riffle.feature.shellui.AppShellSlots
+import org.koin.androidx.compose.koinViewModel
 
 internal const val HOME = "home"
 internal const val RIFFLE = "riffle"
@@ -58,7 +42,6 @@ internal const val OREILLY_BROWSE = "oreilly_browse/{libraryId}/{libraryName}"
 internal const val ADD_OREILLY = "add_oreilly"
 internal const val ADD_SOURCE = "add_source"
 internal const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
-
 internal const val SELECT_LIBRARIES = "select_libraries"
 internal const val SETTINGS = "settings"
 internal const val READALOUD_SETTINGS = "settings/readaloud"
@@ -80,75 +63,19 @@ internal const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{
 internal const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 internal const val AUDIOBOOK_PLAYER = "audiobook_player/{sourceId}/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}&userPlay={userPlay}"
 
-
 @Composable
 fun MainScreen(
     windowSizeClass: WindowSizeClass,
-    viewModel: NavigationDrawerViewModel = koinViewModel(),
 ) {
-    val startupUpdateVm: com.riffle.app.feature.update.StartupUpdateViewModel = koinViewModel()
+    val startupUpdateVm: StartupUpdateViewModel = koinViewModel()
     val updateDialogState by startupUpdateVm.dialogState.collectAsState()
     val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
-
-    val navController = rememberNavController()
-
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
-    // Expanded width (≥ 840dp) and non-Compact height. A large phone in landscape crosses the
-    // Expanded width breakpoint but stays Compact in height, so it renders the phone UI (modal
-    // drawer, single-column detail). Re-evaluated at composition time, so rotation / unfold /
-    // resize switch automatically.
-    val isTablet = windowSizeClass.isTabletLayout()
-
-    val activeServer by viewModel.activeServer.collectAsState()
-    val allServers by viewModel.allServers.collectAsState()
-    val visibleLibraries by viewModel.visibleLibraries.collectAsState()
-    val serverVersions by viewModel.serverVersions.collectAsState()
-    val showDownloadsLink by viewModel.showDownloadsLink.collectAsState()
-    val isRiffleMode by viewModel.isRiffleMode.collectAsState()
-
-    val currentBackStack by navController.currentBackStackEntryAsState()
-    val activeLibraryId = currentBackStack?.let { entry ->
-        val route = entry.destination.route ?: return@let null
-        when {
-            route.startsWith("library_items/") ->
-                entry.arguments?.getString("libraryId")
-            // Web-source browse routes: "$prefix/{libraryId}/{libraryName}" — highlight the
-            // active web-source library in the drawer just as a Room-backed library does.
-            SourceType.entries.filter { it.isUnboundedCatalog }.any { type ->
-                WebSourceDescriptors.forType(type)?.browseRoutePrefix
-                    ?.let { route.startsWith("$it/") } == true
-            } -> entry.arguments?.getString("libraryId")
-            else -> null
-        }
-    }
-    val currentRoute = currentBackStack?.destination?.route
-
-    val drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open
-    val drawerTargetOpen = drawerState.targetValue == DrawerValue.Open
-
-    // Committed top (synchronously up-to-date StateFlow; recomposes when the stack mutates).
-    // Using the COMMITTED route (not the preview from currentBackStackEntryAsState) keeps
-    // libBackEnabled=true even while a predictive-back gesture from library_items is in
-    // progress (the committed top stays library_items until the gesture commits), so the
-    // BackHandler intercepts and runs ClearSearch/ResetTab/Exit instead of letting NavHost
-    // pop library_items and flash the HOME spinner.
-    val committedRoute = navController.committedTopRouteAsState()
-    val libBackEnabled = libraryItemsBackEnabled(committedRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
-
-    val usePermanentDrawer = isTablet
-    // Reader screens are immersive — collapse the permanent side panel so the book/PDF
-    // fills the width, matching the modal drawer's gesture suppression on phones.
-    val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         // Gate on seenStop so that rotation (which replays ON_START on the new observer
         // with a fresh seenStop=false) doesn't re-show the dialog after the user dismissed
         // it. Only a genuine background→foreground transition sets seenStop=true first.
-        // Cold start is handled by StartupUpdateViewModel.init; this observer only covers
-        // subsequent foreground returns.
         var seenStop = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -161,161 +88,102 @@ fun MainScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // A media-notification tap jumps to whatever is playing. launchSingleTop makes this a no-op when
-    // that screen is already current (the common case, since audio only plays while its screen is) —
-    // so playback is never restarted; otherwise it opens the right player.
-    LaunchedEffect(Unit) {
-        viewModel.openNowPlayingRequests.collect {
-            val target = viewModel.currentNowPlaying() ?: return@collect
-            val encoded = URLEncoder.encode(target.itemId, "UTF-8")
-            val route = when (target) {
-                is NowPlaying.Audiobook -> {
-                    val encodedSource = URLEncoder.encode(target.sourceId, "UTF-8")
-                    "audiobook_player/$encodedSource/$encoded"
-                }
-                is NowPlaying.Readaloud -> "epub_reader/$encoded"
+    val context = LocalContext.current
+    val activity = context.findActivity()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+    val platformHooks = remember(context, activity, lifecycle) {
+        object : PlatformSettingsHooks {
+            @Composable
+            override fun LanguageRow() = Unit
+
+            override fun canInstallUpdate(): Boolean = true
+
+            override fun supportsVolumeKeyNavigation(): Boolean = true
+
+            override fun currentLanguage(): AppLanguage {
+                val appLang = AppLocaleController.currentLanguage(context)
+                return AppLanguage.fromTag(appLang.tag)
             }
-            navController.navigate(route) { launchSingleTop = true }
-        }
-    }
 
-    LaunchedEffect(Unit) {
-        viewModel.redirectToLibrary.collect { library ->
-            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
-            viewModel.setActiveLibrary(library.id)
-        }
-    }
-
-    RiffleNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = !isReaderRoute(currentRoute),
-        usePermanentDrawer = usePermanentDrawer,
-        hidePermanentDrawerPanel = hidePermanentDrawerPanel,
-        activeServer = activeServer,
-        allServers = allServers,
-        visibleLibraries = visibleLibraries,
-        activeLibraryId = activeLibraryId,
-        serverVersions = serverVersions,
-        showDownloadsLink = showDownloadsLink,
-        onServerSelected = { server ->
-            viewModel.setActiveServer(server.id)
-            scope.launch { drawerState.close() }
-            // Wait for setActiveServer's coroutine to commit the DB write before navigating.
-            // Navigating to HOME immediately causes getStartDestination() to run before the
-            // new source is active in the DB, returning NoLibraries → "Unable to connect" screen.
-            // drop(1) on activeServer is also unreliable in Riffle mode (all sources inactive →
-            // null→null deduplicated, so drop(1) is never consumed). Waiting here is the correct fix.
-            scope.launch {
-                // 5 s safety valve: if the source was deleted between drawer-open and tap,
-                // setActiveAtomic writes 0 rows and activeServer never emits a matching value.
-                // Timeout ensures we still navigate (getStartDestination handles the no-source case).
-                withTimeoutOrNull(5_000) {
-                    viewModel.activeServer.filterNotNull().first { it.id == server.id }
-                }
-                navController.navigateAsRoot(HOME)
+            override fun onLanguageChanged(language: AppLanguage) {
+                AppLocaleController.setLanguage(context, language)
+                activity?.recreate()
             }
-        },
-        onLibrarySelected = { library ->
-            viewModel.setActiveLibrary(library.id)
-            scope.launch { drawerState.close() }
-            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
-        },
-        onDownloadsSelected = {
-            scope.launch { drawerState.close() }
-            if (navController.currentDestination?.route != DOWNLOADS) navController.navigate(DOWNLOADS)
-        },
-        onSettingsSelected = {
-            scope.launch { drawerState.close() }
-            if (navController.currentDestination?.route != SETTINGS) navController.navigate(SETTINGS)
-        },
-        onRiffleSelected = {
-            viewModel.setRiffleActive()
-            scope.launch { drawerState.close() }
-            if (navController.currentDestination?.route != RIFFLE) navController.navigateAsRoot(RIFFLE)
-        },
-        isRiffleActive = isRiffleMode,
-        appVersion = BuildConfig.VERSION_NAME,
-        appSha = BuildConfig.GIT_SHA,
-    ) {
-        NavHost(
-            navController = navController,
-            startDestination = HOME,
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
-        ) {
-            libraryNavGraph(
-                navController = navController,
-                drawerState = drawerState,
-                scope = scope,
-                libBackEnabled = libBackEnabled,
-                windowSizeClass = windowSizeClass,
-                onSetActiveLibrary = { viewModel.setActiveLibrary(it) },
-            )
-            sourceNavGraph(
-                navController = navController,
-                windowSizeClass = windowSizeClass,
-                drawerState = drawerState,
-                scope = scope,
-            )
-            settingsNavGraph(
-                navController = navController,
-                windowSizeClass = windowSizeClass,
-            )
-            readerNavGraph(
-                navController = navController,
-                windowSizeClass = windowSizeClass,
-            )
+
+            @Composable
+            override fun OnResumeEffect(block: () -> Unit) {
+                DisposableEffect(lifecycle) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) block()
+                    }
+                    lifecycle.addObserver(observer)
+                    onDispose { lifecycle.removeObserver(observer) }
+                }
+            }
         }
     }
 
-    // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
-    // drawer is open or animating we add one here. Must be registered AFTER RiffleNavigationDrawer
-    // (and thus after NavHost and the NavController) so it has higher priority in the
-    // OnBackPressedDispatcher (last-registered wins). A position before NavHost gives the
-    // NavController's callback higher priority, causing it to pop library_items and trigger a
-    // library reload instead of closing the drawer.
-    //
-    // Check both currentValue and targetValue: targetValue flips to Open the instant
-    // drawerState.open() is called (catches Back during the open animation), and currentValue
-    // stays Open until the close animation finishes (catches Back during the close animation).
-    // Using only targetValue misses the close-animation window; using only isOpen (currentValue)
-    // misses the open-animation window that caused the burger-tap white-screen freeze.
-    BackHandler(enabled = shouldInterceptBackForDrawer(
-        usePermanentDrawer,
-        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
-        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
-    )) {
-        scope.launch { drawerState.close() }
-    }
+    // Local-files screen is shown modally on top of the shell when the user taps
+    // "Add Local Files" in Settings. It cannot be a plain (() -> Unit) launch because
+    // Android's folder picker is integrated into a full Compose screen.
+    var showLocalFilePicker by remember { mutableStateOf(false) }
 
-    updateDialogState?.let { dialogState ->
-        com.riffle.app.feature.update.UpdateAvailableDialog(
-            state = dialogState,
-            downloadState = updateDownloadState,
-            onIgnore = startupUpdateVm::ignoreVersion,
-            onUpdate = startupUpdateVm::startUpdate,
-            onDismiss = startupUpdateVm::dismissDialog,
+    if (showLocalFilePicker) {
+        AddLocalFilesScreen(
+            windowSizeClass = windowSizeClass,
+            onDone = { showLocalFilePicker = false },
+            onNavigateBack = { showLocalFilePicker = false },
+        )
+    } else {
+        AppShell(
+            slots = AppShellSlots(
+                readerHost = { destination, readerActions, playerActions ->
+                    AndroidReaderSlot(
+                        destination = destination,
+                        readerActions = readerActions,
+                        playerActions = playerActions,
+                        windowSizeClass = windowSizeClass,
+                    )
+                },
+                onboardingHost = { onFinished, onCancelled, canNavigateBack, initialBackend, editId ->
+                    AndroidOnboardingSlot(
+                        onFinished = onFinished,
+                        onCancelled = onCancelled,
+                        canNavigateBack = canNavigateBack,
+                        initialBackend = initialBackend,
+                        editId = editId,
+                        windowSizeClass = windowSizeClass,
+                    )
+                },
+                webdavOnboardingHost = { editId, onFinished, onCancelled ->
+                    AndroidWebdavOnboardingSlot(
+                        editId = editId,
+                        onFinished = onFinished,
+                        onCancelled = onCancelled,
+                    )
+                },
+                platformSettingsHooks = platformHooks,
+                updateDialog = {
+                    updateDialogState?.let { dialogState ->
+                        UpdateAvailableDialog(
+                            state = dialogState,
+                            downloadState = updateDownloadState,
+                            onIgnore = startupUpdateVm::ignoreVersion,
+                            onUpdate = startupUpdateVm::startUpdate,
+                            onDismiss = startupUpdateVm::dismissDialog,
+                        )
+                    }
+                },
+                appVersion = BuildConfig.VERSION_NAME,
+                appSha = BuildConfig.GIT_SHA,
+                localFilePicker = { showLocalFilePicker = true },
+            ),
         )
     }
 }
 
-// Switches the active surface, keeping HOME as the permanent base of the back stack so [route]
-// sits directly on top of it. Used by every "switch the active surface" navigation — launch
-// router, server/library switch, redirect, server-setup completion.
-//
-// popUpTo(HOME) with inclusive = FALSE is deliberate and load-bearing:
-//   * It clears everything ABOVE home but never removes home, so the stack is always [home, route]
-//     — never a single sole entry. Back from the root therefore pops to home (which re-routes to a
-//     library) instead of emptying the NavHost. An empty NavHost renders a blank white screen, and
-//     that is exactly what happened when this used popUpTo(graph.id) { inclusive = true }: a Back
-//     reaching the NavHost's own callback (e.g. while the drawer is animating open, when the
-//     screen-level handlers don't own it) popped the lone root to nothing.
-//   * Because home is never removed, popUpTo(HOME) always matches, so each switch REPLACES the
-//     previous surface instead of stacking a duplicate root — the earlier popUpTo(HOME) {
-//     inclusive = true } bug (which DID remove home, making later popUpTo(HOME) a no-op that piled
-//     up duplicate roots) cannot recur here.
+// Retained for use by any remaining NavController-based callers (SourceNavGraph, LibraryNavGraph).
 internal fun NavController.navigateAsRoot(route: String) {
     navigate(route) {
         popUpTo(HOME) { inclusive = false }
@@ -338,27 +206,4 @@ internal fun NavController.navigateAsRootIfTop(backStackEntry: NavBackStackEntry
         action = { navigateAsRoot(route) },
     )
 
-// Navigating to HOME on every source switch lets getStartDestination() pick the correct library
-// for the new source (last-opened per source, falling back to the first in the list).
 internal fun shouldNavigateHomeOnSourceSwitch(): Boolean = true
-
-/**
- * Returns the committed top route as Compose state, recomposing whenever the back stack changes.
- *
- * [NavController.currentBackStack] is used intentionally: [currentBackStackEntryAsState] reflects
- * the *preview* destination during a predictive-back gesture, which would incorrectly disable
- * [libraryItemsBackEnabled] while the gesture is still in progress. Reading the committed back
- * stack via [NavController.currentBackStack] avoids this.
- *
- * `@SuppressLint("RestrictedApi")` is required because [NavController.currentBackStack] is
- * annotated `@RestrictedApi` in `org.jetbrains.androidx.navigation` 2.9.x (as it is in
- * `androidx.navigation`). The annotation is still present in the JetBrains fork — suppress it
- * rather than routing around the API.
- */
-@android.annotation.SuppressLint("RestrictedApi")
-@Composable
-internal fun NavController.committedTopRouteAsState(): String? {
-    val backStack by currentBackStack.collectAsState()
-    return committedTopRoute(backStack.map { it.destination.route })
-}
-

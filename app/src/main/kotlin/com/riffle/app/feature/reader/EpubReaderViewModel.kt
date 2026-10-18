@@ -21,7 +21,6 @@ import com.riffle.feature.reader.AnchorRect
 import com.riffle.feature.reader.HighlightEditTarget
 import com.riffle.feature.reader.HighlightRender
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.feature.reader.VolumeKeyDispatcher
@@ -296,7 +295,13 @@ private const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
 
 class EpubReaderViewModel constructor(
     application: Application,
-    savedStateHandle: SavedStateHandle,
+    itemId: String,
+    source: com.riffle.feature.reader.highlights.ReaderSource,
+    startReadaloudAtSecParam: Double,
+    openAtCfiParam: String?,
+    openAnnotationIdParam: String?,
+    startTocHrefParam: String?,
+    navServerIdParam: String?,
     private val libraryObserver: LibraryObserver,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
     private val epubRepository: EpubRepository,
@@ -477,44 +482,19 @@ class EpubReaderViewModel constructor(
             commitDraftWithNote = { note -> commitDraftFromNoteEditor(note) },
         )
 
-    private val itemId: String = checkNotNull(savedStateHandle["itemId"])
+    private val itemId: String = itemId
 
-    // Which content this reader instance displays (ADR 0048). Nav args carry `?source=highlights`
-    // (lowercase, see MainScreen's EPUB_READER route); ReaderSource's canonical form is
-    // uppercase-first ("Highlights"). See [decodeReaderSource] for why matching is case-insensitive
-    // rather than single-character-normalised.
-    private val source: ReaderSource = decodeReaderSource(savedStateHandle.get<String>("source"))
+    // Which content this reader instance displays (ADR 0048).
+    private val source: ReaderSource = source
 
     /** Public read of [source] for the screen layer to gate Readaloud/Rail UI (Task 9, ADR 0048). */
     val readerSource: ReaderSource get() = source
 
-    // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
-    // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
-    // we auto-start readaloud playing from this second so narration continues where listening left off.
-    // Also observed as a flow so a back-stack return (reader was alive behind the audiobook player) can
-    // receive an updated value set by the audiobook player when it pops back.
-    private val startReadaloudAtSec: Double =
-        (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
-
-    // When opened from a library annotation search result, jump to this CFI instead of the saved
-    // reading position. Null/blank for a normal open. EPUB-only (annotations anchor on ABS-EPUB CFI).
-    private val openAtCfi: String? = savedStateHandle.get<String>("openAtCfi")
-    // Stable identity for an annotation-open route. Older/deep-linked routes may omit this, in
-    // which case ReaderSessionLifecycle falls back to resolving the row from the CFI.
-    private val openAnnotationId: String? = savedStateHandle.get<String>("openAnnotationId")
-
-    // TOC entry to open immediately on launch — navigated once the publication is ready, using the same
-    // _navigationEvents channel as the TOC panel's tap handler (see navigateToEntry).
-    private val startTocHref: String? = savedStateHandle["startTocHref"]
-
-    // Highlights mode only (ADR 0048): the server the tapped book's highlights belong to, threaded
-    // explicitly through the nav route by AnnotationsListScreen's onBookClick rather than re-resolved
-    // from "the active server" at open time. Without this, a Server Switcher change racing the
-    // Annotations-list → reader navigation would open the elided reader against whatever server
-    // happens to be active when openBook() runs, not the server the tapped book's highlights are
-    // actually stored under — silently showing zero highlights. Null (and thus falling back to the
-    // active server) for every other nav origin, including a normal FullBook open.
-    private val navServerId: String? = savedStateHandle.get<String>("sourceId")
+    private val startReadaloudAtSec: Double = startReadaloudAtSecParam
+    private val openAtCfi: String? = openAtCfiParam
+    private val openAnnotationId: String? = openAnnotationIdParam
+    private val startTocHref: String? = startTocHrefParam
+    private val navServerId: String? = navServerIdParam
 
     // Resolved source ID for this book, set in onOpenReady(). navServerId is preferred (it comes
     // directly from the nav arg); resolvedReaderServerId is the fallback for ABS-only books opened

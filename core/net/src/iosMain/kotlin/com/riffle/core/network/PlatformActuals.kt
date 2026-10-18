@@ -39,11 +39,13 @@ actual fun HttpClient.withInsecureTls(): HttpClient = HttpClient(Darwin) {
         handleChallenge { _, _, challenge, completionHandler ->
             if (challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust) {
                 val serverTrust = challenge.protectionSpace.serverTrust
+                @Suppress("ARGUMENT_TYPE_MISMATCH")
                 completionHandler(
                     NSURLSessionAuthChallengeUseCredential,
                     serverTrust?.let { NSURLCredential.credentialForTrust(it) },
                 )
             } else {
+                @Suppress("ARGUMENT_TYPE_MISMATCH")
                 completionHandler(NSURLSessionAuthChallengeUseCredential, null)
             }
         }

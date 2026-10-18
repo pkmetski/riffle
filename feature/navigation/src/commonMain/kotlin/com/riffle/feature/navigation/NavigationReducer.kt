@@ -10,7 +10,13 @@ sealed interface NavigationIntent {
     data class ListenItemAtSec(val item: LibraryItem, val startAtSec: Double) : NavigationIntent
     data class OpenElidedReader(val itemId: String, val sourceId: String?) : NavigationIntent
     /** Opens the full reader at [locatorJson] (a Readium-compatible JSON string). Used by annotation results from the library items list where the correct behaviour is to land on the annotated page rather than the highlights view. */
-    data class OpenAnnotationReader(val itemId: String, val sourceId: String?, val locatorJson: String) : NavigationIntent
+    data class OpenAnnotationReader(
+        val itemId: String,
+        val sourceId: String?,
+        val locatorJson: String,
+        val rawCfi: String = "",
+        val annotationId: String? = null,
+    ) : NavigationIntent
     data class OpenAudiobookBookmark(val itemId: String, val sourceId: String?, val startAtSec: Double) : NavigationIntent
     data class OpenItemDetail(val itemId: String, val sourceId: String?) : NavigationIntent
     data class OpenSeriesDetail(val libraryId: String, val seriesId: String, val seriesName: String) : NavigationIntent
@@ -46,7 +52,7 @@ fun reduceNavStack(
     is NavigationIntent.OpenElidedReader ->
         currentStack + LibraryNav.ElidedReader(intent.itemId, intent.sourceId)
     is NavigationIntent.OpenAnnotationReader ->
-        currentStack + LibraryNav.AnnotationReader(intent.itemId, intent.sourceId, intent.locatorJson)
+        currentStack + LibraryNav.AnnotationReader(intent.itemId, intent.sourceId, intent.locatorJson, intent.rawCfi, intent.annotationId)
     is NavigationIntent.OpenAudiobookBookmark ->
         currentStack + LibraryNav.AudiobookBookmark(intent.itemId, intent.sourceId, intent.startAtSec)
     is NavigationIntent.OpenItemDetail ->

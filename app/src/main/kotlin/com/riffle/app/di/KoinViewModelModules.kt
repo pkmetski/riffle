@@ -1,5 +1,6 @@
 package com.riffle.app.di
 
+import androidx.lifecycle.SavedStateHandle
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.BuildConfig
@@ -169,8 +170,8 @@ private val libraryViewModelModule = module {
     }
     viewModel { params ->
         LibraryItemDetailViewModel(
-            itemId = params.get(),
-            sourceId = params.get(),
+            itemId = params[0],
+            sourceId = params[1],
             libraryObserver = get(),
             recordItemOpened = get(),
             updateReadingProgressUseCase = get(),
@@ -422,6 +423,29 @@ private val serverViewModelModule = module {
             savedStateHandle = get(),
         )
     }
+    viewModel(named("paramsAddSource")) { params ->
+        AddSourceViewModel(
+            repository = get(),
+            authenticators = get(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)),
+            webdavConfigStore = get(),
+            webdavConnectionTester = get(),
+            webdavStatusStore = get(),
+            sweepEnqueuer = get(),
+            progressSyncTrigger = get(),
+            storytellerSyncer = get(),
+            readaloudMatcher = get(),
+            tokenStorage = get(),
+            clock = get(),
+            annotationDao = get(),
+            bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
+            strings = get(),
+            devDefaults = get(),
+            savedStateHandle = SavedStateHandle(buildMap {
+                put("type", params.get<String>(0))
+                params.get<String?>(1)?.takeIf { it.isNotEmpty() }?.let { put("editId", it) }
+            }),
+        )
+    }
     viewModel { SourceSetupViewModel() }
     viewModel {
         SelectLibrariesViewModel(
@@ -519,10 +543,16 @@ private val downloadsViewModelModule = module {
 }
 
 private val readerViewModelModule = module {
-    viewModel {
+    viewModel { params ->
         EpubReaderViewModel(
             application = androidApplication(),
-            savedStateHandle = get(),
+            itemId = params[0],
+            source = params[1],
+            startReadaloudAtSecParam = params[2],
+            openAtCfiParam = params[3],
+            openAnnotationIdParam = params[4],
+            startTocHrefParam = params[5],
+            navServerIdParam = params[6],
             libraryObserver = get(),
             updateReadingProgressUseCase = get(),
             epubRepository = get(),
@@ -594,11 +624,10 @@ private val readerViewModelModule = module {
             publicationOpener = get(),
         )
     } bind SharedPdfRepository::class
-    viewModel {
-        val handle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         PdfReaderViewModel(
-            itemId = checkNotNull(handle.get<String>("itemId")) { "PdfReaderViewModel requires an itemId nav argument" },
-            navSourceId = handle.get<String>("sourceId"),
+            itemId = params[0],
+            navSourceId = params[1],
             sharedPdfRepository = get(),
             readingSessionRepository = get(),
             updateReadingProgressUseCase = get(),
@@ -618,11 +647,10 @@ private val readerViewModelModule = module {
             catalogRegistry = get(),
         )
     }
-    viewModel {
-        val handle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         CbzReaderViewModel(
-            itemId = checkNotNull(handle.get<String>("itemId")) { "CbzReaderViewModel requires an itemId nav argument" },
-            sourceId = handle.get<String>("sourceId"),
+            itemId = params[0],
+            sourceId = params[1],
             libraryObserver = get(),
             cbzRepository = get(),
             readingSessionRepository = get(),
@@ -647,14 +675,13 @@ private val readerViewModelModule = module {
 }
 
 private val audiobookViewModelModule = module {
-    viewModel {
-        val handle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         AudiobookPlayerViewModel(
-            navItemId = handle.get<String>("itemId") ?: "",
-            navSourceId = handle.get<String>("sourceId") ?: "",
-            navPlaylistId = handle.get<String>("playlistId"),
-            navPlaylistLibraryId = handle.get<String>("libraryId"),
-            navStartAtSec = handle.get<Float>("startAtSec") ?: -1f,
+            navItemId = params[0],
+            navSourceId = params[1],
+            navPlaylistId = params[2],
+            navPlaylistLibraryId = params[3],
+            navStartAtSec = params[4],
             playIntentRegistry = get(),
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),

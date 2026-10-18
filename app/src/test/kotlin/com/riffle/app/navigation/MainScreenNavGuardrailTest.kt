@@ -43,41 +43,50 @@ class RouteBackCallbackGuardrailTest {
  * Pins the fix for Downloads and Settings being re-added to the back stack when re-selected from
  * the drawer while already on that screen.
  *
- * Previously both used a plain navController.navigate(DOWNLOADS/SETTINGS) with no guard, so
- * tapping the drawer item while already on the screen pushed a duplicate entry. Back then had to
- * be pressed once per duplicate before returning to the previous destination.
- *
- * The fix guards each navigate call with a currentDestination?.route check so re-selecting an
- * already-top destination is a no-op. The assertions below flip red if either guard is removed.
- *
- * Note: `launchSingleTop = true` was intentionally NOT used — it still fires the enter animation
- * on the existing composable in Navigation 2.9+, producing a bizarre re-enter animation when the
- * destination is already the top of the stack.
+ * After the AppShell migration, MainScreen no longer drives navigation with NavController —
+ * AppShell uses a `var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }`
+ * state variable for section switching. Assigning the same AppSection value is inherently
+ * idempotent (no back-stack entry is pushed), so the old `navController.navigate()` duplicate
+ * guard is no longer needed in MainScreen.kt. The assertions below pin this by verifying:
+ * 1. MainScreen.kt does NOT navigate to DOWNLOADS or SETTINGS via NavController (would re-introduce the bug).
+ * 2. AppShell.kt uses AppSection state switching (the duplicate-safe mechanism).
  */
 class DrawerNavigationDeduplicationTest {
 
     @Test
     fun `Downloads drawer navigation is guarded by route check`() {
-        assertNavCallHasRouteGuard("DOWNLOADS", "downloads")
+        assertMainScreenDoesNotNavigateRawly("DOWNLOADS", "downloads")
+        assertAppShellUsesSectionState("Downloads")
     }
 
     @Test
     fun `Settings drawer navigation is guarded by route check`() {
-        assertNavCallHasRouteGuard("SETTINGS", "settings")
+        assertMainScreenDoesNotNavigateRawly("SETTINGS", "settings")
+        assertAppShellUsesSectionState("Settings")
     }
 
-    private fun assertNavCallHasRouteGuard(constName: String, literal: String) {
+    private fun assertMainScreenDoesNotNavigateRawly(constName: String, literal: String) {
         val lines = locateMainScreenSource().readLines()
-        val idx = lines.indexOfFirst { line ->
+        val rawNavLine = lines.indexOfFirst { line ->
             "navigate($constName)" in line || "navigate(\"$literal\")" in line
         }
-        assertTrue("$constName navigate call not found in MainScreen.kt", idx >= 0)
-        // The guard must appear on the same line or the immediately preceding line.
-        val window = lines.subList(maxOf(0, idx - 1), minOf(idx + 2, lines.size)).joinToString("\n")
         assertTrue(
-            "navigate($constName) must be guarded by a currentDestination route check to prevent " +
-                "back-stack duplicates and spurious re-enter animations.\nFound:\n$window",
-            "currentDestination" in window,
+            "MainScreen.kt must not call navController.navigate($constName) directly — " +
+                "section navigation is owned by AppShell via state variables (no back-stack push). " +
+                "Found raw navigate call at line ${rawNavLine + 1}.",
+            rawNavLine < 0,
+        )
+    }
+
+    private fun assertAppShellUsesSectionState(sectionName: String) {
+        val lines = locateAppShellSource().readLines()
+        val hasSectionAssign = lines.any { line ->
+            "appSection = AppSection.$sectionName" in line
+        }
+        assertTrue(
+            "AppShell.kt must assign `appSection = AppSection.$sectionName` for drawer navigation " +
+                "— state variable switching is inherently duplicate-safe.",
+            hasSectionAssign,
         )
     }
 
@@ -85,6 +94,12 @@ class DrawerNavigationDeduplicationTest {
         listOf(
             File("src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
             File("app/src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
+        ).first { it.exists() }
+
+    private fun locateAppShellSource(): File =
+        listOf(
+            File("../feature/shell-ui/src/commonMain/kotlin/com/riffle/feature/shellui/AppShell.kt"),
+            File("feature/shell-ui/src/commonMain/kotlin/com/riffle/feature/shellui/AppShell.kt"),
         ).first { it.exists() }
 }
 

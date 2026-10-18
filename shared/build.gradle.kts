@@ -92,6 +92,8 @@ kotlin {
             implementation(project(":feature:library-ui"))
             // The shared Settings screens both hosts render.
             implementation(project(":feature:settings-ui"))
+            // The shared app shell (section nav, back stacks, drawer, startup routing).
+            implementation(project(":feature:shell-ui"))
             implementation(project(":feature:navigation"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
