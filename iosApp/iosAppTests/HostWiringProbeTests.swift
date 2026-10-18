@@ -27,4 +27,14 @@ final class HostWiringProbeTests: XCTestCase {
         let violations = IosHostWiringProbeEntryKt.iosSettingsActionsViolations()
         XCTAssert(violations.isEmpty, "Unexpected no-op callbacks in iOS SettingsActions: \(violations)")
     }
+
+    func testReaderHostActionsHaveNoUnexpectedNoOps() {
+        let violations = IosHostWiringProbeEntryKt.iosReaderHostActionsViolations()
+        XCTAssert(violations.isEmpty, "Unexpected no-op callbacks in iOS ReaderHostActions: \(violations)")
+    }
+
+    func testPlayerHostActionsNoOpsAreAllowlisted() {
+        let violations = IosHostWiringProbeEntryKt.iosPlayerHostActionsViolations()
+        XCTAssert(violations.isEmpty, "Unexpected no-op callbacks in iOS PlayerHostActions: \(violations)")
+    }
 }
