@@ -133,6 +133,10 @@ object ServerReferenceLint {
         // LOCAL_FILES SourceEntity — the field is required by SourceDao.upsertAsFirstIfNoActive;
         // using the typed constant is the only way to avoid a string-literal divergence (AGENTS.md).
         "core/data/src/iosMain/kotlin/com/riffle/core/data/localfiles/IosLocalFilesSourceInstaller.kt",
+        // Android onboarding slot mirrors SourceOnboardingHost.kt (iOS) — constructs
+        // AddSourceBackend.Credentialed(type, ServerType.AUDIOBOOKSHELF) to derive the routeType
+        // string for the named Koin viewModel. Same pattern, same ServerType-at-boundary rationale.
+        "app/src/main/kotlin/com/riffle/app/navigation/AndroidOnboardingSlot.kt",
     )
 
     data class Offender(

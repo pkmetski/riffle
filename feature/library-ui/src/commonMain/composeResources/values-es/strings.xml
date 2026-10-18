@@ -8,6 +8,7 @@
     <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
     <string name="ui_unable_to_connect_to_source">No se puede conectar a la fuente</string>
     <string name="ui_retry">Reintentar</string>
+    <string name="ui_book_not_found">Libro no encontrado</string>
     <string name="ui_back">Atrás</string>
     <string name="ui_cancel">Cancelar</string>
     <string name="ui_remove_all">Quitar todo</string>

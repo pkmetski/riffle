@@ -1,5 +1,6 @@
 package com.riffle.app.di
 
+import androidx.lifecycle.SavedStateHandle
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.app.BuildConfig
@@ -422,6 +423,29 @@ private val serverViewModelModule = module {
             savedStateHandle = get(),
         )
     }
+    viewModel(named("paramsAddSource")) { params ->
+        AddSourceViewModel(
+            repository = get(),
+            authenticators = get(named(SOURCE_ADAPTERS_BY_SOURCE_TYPE)),
+            webdavConfigStore = get(),
+            webdavConnectionTester = get(),
+            webdavStatusStore = get(),
+            sweepEnqueuer = get(),
+            progressSyncTrigger = get(),
+            storytellerSyncer = get(),
+            readaloudMatcher = get(),
+            tokenStorage = get(),
+            clock = get(),
+            annotationDao = get(),
+            bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
+            strings = get(),
+            devDefaults = get(),
+            savedStateHandle = SavedStateHandle(buildMap {
+                put("type", params.get<String>(0))
+                params.get<String?>(1)?.takeIf { it.isNotEmpty() }?.let { put("editId", it) }
+            }),
+        )
+    }
     viewModel { SourceSetupViewModel() }
     viewModel {
         SelectLibrariesViewModel(
@@ -519,10 +543,16 @@ private val downloadsViewModelModule = module {
 }
 
 private val readerViewModelModule = module {
-    viewModel {
+    viewModel { params ->
         EpubReaderViewModel(
             application = androidApplication(),
-            savedStateHandle = get(),
+            itemId = params.get(),
+            source = params.get(),
+            startReadaloudAtSecParam = params.get(),
+            openAtCfiParam = params.get(),
+            openAnnotationIdParam = params.get(),
+            startTocHrefParam = params.get(),
+            navServerIdParam = params.get(),
             libraryObserver = get(),
             updateReadingProgressUseCase = get(),
             epubRepository = get(),
@@ -594,11 +624,10 @@ private val readerViewModelModule = module {
             publicationOpener = get(),
         )
     } bind SharedPdfRepository::class
-    viewModel {
-        val handle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         PdfReaderViewModel(
-            itemId = checkNotNull(handle.get<String>("itemId")) { "PdfReaderViewModel requires an itemId nav argument" },
-            navSourceId = handle.get<String>("sourceId"),
+            itemId = params.get(),
+            navSourceId = params.get(),
             sharedPdfRepository = get(),
             readingSessionRepository = get(),
             updateReadingProgressUseCase = get(),
@@ -618,11 +647,10 @@ private val readerViewModelModule = module {
             catalogRegistry = get(),
         )
     }
-    viewModel {
-        val handle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         CbzReaderViewModel(
-            itemId = checkNotNull(handle.get<String>("itemId")) { "CbzReaderViewModel requires an itemId nav argument" },
-            sourceId = handle.get<String>("sourceId"),
+            itemId = params.get(),
+            sourceId = params.get(),
             libraryObserver = get(),
             cbzRepository = get(),
             readingSessionRepository = get(),
@@ -647,14 +675,13 @@ private val readerViewModelModule = module {
 }
 
 private val audiobookViewModelModule = module {
-    viewModel {
-        val handle = get<androidx.lifecycle.SavedStateHandle>()
+    viewModel { params ->
         AudiobookPlayerViewModel(
-            navItemId = handle.get<String>("itemId") ?: "",
-            navSourceId = handle.get<String>("sourceId") ?: "",
-            navPlaylistId = handle.get<String>("playlistId"),
-            navPlaylistLibraryId = handle.get<String>("libraryId"),
-            navStartAtSec = handle.get<Float>("startAtSec") ?: -1f,
+            navItemId = params.get(),
+            navSourceId = params.get(),
+            navPlaylistId = params.get(),
+            navPlaylistLibraryId = params.get(),
+            navStartAtSec = params.get(),
             playIntentRegistry = get(),
             audiobookRepository = get(),
             audiobookDownloadRepository = get(),

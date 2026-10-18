@@ -101,6 +101,7 @@
 		B1065020 /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
 		B106501A /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
 		B1066010 /* NowPlayingSceneGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1066020 /* NowPlayingSceneGateTests.swift */; };
+		B1070010 /* AppShellSmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1070020 /* AppShellSmokeTest.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -186,6 +187,7 @@
 		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
 		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
+		B1070020 /* AppShellSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellSmokeTest.swift; sourceTree = "<group>"; };
 		F0NT001002 /* Literata-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Literata-Regular.ttf"; sourceTree = "<group>"; };
 		F0NT002002 /* Merriweather-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Merriweather-Regular.ttf"; sourceTree = "<group>"; };
 		F0NT003002 /* OpenDyslexic-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "OpenDyslexic-Regular.otf"; sourceTree = "<group>"; };
@@ -319,6 +321,7 @@
 				B1066020 /* NowPlayingSceneGateTests.swift */,
 				B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */,
 				BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */,
+				B1070020 /* AppShellSmokeTest.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -557,6 +560,7 @@
 				B1056010 /* LibraryItemDetailTests.swift in Sources */,
 				B100F010 /* OnboardingNavIconTests.swift in Sources */,
 				B1058010 /* LibraryNavStackTests.swift in Sources */,
+				B1070010 /* AppShellSmokeTest.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -162,6 +162,7 @@ dependencies {
     implementation(project(":feature:reader-ui"))
     implementation(project(":feature:player-ui"))
     implementation(project(":feature:library-ui"))
+    implementation(project(":feature:shell-ui"))
     implementation(project(":core:sources"))
     implementation(project(":core:sync"))
     implementation(project(":core:data"))
@@ -268,4 +269,5 @@ tasks.matching {
     dependsOn(":feature:library-ui:copyComposeResourcesForApk")
     dependsOn(":feature:reader-ui:copyComposeResourcesForApk")
     dependsOn(":feature:player-ui:copyComposeResourcesForApk")
+    dependsOn(":feature:shell-ui:copyComposeResourcesForApk")
 }
