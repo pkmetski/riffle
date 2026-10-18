@@ -85,19 +85,19 @@ final class ElidedAnnotationsViewTests: XCTestCase {
     // MARK: - IosElidedEpubAssembler
 
     func testAssemblerReturnsNilForEmptyChapters() {
-        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: "")
         XCTAssertNil(result, "assemble should return nil when no chapters provided")
     }
 
     func testAssemblerReturnsNilForChaptersWithNoHighlights() {
         let emptyChapter = ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [])
-        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [emptyChapter], emphasisBarCss: "", dataUriByHref: [:])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [emptyChapter], emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: "")
         XCTAssertNil(result, "assemble should return nil when all chapters have empty highlights")
     }
 
     func testAssemblerCreatesDirectoryWithRequiredFiles() {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]) else {
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: "") else {
             XCTFail("assemble returned nil for non-empty chapters")
             return
         }
@@ -116,7 +116,7 @@ final class ElidedAnnotationsViewTests: XCTestCase {
 
     func testAssemblerMimetypeContent() throws {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
-        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]) else {
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: "") else {
             XCTFail("assemble returned nil")
             return
         }
@@ -131,7 +131,7 @@ final class ElidedAnnotationsViewTests: XCTestCase {
     // Deleting the last highlight produces an empty chapters list; the assembler returns nil
     // so the screen's collect loop must call onBack() — assemble(nil) is the signal.
     func testCloseOnEmptyChaptersAssemblerReturnsNil() {
-        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:])
+        let result = IosElidedEpubAssembler.shared.assemble(item: item, chapters: [], emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: "")
         XCTAssertNil(result, "nil dirPath from empty chapters signals the screen to close")
     }
 
@@ -144,13 +144,13 @@ final class ElidedAnnotationsViewTests: XCTestCase {
     func testAssemblerSucceedsOnRepeatCallOverwritingExistingDirectory() {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
         guard let path1 = IosElidedEpubAssembler.shared.assemble(
-            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: ""
         ) else {
             XCTFail("first assemble call returned nil")
             return
         }
         guard let path2 = IosElidedEpubAssembler.shared.assemble(
-            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:]
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: ""
         ) else {
             XCTFail("second assemble call returned nil — overwrite of existing directory failed")
             return
