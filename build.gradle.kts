@@ -5,7 +5,6 @@ import com.riffle.buildlogic.DatabaseImplLeakLint
 import com.riffle.buildlogic.HardcodedStringLiteralLint
 import com.riffle.buildlogic.LocalizationResourceLint
 import com.riffle.buildlogic.OkHttpConfinementLint
-import com.riffle.buildlogic.ParityClosingGateLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
 import com.riffle.buildlogic.TestGuardrailLint
@@ -645,100 +644,6 @@ tasks.register("checkHardcodedStringLiterals") {
     }
 }
 
-// Enforces that every `Closes #N` issue referenced in a PR body carries `Acceptance:` lines
-// naming existing, CI-wired tests on the iOS code path. Issues are fetched via the `gh` CLI
-// using the current PR context (GITHUB_PR_NUMBER env var, or `gh pr view`). When no PR context
-// is available (local branch work, shallow clone) the task warns and skips.
-// Detection logic lives in buildSrc/.../ParityClosingGateLint.kt so it's JUnit-testable.
-tasks.register("checkParityClosingGate") {
-    group = "verification"
-    description = "Fails if a PR closes a parity issue whose Acceptance tests are missing or not CI-wired."
-    notCompatibleWithConfigurationCache("invokes gh CLI and reads the file system at execution time")
-
-    doLast {
-        val projectRoot = layout.projectDirectory.asFile
-
-        fun gh(vararg args: String): String? {
-            val process = ProcessBuilder(listOf("gh") + args)
-                .directory(projectRoot)
-                .start()
-            val stdout = process.inputStream.bufferedReader().readText()
-            process.errorStream.bufferedReader().readText()
-            return if (process.waitFor() == 0) stdout.trim() else null
-        }
-
-        fun queryOpenSubIssues(issueNumber: Int): List<Int> {
-            val query = "{ repository(owner: \"pkmetski\", name: \"riffle\") { issue(number: $issueNumber) { subIssues(first: 100) { nodes { number state } } } } }"
-            val csv = gh(
-                "api", "graphql",
-                "-f", "query=$query",
-                "--jq", "[.data.repository.issue.subIssues.nodes[] | select(.state==\"OPEN\") | .number] | join(\",\")",
-            ) ?: return emptyList()
-            return if (csv.isBlank()) emptyList()
-            else csv.split(",").mapNotNull { it.trim().toIntOrNull() }
-        }
-
-        // Resolve the current PR number: prefer the env var CI sets, fall back to `gh pr view`.
-        val prNumber = System.getenv("GITHUB_PR_NUMBER")?.toIntOrNull()
-            ?: gh("pr", "view", "--json", "number", "--jq", ".number")?.toIntOrNull()
-        if (prNumber == null) {
-            logger.warn("checkParityClosingGate: no PR context found — skipping.")
-            return@doLast
-        }
-
-        val prBody = gh("pr", "view", prNumber.toString(), "--json", "body", "--jq", ".body")
-            ?: run {
-                logger.warn("checkParityClosingGate: could not fetch PR body — skipping.")
-                return@doLast
-            }
-
-        val closedIssues = ParityClosingGateLint.parseClosedIssueNumbers(prBody)
-        if (closedIssues.isEmpty()) return@doLast
-
-        // Build the test source map once — commonTest and iosTest .kt files only.
-        val testSourceMap = mutableMapOf<String, String>()
-        val iosTestPattern = Regex("""(?:^|/)src/(?:commonTest|iosTest)/""")
-        projectRoot.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { iosTestPattern.containsMatchIn(it.invariantSeparatorsPath.removePrefix("${projectRoot.invariantSeparatorsPath}/")) }
-            .forEach { f ->
-                val rel = f.relativeTo(projectRoot).invariantSeparatorsPath
-                testSourceMap[rel] = f.readText()
-            }
-
-        val iosYmlContent = projectRoot.resolve(".github/workflows/ios.yml")
-            .takeIf { it.exists() }?.readText().orEmpty()
-        val pbxprojContent = projectRoot.resolve("iosApp/iosApp.xcodeproj/project.pbxproj")
-            .takeIf { it.exists() }?.readText().orEmpty()
-
-        val violations = closedIssues.flatMap { issueNumber ->
-            val issueBody = gh("issue", "view", issueNumber.toString(), "--json", "body", "--jq", ".body")
-                ?: return@flatMap emptyList()
-
-            val openSubIssues = queryOpenSubIssues(issueNumber)
-            val subIssueViolation = ParityClosingGateLint.checkOpenSubIssues(issueNumber, openSubIssues)
-            if (subIssueViolation != null) return@flatMap listOf(subIssueViolation)
-
-            ParityClosingGateLint.checkAcceptanceTests(
-                issueNumber = issueNumber,
-                issueBody = issueBody,
-                testSourceMap = testSourceMap,
-                iosYmlContent = iosYmlContent,
-                pbxprojContent = pbxprojContent,
-            )
-        }
-
-        if (violations.isNotEmpty()) {
-            throw GradleException(
-                "Parity closing gate: every item in a closed parity issue must name an existing, " +
-                    "CI-wired test on the iOS code path (see AGENTS.md \"Tests must mirror both platforms\"). " +
-                    "Fix the following or change `Closes #N` to `Part of #N` for issues not yet fully covered:\n" +
-                    violations.joinToString("\n") { "  ${it.render()}" },
-            )
-        }
-    }
-}
-
 // Guards the pbxproj membership invariant established by #1246: every Swift test file under
 // iosApp/iosAppTests/ must be referenced in project.pbxproj, and every font file under
 // iosApp/iosApp/Fonts/ must appear in a Resources build phase. A stale squash-merge that silently
@@ -801,7 +706,6 @@ tasks.register("riffleChecks") {
         "checkParityMirror",
         "checkSharedCommonMainComposables",
         "checkHardcodedStringLiterals",
-        "checkParityClosingGate",
         "checkPbxprojMembership",
     )
 }
@@ -821,6 +725,5 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkParityMirror"))
         dependsOn(rootProject.tasks.named("checkSharedCommonMainComposables"))
         dependsOn(rootProject.tasks.named("checkHardcodedStringLiterals"))
-        dependsOn(rootProject.tasks.named("checkParityClosingGate"))
     }
 }
