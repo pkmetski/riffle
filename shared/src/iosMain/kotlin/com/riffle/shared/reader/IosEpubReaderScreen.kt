@@ -59,7 +59,6 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
-import com.riffle.core.domain.effectiveOrientation
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
@@ -69,6 +68,7 @@ import com.riffle.core.domain.cadence.CadenceState
 import com.riffle.core.domain.cadence.Feature
 import com.riffle.core.domain.cadence.currentRunningFeature
 import com.riffle.core.domain.cadence.runArbiter
+import com.riffle.core.domain.effectiveOrientation
 import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.logging.Logger

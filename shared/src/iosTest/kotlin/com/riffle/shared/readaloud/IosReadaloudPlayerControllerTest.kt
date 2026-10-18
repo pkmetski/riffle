@@ -32,8 +32,12 @@ class IosReadaloudPlayerControllerTest {
         override fun currentSrcIndex(): Int = 0
         override fun currentOffsetSec(): Double = 0.0
         override fun isPlaying(): Boolean = false
-        override fun setPositionCallback(callback: IosReadaloudPositionCallback?) { positionCallback = callback }
-        override fun setPlayingCallback(callback: IosReadaloudPlayingCallback?) { playingCallback = callback }
+        override fun setPositionCallback(callback: IosReadaloudPositionCallback?) {
+            positionCallback = callback
+        }
+        override fun setPlayingCallback(callback: IosReadaloudPlayingCallback?) {
+            playingCallback = callback
+        }
         override fun dispose() = Unit
     }
 

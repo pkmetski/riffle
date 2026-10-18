@@ -646,8 +646,10 @@ private fun HomeTabContent(
     val continueSeries = stringResource(Res.string.ui_section_continue_series)
     val recentlyAdded = stringResource(Res.string.ui_section_recently_added)
     val completed = stringResource(Res.string.ui_section_completed)
-    val allEmpty = projection.inProgress.isEmpty() && projection.continueSeries.isEmpty() &&
-        (!showRecentlyAdded || projection.recentlyAdded.isEmpty()) && projection.finished.isEmpty()
+    val allEmpty = projection.inProgress.isEmpty() &&
+        projection.continueSeries.isEmpty() &&
+        (!showRecentlyAdded || projection.recentlyAdded.isEmpty()) &&
+        projection.finished.isEmpty()
     if (allEmpty) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
