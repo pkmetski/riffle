@@ -94,7 +94,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
-import com.riffle.app.feature.library.FetchAudiobookChaptersUseCase
+import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase

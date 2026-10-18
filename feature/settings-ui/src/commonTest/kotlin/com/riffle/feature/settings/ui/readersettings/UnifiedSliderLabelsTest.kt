@@ -1,14 +1,9 @@
-package com.riffle.app.feature.reader
+package com.riffle.feature.settings.ui.readersettings
 
-import com.riffle.feature.settings.ui.readersettings.fontSizeBubble
-import com.riffle.feature.settings.ui.readersettings.isMajorTick
-import com.riffle.feature.settings.ui.readersettings.lineSpacingBubble
-import com.riffle.feature.settings.ui.readersettings.marginsBubble
-import com.riffle.feature.settings.ui.readersettings.wpmBubble
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class UnifiedSliderLabelsTest {
 
@@ -38,13 +33,10 @@ class UnifiedSliderLabelsTest {
     }
 
     @Test fun isMajorTickTrueAtIntegerMultiples() {
-        // WPM majors every 100 → 100, 200, 300, …
         assertTrue(isMajorTick(value = 100f, majorEvery = 100f))
         assertTrue(isMajorTick(value = 500f, majorEvery = 100f))
-        // Font majors every 0.5 → 0.5, 1.0, 1.5, 2.0, 2.5
         assertTrue(isMajorTick(value = 1.0f, majorEvery = 0.5f))
         assertTrue(isMajorTick(value = 2.5f, majorEvery = 0.5f))
-        // Spacing majors every 0.2 → 1.0, 1.2, 1.4, …
         assertTrue(isMajorTick(value = 1.4f, majorEvery = 0.2f))
     }
 
@@ -52,13 +44,10 @@ class UnifiedSliderLabelsTest {
         assertFalse(isMajorTick(value = 0.6f, majorEvery = 0.5f))
         assertFalse(isMajorTick(value = 1.3f, majorEvery = 0.2f))
         assertFalse(isMajorTick(value = 190f, majorEvery = 100f))
-        // 80 wpm is the range floor but NOT an integer multiple of 100 — the design intentionally
-        // draws only 100, 200, …, 600 as majors on the wpm slider.
         assertFalse(isMajorTick(value = 80f, majorEvery = 100f))
     }
 
     @Test fun isMajorTickToleratesFloatDrift() {
-        // 0.1 arithmetic in Float drifts; 0.2 * 5 lands near 1.0 but not exactly.
         val drifted = 0.2f + 0.2f + 0.2f + 0.2f + 0.2f
         assertTrue(isMajorTick(drifted, majorEvery = 0.2f))
     }

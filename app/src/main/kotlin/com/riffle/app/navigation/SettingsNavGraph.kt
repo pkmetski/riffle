@@ -58,7 +58,7 @@ internal fun NavGraphBuilder.settingsNavGraph(
                 }
 
                 override fun onLanguageChanged(language: AppLanguage) {
-                    val appLanguage = com.riffle.app.i18n.AppLanguage.fromTag(language.tag)
+                    val appLanguage = AppLanguage.fromTag(language.tag)
                     AppLocaleController.setLanguage(context, appLanguage)
                     activity?.recreate()
                 }

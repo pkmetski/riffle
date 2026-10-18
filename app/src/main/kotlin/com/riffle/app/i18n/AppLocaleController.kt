@@ -1,5 +1,6 @@
 package com.riffle.app.i18n
 
+import com.riffle.feature.settings.ui.i18n.AppLanguage
 import android.app.Activity
 import android.app.LocaleManager
 import android.content.Context
