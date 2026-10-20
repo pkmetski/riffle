@@ -9,16 +9,10 @@
 /* Begin PBXBuildFile section */
 		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
 		3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */; };
-		C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */; };
-		F0NT001001 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
-		F0NT002001 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
-		F0NT003001 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
-		F0NT001003 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
-		F0NT002003 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
-		F0NT003003 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
 		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
 		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
 		8528A47455B6399D5B23B630 /* test.epub in Resources */ = {isa = PBXBuildFile; fileRef = B1021020 /* test.epub */; };
+		A1BG0010 /* AppLocalizationUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BG0020 /* AppLocalizationUnitTests.swift */; };
 		A1C0DE010001 /* AutoScrollBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE010002 /* AutoScrollBridgeTests.swift */; };
 		A1C0DE020001 /* CadenceBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE020002 /* CadenceBridgeTests.swift */; };
 		A1C0DE030001 /* AnnotationBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE030002 /* AnnotationBridgeTests.swift */; };
@@ -40,6 +34,7 @@
 		B1002012 /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = B1002003 /* ReadiumNavigator */; };
 		B1002020 /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
 		B1002021 /* ReadiumEpubNavigatorBridge+Delegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002031 /* ReadiumEpubNavigatorBridge+Delegate.swift */; };
+		B1002022 /* ReadiumEpubNavigatorBridge+Delegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002031 /* ReadiumEpubNavigatorBridge+Delegate.swift */; };
 		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
 		B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
 		B1004010 /* AudiobookPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1004020 /* AudiobookPlayerTests.swift */; };
@@ -55,7 +50,6 @@
 		B1008017 /* ReaderSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008027 /* ReaderSettingsTests.swift */; };
 		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
 		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
-		B1002022 /* ReadiumEpubNavigatorBridge+Delegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002031 /* ReadiumEpubNavigatorBridge+Delegate.swift */; };
 		B100801C /* PageEdgeTapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100801B /* PageEdgeTapTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
 		B1008031 /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = B1008002 /* ReadiumStreamer */; };
@@ -85,7 +79,6 @@
 		B1052010 /* LibraryGridAndTabsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1052020 /* LibraryGridAndTabsUITests.swift */; };
 		B1053010 /* EpubProgressionLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1053020 /* EpubProgressionLocatorTests.swift */; };
 		B1054010 /* AudioPlayerBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1054020 /* AudioPlayerBridgeTests.swift */; };
-		A1BG0010 /* AppLocalizationUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BG0020 /* AppLocalizationUnitTests.swift */; };
 		B1055010 /* FootnoteBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1055020 /* FootnoteBridgeTests.swift */; };
 		B1056010 /* LibraryItemDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1056020 /* LibraryItemDetailTests.swift */; };
 		B1057010 /* IosPlatformSettingsHooksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1057020 /* IosPlatformSettingsHooksTests.swift */; };
@@ -96,12 +89,19 @@
 		B106101A /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
 		B1061020 /* IosReadaloudBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061030 /* IosReadaloudBridgeImpl.swift */; };
 		B1061021 /* ReadaloudBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1061031 /* ReadaloudBridgeTests.swift */; };
-		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
-		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
-		B1065020 /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
 		B106501A /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
+		B1065020 /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
 		B1066010 /* NowPlayingSceneGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1066020 /* NowPlayingSceneGateTests.swift */; };
 		B1070010 /* AppShellSmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1070020 /* AppShellSmokeTest.swift */; };
+		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
+		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
+		C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */; };
+		F0NT001001 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
+		F0NT001003 /* Literata-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT001002 /* Literata-Regular.ttf */; };
+		F0NT002001 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
+		F0NT002003 /* Merriweather-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT002002 /* Merriweather-Regular.ttf */; };
+		F0NT003001 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
+		F0NT003003 /* OpenDyslexic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F0NT003002 /* OpenDyslexic-Regular.otf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,6 +115,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1BG0020 /* AppLocalizationUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizationUnitTests.swift; sourceTree = "<group>"; };
 		A1C0DE010002 /* AutoScrollBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutoScrollBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE020002 /* CadenceBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CadenceBridgeTests.swift; sourceTree = "<group>"; };
 		A1C0DE030002 /* AnnotationBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationBridgeTests.swift; sourceTree = "<group>"; };
@@ -124,11 +125,9 @@
 		A1C0DE070002 /* HostWiringProbeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostWiringProbeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
 		A1EL2D020001 /* ElidedPdfBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridgeTests.swift; sourceTree = "<group>"; };
-		B1000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = iosApp.app; path = Riffle.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000001 /* Riffle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Riffle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000020 /* RiffleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleApp.swift; sourceTree = "<group>"; };
 		B1000021 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		B1065030 /* NowPlayingSceneGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGate.swift; sourceTree = "<group>"; };
-		B1066020 /* NowPlayingSceneGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGateTests.swift; sourceTree = "<group>"; };
 		B1000022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B1001001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1001020 /* iosAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosAppTests.swift; sourceTree = "<group>"; };
@@ -172,7 +171,6 @@
 		B1052020 /* LibraryGridAndTabsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGridAndTabsUITests.swift; sourceTree = "<group>"; };
 		B1053020 /* EpubProgressionLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpubProgressionLocatorTests.swift; sourceTree = "<group>"; };
 		B1054020 /* AudioPlayerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerBridgeTests.swift; sourceTree = "<group>"; };
-		A1BG0020 /* AppLocalizationUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizationUnitTests.swift; sourceTree = "<group>"; };
 		B1055020 /* FootnoteBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootnoteBridgeTests.swift; sourceTree = "<group>"; };
 		B1056020 /* LibraryItemDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemDetailTests.swift; sourceTree = "<group>"; };
 		B1057020 /* IosPlatformSettingsHooksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPlatformSettingsHooksTests.swift; sourceTree = "<group>"; };
@@ -181,16 +179,18 @@
 		B1060021 /* OpenInDocumentStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenInDocumentStagingTests.swift; sourceTree = "<group>"; };
 		B1061030 /* IosReadaloudBridgeImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReadaloudBridgeImpl.swift; sourceTree = "<group>"; };
 		B1061031 /* ReadaloudBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadaloudBridgeTests.swift; sourceTree = "<group>"; };
+		B1065030 /* NowPlayingSceneGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGate.swift; sourceTree = "<group>"; };
+		B1066020 /* NowPlayingSceneGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGateTests.swift; sourceTree = "<group>"; };
+		B1070020 /* AppShellSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellSmokeTest.swift; sourceTree = "<group>"; };
 		B1099030 /* Sqlite3LoadExtensionStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sqlite3LoadExtensionStub.swift; sourceTree = "<group>"; };
-		E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspectorTests.swift; sourceTree = "<group>"; };
-		E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridge.swift; sourceTree = "<group>"; };
-		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
 		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
-		B1070020 /* AppShellSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellSmokeTest.swift; sourceTree = "<group>"; };
+		E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspectorTests.swift; sourceTree = "<group>"; };
+		E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridge.swift; sourceTree = "<group>"; };
 		F0NT001002 /* Literata-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Literata-Regular.ttf"; sourceTree = "<group>"; };
 		F0NT002002 /* Merriweather-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Merriweather-Regular.ttf"; sourceTree = "<group>"; };
 		F0NT003002 /* OpenDyslexic-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "OpenDyslexic-Regular.otf"; sourceTree = "<group>"; };
+		FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -250,20 +250,10 @@
 			path = iosApp;
 			sourceTree = "<group>";
 		};
-		F0NT000GRP /* Fonts */ = {
-			isa = PBXGroup;
-			children = (
-				F0NT001002 /* Literata-Regular.ttf */,
-				F0NT002002 /* Merriweather-Regular.ttf */,
-				F0NT003002 /* OpenDyslexic-Regular.otf */,
-			);
-			path = Fonts;
-			sourceTree = "<group>";
-		};
 		B1000004 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B1000001 /* iosApp.app */,
+				B1000001 /* Riffle.app */,
 				B1001001 /* iosAppTests.xctest */,
 				B1008000 /* iosAppUnitTests.xctest */,
 			);
@@ -347,6 +337,16 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		F0NT000GRP /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				F0NT001002 /* Literata-Regular.ttf */,
+				F0NT002002 /* Merriweather-Regular.ttf */,
+				F0NT003002 /* OpenDyslexic-Regular.otf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -370,7 +370,7 @@
 				B1002003 /* ReadiumNavigator */,
 			);
 			productName = Riffle;
-			productReference = B1000001 /* iosApp.app */;
+			productReference = B1000001 /* Riffle.app */;
 			productType = "com.apple.product-type.application";
 		};
 		B1001005 /* iosAppTests */ = {
@@ -704,13 +704,15 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = NJ48TL85B9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework",
 					"$(SRCROOT)/../shared/build/bin/iosArm64/debugFramework",
 				);
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Riffle;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -723,7 +725,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -734,13 +736,15 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = NJ48TL85B9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/releaseFramework",
 					"$(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework",
 				);
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Riffle;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -753,7 +757,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

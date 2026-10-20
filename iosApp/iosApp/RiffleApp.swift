@@ -41,13 +41,21 @@ struct RiffleApp: App {
 }
 
 private func wipeAppState() {
-    // Room KMP (BundledSQLiteDriver) stores the database at NSHomeDirectory()/riffle.db, not
-    // in Library/Application Support/databases/ (SQLDelight's old location). Delete the main
-    // database file and its WAL/SHM sidecars so Room re-creates the schema on the next Koin start.
-    let homeDir = NSHomeDirectory()
+    // The database lives in Library/Application Support/riffle.db (moved there from
+    // NSHomeDirectory()/riffle.db to avoid Room's FileLock EPERM on the container root).
+    // Wipe both locations so stale containers and freshly-migrated installs are both cleaned.
     let fileManager = FileManager.default
-    for name in ["riffle.db", "riffle.db-wal", "riffle.db-shm"] {
-        try? fileManager.removeItem(atPath: "\(homeDir)/\(name)")
+    let appSupport = (try? fileManager.url(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask,
+        appropriateFor: nil,
+        create: false
+    ).path) ?? "\(NSHomeDirectory())/Library/Application Support"
+    let homeDir = NSHomeDirectory()
+    for base in ["\(appSupport)/riffle.db", "\(homeDir)/riffle.db"] {
+        for suffix in ["", "-wal", "-shm", ".lck"] {
+            try? fileManager.removeItem(atPath: "\(base)\(suffix)")
+        }
     }
     if let bundleId = Bundle.main.bundleIdentifier {
         UserDefaults.standard.removePersistentDomain(forName: bundleId)
