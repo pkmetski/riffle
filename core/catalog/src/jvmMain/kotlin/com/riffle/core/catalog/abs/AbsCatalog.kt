@@ -274,9 +274,10 @@ class AbsCatalog(
             asin = request.metadata.asin,
         )
         repeat(RECONCILIATION_ATTEMPTS) { attempt ->
-            // ABS returns immediately when another library scan is already running. A scan
-            // kicked off before the upload can therefore miss these files; retry at intervals
-            // so the upload is picked up once that scan has finished.
+            // Recovery scan: if ABS's watcher hasn't picked up the files yet, a non-forced
+            // scan triggers discovery. The scan is intentionally non-forced (see AbsApiClient)
+            // so it is ignored when ABS's own watcher scan is still running — that watcher scan
+            // is the one creating the canonical item, and interrupting it would cause a duplicate.
             if (attempt > 0 && attempt % RESCAN_INTERVAL_ATTEMPTS == 0) {
                 try {
                     libraryApi.scanLibrary(
