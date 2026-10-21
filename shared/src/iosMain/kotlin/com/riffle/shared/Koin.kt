@@ -13,6 +13,7 @@ import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
+import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
@@ -463,6 +464,15 @@ private fun iosLibraryModule(
         IosAnnotationSweepEnqueuer(scope = get<ApplicationScope>(), runSweep = { sweep.run() })
     }
     single<AnnotationSweepEnqueuer> { get<IosAnnotationSweepEnqueuer>() }
+    single {
+        val holder = get<AnnotationSyncTargetHolder>()
+        AnnotationPullSweep(
+            targetProvider = { holder.current() },
+            syncController = get(),
+            sourceRepository = get(),
+            statusStore = get(),
+        )
+    }
     // Runs the real ProgressSweep the moment a source's sync config is saved, so anything that
     // went dirty while the source was misconfigured is pushed without waiting for the next
     // launch. Android's equivalent enqueues ProgressSyncScheduler.sweepNow (#1071 §14).
@@ -901,10 +911,14 @@ private fun iosLibraryModule(
         // Through the enqueuer so the driver's pass and an on-demand enqueue never run the
         // annotation sweep concurrently.
         val annotationSweeps = get<IosAnnotationSweepEnqueuer>()
+        val annotationPullSweep = get<AnnotationPullSweep>()
         val playlistSweep = get<PlaylistSweep>()
         ForegroundSyncDriver(
             runProgressSweep = { sweep.run() },
-            runAnnotationSweep = { annotationSweeps.runNow() },
+            runAnnotationSweep = {
+                annotationSweeps.runNow()
+                runCatching { annotationPullSweep.run() }
+            },
             runPlaylistSweep = { playlistSweep.run() },
             nowMs = get<Clock>()::nowMs,
         )

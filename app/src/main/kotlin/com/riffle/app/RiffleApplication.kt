@@ -14,6 +14,7 @@ import com.riffle.app.di.riffleViewModelKoinModules
 import com.riffle.core.data.di.coreDataKoinModules
 import com.riffle.core.logging.loggingKoinModule
 import com.riffle.core.sync.kickSweepsOnReconnect
+import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.PlaylistSweep
@@ -118,16 +119,23 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         // validated edge is authoritative.
         val connectivity = get<com.riffle.core.domain.ConnectivityObserver>()
         val annotationSweep = get<AnnotationSweep>()
+        val annotationPullSweep = get<AnnotationPullSweep>()
         val progressSweep = get<ProgressSweep>()
         val playlistSweep = get<PlaylistSweep>()
         applicationScope.launchSurvivable {
             kickSweepsOnReconnect(
                 isOnline = connectivity.isOnline,
                 runProgressSweep = { runCatching { progressSweep.run() } },
-                runAnnotationSweep = { runCatching { annotationSweep.run() } },
+                runAnnotationSweep = {
+                    runCatching { annotationSweep.run() }
+                    runCatching { annotationPullSweep.run() }
+                },
                 runPlaylistSweep = { runCatching { playlistSweep.run() } },
             )
         }
+        // Pull peer annotations into Room on startup so the elided view is populated without
+        // requiring each book to be individually opened in the reader.
+        applicationScope.launchSurvivable { runCatching { annotationPullSweep.run() } }
 
         // Auto-scan configured LocalFiles folders on app foreground and on SAF change events.
         // Users adding a book to a picked folder never have to hit a manual "Rescan" button.

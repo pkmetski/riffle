@@ -75,6 +75,8 @@ class AnnotationSyncController(
         nowIso,
     ),
 ) {
+    private val locks: AnnotationLockPort = locks
+    private val deviceIdStore: DeviceIdStore = deviceIdStore
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
         private const val LIVE_SYNC_INTERVAL_MS = 30_000L
@@ -155,5 +157,30 @@ class AnnotationSyncController(
      */
     suspend fun syncOnClose(sourceId: String, namespace: String, itemId: String) {
         pushCoordinator.syncOnClose(sourceId, namespace, itemId)
+    }
+
+    /**
+     * Pull all remote annotation files for [sourceId]/[namespace] into Room. Lists all peer
+     * device files via [AnnotationSyncTarget.enumerateDevices] and merges each book's files
+     * using the same LWW policy as [syncOnOpen], without a separate per-book LIST call.
+     *
+     * Called by [AnnotationPullSweep] on app start and reconnect to populate the elided view
+     * without requiring each book to be individually opened in the reader.
+     *
+     * No-op when [targetProvider] returns null (sync not configured).
+     */
+    suspend fun pullAll(sourceId: String, namespace: String) {
+        val target = targetProvider() ?: return
+        val ownDeviceId = deviceIdStore.getOrCreate()
+        val listing = target.enumerateDevices(namespace)
+        val itemFiles: Map<String, List<String>> = listing.devices
+            .filter { dev -> dev.deviceId != ownDeviceId }
+            .flatMap { dev -> dev.annotationFiles.map { ref -> ref.itemId to ref.filename } }
+            .groupBy({ it.first }, { it.second })
+        for ((itemId, filenames) in itemFiles) {
+            locks.withAnnotationLock(sourceId, itemId) {
+                mergeOrchestrator.mergeFromListing(target, sourceId, namespace, itemId, filenames)
+            }
+        }
     }
 }
