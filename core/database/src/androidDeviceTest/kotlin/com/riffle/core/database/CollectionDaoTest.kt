@@ -10,12 +10,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
-import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CopyOnWriteArrayList
 
 @RunWith(AndroidJUnit4::class)
 class CollectionDaoTest {
@@ -79,11 +79,13 @@ class CollectionDaoTest {
         )
         db.libraryItemDao().upsertAll(items)
         dao.upsertAll(listOf(collection("c1")))
-        dao.upsertAllItems(listOf(
-            CollectionItemEntity("c1", sourceId = "s1", itemId = "item-z"),
-            CollectionItemEntity("c1", sourceId = "s1", itemId = "item-a"),
-            CollectionItemEntity("c1", sourceId = "s1", itemId = "item-m"),
-        ))
+        dao.upsertAllItems(
+            listOf(
+                CollectionItemEntity("c1", sourceId = "s1", itemId = "item-z"),
+                CollectionItemEntity("c1", sourceId = "s1", itemId = "item-a"),
+                CollectionItemEntity("c1", sourceId = "s1", itemId = "item-m"),
+            )
+        )
 
         val result = dao.observeItemsByCollectionId("s1", "c1").first()
 

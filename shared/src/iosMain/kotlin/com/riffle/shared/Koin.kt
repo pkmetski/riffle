@@ -512,7 +512,7 @@ private fun iosLibraryModule(
 
     // EPUB reader
     single<IosEpubNavigatorBridgeFactory> { navigatorBridgeFactory }
-    single { IosEpubDownloader(get(), get()) }
+    single { IosEpubDownloader(get(), get(), get()) }
     single<IosPublicationInspector> { publicationInspector }
     single<IosElidedPdfBridge> { elidedPdfBridge }
     single { TocRepositoryImpl(get(), get()) }

@@ -558,11 +558,23 @@ fun EpubReaderScreen(
     // computes both asynchronously after the publication opens, so re-read on every page-load
     // event until each has arrived rather than sampling once and drawing a permanently empty
     // (or unweighted) rail.
+    //
+    // Spine readiness race: prefetchSpine calls positionsByReadingOrder() which is async. If the
+    // user stays on the first chapter and never triggers a page-load event, getSpine() would
+    // return an unusable spine (empty positionCounts) forever — the chapter map then shows only
+    // the top-level TOC structure (e.g. 3 parts instead of 30 chapters). The poller below
+    // retries every 200 ms until positionCounts arrives, complementing the page-load collector.
     LaunchedEffect(localPath) {
         if (localPath == null) return@LaunchedEffect
         navigator.getToc().takeIf { it.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
         navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
         if (tocEntries.isNotEmpty() && spine.isUsable) return@LaunchedEffect
+        launch {
+            while (!spine.isUsable) {
+                delay(200L)
+                navigator.getSpine().takeIf { it.isUsable }?.let { s -> spine = s; spineRef.value = s }
+            }
+        }
         navigator.pageLoadEvents.collect {
             if (tocEntries.isEmpty()) {
                 navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
@@ -678,6 +690,16 @@ fun EpubReaderScreen(
     // Everything else — the selection callback, the decoration groups, the text-quote anchor,
     // the merge policy — is mode-independent because Readium resolves a decoration the same way
     // in both layouts.
+    //
+    // Readium gates tap dispatch per group: without registering a group as activable, taps on
+    // its decorations fall through to didTapAt as ordinary BodyTap events, toggling the chrome
+    // instead of opening the actions sheet. Must be called before openEpub so the bridge stores
+    // them and re-registers on every new navigator open.
+    LaunchedEffect(navigator) {
+        ReaderDecorationGroups.activable.forEach { group ->
+            navigator.observeDecorationGroup(group)
+        }
+    }
     // A tap on a rendered decoration opens the actions sheet on that annotation. Readium reports
     // the decoration id, which is the annotation id — except for an emphasis layer, whose id
     // carries a `#<style>` suffix because one row can paint two decorations. Android strips a
@@ -1520,10 +1542,12 @@ fun EpubReaderScreen(
             val annotationSheetModifier = run {
                 val selRect = liveSelection?.rect
                 if (selRect != null && editTarget == null) {
+                    val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
                     val targetY = annotationSheetTargetY(
                         selectionY = selRect.y,
                         selectionHeight = selRect.height,
                         minAboveY = statusBarTopDp.value + 8f,
+                        maxBelowY = screenHeightDp,
                     )
                     Modifier
                         .align(Alignment.TopStart)

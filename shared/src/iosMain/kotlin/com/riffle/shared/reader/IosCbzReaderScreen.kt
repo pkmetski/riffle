@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.UIKitInteropInteractionMode
+import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
@@ -223,6 +225,7 @@ private fun IosComicPageContent(
                         view.image = UIImage.imageWithData(nsData)
                     }
                 },
+                properties = UIKitInteropProperties(interactionMode = UIKitInteropInteractionMode.NonCooperative),
                 modifier = modifier.fillMaxSize(),
             )
         }

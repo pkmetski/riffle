@@ -277,8 +277,10 @@ class AnnotationDaoTest {
         val allIncludingDeleted = dao.getAllForItemIncludingDeleted("abs1", "item1").map { it.id }.toSet()
         assertTrue("live-old must survive age-based purge", "live-old" in remaining)
         assertTrue("live-fresh must survive", "live-fresh" in remaining)
-        assertTrue("unsynced tomb must survive so peers still receive the delete",
-            "tomb-aged-unsynced" in allIncludingDeleted)
+        assertTrue(
+            "unsynced tomb must survive so peers still receive the delete",
+            "tomb-aged-unsynced" in allIncludingDeleted
+        )
         assertTrue("fresh tomb must survive", "tomb-fresh" in allIncludingDeleted)
         assertEquals("aged+synced tomb must be gone", false, "tomb-aged-synced" in allIncludingDeleted)
     }
@@ -287,20 +289,30 @@ class AnnotationDaoTest {
     fun purgeAgedTombstones_isScopedToServerAndItem() = runTest {
         // Same "aged + synced tombstone" pattern under a different itemId and a different sourceId.
         // A per-item purge call must not touch either.
-        dao.upsert(highlight("tomb-target", sourceId = "abs1", itemId = "item1", createdAt = 100L, deleted = true)
-            .copy(lastSyncedAt = 200L))
-        dao.upsert(highlight("tomb-other-item", sourceId = "abs1", itemId = "item2", createdAt = 100L, deleted = true)
-            .copy(lastSyncedAt = 200L))
-        dao.upsert(highlight("tomb-other-server", sourceId = "abs2", itemId = "item1", createdAt = 100L, deleted = true)
-            .copy(lastSyncedAt = 200L))
+        dao.upsert(
+            highlight("tomb-target", sourceId = "abs1", itemId = "item1", createdAt = 100L, deleted = true)
+                .copy(lastSyncedAt = 200L)
+        )
+        dao.upsert(
+            highlight("tomb-other-item", sourceId = "abs1", itemId = "item2", createdAt = 100L, deleted = true)
+                .copy(lastSyncedAt = 200L)
+        )
+        dao.upsert(
+            highlight("tomb-other-server", sourceId = "abs2", itemId = "item1", createdAt = 100L, deleted = true)
+                .copy(lastSyncedAt = 200L)
+        )
 
         val purged = dao.purgeAgedTombstones(sourceId = "abs1", itemId = "item1", cutoff = 5_000L)
 
         assertEquals(1, purged)
-        assertTrue("other-item tomb must survive a scoped purge",
-            "tomb-other-item" in dao.getAllForItemIncludingDeleted("abs1", "item2").map { it.id })
-        assertTrue("other-server tomb must survive",
-            "tomb-other-server" in dao.getAllForItemIncludingDeleted("abs2", "item1").map { it.id })
+        assertTrue(
+            "other-item tomb must survive a scoped purge",
+            "tomb-other-item" in dao.getAllForItemIncludingDeleted("abs1", "item2").map { it.id }
+        )
+        assertTrue(
+            "other-server tomb must survive",
+            "tomb-other-server" in dao.getAllForItemIncludingDeleted("abs2", "item1").map { it.id }
+        )
     }
 
     // Regression: the Settings WebDAV row displays "$N book(s) pending" and must count books, not
@@ -318,8 +330,10 @@ class AnnotationDaoTest {
         // Book C on a second server: one dirty row.
         dao.upsert(highlight("c1", sourceId = "abs2", itemId = "item1", createdAt = 1_500L))
         // Book D: fully synced (lastSyncedAt == updatedAt) — must NOT count.
-        dao.upsert(highlight("d1", sourceId = "abs1", itemId = "item3", createdAt = 1_600L)
-            .copy(lastSyncedAt = 1_600L))
+        dao.upsert(
+            highlight("d1", sourceId = "abs1", itemId = "item3", createdAt = 1_600L)
+                .copy(lastSyncedAt = 1_600L)
+        )
 
         assertEquals(3, dao.observePendingBookCountAcrossAll().first())
     }

@@ -6,6 +6,9 @@ import com.riffle.core.common.FileStore
 import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_EPUB_CACHE
 import com.riffle.core.data.NS_EPUB_DOWNLOADS
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactKind
+import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.models.LibraryItem
 import com.riffle.shared.library.IosEpubPaths
 import kotlinx.coroutines.CancellationException
@@ -25,15 +28,19 @@ import platform.Foundation.NSFileManager
 class IosEpubDownloader(
     private val catalogRegistry: CatalogRegistry,
     private val fileStore: FileStore,
+    private val contentCacheAccessStore: ContentCacheAccessStore,
 ) {
     suspend fun localPath(item: LibraryItem): String? {
+        val cacheKey = ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Epub)
         val downloadPath = fileStore.resolve(NS_EPUB_DOWNLOADS, IosEpubPaths.downloadRelativePath(item.sourceId, item.id))
         if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) {
+            contentCacheAccessStore.markAccessed(cacheKey)
             return downloadPath
         }
 
         val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
         if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) {
+            contentCacheAccessStore.markAccessed(cacheKey)
             return cachePath
         }
 

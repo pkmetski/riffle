@@ -2,8 +2,8 @@
 
 package com.riffle.core.database
 
-import androidx.room.Database
 import androidx.room.ConstructedBy
+import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
 import androidx.room.migration.Migration
@@ -294,7 +294,10 @@ abstract class RiffleDatabase : RoomDatabase() {
                     db.prepare(
                         "INSERT INTO `reading_positions_new` (serverId, itemId, cfi, localUpdatedAt) " +
                             "SELECT ?, itemId, cfi, localUpdatedAt FROM `reading_positions`"
-                    ).use { stmt -> stmt.bindText(1, activeServerId); stmt.step() }
+                    ).use { stmt ->
+                        stmt.bindText(1, activeServerId)
+                        stmt.step()
+                    }
                 }
                 db.execSQL("DROP TABLE `reading_positions`")
                 db.execSQL("ALTER TABLE `reading_positions_new` RENAME TO `reading_positions`")

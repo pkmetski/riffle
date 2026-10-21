@@ -48,11 +48,13 @@ data class AppShellSlots(
         initialBackend: AddSourceBackend?,
         editId: String?,
     ) -> Unit,
-    val webdavOnboardingHost: (@Composable (
-        editId: String?,
-        onFinished: () -> Unit,
-        onCancelled: () -> Unit,
-    ) -> Unit)? = null,
+    val webdavOnboardingHost: (
+        @Composable (
+            editId: String?,
+            onFinished: () -> Unit,
+            onCancelled: () -> Unit,
+        ) -> Unit
+    )? = null,
     val platformSettingsHooks: PlatformSettingsHooks,
     val updateDialog: (@Composable () -> Unit)? = null,
     val languageChangeDialog: (@Composable () -> Unit)? = null,

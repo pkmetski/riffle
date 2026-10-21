@@ -7,68 +7,65 @@ import kotlin.test.assertTrue
 /**
  * Unit tests for [annotationSheetTargetY].
  *
- * Regression: the annotation sheet was always docked at the bottom of the screen regardless of
- * where the selection was, unlike Android's HighlightPopupPositionProvider which anchors near the
- * tapped rect.
+ * iOS prefers *below* the selection (unlike Android which prefers above). The iOS selection handles
+ * appear AT selectionY and extend upward, so placing the sheet above would cover them. Below the
+ * selection there are no handles. The sheet falls back to above only when below would exceed the
+ * screen bottom (maxBelowY constraint).
  */
 class AnnotationSheetPositionTest {
 
-    /** When the selection is low on the screen there is room to show the sheet above it. */
     @Test
-    fun sheetAboveSelectionWhenRoomAvailable() {
-        // Selection at y=200, default sheetEst=80, margin=8 → above at 200-80-8=112 ≥ 0.
-        val y = annotationSheetTargetY(selectionY = 200f, selectionHeight = 20f)
-        assertEquals(112f, y, "sheet should appear above selection when aboveY ≥ 0")
+    fun sheetBelowSelectionByDefault() {
+        // Prefer below: selectionY=200, height=20, margin=8 → below at 200+20+8=228.
+        val y = annotationSheetTargetY(selectionY = 200f, selectionHeight = 20f, maxBelowY = 900f)
+        assertEquals(228f, y, "sheet should prefer below the selection on iOS to avoid covering selection handles")
     }
 
-    /** When the selection is near the top of the screen the sheet falls below it. */
     @Test
-    fun sheetBelowSelectionWhenNearTop() {
-        // Selection at y=40, aboveY = 40-80-8 = -48 < 0 → below at 40+20+8 = 68.
-        val y = annotationSheetTargetY(selectionY = 40f, selectionHeight = 20f)
-        assertEquals(68f, y, "sheet should fall below selection when there is no room above")
+    fun sheetBelowWhenBelowFits() {
+        // Selection near top but below still fits: selectionY=40, height=20 → below at 68.
+        val y = annotationSheetTargetY(selectionY = 40f, selectionHeight = 20f, maxBelowY = 900f)
+        assertEquals(68f, y, "sheet should still go below when there is room")
     }
 
-    /** The threshold for "above" is exactly zero: aboveY==0 stays above. */
     @Test
-    fun sheetAboveAtExactBoundary() {
-        // sheetEst + margin = 88. selectionY = 88 → aboveY = 88-80-8 = 0 → above at 0.
-        val y = annotationSheetTargetY(selectionY = 88f, selectionHeight = 10f)
-        assertEquals(0f, y, "aboveY==0 is acceptable; sheet pins to the top edge")
+    fun sheetFallsAboveWhenBelowExceedsScreen() {
+        // Below would be at 720+20+8=748 and sheet height=80 → bottom=828 > maxBelowY=800.
+        // Falls back to above: 720-80-8=632.
+        val y = annotationSheetTargetY(
+            selectionY = 720f,
+            selectionHeight = 20f,
+            maxBelowY = 800f,
+        )
+        assertEquals(632f, y, "sheet falls back above when below would go off-screen")
     }
 
-    /** Custom parameters are respected. */
     @Test
     fun customSheetEstimateAndMargin() {
-        // sheetEst=60, margin=4. selectionY=100 → aboveY=100-60-4=36 ≥ 0.
-        val y = annotationSheetTargetY(selectionY = 100f, selectionHeight = 30f, sheetEstimatedHeight = 60f, margin = 4f)
-        assertEquals(36f, y)
+        // sheetEst=60, margin=4: below at 100+30+4=134, fits under maxBelowY=900.
+        val y = annotationSheetTargetY(selectionY = 100f, selectionHeight = 30f, sheetEstimatedHeight = 60f, margin = 4f, maxBelowY = 900f)
+        assertEquals(134f, y)
     }
 
-    /** Result is always non-negative so we never send the sheet above the screen top. */
     @Test
     fun resultIsNeverNegative() {
-        // Pathological: selectionY=0, aboveY=-88 < 0 → below at 0+5+8=13.
-        val y = annotationSheetTargetY(selectionY = 0f, selectionHeight = 5f)
+        // selectionY=0, height=5 → below at 13, fits. Result should be positive.
+        val y = annotationSheetTargetY(selectionY = 0f, selectionHeight = 5f, maxBelowY = 900f)
         assertTrue(y >= 0f, "targetY must never be negative (expected ≥ 0, got $y)")
     }
 
-    /**
-     * minAboveY (safe-area top) prevents the sheet from landing behind the status bar.
-     * Selection at y=100, sheetEst=80, margin=8 → aboveY=12 which is < minAboveY=50 →
-     * falls to below at 100+20+8=128.
-     */
     @Test
-    fun minAboveYPreventsHidingBehindStatusBar() {
-        val y = annotationSheetTargetY(selectionY = 100f, selectionHeight = 20f, minAboveY = 50f)
-        assertEquals(128f, y, "sheet should go below when aboveY would land behind the status bar")
+    fun minAboveYPreventsHidingBehindStatusBar_whenFallingBack() {
+        // Below would be at 780+20+8=808, sheet bottom 888 > maxBelowY=850. Falls back above.
+        // Without minAboveY: aboveY = 780-80-8=692 ≥ minAboveY=50 → returns 692.
+        val y = annotationSheetTargetY(selectionY = 780f, selectionHeight = 20f, minAboveY = 50f, maxBelowY = 850f)
+        assertEquals(692f, y)
     }
 
-    /** When aboveY >= minAboveY the sheet still goes above. */
     @Test
-    fun minAboveYAllowsAboveWhenEnoughRoom() {
-        // selectionY=200, aboveY=112, minAboveY=50 → 112 ≥ 50 → above at 112.
-        val y = annotationSheetTargetY(selectionY = 200f, selectionHeight = 20f, minAboveY = 50f)
-        assertEquals(112f, y, "sheet should still go above when there is enough room")
+    fun minAboveYClampsAboveFallback() {
+        // Below: 10+5+8=23, sheet bottom 103 > maxBelowY=80. Falls back above: 10-80-8=-78 → clamps to minAboveY=0.
+        val y = annotationSheetTargetY(selectionY = 10f, selectionHeight = 5f, minAboveY = 0f, maxBelowY = 80f)
+        assertEquals(0f, y, "above fallback is clamped to minAboveY when computed aboveY is negative")
     }
 }

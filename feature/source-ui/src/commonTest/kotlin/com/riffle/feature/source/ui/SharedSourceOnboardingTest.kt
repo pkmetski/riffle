@@ -170,6 +170,18 @@ class SharedSourceOnboardingTest {
         )
     }
 
+    @Test
+    fun storytellerBackendRouteTypeRoundTripsThroughCredentialed() {
+        // Regression: SourceOnboardingHost.addSourceViewModel always hardcoded AUDIOBOOKSHELF,
+        // so configuring a Storyteller source opened "Add Audiobookshelf" instead of "Add Storyteller".
+        // Fix: the serverType from initialBackend is threaded into Credentialed before extracting routeType.
+        val storytellerBackend = AddSourceBackend.Credentialed(SourceType.ABS, ServerType.STORYTELLER_SERVICE)
+        val absBackend = AddSourceBackend.Credentialed(SourceType.ABS, ServerType.AUDIOBOOKSHELF)
+        assertNotEquals(storytellerBackend.routeType, absBackend.routeType)
+        assertEquals("storyteller", storytellerBackend.routeType)
+        assertEquals("audiobookshelf", absBackend.routeType)
+    }
+
     // ---- credential field keyboard options (B1) ----------------------------
 
     @Test

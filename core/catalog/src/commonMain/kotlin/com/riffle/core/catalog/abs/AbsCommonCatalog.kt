@@ -5,6 +5,7 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogAudioFingerprint
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogAudiobookChapter
 import com.riffle.core.catalog.CatalogAudiobookStream
@@ -60,7 +61,7 @@ class AbsCommonCatalog(
     private val serverInfoApi: AbsServerInfoApi,
     private val clock: Clock,
     private val httpClient: HttpClient,
-) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability, AudiobookMediaCapability {
+) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability, AudiobookMediaCapability, DownloadsCapability {
 
     override val sourceType: SourceType = SourceType.ABS
 

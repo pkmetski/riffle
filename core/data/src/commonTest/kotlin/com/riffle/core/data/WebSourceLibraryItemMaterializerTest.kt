@@ -1,12 +1,12 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
-import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
@@ -97,7 +97,9 @@ class WebSourceLibraryItemMaterializerTest {
         val insertedItems = mutableListOf<LibraryItemEntity>()
         val progressUpdates = mutableListOf<Triple<String, String, Float>>()
         override fun observeBySource(sourceId: String) = MutableStateFlow(existing)
-        override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) { insertedItems += items }
+        override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
+            insertedItems += items
+        }
         override suspend fun updateMetadata(metadata: LibraryItemMetadata) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             progressUpdates += Triple(sourceId, itemId, progress)
