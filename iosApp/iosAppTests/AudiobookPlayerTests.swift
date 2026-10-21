@@ -45,7 +45,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
                       "Audiobook tile must be visible in the library")
 
         let backButton = openReader(from: audiobookTile, in: app)
-        XCTAssertTrue(backButton.exists, "Audiobook player screen should show its back control")
+        // openReader already waits up to 150 s for the back button; the extra waitForExistence here
+        // guards against a race where the CMP accessibility bridge depopulates the node between
+        // openReader's internal waitForExistence returning true and this re-read on a loaded runner.
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Audiobook player screen should show its back control")
         // 90 s, raised from 60 s: the CMP iOS accessibility bridge populates the player controls
         // asynchronously after the screen opens. Observed failures at exactly 60 s (95–113 s total
         // test time) on contended CI runners where the controls were still rendering at the limit.
@@ -63,7 +66,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10))
 
         let backButton = openReader(from: audiobookTile, in: app)
-        XCTAssertTrue(backButton.exists, "Player screen must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Player screen must open")
         // 90s, raised from 60s: matches testAudiobookPlayerBackNavigationReturnsToLibrary — under
         // Clone 2 resource pressure the CMP accessibility bridge populates controls asynchronously;
         // observed failures at the 60s limit on contended CI runners where controls were still rendering.
@@ -84,7 +87,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10))
 
         let backButton = openReader(from: audiobookTile, in: app)
-        XCTAssertTrue(backButton.exists, "Player screen must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Player screen must open")
         // 200 s: the CMP iOS accessibility bridge populates the player controls asynchronously
         // after the reader screen opens. On Clone 1 after 5+ min of sequential heavy tests the
         // tree can take >90 s to settle; raised from 150 s after observing exact 150 s timeout
@@ -137,7 +140,7 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(audiobookTile, in: app, timeout: 10))
 
         let backButton = openReader(from: audiobookTile, in: app)
-        XCTAssertTrue(backButton.exists, "Player screen must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Player screen must open")
         // Retry the back tap if the first is swallowed while the player is still settling — the
         // failure mode that made this the suite's last flake (both retry iterations failed while
         // sibling tests using the same openReader passed).

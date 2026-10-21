@@ -21,7 +21,7 @@ final class PdfReaderTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10), "PDF tile must be visible in the library")
 
         let backButton = openReader(from: pdfTile, in: app)
-        XCTAssertTrue(backButton.exists, "PDF reader should show a Back button after opening")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "PDF reader should show a Back button after opening")
         XCTAssertFalse(app.staticTexts["Error"].exists, "PDF reader must not show a load error")
     }
 
@@ -36,7 +36,7 @@ final class PdfReaderTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10))
 
         let backButton = openReader(from: pdfTile, in: app)
-        XCTAssertTrue(backButton.exists, "PDF reader must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "PDF reader must open")
         tapBackToLibrary(backButton, in: app)
     }
 

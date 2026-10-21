@@ -21,7 +21,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(cbzTile, in: app, timeout: 45), "CBZ tile must be visible in the library")
 
         let backButton = openReader(from: cbzTile, in: app)
-        XCTAssertTrue(backButton.exists, "Comics reader should show a Back button after opening")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Comics reader should show a Back button after opening")
         XCTAssertFalse(app.staticTexts["Book not found"].exists, "Comics reader must resolve the book")
     }
 
@@ -42,7 +42,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         let bookLabel = cbzTile.label
 
         var backButton = openReader(from: cbzTile, in: app)
-        XCTAssertTrue(backButton.exists, "Comics reader must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Comics reader must open")
 
         let readerArea = app.otherElements.firstMatch
         for _ in 0..<3 {
@@ -57,7 +57,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         ).firstMatch
         XCTAssertTrue(waitForLibraryTile(sameTile, in: app, timeout: 5), "CBZ tile must reappear after closing reader")
         backButton = openReader(from: sameTile, in: app)
-        XCTAssertTrue(backButton.exists, "Comics reader must reopen")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Comics reader must reopen")
         XCTAssertFalse(app.staticTexts["Book not found"].exists, "Reopened comics reader must resolve the book")
     }
 
@@ -72,7 +72,7 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(cbzTile, in: app, timeout: 10))
 
         let backButton = openReader(from: cbzTile, in: app)
-        XCTAssertTrue(backButton.exists, "Comics reader must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Comics reader must open")
         tapBackToLibrary(backButton, in: app)
     }
 }

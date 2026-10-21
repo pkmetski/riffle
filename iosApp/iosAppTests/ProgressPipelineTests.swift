@@ -46,7 +46,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         let tileLabel = anyTile.label
 
         let backButton = openReader(from: anyTile, in: app)
-        XCTAssertTrue(backButton.exists, "Reader must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Reader must open")
         Thread.sleep(forTimeInterval: 2)
         tapBackToLibrary(backButton, in: app)
         let sameTile = app.buttons.matching(NSPredicate(format: "label == %@", tileLabel)).firstMatch
@@ -80,7 +80,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         let tileLabel = tile.label
 
         let backButton = openReader(from: tile, in: app)
-        XCTAssertTrue(backButton.exists, "\(kind) must open")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "\(kind) must open")
 
         let isEbook = !hintKeywords.contains("audiobook")
         if isEbook {
@@ -105,7 +105,7 @@ final class ProgressPipelineTests: AbsHarnessTestCase {
         // pressure makes this seek take longer — 150 s matches the openReader default and avoids
         // a false timeout flake when both clones are under load.
         let reopenedBack = openReader(from: sameTile, in: app, timeout: 150)
-        XCTAssertTrue(reopenedBack.exists, "\(kind) should re-open — position restore doesn't crash the screen")
+        XCTAssertTrue(reopenedBack.waitForExistence(timeout: 10), "\(kind) should re-open — position restore doesn't crash the screen")
 
         if isEbook {
             // The chapter_navigation_rail contentDescription encodes the current chapter position
