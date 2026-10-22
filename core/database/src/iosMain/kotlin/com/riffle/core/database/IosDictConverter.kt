@@ -8,14 +8,15 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import platform.Foundation.NSData
+import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
-import platform.Foundation.dataWithContentsOfFile
+import platform.Foundation.fileHandleForReadingAtPath
 
 private const val MAX_BUFFER_ENTRIES = 2_000
+private const val CHUNK_SIZE: ULong = 1_048_576u // 1 MB per read
 
 /**
  * Converts a JSONL file at [jsonlPath] (Kaikki/Wiktextract format) into a SQLite dictionary
@@ -40,39 +41,52 @@ fun createDictSqliteFromJsonl(
         )
         conn.execSQL("CREATE INDEX entries_form ON entries(form COLLATE NOCASE)")
 
-        val nsData = NSData.dataWithContentsOfFile(jsonlPath)
-            ?: throw IllegalStateException("Cannot read JSONL at $jsonlPath")
-        val totalBytes = nsData.length.toLong().coerceAtLeast(1L)
-        val text = NSString.create(data = nsData, encoding = NSUTF8StringEncoding)?.toString()
-            ?: throw IllegalStateException("JSONL file is not valid UTF-8")
+        val fileHandle = NSFileHandle.fileHandleForReadingAtPath(jsonlPath)
+            ?: throw IllegalStateException("Cannot open JSONL at $jsonlPath")
+        val totalBytes = fileHandle.seekToEndOfFile().toLong()
+        fileHandle.seekToFileOffset(0uL)
+        val effectiveTotalBytes = totalBytes.coerceAtLeast(1L)
 
         val buffer = HashMap<Pair<String, String>, MutableList<String>>(MAX_BUFFER_ENTRIES * 2)
         var bytesProcessed = 0L
         var lineCount = 0
+        var partial = ""
 
-        for (line in text.lineSequence()) {
-            if (line.isBlank()) continue
-            bytesProcessed += line.length + 1L
-            lineCount++
-            if (lineCount % 5_000 == 0) onProgress(bytesProcessed.coerceAtMost(totalBytes), totalBytes)
-            try {
-                val obj = Json.parseToJsonElement(line).jsonObject
-                val form = obj["word"]?.jsonPrimitive?.content?.trim() ?: continue
-                if (form.isBlank()) continue
-                val pos = obj["pos"]?.jsonPrimitive?.content?.trim() ?: ""
-                val glosses = extractGlosses(obj)
-                if (glosses.isNotEmpty()) {
-                    buffer.getOrPut(form to pos) { mutableListOf() }.addAll(glosses)
+        try {
+            while (true) {
+                val data = fileHandle.readDataOfLength(CHUNK_SIZE)
+                if (data.length == 0uL) break
+                bytesProcessed += data.length.toLong()
+
+                val chunk = NSString.create(data = data, encoding = NSUTF8StringEncoding)?.toString()
+                    ?: break
+                val combined = partial + chunk
+                val newlineIdx = combined.lastIndexOf('\n')
+                if (newlineIdx < 0) {
+                    partial = combined
+                    continue
                 }
-            } catch (_: Exception) {}
+                partial = combined.substring(newlineIdx + 1)
+                val lines = combined.substring(0, newlineIdx)
 
-            if (buffer.size >= MAX_BUFFER_ENTRIES) {
-                flushBuffer(conn, buffer)
-                buffer.clear()
+                for (line in lines.lineSequence()) {
+                    if (line.isBlank()) continue
+                    lineCount++
+                    if (lineCount % 5_000 == 0) onProgress(bytesProcessed.coerceAtMost(effectiveTotalBytes), effectiveTotalBytes)
+                    processLine(line, buffer)
+                    if (buffer.size >= MAX_BUFFER_ENTRIES) {
+                        flushBuffer(conn, buffer)
+                        buffer.clear()
+                    }
+                }
             }
+            if (partial.isNotBlank()) processLine(partial, buffer)
+            if (buffer.isNotEmpty()) flushBuffer(conn, buffer)
+        } finally {
+            fileHandle.closeFile()
         }
-        if (buffer.isNotEmpty()) flushBuffer(conn, buffer)
-        onProgress(totalBytes, totalBytes)
+
+        onProgress(effectiveTotalBytes, effectiveTotalBytes)
 
         val stmt = conn.prepare("SELECT COUNT(*) FROM entries")
         val count = if (stmt.step()) stmt.getLong(0) else 0L
@@ -96,6 +110,19 @@ fun countDictSqliteEntries(dbPath: String): Long {
     }
 }
 
+private fun processLine(line: String, buffer: HashMap<Pair<String, String>, MutableList<String>>) {
+    try {
+        val obj = Json.parseToJsonElement(line).jsonObject
+        val form = obj["word"]?.jsonPrimitive?.content?.trim() ?: return
+        if (form.isBlank()) return
+        val pos = obj["pos"]?.jsonPrimitive?.content?.trim() ?: ""
+        val glosses = extractGlosses(obj)
+        if (glosses.isNotEmpty()) {
+            buffer.getOrPut(form to pos) { mutableListOf() }.addAll(glosses)
+        }
+    } catch (_: Exception) {}
+}
+
 private fun flushBuffer(
     conn: androidx.sqlite.SQLiteConnection,
     buffer: Map<Pair<String, String>, List<String>>,
@@ -103,8 +130,13 @@ private fun flushBuffer(
     conn.execSQL("BEGIN TRANSACTION")
     try {
         val insertStmt = conn.prepare("INSERT OR IGNORE INTO entries(form, pos, glosses) VALUES(?,?,?)")
+        val changesStmt = conn.prepare("SELECT changes()")
+        // SUBSTR(glosses, 1, LENGTH(glosses)-1) strips the trailing ']' so the new gloss slots in
+        // before it, producing valid JSON. The NOT LIKE guard uses the JSON-quoted form so partial
+        // matches on substrings (e.g. "bank" inside "river bank") are not suppressed incorrectly.
         val appendStmt = conn.prepare(
-            "UPDATE entries SET glosses = glosses || ? WHERE form = ? AND pos = ? AND glosses NOT LIKE '%' || ? || '%'",
+            "UPDATE entries SET glosses = SUBSTR(glosses, 1, LENGTH(glosses)-1) || ? " +
+                "WHERE form = ? AND pos = ? AND glosses NOT LIKE '%' || ? || '%'",
         )
         try {
             for ((key, glosses) in buffer) {
@@ -115,18 +147,27 @@ private fun flushBuffer(
                 insertStmt.bindText(3, glossesJson)
                 insertStmt.step()
                 insertStmt.reset()
-                for (gloss in glosses) {
-                    val fragment = ",${jsonQuote(gloss)}]"
-                    appendStmt.bindText(1, fragment)
-                    appendStmt.bindText(2, form)
-                    appendStmt.bindText(3, pos)
-                    appendStmt.bindText(4, gloss)
-                    appendStmt.step()
-                    appendStmt.reset()
+                changesStmt.step()
+                val wasInserted = changesStmt.getLong(0) > 0
+                changesStmt.reset()
+
+                if (!wasInserted) {
+                    // Entry already existed from a previous flush — append any new glosses.
+                    for (gloss in glosses) {
+                        val fragment = ",${jsonQuote(gloss)}]"
+                        val quoted = jsonQuote(gloss)
+                        appendStmt.bindText(1, fragment)
+                        appendStmt.bindText(2, form)
+                        appendStmt.bindText(3, pos)
+                        appendStmt.bindText(4, quoted)
+                        appendStmt.step()
+                        appendStmt.reset()
+                    }
                 }
             }
         } finally {
             insertStmt.close()
+            changesStmt.close()
             appendStmt.close()
         }
         conn.execSQL("COMMIT")
