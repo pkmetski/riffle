@@ -51,7 +51,9 @@ class IosEpubDownloader(
                 if (written) {
                     contentCacheAccessStore.markAccessed(cacheKey)
                     cachePath
-                } else null
+                } else {
+                    null
+                }
             }
         } catch (e: CancellationException) {
             throw e

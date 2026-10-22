@@ -111,7 +111,6 @@ import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.bookmarkRailPosition
-import com.riffle.feature.reader.weightedRailCursorPosition
 import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
@@ -154,6 +153,7 @@ import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerPalette
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
+import com.riffle.feature.reader.weightedRailCursorPosition
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.shared.generated.resources.Res
