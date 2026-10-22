@@ -268,9 +268,9 @@ class AnnotationFocusHarnessTest : KoinTest {
      *  (the same test passes on local windowed AVDs because they do). Dispatching on the activity
      *  is the documented Compose-test substitute and is what the assertion actually cares about. */
     private fun returnToLibrary() {
+        // Press back while still in the reader (up to 4 times)
         var attempts = 0
         while (attempts < 4 &&
-            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty() &&
             composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isNotEmpty()
         ) {
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -279,7 +279,17 @@ class AnnotationFocusHarnessTest : KoinTest {
             attempts++
             Thread.sleep(800)
         }
+        // Wait until the reader back button is fully gone from the composition
         composeTestRule.waitUntil(timeoutMillis = 30_000) {
+            composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isEmpty()
+        }
+        // The library ViewModel retains the search query from the prior searchAndTapAnnotation()
+        // call because LibraryHost stays in composition throughout the reader session. Clear it so
+        // the "Search" placeholder reappears and the next searchAndTapAnnotation() call can proceed.
+        if (composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty()) {
+            composeTestRule.onNode(hasSetTextAction()).performTextReplacement("")
+        }
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isNotEmpty()
         }
     }
