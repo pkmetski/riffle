@@ -270,7 +270,8 @@ class AnnotationFocusHarnessTest : KoinTest {
     private fun returnToLibrary() {
         var attempts = 0
         while (attempts < 4 &&
-            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty()
+            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty() &&
+            composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isNotEmpty()
         ) {
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
