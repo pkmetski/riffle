@@ -3,6 +3,7 @@ package com.riffle.core.catalog.chitanka
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.BookmarksCapability
+import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CollectionsCapability
@@ -654,4 +655,39 @@ class ChitankaCatalogTest {
     }
 
     // endregion
+
+    /**
+     * Regression for bug #7: fetchFile("book/…") threw "No EPUB link" when the /text/ page
+     * returned by chitanka.info had no direct download link. The /book/ page always has the EPUB
+     * link; the fix falls back to it when the enriching /text/ page has none.
+     */
+    @Test
+    fun `fetchFile falls back to book-page download URL when text page has no epub link`() = runTest {
+        val bookHtml = """
+            <html><body>
+              <h1><a class="selflink" itemprop="name">Test Book</a></h1>
+              <a href="/text/12345-test-book">текст</a>
+              <a href="/content/books/12345-test-book.epub">epub</a>
+            </body></html>
+        """.trimIndent()
+        val textHtml = """
+            <html><body>
+              <h1><a class="selflink" itemprop="name">Test Book</a></h1>
+            </body></html>
+        """.trimIndent()
+        server.enqueue(MockResponse().setBody(bookHtml))
+        server.enqueue(MockResponse().setBody(textHtml))
+        val base = server.url("").toString().trimEnd('/')
+        val cat = ChitankaCatalog(
+            http = ChitankaHttpClient(client = HttpClient(OkHttp) {}, userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = HttpClient(OkHttp) {},
+            baseUrl = base,
+        )
+        val handle = cat.fetchFile("book/12345-test-book", BookFormat.Epub)
+        assertTrue("handle must be a Stream", handle is CatalogFileHandle.Stream)
+        assertTrue(
+            "download URL must come from /book/ page when /text/ page has no EPUB link; was ${(handle as CatalogFileHandle.Stream).url}",
+            handle.url.endsWith(".epub"),
+        )
+    }
 }

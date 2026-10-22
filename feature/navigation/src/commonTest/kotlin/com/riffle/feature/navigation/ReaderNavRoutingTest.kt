@@ -2,7 +2,9 @@ package com.riffle.feature.navigation
 
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.reader.highlights.ReaderSource
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 
@@ -122,5 +124,20 @@ class ReaderNavRoutingTest {
     fun readAtHref_unsupportedItem_returnsNull() {
         val nav = readNavForItemAtHref(item(ebookFormat = EbookFormat.Unsupported), "page1.xhtml")
         assertNull(nav)
+    }
+
+    @Test
+    fun readerNavDefaultsToFullBookSource() {
+        val nav = readerNavForItem(item()) as LibraryNav.Reader
+        assertEquals(ReaderSource.FullBook, nav.readerSource)
+    }
+
+    @Test
+    fun readerNavAcceptsHighlightsSource() {
+        // Regression: ElidedReaderLoader used to open LibraryNav.Reader with no readerSource,
+        // so iOS always opened the full EPUB instead of the synthesised highlights-only publication.
+        // Fix: readerSource = ReaderSource.Highlights is passed by ElidedReaderLoader.
+        val nav = LibraryNav.Reader(item(), readerSource = ReaderSource.Highlights)
+        assertEquals(ReaderSource.Highlights, nav.readerSource)
     }
 }

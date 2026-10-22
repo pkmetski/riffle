@@ -10,13 +10,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.yield
-import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CopyOnWriteArrayList
 
 @RunWith(AndroidJUnit4::class)
 class LibraryItemDaoTest {
@@ -63,11 +62,13 @@ class LibraryItemDaoTest {
     // A1 — observeInProgress returns only items with 0 < readingProgress < 1.0
     @Test
     fun observeInProgress_returnsOnlyInProgressItems() = runTest {
-        dao.upsertAll(listOf(
-            item("not-started", readingProgress = 0.0f),
-            item("in-progress", readingProgress = 0.5f),
-            item("finished", readingProgress = 1.0f),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("not-started", readingProgress = 0.0f),
+                item("in-progress", readingProgress = 0.5f),
+                item("finished", readingProgress = 1.0f),
+            )
+        )
 
         val result = dao.observeInProgress("s1", "lib1").first()
 
@@ -98,12 +99,14 @@ class LibraryItemDaoTest {
     // A2 — observeInProgress sorts by lastOpenedAt descending, nulls last
     @Test
     fun observeInProgress_sortsByLastOpenedAtDescNullsLast() = runTest {
-        dao.upsertAll(listOf(
-            item("oldest",   readingProgress = 0.3f, lastOpenedAt = 1000L),
-            item("newest",   readingProgress = 0.6f, lastOpenedAt = 3000L),
-            item("middle",   readingProgress = 0.4f, lastOpenedAt = 2000L),
-            item("null-ts",  readingProgress = 0.5f, lastOpenedAt = null),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("oldest", readingProgress = 0.3f, lastOpenedAt = 1000L),
+                item("newest", readingProgress = 0.6f, lastOpenedAt = 3000L),
+                item("middle", readingProgress = 0.4f, lastOpenedAt = 2000L),
+                item("null-ts", readingProgress = 0.5f, lastOpenedAt = null),
+            )
+        )
 
         val ids = dao.observeInProgress("s1", "lib1").first().map { it.id }
 
@@ -113,11 +116,13 @@ class LibraryItemDaoTest {
     // A3 — observeFinished returns only items at readingProgress == 1.0
     @Test
     fun observeFinished_returnsOnlyFinishedItems() = runTest {
-        dao.upsertAll(listOf(
-            item("not-started", readingProgress = 0.0f),
-            item("in-progress", readingProgress = 0.5f),
-            item("finished",    readingProgress = 1.0f),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("not-started", readingProgress = 0.0f),
+                item("in-progress", readingProgress = 0.5f),
+                item("finished", readingProgress = 1.0f),
+            )
+        )
 
         val result = dao.observeFinished("s1", "lib1").first()
 
@@ -128,11 +133,13 @@ class LibraryItemDaoTest {
     // A4 — observeAllBooks returns all items regardless of progress
     @Test
     fun observeAllBooks_returnsAllItems() = runTest {
-        dao.upsertAll(listOf(
-            item("not-started", readingProgress = 0.0f),
-            item("in-progress", readingProgress = 0.5f),
-            item("finished",    readingProgress = 1.0f),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("not-started", readingProgress = 0.0f),
+                item("in-progress", readingProgress = 0.5f),
+                item("finished", readingProgress = 1.0f),
+            )
+        )
 
         val result = dao.observeAllBooks("s1", "lib1").first()
 
@@ -145,8 +152,8 @@ class LibraryItemDaoTest {
         dao.upsertAll(listOf(item("not-started", readingProgress = 0.0f)))
 
         val inProgress = dao.observeInProgress("s1", "lib1").first()
-        val finished   = dao.observeFinished("s1", "lib1").first()
-        val allBooks   = dao.observeAllBooks("s1", "lib1").first()
+        val finished = dao.observeFinished("s1", "lib1").first()
+        val allBooks = dao.observeAllBooks("s1", "lib1").first()
 
         assertEquals(0, inProgress.size)
         assertEquals(0, finished.size)
@@ -157,10 +164,12 @@ class LibraryItemDaoTest {
     // the right one by (sourceId, itemId). This is the core fix for issue #81.
     @Test
     fun getById_distinguishesSameItemIdAcrossServers() = runTest {
-        dao.upsertAll(listOf(
-            item("1", readingProgress = 0.25f, sourceId = "s1").copy(title = "War and Peace"),
-            item("1", readingProgress = 0.5f, sourceId = "s2").copy(title = "A Different Book"),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("1", readingProgress = 0.25f, sourceId = "s1").copy(title = "War and Peace"),
+                item("1", readingProgress = 0.5f, sourceId = "s2").copy(title = "A Different Book"),
+            )
+        )
 
         assertEquals("War and Peace", dao.getById("s1", "1")?.title)
         assertEquals("A Different Book", dao.getById("s2", "1")?.title)
@@ -174,14 +183,18 @@ class LibraryItemDaoTest {
     @Test
     fun listMatchableByServerType_doesNotDuplicateAcrossServersWithCollidingLibraryIds() = runTest {
         // s1 and s2 are seeded with the default serverType AUDIOBOOKSHELF in @Before.
-        db.libraryDao().upsertAll(listOf(
-            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", sourceId = "s1"),
-            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", sourceId = "s2"),
-        ))
-        dao.upsertAll(listOf(
-            item("a", readingProgress = 0f, sourceId = "s1").copy(libraryId = "shared-lib"),
-            item("b", readingProgress = 0f, sourceId = "s2").copy(libraryId = "shared-lib"),
-        ))
+        db.libraryDao().upsertAll(
+            listOf(
+                LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", sourceId = "s1"),
+                LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", sourceId = "s2"),
+            )
+        )
+        dao.upsertAll(
+            listOf(
+                item("a", readingProgress = 0f, sourceId = "s1").copy(libraryId = "shared-lib"),
+                item("b", readingProgress = 0f, sourceId = "s2").copy(libraryId = "shared-lib"),
+            )
+        )
 
         val rows = dao.listMatchableBySourceType("AUDIOBOOKSHELF")
         val keys = rows.map { it.sourceId to it.itemId }
@@ -194,11 +207,13 @@ class LibraryItemDaoTest {
     // a library id with overlapping item ids must each see only their own rows.
     @Test
     fun observeByLibraryId_scopesByServerId() = runTest {
-        dao.upsertAll(listOf(
-            item("1", readingProgress = 0.3f, sourceId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 1"),
-            item("2", readingProgress = 0.7f, sourceId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 2"),
-            item("1", readingProgress = 0.4f, sourceId = "s2").copy(libraryId = "shared-lib", title = "S2 Book 1"),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("1", readingProgress = 0.3f, sourceId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 1"),
+                item("2", readingProgress = 0.7f, sourceId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 2"),
+                item("1", readingProgress = 0.4f, sourceId = "s2").copy(libraryId = "shared-lib", title = "S2 Book 1"),
+            )
+        )
 
         val s1 = dao.observeByLibraryId("s1", "shared-lib").first().map { it.sourceId to it.id }
         val s2 = dao.observeByLibraryId("s2", "shared-lib").first().map { it.sourceId to it.id }
@@ -261,11 +276,13 @@ class LibraryItemDaoTest {
     // Reverting the `AND addedAt > 0` clause on the query flips this test red.
     @Test
     fun observeRecentlyAdded_excludesSentinelRows() = runTest {
-        dao.upsertAll(listOf(
-            item("browsed", readingProgress = 0f).copy(addedAt = 0L),
-            item("added-old", readingProgress = 0f).copy(addedAt = 1_000L),
-            item("added-new", readingProgress = 0f).copy(addedAt = 2_000L),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("browsed", readingProgress = 0f).copy(addedAt = 0L),
+                item("added-old", readingProgress = 0f).copy(addedAt = 1_000L),
+                item("added-new", readingProgress = 0f).copy(addedAt = 2_000L),
+            )
+        )
 
         val ids = dao.observeRecentlyAdded("s1", "lib1").first().map { it.id }
 
@@ -278,10 +295,12 @@ class LibraryItemDaoTest {
     // canonical import date with lastOpenedAt). Removing the CASE branch flips this test red.
     @Test
     fun updateLastOpenedAt_promotesSentinelAddedAtOnFirstOpen() = runTest {
-        dao.upsertAll(listOf(
-            item("browsed", readingProgress = 0f).copy(addedAt = 0L),
-            item("imported", readingProgress = 0f).copy(addedAt = 500L),
-        ))
+        dao.upsertAll(
+            listOf(
+                item("browsed", readingProgress = 0f).copy(addedAt = 0L),
+                item("imported", readingProgress = 0f).copy(addedAt = 500L),
+            )
+        )
 
         dao.updateLastOpenedAt("s1", "browsed", timestamp = 9_000L)
         dao.updateLastOpenedAt("s1", "imported", timestamp = 9_000L)

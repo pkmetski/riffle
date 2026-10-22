@@ -161,6 +161,35 @@ final class ElidedAnnotationsViewTests: XCTestCase {
                       "content.opf must exist after overwrite call")
     }
 
+    // MARK: - openSyntheticEpub
+
+    // Verify that openSyntheticEpub successfully parses and attaches a navigator when given a
+    // valid assembled directory.  Before the localPath ordering fix the navigator's attach() was
+    // called before UIKitViewController existed, so the EPUBNavigatorViewController was never
+    // added to the view hierarchy.  After the fix the bridge must produce a non-nil epubNavigator.
+    @MainActor
+    func testOpenSyntheticEpubWithValidPathAttachesNavigator() async {
+        let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
+        guard let dirPath = IosElidedEpubAssembler.shared.assemble(
+            item: item, chapters: chapters, emphasisBarCss: "", dataUriByHref: [:], publisherFontFaceCss: ""
+        ) else {
+            XCTFail("assemble returned nil — precondition for this test failed")
+            return
+        }
+        let bridge = ReadiumEpubNavigatorBridge()
+        var openError: String? = nil
+        bridge.setPublicationOpenErrorCallback { msg in openError = msg }
+
+        bridge.openSyntheticEpub(dirPath: dirPath, locatorJson: nil)
+
+        // Allow the async Task in openSyntheticEpub time to complete.
+        try? await Task.sleep(nanoseconds: 5_000_000_000)
+
+        XCTAssertNil(openError, "openSyntheticEpub reported an error: \(openError ?? "")")
+        XCTAssertNotNil(bridge.epubNavigator,
+                        "epubNavigator must be non-nil after successfully opening a valid synthetic EPUB")
+    }
+
     // MARK: - Resume helpers (KMP commonMain via Swift bridge)
 
     func testHighlightsResumeChapterHrefResolvesIndex() {

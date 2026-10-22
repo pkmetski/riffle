@@ -75,6 +75,10 @@ class ReadiumSwiftNavigator(
         MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private val _figureTapPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val _riffleUrls = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    private val _publicationOpenErrors = MutableSharedFlow<String>(extraBufferCapacity = 4)
+
+    /** Emits a diagnostic message whenever [openSyntheticEpub] (or [open]) fails to open the publication. */
+    val publicationOpenErrors: Flow<String> get() = _publicationOpenErrors
     private var pageLoadGeneration = 0
     private var lastPosition: NavigatorPosition? = null
 
@@ -180,6 +184,10 @@ class ReadiumSwiftNavigator(
         bridge.setErrorCallback { message ->
             logger.e(LogChannel.Reader) { "navigator error: $message" }
         }
+        bridge.setPublicationOpenErrorCallback { message ->
+            logger.e(LogChannel.Reader) { "publication open error: $message" }
+            _publicationOpenErrors.tryEmit(message)
+        }
         bridge.setSelectionCallback { json ->
             _selectionFlow.value = json?.let { parseSelectionJson(it) }
         }
@@ -237,6 +245,7 @@ class ReadiumSwiftNavigator(
         bridge.setInternalLinkCallback(null)
         bridge.setRiffleUrlCallback(null)
         bridge.setScrollStartCallback(null)
+        bridge.setPublicationOpenErrorCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
     }
@@ -295,8 +304,8 @@ class ReadiumSwiftNavigator(
 
     override suspend fun pageBy(direction: NavigatorPageDirection) {
         when (direction) {
-            NavigatorPageDirection.Forward -> bridge.goForward()
-            NavigatorPageDirection.Backward -> bridge.goBackward()
+            NavigatorPageDirection.Forward -> bridge.goForwardInstant()
+            NavigatorPageDirection.Backward -> bridge.goBackwardInstant()
         }
     }
 
@@ -586,6 +595,16 @@ class ReadiumSwiftNavigator(
      */
     override suspend fun scrollBoundary(): NavigatorScrollBoundary =
         ScrollProbes.parseScrollBoundary(evaluateJs(ScrollProbes.BOUNDARY_PROBE_JS))
+
+    /**
+     * Boundary flags AND current scroll progression in one round trip.
+     *
+     * Used by the Continuous-mode boundary loop so it can update the chapter-map cursor during
+     * active scrolling without a second JS hop. Readium's own [locationDidChange] fires 300 ms
+     * after scroll-end, so the cursor would otherwise be frozen while the reader is dragging.
+     */
+    internal suspend fun scrollBoundaryAndProgression(): ScrollProbes.BoundaryAndProgression =
+        ScrollProbes.parseBoundaryAndProgression(evaluateJs(ScrollProbes.BOUNDARY_PROGRESS_PROBE_JS))
 
     /**
      * Measure the visible resource and publish it on [viewportFractionEvents] against

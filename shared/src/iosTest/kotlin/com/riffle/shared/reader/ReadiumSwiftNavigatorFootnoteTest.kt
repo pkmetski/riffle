@@ -42,12 +42,15 @@ class ReadiumSwiftNavigatorFootnoteTest {
         override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goForward() = Unit
         override fun goBackward() = Unit
+        override fun goForwardInstant() = Unit
+        override fun goBackwardInstant() = Unit
         override fun goToLocator(locatorJson: String) = Unit
         override fun snapshotLocatorJson(): String? = null
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit
         override fun setPageLoadCallback(callback: (() -> Unit)?) = Unit
         override fun setTapCallback(callback: ((TapCoords) -> Unit)?) = Unit
         override fun setErrorCallback(callback: ((message: String) -> Unit)?) = Unit
+        override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
         override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) = Unit
         override fun clearSelection() = Unit
         override fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?) = Unit

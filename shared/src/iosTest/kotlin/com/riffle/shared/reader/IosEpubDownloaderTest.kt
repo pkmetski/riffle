@@ -9,6 +9,8 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.common.FileStore
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
@@ -21,6 +23,7 @@ import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -57,6 +60,19 @@ class IosEpubDownloaderTest {
             NSFileManager.defaultManager.createDirectoryAtPath(base, withIntermediateDirectories = true, attributes = null, error = null)
             return if (relativePath.isEmpty()) base else "$base/$relativePath"
         }
+    }
+
+    private class RecordingAccessStore : ContentCacheAccessStore {
+        val accessed = mutableListOf<ContentCacheKey>()
+        override suspend fun markAccessed(key: ContentCacheKey) {
+            accessed += key
+        }
+        override suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long) {
+            accessed += key
+        }
+        override suspend fun lastAccessedAt(key: ContentCacheKey): Long? = null
+        override suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?> = emptyMap()
+        override suspend fun forget(key: ContentCacheKey) {}
     }
 
     private val epubBytes = byteArrayOf(0x50, 0x4B, 0x03, 0x04, 1, 2, 3, 4)
@@ -135,7 +151,7 @@ class IosEpubDownloaderTest {
     @Test
     fun catalogItemCreatesTheSourceIdSubdirectoryAndReturnsTheCachePath() = runTest {
         val store = TempFileStore()
-        val path = IosEpubDownloader(registry(catalog(epubBytes)), store).localPath(catalogItem)
+        val path = IosEpubDownloader(registry(catalog(epubBytes)), store, RecordingAccessStore()).localPath(catalogItem)
 
         assertNotNull(path, "localPath must return a non-null path when the catalog delivers bytes")
         assertTrue(
@@ -150,13 +166,13 @@ class IosEpubDownloaderTest {
 
     @Test
     fun catalogItemReturnsNullWhenTheCatalogThrows() = runTest {
-        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore()).localPath(catalogItem)
+        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore(), RecordingAccessStore()).localPath(catalogItem)
         assertNull(path, "a catalog error must yield null so the reader shows the error UI")
     }
 
     @Test
     fun catalogItemReturnsNullWhenNoCatalogIsRegisteredForTheSource() = runTest {
-        val path = IosEpubDownloader(registry(null), TempFileStore()).localPath(catalogItem)
+        val path = IosEpubDownloader(registry(null), TempFileStore(), RecordingAccessStore()).localPath(catalogItem)
         assertNull(path, "no catalog for source must yield null")
     }
 
@@ -174,7 +190,7 @@ class IosEpubDownloaderTest {
             }
             override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
         }
-        val downloader = IosEpubDownloader(registry(countingCatalog), store)
+        val downloader = IosEpubDownloader(registry(countingCatalog), store, RecordingAccessStore())
 
         val first = downloader.localPath(catalogItem)
         assertNotNull(first, "first call must download and cache")
@@ -191,7 +207,7 @@ class IosEpubDownloaderTest {
     @Test
     fun absItemDownloadsViaCatalogAndCreatesSourceIdSubdirectory() = runTest {
         val store = TempFileStore()
-        val path = IosEpubDownloader(registry(catalog(epubBytes)), store).localPath(absItem)
+        val path = IosEpubDownloader(registry(catalog(epubBytes)), store, RecordingAccessStore()).localPath(absItem)
 
         assertNotNull(path, "ABS item must return a non-null path when the catalog delivers bytes")
         assertTrue(
@@ -206,7 +222,37 @@ class IosEpubDownloaderTest {
 
     @Test
     fun absItemReturnsNullWhenCatalogThrows() = runTest {
-        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore()).localPath(absItem)
+        val path = IosEpubDownloader(registry(failingCatalog()), TempFileStore(), RecordingAccessStore()).localPath(absItem)
         assertNull(path, "a catalog error on an ABS item must yield null so the reader shows the error UI")
+    }
+
+    @Test
+    fun cacheHitCallsMarkAccessed_soCleanerUsesLastReadTimeNotCreationTime() = runTest {
+        val store = TempFileStore()
+        val accessStore = RecordingAccessStore()
+        val downloader = IosEpubDownloader(registry(catalog(epubBytes)), store, accessStore)
+
+        downloader.localPath(catalogItem)
+        accessStore.accessed.clear()
+
+        downloader.localPath(catalogItem)
+
+        assertEquals(1, accessStore.accessed.size, "markAccessed must be called on a cache hit")
+        assertEquals(catalogItem.sourceId, accessStore.accessed.first().sourceId)
+        assertEquals(catalogItem.id, accessStore.accessed.first().itemId)
+    }
+
+    @Test
+    fun freshDownloadCallsMarkAccessed_soCleanerDoesNotEvictJustCachedFile() = runTest {
+        val store = TempFileStore()
+        val accessStore = RecordingAccessStore()
+        val downloader = IosEpubDownloader(registry(catalog(epubBytes)), store, accessStore)
+
+        val path = downloader.localPath(catalogItem)
+
+        assertNotNull(path, "localPath must return a path after download")
+        assertEquals(1, accessStore.accessed.size, "markAccessed must be called after writing the file")
+        assertEquals(catalogItem.sourceId, accessStore.accessed.first().sourceId)
+        assertEquals(catalogItem.id, accessStore.accessed.first().itemId)
     }
 }

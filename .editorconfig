@@ -54,6 +54,10 @@ ktlint_function_naming_ignore_when_annotated_with = Composable
 [feature/settings-ui/**/*.kt]
 ktlint_function_naming_ignore_when_annotated_with = Composable
 
+[feature/shell-ui/**/*.kt]
+ktlint_function_naming_ignore_when_annotated_with = Composable
+ktlint_standard_statement-wrapping = disabled
+
 [shared/**/*.kt]
 ktlint_function_naming_ignore_when_annotated_with = Composable
 

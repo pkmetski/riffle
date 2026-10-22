@@ -29,6 +29,24 @@ interface IosEpubNavigatorBridge {
     fun goForward()
     fun goBackward()
 
+    /**
+     * Navigate to the next resource without any animation — the correct variant for
+     * boundary-triggered chapter crossings in Continuous mode.
+     *
+     * [goForward] uses Readium's `.animated` option, which in scroll mode produces a horizontal
+     * `slideToView` transition via `PaginationView.goToIndex` — a 300 ms horizontal swipe that is
+     * wrong for vertical continuous reading and confuses the user into thinking something went wrong.
+     * This variant passes `NavigatorGoOptions(animated: false)` so the chapter swap is instant
+     * (a brief snapshot flash ≤ 100 ms rather than a 300 ms horizontal animation).
+     */
+    fun goForwardInstant()
+
+    /**
+     * Navigate to the previous resource without any animation — the correct variant for
+     * boundary-triggered chapter crossings in Continuous mode. See [goForwardInstant].
+     */
+    fun goBackwardInstant()
+
     /** Navigate to the Readium Locator encoded as JSON. */
     fun goToLocator(locatorJson: String)
 
@@ -180,6 +198,13 @@ interface IosEpubNavigatorBridge {
      * [ReadiumSwiftNavigator] now logs them on [com.riffle.core.logging.LogChannel.Reader].
      */
     fun setErrorCallback(callback: ((message: String) -> Unit)?)
+
+    /**
+     * Called when [openEpub] or [openSyntheticEpub] fails to open the publication — e.g. asset
+     * retrieval fails, the EPUB parser rejects the file, or [EPUBNavigatorViewController] throws.
+     * Without this callback the failure is silent and the reader shows a blank page.
+     */
+    fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?)
 
     /** Release Readium resources. Renamed to avoid clash with NSObject.release on the Swift side. */
     fun disposeNavigator()

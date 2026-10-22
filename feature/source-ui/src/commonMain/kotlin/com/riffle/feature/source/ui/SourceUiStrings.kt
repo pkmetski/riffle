@@ -22,6 +22,8 @@ import com.riffle.feature.source.ui.generated.resources.ui_source_http_retry
 import com.riffle.feature.source.ui.generated.resources.ui_sync_failed_retry
 import com.riffle.feature.source.ui.generated.resources.ui_webdav_auth_failed_prescription
 import com.riffle.feature.source.ui.generated.resources.ui_webdav_tls_failed_prescription
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.getString
 
 /**
@@ -70,41 +72,54 @@ interface SourceUiStrings {
  * `%1$s` placeholders that used to receive a nullable `Throwable.message` are passed the raw
  * `null` rendering ("null") exactly as `Context.getString` did, so the visible text does not
  * change for the "cause has no message" case.
+ *
+ * CMP's [getString] calls [NSBundle bundleIdentifier] synchronously on the calling thread. If
+ * invoked from a [kotlinx.coroutines.Dispatchers.Main] coroutine this blocks the UI thread for
+ * the duration of the bundle I/O, triggering an RPAC performance fault on iOS. Every method
+ * dispatches to [Dispatchers.Default] so the NSBundle file access never touches the main thread,
+ * regardless of which dispatcher the caller uses. (Dispatchers.IO is internal in Kotlin/Native.)
  */
 object ComposeResourceSourceUiStrings : SourceUiStrings {
-    override suspend fun enterValidUrl() = getString(Res.string.error_enter_valid_url)
-    override suspend fun parseWebdavUrl() = getString(Res.string.error_parse_webdav_url)
+    override suspend fun enterValidUrl() =
+        withContext(Dispatchers.Default) { getString(Res.string.error_enter_valid_url) }
+    override suspend fun parseWebdavUrl() =
+        withContext(Dispatchers.Default) { getString(Res.string.error_parse_webdav_url) }
     override suspend fun authFailedCheckCredentials() =
-        getString(Res.string.error_auth_failed_check_credentials)
+        withContext(Dispatchers.Default) { getString(Res.string.error_auth_failed_check_credentials) }
     override suspend fun couldntReachServer(detail: String?) =
-        getString(Res.string.error_couldnt_reach_server, detail.toString())
+        withContext(Dispatchers.Default) { getString(Res.string.error_couldnt_reach_server, detail.toString()) }
     override suspend fun tlsError(detail: String?) =
-        getString(Res.string.error_tls, detail.toString())
+        withContext(Dispatchers.Default) { getString(Res.string.error_tls, detail.toString()) }
     override suspend fun sourceHttpError(code: Int) =
-        getString(Res.string.error_source_http, code)
+        withContext(Dispatchers.Default) { getString(Res.string.error_source_http, code) }
     override suspend fun couldntSaveSource(detail: String?) =
-        getString(Res.string.error_couldnt_save_source, detail.toString())
+        withContext(Dispatchers.Default) { getString(Res.string.error_couldnt_save_source, detail.toString()) }
     override suspend fun connectionFailed(detail: String?) =
-        getString(Res.string.error_connection_failed, detail.toString())
+        withContext(Dispatchers.Default) { getString(Res.string.error_connection_failed, detail.toString()) }
     override suspend fun connectedLibraryLoadFailed(detail: String?) =
-        getString(Res.string.error_connected_library_load_failed, detail.toString())
+        withContext(Dispatchers.Default) { getString(Res.string.error_connected_library_load_failed, detail.toString()) }
     override suspend fun webdavAuthFailedPrescription() =
-        getString(Res.string.ui_webdav_auth_failed_prescription)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_webdav_auth_failed_prescription) }
     override suspend fun webdavTlsFailedPrescription() =
-        getString(Res.string.ui_webdav_tls_failed_prescription)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_webdav_tls_failed_prescription) }
     override suspend fun sourceHttpRetry(code: Int) =
-        getString(Res.string.ui_source_http_retry, code)
-    override suspend fun syncFailedRetry() = getString(Res.string.ui_sync_failed_retry)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_source_http_retry, code) }
+    override suspend fun syncFailedRetry() =
+        withContext(Dispatchers.Default) { getString(Res.string.ui_sync_failed_retry) }
     override suspend fun couldntReachServerRetry() =
-        getString(Res.string.ui_couldnt_reach_server_retry)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_couldnt_reach_server_retry) }
     override suspend fun booksPendingSyncShortly(count: Int) =
-        getString(Res.string.ui_books_pending_sync_shortly, count)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_books_pending_sync_shortly, count) }
     override suspend fun booksPendingWaitingFirstSync(count: Int) =
-        getString(Res.string.ui_books_pending_waiting_first_sync, count)
-    override suspend fun never() = getString(Res.string.ui_never)
-    override suspend fun justNow() = getString(Res.string.ui_just_now)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_books_pending_waiting_first_sync, count) }
+    override suspend fun never() =
+        withContext(Dispatchers.Default) { getString(Res.string.ui_never) }
+    override suspend fun justNow() =
+        withContext(Dispatchers.Default) { getString(Res.string.ui_just_now) }
     override suspend fun minutesAgo(minutes: Long) =
-        getString(Res.string.ui_minutes_ago, minutes)
-    override suspend fun hoursAgo(hours: Long) = getString(Res.string.ui_hours_ago, hours)
-    override suspend fun daysAgo(days: Long) = getString(Res.string.ui_days_ago, days)
+        withContext(Dispatchers.Default) { getString(Res.string.ui_minutes_ago, minutes) }
+    override suspend fun hoursAgo(hours: Long) =
+        withContext(Dispatchers.Default) { getString(Res.string.ui_hours_ago, hours) }
+    override suspend fun daysAgo(days: Long) =
+        withContext(Dispatchers.Default) { getString(Res.string.ui_days_ago, days) }
 }

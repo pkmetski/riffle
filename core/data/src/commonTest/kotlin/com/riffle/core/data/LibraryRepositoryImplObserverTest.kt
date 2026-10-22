@@ -15,9 +15,9 @@ import com.riffle.core.catalog.SortKey
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
+import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
@@ -74,7 +74,9 @@ class LibraryRepositoryImplObserverTest {
         val finishedAtUpdates = mutableListOf<Triple<String, String, Long?>>()
         private val rows = mutableMapOf<String, LibraryItemEntity>()
 
-        fun seed(entity: LibraryItemEntity) { rows[entity.id] = entity }
+        fun seed(entity: LibraryItemEntity) {
+            rows[entity.id] = entity
+        }
 
         override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> =
             flowOf(rows.values.filter { it.sourceId == sourceId })
@@ -255,8 +257,10 @@ class LibraryRepositoryImplObserverTest {
         dao.seed(item("src-1", "item-1"))
 
         // item-1 exists on src-1 but we ask for src-2 — should be null
-        assertNull(repo(listOf(absSource("src-1")), itemDao = dao)
-            .observeItem("src-2", "item-1").first())
+        assertNull(
+            repo(listOf(absSource("src-1")), itemDao = dao)
+                .observeItem("src-2", "item-1").first()
+        )
     }
 
     // ── observeInProgressItemsAllSources / observeAllLibraryItemsAllSources ─────
@@ -302,8 +306,10 @@ class LibraryRepositoryImplObserverTest {
         val seriesDao = RecordingSeriesDao()
         seriesDao.seed("src-1", "loner", null)
 
-        assertNull(repo(listOf(absSource("src-1")), seriesDao = seriesDao)
-            .getSeriesIdForItem("src-1", "loner"))
+        assertNull(
+            repo(listOf(absSource("src-1")), seriesDao = seriesDao)
+                .getSeriesIdForItem("src-1", "loner")
+        )
     }
 
     // ── refreshItemProgress — mirrors IosLibraryRefresherImplTest ────────────────

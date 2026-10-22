@@ -3,6 +3,7 @@ package com.riffle.shared.reader
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.feature.reader.NavigatorScrollBoundary
 import com.riffle.feature.reader.ScrollProbes
+import com.riffle.feature.reader.ScrollProbes.BoundaryAndProgression
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
@@ -35,12 +36,15 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goForward() = Unit
         override fun goBackward() = Unit
+        override fun goForwardInstant() = Unit
+        override fun goBackwardInstant() = Unit
         override fun goToLocator(locatorJson: String) = Unit
         override fun snapshotLocatorJson(): String? = null
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit
         override fun setPageLoadCallback(callback: (() -> Unit)?) = Unit
         override fun setTapCallback(callback: ((TapCoords) -> Unit)?) = Unit
         override fun setErrorCallback(callback: ((message: String) -> Unit)?) = Unit
+        override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
         override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) = Unit
         override fun clearSelection() = Unit
         override fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?) = Unit
@@ -146,6 +150,39 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         val bridge = FakeBridge(answers = { "0.25" })
         navigator(bridge).publishViewportFraction("")
         assertEquals(emptyList(), bridge.evaluated)
+    }
+
+    @Test
+    fun scrollBoundaryAndProgressionUsesTheCombinedProbeScript() = runTest {
+        val bridge = FakeBridge(answers = { "false,true,0.3500" })
+        val result = navigator(bridge).scrollBoundaryAndProgression()
+        assertEquals(
+            BoundaryAndProgression(
+                boundary = NavigatorScrollBoundary(atForwardBoundary = false, atBackwardBoundary = true),
+                scrollProgression = 0.35f,
+            ),
+            result,
+        )
+        assertEquals(
+            listOf(ScrollProbes.BOUNDARY_PROGRESS_PROBE_JS),
+            bridge.evaluated,
+            "must use the combined probe, not two separate round trips",
+        )
+    }
+
+    @Test
+    fun scrollBoundaryAndProgressionClampsProgressionToZeroOne() = runTest {
+        val bridge = FakeBridge(answers = { "false,false,1.2000" })
+        val result = navigator(bridge).scrollBoundaryAndProgression()
+        assertEquals(1f, result.scrollProgression, "progression above 1 must be clamped to 1")
+    }
+
+    @Test
+    fun scrollBoundaryAndProgressionFallsBackOnMalformedOutput() = runTest {
+        val bridge = FakeBridge(answers = { null })
+        val result = navigator(bridge).scrollBoundaryAndProgression()
+        assertEquals(NavigatorScrollBoundary.None, result.boundary)
+        assertEquals(0f, result.scrollProgression)
     }
 
     @Test

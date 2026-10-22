@@ -68,7 +68,7 @@ fun SourceOnboardingHost(
     // Webdav (which has its own WebdavOnboardingHost) and only ABS/Komga reach this path.
     val startStep: OnboardingStep = remember(initialBackend) {
         val credentialed = initialBackend as? AddSourceBackend.Credentialed
-        if (credentialed != null) OnboardingStep.Credentials(credentialed.sourceType) else OnboardingStep.Picker
+        if (credentialed != null) OnboardingStep.Credentials(credentialed.sourceType, credentialed.serverType) else OnboardingStep.Picker
     }
     var step by remember(initialBackend) { mutableStateOf(startStep) }
 
@@ -79,10 +79,15 @@ fun SourceOnboardingHost(
     // SelectLibraries goes back to Credentials (mirroring Android's nav-graph popBackStack), not
     // all the way to Picker.
     val isSubStep = step != OnboardingStep.Picker
+    val isEditRouting = initialBackend != null
     BackHandler(enabled = isSubStep) {
-        step = when (val s = step) {
-            is OnboardingStep.SelectLibraries -> OnboardingStep.Credentials(s.sourceType)
-            else -> OnboardingStep.Picker
+        if (isEditRouting && step is OnboardingStep.Credentials) {
+            onCancelled()
+        } else {
+            step = when (val s = step) {
+                is OnboardingStep.SelectLibraries -> OnboardingStep.Credentials(s.sourceType, s.serverType)
+                else -> OnboardingStep.Picker
+            }
         }
     }
 
@@ -122,18 +127,12 @@ fun SourceOnboardingHost(
         )
 
         is OnboardingStep.Credentials -> {
-            // Keyed by SourceType so backing out and picking a different source builds a fresh
-            // ViewModel with the right `type` route param (mirrors Android's nav-arg behaviour).
-            // Show the nav icon only when the picker itself is navigable (canNavigateBack=true or
-            // we arrived here via edit-source routing). During first-run onboarding the picker has
-            // no back and neither does AddSource — the user must complete or use the system back.
-            val isEditRouting = initialBackend != null
-            val viewModel = remember(current.type) { addSourceViewModel(current.type, editId) }
+            val viewModel = remember(current.type) { addSourceViewModel(current.type, current.serverType, editId) }
             AddSourceScreen(
                 isExpandedWidth = expandedWidth,
                 showNavigationIcon = canNavigateBack || isEditRouting,
-                onNavigateBack = { step = OnboardingStep.Picker },
-                onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending, current.type) },
+                onNavigateBack = { if (isEditRouting) onCancelled() else step = OnboardingStep.Picker },
+                onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending, current.type, current.serverType) },
                 onAutoCompleted = onFinished,
                 viewModel = viewModel,
             )
@@ -154,7 +153,7 @@ fun SourceOnboardingHost(
             SelectLibrariesScreen(
                 isExpandedWidth = expandedWidth,
                 pending = current.pending,
-                onNavigateBack = { step = OnboardingStep.Credentials(current.sourceType) },
+                onNavigateBack = { step = OnboardingStep.Credentials(current.sourceType, current.serverType) },
                 onContinueComplete = onFinished,
                 viewModel = viewModel,
             )
@@ -171,8 +170,8 @@ private sealed interface OnboardingStep {
     data object Picker : OnboardingStep
     data object OReillyLogin : OnboardingStep
     data class Confirm(val type: SourceType) : OnboardingStep
-    data class Credentials(val type: SourceType) : OnboardingStep
-    data class SelectLibraries(val pending: PendingSource, val sourceType: SourceType) : OnboardingStep
+    data class Credentials(val type: SourceType, val serverType: ServerType = ServerType.AUDIOBOOKSHELF) : OnboardingStep
+    data class SelectLibraries(val pending: PendingSource, val sourceType: SourceType, val serverType: ServerType = ServerType.AUDIOBOOKSHELF) : OnboardingStep
 }
 
 /**
@@ -208,14 +207,8 @@ internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
     addAll(unboundedBrowseSourceTypes())
 }
 
-/**
- * Builds the Add-Source ViewModel for [type]. The route param handed to Koin is the same
- * `type=` string Android puts in its nav route, so `AddSourceBackend.parseBackend` resolves the
- * identical backend on both platforms. ABS's ServerType discriminator is AUDIOBOOKSHELF here —
- * Storyteller is a Service, configured from Settings, not from the Add-Source picker.
- */
-private fun addSourceViewModel(type: SourceType, editId: String? = null): AddSourceViewModel {
-    val routeType = AddSourceBackend.Credentialed(type, ServerType.AUDIOBOOKSHELF).routeType
+private fun addSourceViewModel(type: SourceType, serverType: ServerType = ServerType.AUDIOBOOKSHELF, editId: String? = null): AddSourceViewModel {
+    val routeType = AddSourceBackend.Credentialed(type, serverType).routeType
     return KoinPlatform.getKoin().get { parametersOf(routeType, editId.orEmpty()) }
 }
 

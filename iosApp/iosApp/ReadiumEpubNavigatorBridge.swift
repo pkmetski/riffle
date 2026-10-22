@@ -38,6 +38,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
     private var scrollStartCallback: (() -> Void)?
+    private var publicationOpenErrorCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
     /// remove the handler and break the retain cycle that WKUserContentController's strong
@@ -100,16 +101,43 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     func openSyntheticEpub(dirPath: String, locatorJson: String?) {
         Task { @MainActor in
             do {
-                guard let fileURL = FileURL(path: dirPath, isDirectory: true) else { return }
+                guard let fileURL = FileURL(path: dirPath, isDirectory: true) else {
+                    let msg = "openSyntheticEpub: invalid directory path: \(dirPath)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
+
+                // AssetRetriever cannot open directories — FileResource explicitly rejects them.
+                // Use DirectoryContainer directly and pass it to AssetRetriever.retrieve(container:).
+                let container: DirectoryContainer
+                do {
+                    container = try await DirectoryContainer(directory: fileURL)
+                } catch {
+                    let msg = "openSyntheticEpub: DirectoryContainer failed for \(dirPath): \(error)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
 
                 let httpClient = DefaultHTTPClient()
                 let assetRetriever = AssetRetriever(httpClient: httpClient)
-                let assetResult = await assetRetriever.retrieve(url: fileURL)
-                guard case .success(let asset) = assetResult else { return }
+                let assetResult = await assetRetriever.retrieve(container: container)
+                guard case .success(let asset) = assetResult else {
+                    let msg = "openSyntheticEpub: asset retrieval failed for \(dirPath): \(assetResult)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
 
                 let opener = PublicationOpener(parser: CompositePublicationParser([EPUBParser()]))
                 let pubResult = await opener.open(asset: asset, allowUserInteraction: false)
-                guard case .success(let pub) = pubResult else { return }
+                guard case .success(let pub) = pubResult else {
+                    let msg = "openSyntheticEpub: publication parsing failed: \(pubResult)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
                 self.publication = pub
                 self.prefetchToc(pub)
                 self.prefetchSpine(pub)
@@ -122,7 +150,9 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
                 try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
-                // Ignore open errors — reader shows blank state
+                let msg = "openSyntheticEpub: navigator attach failed: \(error)"
+                NSLog("[Riffle] %@", msg)
+                publicationOpenErrorCallback?(msg)
             }
         }
     }
@@ -217,6 +247,18 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         Task { @MainActor in _ = await epubNavigator?.goBackward(options: .animated) }
     }
 
+    // Boundary-triggered chapter crossings in Continuous mode must not animate — the animated
+    // variant uses PaginationView.slideToView which produces a 300 ms horizontal swipe that is
+    // wrong for vertical continuous reading. NavigatorGoOptions(animated: false) produces an
+    // instant chapter swap (a ≤ 100 ms snapshot flash while the preloaded WKWebView swaps in).
+    func goForwardInstant() {
+        Task { @MainActor in _ = await epubNavigator?.goForward(options: NavigatorGoOptions(animated: false)) }
+    }
+
+    func goBackwardInstant() {
+        Task { @MainActor in _ = await epubNavigator?.goBackward(options: NavigatorGoOptions(animated: false)) }
+    }
+
     func goToLocator(locatorJson: String) {
         guard let jsonValue = try? JSONValue(jsonString: locatorJson),
               let locator = try? Locator(json: jsonValue, warnings: nil) else { return }
@@ -264,6 +306,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     func setErrorCallback(callback: ((String) -> Void)?) {
         errorCallback = callback
+    }
+
+    func setPublicationOpenErrorCallback(callback: ((String) -> Void)?) {
+        publicationOpenErrorCallback = callback
     }
 
     func openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: any IosLazyChapterFetcher) {
@@ -720,10 +766,7 @@ extension ReadiumEpubNavigatorBridge {
     /// rather than crashing.
     func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
         Task { @MainActor in
-            guard let nav = self.epubNavigator else {
-                onResult(nil)
-                return
-            }
+            guard let nav = self.epubNavigator else { onResult(nil); return }
             let result = await nav.evaluateJavaScript(script)
             switch result {
             case let .success(value):

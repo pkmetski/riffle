@@ -103,16 +103,20 @@ class MigrationTest {
             assertEquals(0, cursor.getInt(4))
         }
         db.query("SELECT COUNT(*) FROM series").use { cursor ->
-            cursor.moveToFirst(); assertEquals(0, cursor.getInt(0))
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
         }
         db.query("SELECT COUNT(*) FROM collections").use { cursor ->
-            cursor.moveToFirst(); assertEquals(0, cursor.getInt(0))
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
         }
         db.query("SELECT COUNT(*) FROM series_items").use { cursor ->
-            cursor.moveToFirst(); assertEquals(0, cursor.getInt(0))
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
         }
         db.query("SELECT COUNT(*) FROM collection_items").use { cursor ->
-            cursor.moveToFirst(); assertEquals(0, cursor.getInt(0))
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
         }
     }
 
@@ -138,7 +142,8 @@ class MigrationTest {
             assertNull(cursor.getString(6)) // ebookFileIno defaults to NULL
         }
         db.query("SELECT COUNT(*) FROM reading_positions").use { cursor ->
-            cursor.moveToFirst(); assertEquals(0, cursor.getInt(0))
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
         }
     }
 
@@ -191,11 +196,11 @@ class MigrationTest {
             cursor.moveToFirst()
             assertEquals("item1", cursor.getString(0))
             assertEquals("Dune", cursor.getString(1))
-            assertNull(cursor.getString(2))   // description defaults to NULL
-            assertNull(cursor.getString(3))   // seriesName defaults to NULL
-            assertNull(cursor.getString(4))   // publishedYear defaults to NULL
+            assertNull(cursor.getString(2)) // description defaults to NULL
+            assertNull(cursor.getString(3)) // seriesName defaults to NULL
+            assertNull(cursor.getString(4)) // publishedYear defaults to NULL
             assertEquals("", cursor.getString(5)) // genres defaults to empty string
-            assertNull(cursor.getString(6))   // publisher defaults to NULL
+            assertNull(cursor.getString(6)) // publisher defaults to NULL
         }
     }
 
@@ -704,7 +709,9 @@ class MigrationTest {
                 "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 1, 1000, 2000)"
         )
-        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
+        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use {
+                cursor
+            ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("book-42", cursor.getString(0))
@@ -827,7 +834,6 @@ class MigrationTest {
         }
     }
 
-
     @Test
     fun migration23To24_addsCrossEpubIndexCacheTable() {
         helper.createDatabase(TEST_DB, 23).use { db ->
@@ -866,7 +872,9 @@ class MigrationTest {
             "INSERT INTO cross_epub_index (absEpubChecksum, storytellerEpubChecksum, perChapterMapsBlob, builtAt) " +
                 "VALUES ('absChk', 'stChk', '[{\"absChars\":12,\"storytellerChars\":12}]', 5000)"
         )
-        db.query("SELECT perChapterMapsBlob, builtAt FROM cross_epub_index WHERE absEpubChecksum = 'absChk' AND storytellerEpubChecksum = 'stChk'").use { cursor ->
+        db.query("SELECT perChapterMapsBlob, builtAt FROM cross_epub_index WHERE absEpubChecksum = 'absChk' AND storytellerEpubChecksum = 'stChk'").use {
+                cursor
+            ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("[{\"absChars\":12,\"storytellerChars\":12}]", cursor.getString(0))
@@ -1453,7 +1461,8 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 35, true, RiffleDatabase.MIGRATION_34_35)
 
         db.query("SELECT COUNT(*) FROM audiobook_bookmarks").use { c ->
-            c.moveToFirst(); assertEquals(0, c.getInt(0))
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
         }
 
         db.execSQL(
@@ -1463,7 +1472,8 @@ class MigrationTest {
         db.query(
             "SELECT positionSec, title, createdAt, localUpdatedAt, lastSyncedAt, deleted FROM audiobook_bookmarks WHERE id = 'b1'"
         ).use { c ->
-            assertEquals(1, c.count); c.moveToFirst()
+            assertEquals(1, c.count)
+            c.moveToFirst()
             assertEquals(765.0, c.getDouble(0), 0.0001)
             assertEquals("The Egg", c.getString(1))
             assertEquals(1700000000000L, c.getLong(2))
@@ -1475,7 +1485,8 @@ class MigrationTest {
         db.execSQL("PRAGMA foreign_keys = ON")
         db.execSQL("DELETE FROM servers WHERE id = 's1'")
         db.query("SELECT COUNT(*) FROM audiobook_bookmarks").use { c ->
-            c.moveToFirst(); assertEquals(0, c.getInt(0))
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
         }
     }
 
@@ -1587,9 +1598,9 @@ class MigrationTest {
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("a1", cursor.getString(0))
-            assertEquals(0, cursor.getInt(1))         // spineIndex DEFAULT 0
+            assertEquals(0, cursor.getInt(1)) // spineIndex DEFAULT 0
             assertEquals(0.0, cursor.getDouble(2), 0.0001) // progression DEFAULT 0.0
-            assertEquals("", cursor.getString(3))     // bookmarkTitle DEFAULT ''
+            assertEquals("", cursor.getString(3)) // bookmarkTitle DEFAULT ''
         }
 
         // New bookmark row with populated fields round-trips correctly.
@@ -1765,13 +1776,13 @@ class MigrationTest {
                 c.moveToFirst()
                 assertEquals("ann-1", c.getString(0))
                 assertEquals(1500L, c.getLong(1))
-                assertEquals(0L, c.getLong(2))   // new column defaults to 0 ⇒ dirty
+                assertEquals(0L, c.getLong(2)) // new column defaults to 0 ⇒ dirty
                 assertEquals(0, c.getInt(3))
                 c.moveToNext()
                 assertEquals("ann-2", c.getString(0))
                 assertEquals(2500L, c.getLong(1))
                 assertEquals(0L, c.getLong(2))
-                assertEquals(1, c.getInt(3))    // tombstone preserved
+                assertEquals(1, c.getInt(3)) // tombstone preserved
             }
             // The new column is writable for the stamp-on-push path.
             db.execSQL("UPDATE annotations SET lastSyncedAt = 9999 WHERE id = 'ann-1'")
@@ -1812,7 +1823,7 @@ class MigrationTest {
                 c.moveToFirst()
                 assertEquals("srv-A", c.getString(0))
                 assertEquals("item-1", c.getString(1))
-                assertEquals("FullBook", c.getString(2))  // backfilled — this is the whole point.
+                assertEquals("FullBook", c.getString(2)) // backfilled — this is the whole point.
                 assertEquals(1.5, c.getDouble(3), 0.001)
                 assertEquals("Dark", c.getString(4))
                 assertEquals("Serif", c.getString(5))
@@ -1859,7 +1870,8 @@ class MigrationTest {
         helper.runMigrationsAndValidate(TEST_DB, 46, true, RiffleDatabase.MIGRATION_45_46).use { db ->
             // Pre-existing sources row untouched.
             db.query("SELECT COUNT(*) FROM sources WHERE id = 'src-A'").use { c ->
-                c.moveToFirst(); assertEquals(1, c.getInt(0))
+                c.moveToFirst()
+                assertEquals(1, c.getInt(0))
             }
 
             // local_files_folders exists and accepts insertions.
@@ -1904,10 +1916,12 @@ class MigrationTest {
             db.execSQL("PRAGMA foreign_keys = ON")
             db.execSQL("DELETE FROM sources WHERE id = 'src-A'")
             db.query("SELECT COUNT(*) FROM local_files_folders WHERE sourceId = 'src-A'").use { c ->
-                c.moveToFirst(); assertEquals(0, c.getInt(0))
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
             }
             db.query("SELECT COUNT(*) FROM local_files_files WHERE sourceId = 'src-A'").use { c ->
-                c.moveToFirst(); assertEquals(0, c.getInt(0))
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
             }
         }
     }
@@ -2390,7 +2404,9 @@ class MigrationTest {
                     "isbn, asin, finishedAt, pageCount) VALUES " +
                     "('lf1','$id','local:root','$id-title','author',NULL,0.0,NULL,'epub',0,0.0,NULL,NULL,NULL,NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)"
             )
-            insertItem("fA1"); insertItem("fA2"); insertItem("fB1")
+            insertItem("fA1")
+            insertItem("fA2")
+            insertItem("fB1")
             // An orphan library_items row whose sourceItemId has no corresponding local_files_files
             // row — it should be dropped by the migration since we can't attribute it to a folder.
             execSQL(
@@ -2410,10 +2426,16 @@ class MigrationTest {
         // "local:folder:<uuid>". Names lifted from the displayName column.
         val folderALib = db.query(
             "SELECT libraryId FROM local_files_folders WHERE sourceId = 'lf1' AND treeUri = 'content://tree/A'",
-        ).use { c -> assertTrue(c.moveToFirst()); c.getString(0) }
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            c.getString(0)
+        }
         val folderBLib = db.query(
             "SELECT libraryId FROM local_files_folders WHERE sourceId = 'lf1' AND treeUri = 'content://tree/B'",
-        ).use { c -> assertTrue(c.moveToFirst()); c.getString(0) }
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            c.getString(0)
+        }
         assertTrue(folderALib.startsWith("local:folder:"))
         assertTrue(folderBLib.startsWith("local:folder:"))
         assertTrue("Folders must not share the same libraryId", folderALib != folderBLib)
@@ -2718,10 +2740,12 @@ class MigrationTest {
 
         // New tables start empty.
         db.query("SELECT COUNT(*) FROM playlists").use { c ->
-            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
         }
         db.query("SELECT COUNT(*) FROM playlist_items").use { c ->
-            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
         }
 
         // Playlist + items insert exercises every column and the composite PK / ordering.
@@ -2746,10 +2770,12 @@ class MigrationTest {
         db.execSQL("PRAGMA foreign_keys=ON")
         db.execSQL("DELETE FROM sources WHERE id = 'abs1'")
         db.query("SELECT COUNT(*) FROM playlists").use { c ->
-            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
         }
         db.query("SELECT COUNT(*) FROM playlist_items").use { c ->
-            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
         }
 
         db.close()

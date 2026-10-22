@@ -3,6 +3,7 @@ package com.riffle.core.catalog.abs
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CfiDialect
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.Clock
@@ -167,6 +168,13 @@ class AbsCommonCatalogTest {
         assertTrue(c is ProgressPeerCapability)
         assertTrue(c is AudiobookProgressPeerCapability)
         assertEquals(CfiDialect.EPUB_JS, c.cfiDialect)
+    }
+
+    @Test
+    fun isADownloadsCapabilitySoNavigationDrawerShowsDownloadsLinkOnIOS() {
+        // Regression: AbsCommonCatalog (the iOS-registered catalog) did not implement
+        // DownloadsCapability, so NavigationDrawerViewModel.showDownloadsLink emitted false on iOS.
+        assertTrue(catalog() is DownloadsCapability)
     }
 
     @Test

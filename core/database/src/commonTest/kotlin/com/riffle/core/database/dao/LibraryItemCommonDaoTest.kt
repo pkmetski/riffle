@@ -131,8 +131,10 @@ class LibraryItemCommonDaoTest : DaoTestBase() {
             listOf(RemoteProgressUpdate(ITEM_ID, 0.2f, serverUpdatedAt = 1000L)),
         )
 
-        assertEquals(0.7f, db.libraryItemDao().getById(SOURCE_ID, ITEM_ID)!!.readingProgress,
-            "Stale server progress must not overwrite a fresher locally-stamped value")
+        assertEquals(
+            0.7f, db.libraryItemDao().getById(SOURCE_ID, ITEM_ID)!!.readingProgress,
+            "Stale server progress must not overwrite a fresher locally-stamped value"
+        )
     }
 
     @Test
@@ -161,8 +163,10 @@ class LibraryItemCommonDaoTest : DaoTestBase() {
         settleEmissions()
 
         val latest = emissions.last()
-        assertEquals(0.5f, latest.first { it.id == "item-1" }.readingProgress,
-            "Flow must reflect batch progress update")
+        assertEquals(
+            0.5f, latest.first { it.id == "item-1" }.readingProgress,
+            "Flow must reflect batch progress update"
+        )
     }
 
     @Test

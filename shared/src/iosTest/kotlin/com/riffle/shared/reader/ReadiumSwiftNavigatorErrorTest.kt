@@ -34,6 +34,8 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goForward() = Unit
         override fun goBackward() = Unit
+        override fun goForwardInstant() = Unit
+        override fun goBackwardInstant() = Unit
         override fun goToLocator(locatorJson: String) = Unit
         override fun snapshotLocatorJson(): String? = null
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit
@@ -89,6 +91,7 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
         override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
         override fun setScrollStartCallback(callback: (() -> Unit)?) = Unit
+        override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
     }
 
     @Test

@@ -22,6 +22,7 @@ internal fun ReaderHost(
             initialLocatorJson = destination.initialLocatorJson,
             startHref = destination.startHref,
             startReadaloudAtSec = destination.startReadaloudAtSec,
+            source = destination.readerSource,
             onSwitchToAudiobook = if (destination.item.isListenable) readerActions.onSwitchToAudiobook else null,
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = readerActions.onBack)

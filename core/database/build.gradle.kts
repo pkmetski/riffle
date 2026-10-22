@@ -73,6 +73,9 @@ kotlin {
             // BundledSQLiteDriver requires sqlite-bundled on iOS — it bundles its own SQLite
             // so the app is not subject to iOS system SQLite's SQLITE_OMIT_LOAD_EXTENSION.
             implementation(libs.androidx.sqlite.bundled)
+            // JSON parsing for JSONL → SQLite dict conversion (IosDictConverter).
+            // The serialization plugin is not needed — only the parser API is used, not @Serializable.
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

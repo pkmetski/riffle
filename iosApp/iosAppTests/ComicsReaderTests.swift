@@ -61,6 +61,36 @@ final class ComicsReaderTests: KomgaHarnessTestCase {
         XCTAssertFalse(app.staticTexts["Book not found"].exists, "Reopened comics reader must resolve the book")
     }
 
+    // MARK: - Scenario 06-H: Immersive mode
+
+    /// 06-H.1 — Tapping the center of the comic page toggles immersive mode.
+    ///
+    /// Regression for NonCooperative UIKitInteropInteractionMode on UIImageView: tap events
+    /// were consumed exclusively by the UIKit layer and never reached Compose's detectTapGestures,
+    /// so neither immersive toggle nor left/right page-navigation taps worked.
+    func testComicsCenterTapTogglesImmersive() throws {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load")
+        XCTAssertTrue(waitForLibraryTile(cbzTile, in: app, timeout: 10))
+
+        let backButton = openReader(from: cbzTile, in: app)
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Comics reader must show the Back button")
+
+        // Center tap should enter immersive mode — top bar (including Back button) hides.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(
+            backButton.waitForNonExistence(timeout: 5),
+            "Top bar must disappear after center tap (immersive on)"
+        )
+
+        // Second center tap exits immersive mode — top bar re-appears.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(
+            backButton.waitForExistence(timeout: 5),
+            "Top bar must reappear after second center tap (immersive off)"
+        )
+    }
+
     // MARK: - Scenario 06-G: Back navigation
 
     /// 06-G.1 — Tapping back from the comics reader returns to the library.

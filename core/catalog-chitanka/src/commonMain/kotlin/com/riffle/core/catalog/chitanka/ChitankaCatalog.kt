@@ -254,14 +254,14 @@ class ChitankaCatalog(
     private suspend fun resolveItem(itemId: String): Pair<String, ChitankaDetail>? {
         return when {
             itemId.startsWith("text/") -> {
-                val url = "${ChitankaScraper.BASE}/$itemId"
+                val url = "$baseUrl/$itemId"
                 val html = http.getString(url)
                 val detail = ChitankaScraper.parseDetailPage(html, url)
                 // If genres are empty and we're on a book-side surface, promote to /text/
                 ROOT_BOOKS to detail
             }
             itemId.startsWith("book/") -> {
-                val url = "${ChitankaScraper.BASE}/$itemId"
+                val url = "$baseUrl/$itemId"
                 val html = http.getString(url)
                 val bookDetail = ChitankaScraper.parseDetailPage(html, url)
                 // Try to canonicalise to the /text/ surface for genres.
@@ -270,16 +270,19 @@ class ChitankaCatalog(
                     .map { it.attr("href") }
                     .firstOrNull { !it.contains(".") }
                 if (textHref != null) {
-                    val textUrl = ChitankaScraper.toAbsolute(textHref)
+                    val textUrl = ChitankaScraper.toAbsolute(textHref, "$baseUrl/")
                     val textHtml = runCatching { http.getString(textUrl) }.getOrNull()
                     if (textHtml != null) {
                         val enriched = ChitankaScraper.parseDetailPage(textHtml, textUrl)
                         // The /text/ surface has no book-anno block — preserve the /book/
                         // annotation (and cover) if the enrichment came back empty.
+                        // The /text/ page may lack the direct download link that /book/ carries;
+                        // fall back to the /book/ downloadUrl so we can always stream the EPUB.
                         return ROOT_BOOKS to enriched.copy(
                             url = url,  // keep the original id
                             description = enriched.description.ifEmpty { bookDetail.description },
                             coverUrl = enriched.coverUrl ?: bookDetail.coverUrl,
+                            downloadUrl = enriched.downloadUrl ?: bookDetail.downloadUrl,
                         )
                     }
                 }

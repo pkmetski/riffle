@@ -127,7 +127,7 @@ private fun AndroidEpubReaderSlot(
             koin.get {
                 parametersOf(
                     item.id,
-                    ReaderSource.FullBook,
+                    destination.readerSource,
                     destination.startReadaloudAtSec,
                     destination.openAtRawCfi ?: destination.initialLocatorJson,
                     destination.openAtAnnotationId,

@@ -57,6 +57,7 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
+import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
@@ -152,6 +153,7 @@ import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerPalette
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
+import com.riffle.feature.reader.weightedRailCursorPosition
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.shared.generated.resources.Res
@@ -219,6 +221,7 @@ fun EpubReaderScreen(
     val clock = koinInject<Clock>()
     val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
     val highlightsResumeStore = koinInject<HighlightsResumeStore>()
+    val tocRepository = koinInject<TocRepository>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
     val isLandscape = containerSize.width > containerSize.height
@@ -247,6 +250,10 @@ fun EpubReaderScreen(
     var searchResults by remember { mutableStateOf<List<NavigatorSearchMatch>>(emptyList()) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
     var chapterMap by remember { mutableStateOf(ChapterMapUiState.Empty) }
+    // Continuous-mode override: the chapter-map cursor position derived from the real-time scroll
+    // probe (120 ms cadence), which is more frequent than Readium's 300 ms post-scroll-end
+    // locationDidChange. Null in non-Continuous modes so the rail falls back to chapterMap.cursorPosition.
+    var continuousCursorOverride by remember { mutableStateOf<Float?>(null) }
     // The resolved (Auto already collapsed) preferences the chapter map paints itself with.
     var resolvedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
     // Reader viewport width in device pixels — auto-scroll's pace depends on how many words fit
@@ -386,7 +393,8 @@ fun EpubReaderScreen(
             annotationStore.observeAnnotations(item.sourceId, item.id).collect { annotations ->
                 highlightsAnnotations = annotations
                 val annotationsWithEmphasis = joinEmphasisStylesToAnnotations(annotations)
-                val chapters = buildChapterElisionsFromAnnotations(annotationsWithEmphasis)
+                val bookToc = tocRepository.getCachedToc(item.sourceId, item.id)?.second.orEmpty()
+                val chapters = buildChapterElisionsFromAnnotations(annotationsWithEmphasis, bookToc)
 
                 if (chapters.isEmpty()) {
                     onBack()
@@ -435,6 +443,9 @@ fun EpubReaderScreen(
                     loadError = noHighlightsText
                     return@collect
                 }
+                if (isFirstOpen) {
+                    localPath = dirPath
+                }
                 navigator.openSyntheticEpub(dirPath, resumeLocator)
                 highlightsRenderedChaptersRef.value = chapters
 
@@ -446,7 +457,6 @@ fun EpubReaderScreen(
                         highlightRenderResolver = { emptyList() },
                         cfiLocatorResolver = { null },
                     )
-                    localPath = dirPath
                     isFirstOpen = false
                 }
                 renderedFingerprints = incomingFingerprints
@@ -558,11 +568,23 @@ fun EpubReaderScreen(
     // computes both asynchronously after the publication opens, so re-read on every page-load
     // event until each has arrived rather than sampling once and drawing a permanently empty
     // (or unweighted) rail.
+    //
+    // Spine readiness race: prefetchSpine calls positionsByReadingOrder() which is async. If the
+    // user stays on the first chapter and never triggers a page-load event, getSpine() would
+    // return an unusable spine (empty positionCounts) forever — the chapter map then shows only
+    // the top-level TOC structure (e.g. 3 parts instead of 30 chapters). The poller below
+    // retries every 200 ms until positionCounts arrives, complementing the page-load collector.
     LaunchedEffect(localPath) {
         if (localPath == null) return@LaunchedEffect
         navigator.getToc().takeIf { it.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
         navigator.getSpine().takeIf { it.isUsable }?.let { spine = it; spineRef.value = it }
         if (tocEntries.isNotEmpty() && spine.isUsable) return@LaunchedEffect
+        launch {
+            while (!spine.isUsable) {
+                delay(200L)
+                navigator.getSpine().takeIf { it.isUsable }?.let { s -> spine = s; spineRef.value = s }
+            }
+        }
         navigator.pageLoadEvents.collect {
             if (tocEntries.isEmpty()) {
                 navigator.getToc().takeIf { toc -> toc.isNotEmpty() }?.let { toc -> tocEntries = toc; tocEntriesRef.value = toc }
@@ -639,19 +661,21 @@ fun EpubReaderScreen(
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
         navigator.navigateTo(target)
     }
-    LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape), spine) {
+    LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
-        if (localPath == null || orientation != ReaderOrientation.Continuous) return@LaunchedEffect
-        // The reader lands on whatever resource was open when the mode became Continuous, very
-        // possibly at its top or bottom. That landing is not a crossing.
+        if (localPath == null || orientation != ReaderOrientation.Continuous) {
+            continuousCursorOverride = null
+            return@LaunchedEffect
+        }
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
         while (true) {
             val position = navigator.snapshotPosition()
             if (position != null && spine.hrefs.isNotEmpty()) {
                 val index = spineIndexOfHref(spine.hrefs, position.href)
+                val (boundary, scrollProgression) = navigator.scrollBoundaryAndProgression()
                 val advance = boundaryPolicy.decide(
                     orientation = orientation,
-                    boundary = navigator.scrollBoundary(),
+                    boundary = boundary,
                     canGoForward = index in 0 until spine.hrefs.size - 1,
                     canGoBackward = index > 0,
                     nowMs = clockOrigin.elapsedNow().inWholeMilliseconds,
@@ -660,6 +684,14 @@ fun EpubReaderScreen(
                     BoundaryAdvance.Forward -> navigator.pageBy(NavigatorPageDirection.Forward)
                     BoundaryAdvance.Backward -> navigator.pageBy(NavigatorPageDirection.Backward)
                     BoundaryAdvance.None -> Unit
+                }
+                val segments = chapterMap.segments
+                if (segments.isNotEmpty()) {
+                    continuousCursorOverride = weightedRailCursorPosition(
+                        chapterMap.activeIndex,
+                        segments,
+                        scrollProgression,
+                    )
                 }
             }
             delay(BOUNDARY_POLL_INTERVAL_MS)
@@ -678,6 +710,16 @@ fun EpubReaderScreen(
     // Everything else — the selection callback, the decoration groups, the text-quote anchor,
     // the merge policy — is mode-independent because Readium resolves a decoration the same way
     // in both layouts.
+    //
+    // Readium gates tap dispatch per group: without registering a group as activable, taps on
+    // its decorations fall through to didTapAt as ordinary BodyTap events, toggling the chrome
+    // instead of opening the actions sheet. Must be called before openEpub so the bridge stores
+    // them and re-registers on every new navigator open.
+    LaunchedEffect(navigator) {
+        ReaderDecorationGroups.activable.forEach { group ->
+            navigator.observeDecorationGroup(group)
+        }
+    }
     // A tap on a rendered decoration opens the actions sheet on that annotation. Readium reports
     // the decoration id, which is the annotation id — except for an emphasis layer, whose id
     // carries a `#<style>` suffix because one row can paint two decorations. Android strips a
@@ -1068,6 +1110,11 @@ fun EpubReaderScreen(
         if (source != ReaderSource.Highlights) return@LaunchedEffect
         navigator.riffleUrls.collect { url ->
             parseAnnotationTapUrl(url)?.let { id -> editTargetId = id }
+        }
+    }
+    LaunchedEffect(navigator) {
+        navigator.publicationOpenErrors.collect { _ ->
+            if (loadError == null) loadError = couldNotDownloadBook
         }
     }
 
@@ -1520,10 +1567,12 @@ fun EpubReaderScreen(
             val annotationSheetModifier = run {
                 val selRect = liveSelection?.rect
                 if (selRect != null && editTarget == null) {
+                    val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
                     val targetY = annotationSheetTargetY(
                         selectionY = selRect.y,
                         selectionHeight = selRect.height,
                         minAboveY = statusBarTopDp.value + 8f,
+                        maxBelowY = screenHeightDp,
                     )
                     Modifier
                         .align(Alignment.TopStart)
@@ -1838,7 +1887,7 @@ fun EpubReaderScreen(
                     ChapterMapOverlay(
                         segments = chapterMap.segments,
                         activeIndex = chapterMap.activeIndex,
-                        cursorPosition = chapterMap.cursorPosition,
+                        cursorPosition = continuousCursorOverride ?: chapterMap.cursorPosition,
                         totalProgress = chapterMap.labelProgress,
                         readerTheme = prefs.theme,
                         showRail = prefs.showChapterMap,

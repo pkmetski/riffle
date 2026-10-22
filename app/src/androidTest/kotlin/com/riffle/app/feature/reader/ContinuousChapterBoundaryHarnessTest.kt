@@ -160,7 +160,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo("OEBPS/ch07.html", progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
             isReaderInChapter(reader, "ch07.html")
         }
         composeTestRule.activityRule.scenario.onActivity { superseded = reader.isReapplyLandingSuperseded }

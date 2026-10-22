@@ -35,8 +35,10 @@ import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.designsystem.isExpandedWidth
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.library.AnnotationSearchViewModel
+import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
 import com.riffle.feature.library.HomeViewModel
+import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.navigateFromHome
@@ -58,6 +60,10 @@ import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.annotationSearchLabels
 import com.riffle.feature.library.ui.filteredBooksLabels
+import com.riffle.feature.library.ui.generated.resources.Res
+import com.riffle.feature.library.ui.generated.resources.ui_book_not_found
+import com.riffle.feature.library.ui.generated.resources.ui_retry
+import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.LibraryNav
@@ -72,6 +78,7 @@ import com.riffle.feature.navigation.reduceNavStack
 import com.riffle.feature.player.AudiobookPlayIntentRegistry
 import com.riffle.feature.player.NowPlaying
 import com.riffle.feature.player.ui.PlayerHostActions
+import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.ui.ReaderHostActions
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.SettingsActions
@@ -92,13 +99,10 @@ import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_book_not_found
-import com.riffle.feature.library.ui.generated.resources.ui_retry
-import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import org.koin.mp.KoinPlatform
 
 /**
  * The shared application shell rendered by both the Android app and the iOS app.
@@ -378,11 +382,19 @@ fun AppShell(
                             onBack = { downloadsDetailNav = null },
                             onRead = { item ->
                                 openReadItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
-                                    ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
+                                    ?.let {
+                                        pendingLibraryNav = it
+                                        appSection = AppSection.Library
+                                        downloadsDetailNav = null
+                                    }
                             },
                             onListen = { item ->
                                 openItemForReading(item, downloadsApplicationScope, downloadsRecordItemOpened::invoke)
-                                    ?.let { pendingLibraryNav = it; appSection = AppSection.Library; downloadsDetailNav = null }
+                                    ?.let {
+                                        pendingLibraryNav = it
+                                        appSection = AppSection.Library
+                                        downloadsDetailNav = null
+                                    }
                             },
                             onReadItemAtHref = { item, href ->
                                 pendingLibraryNav = LibraryNav.Reader(item, startHref = href)
@@ -418,8 +430,12 @@ fun AppShell(
                 val rifflePlayIntentRegistry = koinInject<AudiobookPlayIntentRegistry>()
                 var riffleNavStack by remember { mutableStateOf(listOf<LibraryNav>()) }
 
-                fun rifflePush(dest: LibraryNav) { riffleNavStack = riffleNavStack + dest }
-                fun rifflePop() { riffleNavStack = riffleNavStack.dropLast(1) }
+                fun rifflePush(dest: LibraryNav) {
+                    riffleNavStack = riffleNavStack + dest
+                }
+                fun rifflePop() {
+                    riffleNavStack = riffleNavStack.dropLast(1)
+                }
 
                 SideEffect { isInReaderDestination = riffleNavStack.lastOrNull() is LibraryNav.ReaderDestination }
                 DisposableEffect(Unit) { onDispose { isInReaderDestination = false } }
@@ -616,6 +632,22 @@ internal fun LibraryHost(
     val unboundedType = sourceType.takeIf { shouldRenderUnboundedBrowse(it) }
     val scope = rememberCoroutineScope()
 
+    val koin = KoinPlatform.getKoin()
+    val libraryItemsHost = remember(libraryId) { ScreenScopedViewModelHost() }
+    val libraryItemsViewModel = remember(libraryId) {
+        libraryItemsHost.adopt(koin.get<LibraryItemsViewModel> { parametersOf(libraryId) })
+    }
+    val annotationsHost = remember(libraryId) { ScreenScopedViewModelHost() }
+    val annotationsViewModel = remember(libraryId) {
+        annotationsHost.adopt(koin.get<AnnotationsListViewModel> { parametersOf(libraryId) })
+    }
+    DisposableEffect(libraryId) {
+        onDispose {
+            libraryItemsHost.clear()
+            annotationsHost.clear()
+        }
+    }
+
     LaunchedEffect(pendingNav) {
         val nav = pendingNav ?: return@LaunchedEffect
         if (!isAlreadyAtPlayerDestination(navStack, nav)) {
@@ -624,8 +656,12 @@ internal fun LibraryHost(
         onPendingNavHandled()
     }
 
-    fun push(dest: LibraryNav) { navStack = navStack + dest }
-    fun pop() { navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) } }
+    fun push(dest: LibraryNav) {
+        navStack = navStack + dest
+    }
+    fun pop() {
+        navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) }
+    }
 
     BackHandler(enabled = navStack.size > 1, onBack = ::pop)
 
@@ -661,6 +697,8 @@ internal fun LibraryHost(
                     libraryId = libraryId,
                     libraryName = libraryName,
                     showRecentlyAdded = sourceType?.isWebSource != true,
+                    viewModel = libraryItemsViewModel,
+                    annotationsViewModel = annotationsViewModel,
                     actions = LibraryItemsActions(
                         onOpenDrawer = onOpenDrawer,
                         onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
@@ -696,12 +734,25 @@ internal fun LibraryHost(
                             push(LibraryNav.SeriesDetail(seriesId = series.id, seriesLibraryId = series.libraryId, seriesName = series.name))
                         },
                         onCollectionSelected = { collection ->
-                            push(LibraryNav.CollectionDetail(collectionId = collection.id, collectionLibraryId = collection.libraryId, collectionName = collection.name))
+                            push(
+                                LibraryNav.CollectionDetail(
+                                    collectionId = collection.id,
+                                    collectionLibraryId = collection.libraryId,
+                                    collectionName = collection.name,
+                                ),
+                            )
                         },
                         onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
                         onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                         onPlaylistSelected = { playlist ->
-                            push(LibraryNav.PlaylistDetail(playlistId = playlist.id, playlistName = playlist.name, playlistLibraryId = playlist.rootId.ifEmpty { libraryId }))
+                            push(
+                                LibraryNav.PlaylistDetail(
+                                    playlistId = playlist.id, playlistName = playlist.name,
+                                    playlistLibraryId = playlist.rootId.ifEmpty {
+                                        libraryId
+                                    }
+                                )
+                            )
                         },
                         onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
                         onNavigateBack = NoOp.backHandledByIosHost,
@@ -887,7 +938,7 @@ internal fun ElidedReaderLoader(
     val loadedItem = item
     when {
         loadedItem != null -> slots.readerHost(
-            LibraryNav.Reader(loadedItem),
+            LibraryNav.Reader(loadedItem, readerSource = ReaderSource.Highlights),
             ReaderHostActions(
                 onBack = onBack,
                 onOpenInBook = onOpenInBook?.let { cb -> { locatorJson -> cb(loadedItem, locatorJson) } },

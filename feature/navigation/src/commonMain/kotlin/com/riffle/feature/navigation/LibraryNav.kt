@@ -5,6 +5,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.FacetType
 import com.riffle.feature.library.LibrarySectionType
+import com.riffle.feature.reader.highlights.ReaderSource
 
 sealed interface LibraryNav {
     data object Items : LibraryNav
@@ -52,6 +53,7 @@ sealed interface LibraryNav {
         val startReadaloudAtSec: Double = -1.0,
         val openAtRawCfi: String? = null,
         val openAtAnnotationId: String? = null,
+        val readerSource: ReaderSource = ReaderSource.FullBook,
     ) : ReaderDestination
     data class PdfReader(override val item: LibraryItem) : ReaderDestination
     data class CbzReader(override val item: LibraryItem) : ReaderDestination

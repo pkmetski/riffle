@@ -156,8 +156,8 @@ val iosDataModule = module {
     single<HighlightsResumeStore> { IosHighlightsResumeStore() }
     single<HighlightColorPreferencesStore> { IosHighlightColorPreferencesStoreImpl() }
     single<EmphasisPreferencesStore> { IosEmphasisPreferencesStoreImpl() }
-    single<PackStore> { IosPackStoreImpl() }
-    single<PackDownloaderInterface> { IosPackDownloaderImpl() }
+    single<PackStore> { IosPackStoreImpl(get(), get()) }
+    single<PackDownloaderInterface> { IosPackDownloaderImpl(get(), get(), get(), get()) }
     single<ColorPageDecoder> { IosColorPageDecoder() }
     single<PageImageDecoder> { IosPageImageDecoder() }
     single<PanelStore> { InMemoryPanelStore() }

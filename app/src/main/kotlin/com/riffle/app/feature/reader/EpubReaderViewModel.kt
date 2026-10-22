@@ -1284,9 +1284,7 @@ class EpubReaderViewModel constructor(
             // renders user-applied formatting (bold/italic/underline/strike) and omits the accent
             // bar for ∅-color emphasis-only annotations (see appendTextHighlight).
             val rowsForElided = joinEmphasisStylesToHighlights(rows)
-            val chapters = buildChapterElisions(rowsForElided).mapIndexed { index, chapter ->
-                chapter.copy(title = elidedChapterTitle(chapter.href, chapter.title, toc, index))
-            }
+            val chapters = buildChapterElisions(rowsForElided, toc)
             // Belt-and-braces guard against Readium's EpubNavigatorFragment hard-crashing on an
             // empty readingOrder ("List is empty" at EpubNavigatorFragment.<init>). Same
             // guard we already use post-delete via [reloadOrCloseHighlightsAfterDelete] — here
@@ -4164,8 +4162,8 @@ internal fun highlightsShouldCloseAfterDelete(rows: List<AnnotationEntity>): Boo
 internal fun joinEmphasisStylesToHighlights(rows: List<AnnotationEntity>): List<AnnotationEntity> =
     com.riffle.feature.reader.highlights.joinEmphasisStylesToHighlights(rows)
 
-internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> =
-    com.riffle.feature.reader.highlights.buildChapterElisions(rows)
+internal fun buildChapterElisions(rows: List<AnnotationEntity>, toc: List<TocEntry> = emptyList()): List<ChapterElision> =
+    com.riffle.feature.reader.highlights.buildChapterElisions(rows, toc)
 
 /**
  * Resumes to chapter-level precision only (Task 10, ADR 0048): the synthesised Publication's
