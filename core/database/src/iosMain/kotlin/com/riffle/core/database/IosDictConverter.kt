@@ -4,16 +4,19 @@ package com.riffle.core.database
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import platform.Foundation.NSFileHandle
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSString
-import platform.Foundation.NSUTF8StringEncoding
-import platform.Foundation.create
-import platform.Foundation.fileHandleForReadingAtPath
+import platform.posix.SEEK_END
+import platform.posix.SEEK_SET
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fread
+import platform.posix.fseek
+import platform.posix.ftell
 
 private const val MAX_BUFFER_ENTRIES = 2_000
 private const val CHUNK_SIZE: ULong = 1_048_576u // 1 MB per read
@@ -32,7 +35,7 @@ fun createDictSqliteFromJsonl(
     dbPath: String,
     onProgress: (processedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
 ) {
-    NSFileManager.defaultManager.removeItemAtPath(dbPath, error = null)
+    platform.Foundation.NSFileManager.defaultManager.removeItemAtPath(dbPath, error = null)
     val conn = BundledSQLiteDriver().open(dbPath)
     try {
         conn.execSQL(
@@ -41,25 +44,31 @@ fun createDictSqliteFromJsonl(
         )
         conn.execSQL("CREATE INDEX entries_form ON entries(form COLLATE NOCASE)")
 
-        val fileHandle = NSFileHandle.fileHandleForReadingAtPath(jsonlPath)
+        val fPtr = fopen(jsonlPath, "r")
             ?: throw IllegalStateException("Cannot open JSONL at $jsonlPath")
-        val totalBytes = fileHandle.seekToEndOfFile().toLong()
-        fileHandle.seekToFileOffset(0uL)
+        val totalBytes = run {
+            fseek(fPtr, 0, SEEK_END)
+            val size = ftell(fPtr).toLong()
+            fseek(fPtr, 0, SEEK_SET)
+            size
+        }
         val effectiveTotalBytes = totalBytes.coerceAtLeast(1L)
 
         val buffer = HashMap<Pair<String, String>, MutableList<String>>(MAX_BUFFER_ENTRIES * 2)
         var bytesProcessed = 0L
         var lineCount = 0
         var partial = ""
+        val chunkBuf = ByteArray(CHUNK_SIZE.toInt())
 
         try {
             while (true) {
-                val data = fileHandle.readDataOfLength(CHUNK_SIZE)
-                if (data.length == 0uL) break
-                bytesProcessed += data.length.toLong()
+                val bytesRead = chunkBuf.usePinned { pinned ->
+                    fread(pinned.addressOf(0), 1u, CHUNK_SIZE, fPtr).toInt()
+                }
+                if (bytesRead <= 0) break
+                bytesProcessed += bytesRead
 
-                val chunk = NSString.create(data = data, encoding = NSUTF8StringEncoding)?.toString()
-                    ?: break
+                val chunk = chunkBuf.decodeToString(0, bytesRead)
                 val combined = partial + chunk
                 val newlineIdx = combined.lastIndexOf('\n')
                 if (newlineIdx < 0) {
@@ -83,7 +92,7 @@ fun createDictSqliteFromJsonl(
             if (partial.isNotBlank()) processLine(partial, buffer)
             if (buffer.isNotEmpty()) flushBuffer(conn, buffer)
         } finally {
-            fileHandle.closeFile()
+            fclose(fPtr)
         }
 
         onProgress(effectiveTotalBytes, effectiveTotalBytes)
