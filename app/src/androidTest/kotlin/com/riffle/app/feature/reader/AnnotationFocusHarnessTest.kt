@@ -268,10 +268,15 @@ class AnnotationFocusHarnessTest : KoinTest {
      *  (the same test passes on local windowed AVDs because they do). Dispatching on the activity
      *  is the documented Compose-test substitute and is what the assertion actually cares about. */
     private fun returnToLibrary() {
-        // Press back while still in the reader (up to 4 times)
+        // READER_BACK may be absent from the semantic tree when the reader chrome is in immersive
+        // mode (hidden), so we cannot gate back presses on it. Instead we press back while neither
+        // "Search" nor LIBRARY_SEARCH is visible — both are only present in LibraryItemsScreen,
+        // never in the reader, regardless of whether navigation went via riffleNavStack or
+        // LibraryHost.navStack.
         var attempts = 0
         while (attempts < 4 &&
-            composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty() &&
+            composeTestRule.onAllNodesWithTag(TestTags.LIBRARY_SEARCH).fetchSemanticsNodes().isEmpty()
         ) {
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
@@ -279,14 +284,15 @@ class AnnotationFocusHarnessTest : KoinTest {
             attempts++
             Thread.sleep(800)
         }
-        // Wait until the reader is gone AND the library search field is composed
+        // Wait for LIBRARY_SEARCH to be composed — handles both the ViewModel-retained case
+        // (search query non-empty, field present immediately) and the fresh-ViewModel case
+        // (library reloading from server, field may take a moment to appear).
         composeTestRule.waitUntil(timeoutMillis = 30_000) {
-            composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isEmpty() &&
-                composeTestRule.onAllNodesWithTag(TestTags.LIBRARY_SEARCH).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.LIBRARY_SEARCH).fetchSemanticsNodes().isNotEmpty()
         }
-        // The library ViewModel retains the search query from the prior searchAndTapAnnotation()
-        // call because LibraryHost stays in composition throughout the reader session. Clear it so
-        // the "Search" placeholder reappears and the next searchAndTapAnnotation() call can proceed.
+        // If the ViewModel was retained across the reader session, it still holds the search
+        // query from the prior searchAndTapAnnotation() call. Clear it so the "Search" placeholder
+        // reappears and the next searchAndTapAnnotation() call can proceed.
         if (composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty()) {
             composeTestRule.onNodeWithTag(TestTags.LIBRARY_SEARCH).performTextReplacement("")
         }
