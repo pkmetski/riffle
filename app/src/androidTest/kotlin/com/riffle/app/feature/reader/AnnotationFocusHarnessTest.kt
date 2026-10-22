@@ -279,15 +279,16 @@ class AnnotationFocusHarnessTest : KoinTest {
             attempts++
             Thread.sleep(800)
         }
-        // Wait until the reader back button is fully gone from the composition
+        // Wait until the reader is gone AND the library search field is composed
         composeTestRule.waitUntil(timeoutMillis = 30_000) {
-            composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.READER_BACK).fetchSemanticsNodes().isEmpty() &&
+                composeTestRule.onAllNodesWithTag(TestTags.LIBRARY_SEARCH).fetchSemanticsNodes().isNotEmpty()
         }
         // The library ViewModel retains the search query from the prior searchAndTapAnnotation()
         // call because LibraryHost stays in composition throughout the reader session. Clear it so
         // the "Search" placeholder reappears and the next searchAndTapAnnotation() call can proceed.
         if (composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty()) {
-            composeTestRule.onNode(hasSetTextAction()).performTextReplacement("")
+            composeTestRule.onNodeWithTag(TestTags.LIBRARY_SEARCH).performTextReplacement("")
         }
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isNotEmpty()
