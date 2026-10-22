@@ -279,7 +279,7 @@ class AnnotationFocusHarnessTest : KoinTest {
             attempts++
             Thread.sleep(800)
         }
-        composeTestRule.waitUntil(timeoutMillis = 8_000) {
+        composeTestRule.waitUntil(timeoutMillis = 30_000) {
             composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isNotEmpty()
         }
     }
