@@ -1,5 +1,6 @@
 package com.riffle.shared.reader
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,10 +33,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.UIKitInteropInteractionMode
-import androidx.compose.ui.viewinterop.UIKitInteropProperties
-import androidx.compose.ui.viewinterop.UIKitView
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelReportRepository
@@ -53,10 +54,6 @@ import com.riffle.shared.generated.resources.ui_cancel
 import com.riffle.shared.generated.resources.ui_more_options
 import com.riffle.shared.generated.resources.ui_report_panel_detection_issue
 import com.riffle.shared.generated.resources.ui_submit
-import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.delay
@@ -65,15 +62,11 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
-import platform.Foundation.NSData
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
-import platform.Foundation.create
 import platform.UIKit.UIAccessibilityIsReduceMotionEnabled
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
-import platform.UIKit.UIImage
-import platform.UIKit.UIImageView
-import platform.UIKit.UIViewContentMode
+import org.jetbrains.skia.Image as SkiaImage
 
 @Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -184,12 +177,11 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
 private sealed interface PageState {
     data object Loading : PageState
-    data class Loaded(val bytes: ByteArray) : PageState
+    data class Loaded(val bitmap: ImageBitmap) : PageState
     data object Error : PageState
 }
 
 @Suppress("ktlint:standard:function-naming")
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 @Composable
 private fun IosComicPageContent(
     imageSource: com.riffle.core.domain.comic.ComicPageSource,
@@ -202,7 +194,9 @@ private fun IosComicPageContent(
         state = PageState.Loading
         val result = withContext(Dispatchers.IO) {
             iosDecodeWithRetry(attempts = imageSource.decodeRetries) {
-                runCatching { imageSource.imageBytes(pageIndex) }.getOrNull()
+                runCatching {
+                    SkiaImage.makeFromEncoded(imageSource.imageBytes(pageIndex)).toComposeImageBitmap()
+                }.getOrNull()
             }
         }
         state = if (result != null) PageState.Loaded(result) else PageState.Error
@@ -210,22 +204,10 @@ private fun IosComicPageContent(
 
     when (val s = state) {
         is PageState.Loaded -> {
-            UIKitView(
-                factory = {
-                    UIImageView().apply {
-                        contentMode = UIViewContentMode.UIViewContentModeScaleAspectFit
-                    }
-                },
-                update = { view ->
-                    s.bytes.usePinned { pinned ->
-                        val nsData = NSData.create(
-                            bytes = pinned.addressOf(0),
-                            length = s.bytes.size.toULong(),
-                        )
-                        view.image = UIImage.imageWithData(nsData)
-                    }
-                },
-                properties = UIKitInteropProperties(interactionMode = UIKitInteropInteractionMode.Cooperative()),
+            Image(
+                bitmap = s.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
                 modifier = modifier.fillMaxSize(),
             )
         }
