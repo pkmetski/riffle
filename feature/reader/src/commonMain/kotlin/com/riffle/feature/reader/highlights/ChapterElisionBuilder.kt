@@ -4,6 +4,7 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.TocEntry
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -16,7 +17,10 @@ import kotlinx.serialization.json.Json
  * (spineIndex, progression, createdAt) — the stable order [ElidedChapterHtmlBuilder.renderChapterHtml]
  * expects.
  */
-fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
+fun buildChapterElisions(
+    rows: List<AnnotationEntity>,
+    toc: List<TocEntry> = emptyList(),
+): List<ChapterElision> {
     val live = rows
         .filter { (it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE) && !it.deleted }
         .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }))
@@ -26,10 +30,10 @@ fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
         byHref.getOrPut(row.chapterHref) { mutableListOf() }.add(row)
     }
 
-    return byHref.entries.map { (href, highlights) ->
+    return byHref.entries.mapIndexed { index, (href, highlights) ->
         ChapterElision(
             href = href,
-            title = deriveChapterTitle(href),
+            title = elidedChapterTitle(href, deriveChapterTitle(href), toc, index),
             highlights = highlights,
         )
     }
@@ -42,7 +46,10 @@ fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
  * highlights; the Android path uses [buildChapterElisions] which takes the raw [AnnotationEntity]
  * and applies the soft-delete filter itself.
  */
-fun buildChapterElisionsFromAnnotations(annotations: List<Annotation>): List<ChapterElision> {
+fun buildChapterElisionsFromAnnotations(
+    annotations: List<Annotation>,
+    toc: List<TocEntry> = emptyList(),
+): List<ChapterElision> {
     val live = annotations
         .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE }
         .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }))
@@ -52,10 +59,10 @@ fun buildChapterElisionsFromAnnotations(annotations: List<Annotation>): List<Cha
         byHref.getOrPut(ann.chapterHref) { mutableListOf() }.add(ann.toAnnotationEntity())
     }
 
-    return byHref.entries.map { (href, highlights) ->
+    return byHref.entries.mapIndexed { index, (href, highlights) ->
         ChapterElision(
             href = href,
-            title = deriveChapterTitle(href),
+            title = elidedChapterTitle(href, deriveChapterTitle(href), toc, index),
             highlights = highlights,
         )
     }

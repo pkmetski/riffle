@@ -3,6 +3,7 @@ package com.riffle.feature.reader.highlights
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.TocEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -97,6 +98,30 @@ class ChapterElisionBuilderTest {
     @Test
     fun deriveChapterTitleFallsBackToChapterForBlankFilename() {
         assertEquals("Chapter", deriveChapterTitle(""))
+    }
+
+    @Test
+    fun tocTitlesUsedWhenTocIsProvided() {
+        val rows = listOf(
+            highlight("h1", "OEBPS/ch1.xhtml", spineIndex = 0),
+            highlight("h2", "OEBPS/ch2.xhtml", spineIndex = 1),
+        )
+        val toc = listOf(
+            TocEntry(title = "Introduction", href = "OEBPS/ch1.xhtml"),
+            TocEntry(title = "Chapter One", href = "OEBPS/ch2.xhtml"),
+        )
+        val elisions = buildChapterElisions(rows, toc)
+        assertEquals("Introduction", elisions[0].title)
+        assertEquals("Chapter One", elisions[1].title)
+    }
+
+    @Test
+    fun fallsBackToChapterNForSpineFilenameWhenTocAbsent() {
+        val rows = listOf(
+            highlight("h1", "OEBPS/item001.xhtml", spineIndex = 0),
+        )
+        val elisions = buildChapterElisions(rows, emptyList())
+        assertEquals("Chapter 1", elisions[0].title)
     }
 
     // --- joinEmphasisStylesToHighlights (AnnotationEntity path, used by Android) ---
