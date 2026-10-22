@@ -295,8 +295,8 @@ class ReadiumSwiftNavigator(
 
     override suspend fun pageBy(direction: NavigatorPageDirection) {
         when (direction) {
-            NavigatorPageDirection.Forward -> bridge.goForward()
-            NavigatorPageDirection.Backward -> bridge.goBackward()
+            NavigatorPageDirection.Forward -> bridge.goForwardInstant()
+            NavigatorPageDirection.Backward -> bridge.goBackwardInstant()
         }
     }
 

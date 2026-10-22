@@ -36,6 +36,8 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         override fun goBackward() {
             goBackwardCalls++
         }
+        override fun goForwardInstant() = Unit
+        override fun goBackwardInstant() = Unit
 
         override fun viewController(): UIViewController = UIViewController()
         override fun openEpub(filePath: String, locatorJson: String?) = Unit

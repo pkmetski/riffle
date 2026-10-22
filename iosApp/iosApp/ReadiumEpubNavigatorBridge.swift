@@ -217,6 +217,18 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         Task { @MainActor in _ = await epubNavigator?.goBackward(options: .animated) }
     }
 
+    // Boundary-triggered chapter crossings in Continuous mode must not animate — the animated
+    // variant uses PaginationView.slideToView which produces a 300 ms horizontal swipe that is
+    // wrong for vertical continuous reading. NavigatorGoOptions(animated: false) produces an
+    // instant chapter swap (a ≤ 100 ms snapshot flash while the preloaded WKWebView swaps in).
+    func goForwardInstant() {
+        Task { @MainActor in _ = await epubNavigator?.goForward(options: NavigatorGoOptions(animated: false)) }
+    }
+
+    func goBackwardInstant() {
+        Task { @MainActor in _ = await epubNavigator?.goBackward(options: NavigatorGoOptions(animated: false)) }
+    }
+
     func goToLocator(locatorJson: String) {
         guard let jsonValue = try? JSONValue(jsonString: locatorJson),
               let locator = try? Locator(json: jsonValue, warnings: nil) else { return }

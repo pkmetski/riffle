@@ -39,6 +39,8 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goForward() = Unit
         override fun goBackward() = Unit
+        override fun goForwardInstant() = Unit
+        override fun goBackwardInstant() = Unit
         override fun goToLocator(locatorJson: String) = Unit
         override fun snapshotLocatorJson(): String? = null
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit

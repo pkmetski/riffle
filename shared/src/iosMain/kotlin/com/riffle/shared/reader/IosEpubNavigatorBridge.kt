@@ -29,6 +29,24 @@ interface IosEpubNavigatorBridge {
     fun goForward()
     fun goBackward()
 
+    /**
+     * Navigate to the next resource without any animation — the correct variant for
+     * boundary-triggered chapter crossings in Continuous mode.
+     *
+     * [goForward] uses Readium's `.animated` option, which in scroll mode produces a horizontal
+     * `slideToView` transition via `PaginationView.goToIndex` — a 300 ms horizontal swipe that is
+     * wrong for vertical continuous reading and confuses the user into thinking something went wrong.
+     * This variant passes `NavigatorGoOptions(animated: false)` so the chapter swap is instant
+     * (a brief snapshot flash ≤ 100 ms rather than a 300 ms horizontal animation).
+     */
+    fun goForwardInstant()
+
+    /**
+     * Navigate to the previous resource without any animation — the correct variant for
+     * boundary-triggered chapter crossings in Continuous mode. See [goForwardInstant].
+     */
+    fun goBackwardInstant()
+
     /** Navigate to the Readium Locator encoded as JSON. */
     fun goToLocator(locatorJson: String)
 
