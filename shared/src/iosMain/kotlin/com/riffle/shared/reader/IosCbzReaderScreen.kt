@@ -225,7 +225,7 @@ private fun IosComicPageContent(
                         view.image = UIImage.imageWithData(nsData)
                     }
                 },
-                properties = UIKitInteropProperties(interactionMode = UIKitInteropInteractionMode.NonCooperative),
+                properties = UIKitInteropProperties(interactionMode = UIKitInteropInteractionMode.Cooperative()),
                 modifier = modifier.fillMaxSize(),
             )
         }

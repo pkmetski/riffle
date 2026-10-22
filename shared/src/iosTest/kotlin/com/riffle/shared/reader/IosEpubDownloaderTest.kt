@@ -64,8 +64,12 @@ class IosEpubDownloaderTest {
 
     private class RecordingAccessStore : ContentCacheAccessStore {
         val accessed = mutableListOf<ContentCacheKey>()
-        override suspend fun markAccessed(key: ContentCacheKey) { accessed += key }
-        override suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long) { accessed += key }
+        override suspend fun markAccessed(key: ContentCacheKey) {
+            accessed += key
+        }
+        override suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long) {
+            accessed += key
+        }
         override suspend fun lastAccessedAt(key: ContentCacheKey): Long? = null
         override suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?> = emptyMap()
         override suspend fun forget(key: ContentCacheKey) {}
