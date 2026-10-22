@@ -651,7 +651,7 @@ fun EpubReaderScreen(
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
         navigator.navigateTo(target)
     }
-    LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape), spine) {
+    LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
         if (localPath == null || orientation != ReaderOrientation.Continuous) return@LaunchedEffect
         // The reader lands on whatever resource was open when the mode became Continuous, very
@@ -661,9 +661,10 @@ fun EpubReaderScreen(
             val position = navigator.snapshotPosition()
             if (position != null && spine.hrefs.isNotEmpty()) {
                 val index = spineIndexOfHref(spine.hrefs, position.href)
+                val boundary = navigator.scrollBoundary()
                 val advance = boundaryPolicy.decide(
                     orientation = orientation,
-                    boundary = navigator.scrollBoundary(),
+                    boundary = boundary,
                     canGoForward = index in 0 until spine.hrefs.size - 1,
                     canGoBackward = index > 0,
                     nowMs = clockOrigin.elapsedNow().inWholeMilliseconds,
