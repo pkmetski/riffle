@@ -167,6 +167,7 @@ final class ElidedAnnotationsViewTests: XCTestCase {
     // valid assembled directory.  Before the localPath ordering fix the navigator's attach() was
     // called before UIKitViewController existed, so the EPUBNavigatorViewController was never
     // added to the view hierarchy.  After the fix the bridge must produce a non-nil epubNavigator.
+    @MainActor
     func testOpenSyntheticEpubWithValidPathAttachesNavigator() async {
         let chapters = [ChapterElision(href: "ch1.xhtml", title: "Chapter 1", highlights: [fakeHighlight()])]
         guard let dirPath = IosElidedEpubAssembler.shared.assemble(
