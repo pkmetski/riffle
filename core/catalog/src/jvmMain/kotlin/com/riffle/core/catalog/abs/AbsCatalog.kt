@@ -891,10 +891,9 @@ class AbsCatalog(
     )
 
     internal companion object {
-        // ABS's watcher scan (triggered by /api/upload) can take well over a minute on large
-        // libraries. 90 attempts × 2 s = 3 min gives the watcher time to complete before we
-        // give up and report the upload as unreconciled.
-        const val RECONCILIATION_ATTEMPTS = 90
+        // ABS's watcher scan (triggered by /api/upload) can take over a minute on large
+        // libraries. 45 attempts × 2 s = 90 s gives the watcher time to complete.
+        const val RECONCILIATION_ATTEMPTS = 45
         const val RECONCILIATION_DELAY_MS = 2_000L
         // The upload may reuse an existing author/title directory, so ABS keeps the item's
         // original addedAt and it may no longer be in the newest ten results. Fetch a full

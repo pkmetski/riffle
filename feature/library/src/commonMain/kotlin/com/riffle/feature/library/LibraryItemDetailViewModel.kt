@@ -367,6 +367,8 @@ class LibraryItemDetailViewModel constructor(
             if (result is CatalogImportResult.Uploaded) {
                 val upsertId = result.destinationItemId ?: sourceItem.id
                 webSourceLibraryItemUpserter.upsert(destination.sourceId, sourceItem.copy(id = upsertId))
+                val msg = result.warnings.firstOrNull() ?: "Uploaded"
+                _snackbarEvents.tryEmit(msg)
             }
             result
         }
