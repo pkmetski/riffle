@@ -16,6 +16,7 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlin.test.assertEquals
 import org.junit.After
 import org.junit.Test
 import org.koin.core.context.startKoin
@@ -103,20 +104,20 @@ class BrowseViewModelKoinResolutionTest {
     fun `ChitankaBrowseViewModel resolves via parametersOf without SavedStateHandle in graph`() {
         val koin = startKoin { modules(testModule()) }.koin
         val vm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
-        assert(vm.rootId == "lib-chitanka")
+        assertEquals("lib-chitanka", vm.rootId)
     }
 
     @Test
     fun `GutenbergBrowseViewModel resolves via parametersOf without SavedStateHandle in graph`() {
         val koin = startKoin { modules(testModule()) }.koin
         val vm = koin.get<GutenbergBrowseViewModel> { parametersOf("lib-gutenberg") }
-        assert(vm.rootId == "lib-gutenberg")
+        assertEquals("lib-gutenberg", vm.rootId)
     }
 
     @Test
     fun `RadioEsBrowseViewModel resolves via parametersOf without SavedStateHandle in graph`() {
         val koin = startKoin { modules(testModule()) }.koin
         val vm = koin.get<RadioEsBrowseViewModel> { parametersOf("lib-radioes") }
-        assert(vm.rootId == "lib-radioes")
+        assertEquals("lib-radioes", vm.rootId)
     }
 }

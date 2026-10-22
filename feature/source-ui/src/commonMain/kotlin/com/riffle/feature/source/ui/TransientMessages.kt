@@ -96,8 +96,9 @@ fun BoxScope.RiffleSnackbarHost(
     }
     SnackbarHost(
         hostState = hostState,
-        modifier = modifier
+        modifier = Modifier
             .align(Alignment.BottomCenter)
+            .then(modifier)
             .testTag(TestTags.SNACKBAR_HOST),
         snackbar = { data -> Snackbar(snackbarData = data) },
     )
