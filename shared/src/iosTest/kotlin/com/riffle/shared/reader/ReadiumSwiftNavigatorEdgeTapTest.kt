@@ -47,6 +47,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         override fun setLocatorCallback(callback: ((locatorJson: String) -> Unit)?) = Unit
         override fun setPageLoadCallback(callback: (() -> Unit)?) = Unit
         override fun setErrorCallback(callback: ((message: String) -> Unit)?) = Unit
+        override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
         override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) = Unit
         override fun clearSelection() = Unit
         override fun setDecorationActivatedCallback(callback: ((activationJson: String) -> Unit)?) = Unit

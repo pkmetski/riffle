@@ -110,6 +110,7 @@ import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.bookmarkRailPosition
+import com.riffle.feature.reader.weightedRailCursorPosition
 import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
@@ -247,6 +248,10 @@ fun EpubReaderScreen(
     var searchResults by remember { mutableStateOf<List<NavigatorSearchMatch>>(emptyList()) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
     var chapterMap by remember { mutableStateOf(ChapterMapUiState.Empty) }
+    // Continuous-mode override: the chapter-map cursor position derived from the real-time scroll
+    // probe (120 ms cadence), which is more frequent than Readium's 300 ms post-scroll-end
+    // locationDidChange. Null in non-Continuous modes so the rail falls back to chapterMap.cursorPosition.
+    var continuousCursorOverride by remember { mutableStateOf<Float?>(null) }
     // The resolved (Auto already collapsed) preferences the chapter map paints itself with.
     var resolvedPrefs by remember { mutableStateOf<FormattingPreferences?>(null) }
     // Reader viewport width in device pixels — auto-scroll's pace depends on how many words fit
@@ -435,6 +440,9 @@ fun EpubReaderScreen(
                     loadError = noHighlightsText
                     return@collect
                 }
+                if (isFirstOpen) {
+                    localPath = dirPath
+                }
                 navigator.openSyntheticEpub(dirPath, resumeLocator)
                 highlightsRenderedChaptersRef.value = chapters
 
@@ -446,7 +454,6 @@ fun EpubReaderScreen(
                         highlightRenderResolver = { emptyList() },
                         cfiLocatorResolver = { null },
                     )
-                    localPath = dirPath
                     isFirstOpen = false
                 }
                 renderedFingerprints = incomingFingerprints
@@ -653,7 +660,12 @@ fun EpubReaderScreen(
     }
     LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
-        if (localPath == null || orientation != ReaderOrientation.Continuous) return@LaunchedEffect
+        if (localPath == null || orientation != ReaderOrientation.Continuous) {
+            // Reset the cursor override when leaving Continuous mode so the rail falls back to
+            // Readium's post-scroll-end position, which is accurate for Vertical and Paginated.
+            continuousCursorOverride = null
+            return@LaunchedEffect
+        }
         // The reader lands on whatever resource was open when the mode became Continuous, very
         // possibly at its top or bottom. That landing is not a crossing.
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
@@ -661,7 +673,10 @@ fun EpubReaderScreen(
             val position = navigator.snapshotPosition()
             if (position != null && spine.hrefs.isNotEmpty()) {
                 val index = spineIndexOfHref(spine.hrefs, position.href)
-                val boundary = navigator.scrollBoundary()
+                // Combined probe: boundary flags + scroll progression in one JS round trip.
+                // Readium's locationDidChange fires 300 ms after scroll-end; the progression here
+                // lets the cursor track the reader's drag in real time (every 120 ms).
+                val (boundary, scrollProgression) = navigator.scrollBoundaryAndProgression()
                 val advance = boundaryPolicy.decide(
                     orientation = orientation,
                     boundary = boundary,
@@ -673,6 +688,14 @@ fun EpubReaderScreen(
                     BoundaryAdvance.Forward -> navigator.pageBy(NavigatorPageDirection.Forward)
                     BoundaryAdvance.Backward -> navigator.pageBy(NavigatorPageDirection.Backward)
                     BoundaryAdvance.None -> Unit
+                }
+                val segments = chapterMap.segments
+                if (segments.isNotEmpty()) {
+                    continuousCursorOverride = weightedRailCursorPosition(
+                        chapterMap.activeIndex,
+                        segments,
+                        scrollProgression,
+                    )
                 }
             }
             delay(BOUNDARY_POLL_INTERVAL_MS)
@@ -1091,6 +1114,11 @@ fun EpubReaderScreen(
         if (source != ReaderSource.Highlights) return@LaunchedEffect
         navigator.riffleUrls.collect { url ->
             parseAnnotationTapUrl(url)?.let { id -> editTargetId = id }
+        }
+    }
+    LaunchedEffect(navigator) {
+        navigator.publicationOpenErrors.collect { _ ->
+            if (loadError == null) loadError = couldNotDownloadBook
         }
     }
 
@@ -1863,7 +1891,7 @@ fun EpubReaderScreen(
                     ChapterMapOverlay(
                         segments = chapterMap.segments,
                         activeIndex = chapterMap.activeIndex,
-                        cursorPosition = chapterMap.cursorPosition,
+                        cursorPosition = continuousCursorOverride ?: chapterMap.cursorPosition,
                         totalProgress = chapterMap.labelProgress,
                         readerTheme = prefs.theme,
                         showRail = prefs.showChapterMap,

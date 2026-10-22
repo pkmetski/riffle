@@ -91,6 +91,7 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun setRiffleUrlCallback(callback: ((String) -> Unit)?) = Unit
         override fun setInternalLinkCallback(callback: ((String, String) -> Unit)?) = Unit
         override fun setScrollStartCallback(callback: (() -> Unit)?) = Unit
+        override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
     }
 
     @Test

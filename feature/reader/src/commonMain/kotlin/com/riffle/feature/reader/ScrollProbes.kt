@@ -44,6 +44,44 @@ object ScrollProbes {
             "var atB=(window.scrollY <= 4);return atF+','+atB;})()"
 
     /**
+     * Boundary flags AND current within-chapter scroll progression in one round trip:
+     * `"<forward>,<backward>,<progression>"` where progression is `scrollY / (scrollHeight - innerHeight)`.
+     *
+     * Used by the continuous-mode boundary loop on iOS, which also needs the progression for
+     * real-time cursor updates without a second JS round trip (Readium's own locationDidChange
+     * fires 300 ms after scroll-end, so the cursor would otherwise be frozen during active scrolling).
+     */
+    const val BOUNDARY_PROGRESS_PROBE_JS: String =
+        "(function(){var sy=window.scrollY,ih=window.innerHeight,sh=document.body.scrollHeight;" +
+            "var atF=(sy+ih>=sh-4),atB=(sy<=4);" +
+            "var prog=(sh>ih+4)?(sy/(sh-ih)):0;" +
+            "return atF+','+atB+','+prog.toFixed(4);})()"
+
+    data class BoundaryAndProgression(
+        val boundary: NavigatorScrollBoundary,
+        val scrollProgression: Float,
+    )
+
+    /**
+     * Parse [BOUNDARY_PROGRESS_PROBE_JS]'s `"<forward>,<backward>,<progression>"` payload.
+     *
+     * Falls back to [NavigatorScrollBoundary.None] and 0f progression on any parse error.
+     */
+    fun parseBoundaryAndProgression(raw: String?): BoundaryAndProgression {
+        val trimmed = raw?.trim()?.trim('"')?.trim()
+        val parts = trimmed?.split(',')
+        if (parts == null || parts.size < 3) {
+            return BoundaryAndProgression(NavigatorScrollBoundary.None, 0f)
+        }
+        val boundary = NavigatorScrollBoundary(
+            atForwardBoundary = parts[0].trim().equals("true", ignoreCase = true),
+            atBackwardBoundary = parts[1].trim().equals("true", ignoreCase = true),
+        )
+        val prog = parts[2].trim().toFloatOrNull() ?: 0f
+        return BoundaryAndProgression(boundary, prog.coerceIn(0f, 1f))
+    }
+
+    /**
      * Measure `viewportSize / scrollSize` for the currently loaded resource.
      *
      * Paginated mode overflows horizontally (`innerWidth / scrollWidth`); scrolling modes overflow

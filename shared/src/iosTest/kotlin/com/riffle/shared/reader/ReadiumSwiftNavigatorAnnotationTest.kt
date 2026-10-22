@@ -47,6 +47,7 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun setPageLoadCallback(callback: (() -> Unit)?) = Unit
         override fun setTapCallback(callback: ((TapCoords) -> Unit)?) = Unit
         override fun setErrorCallback(callback: ((message: String) -> Unit)?) = Unit
+        override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
         override fun setSelectionCallback(callback: ((selectionJson: String?) -> Unit)?) {
             selectionCallback = callback
         }

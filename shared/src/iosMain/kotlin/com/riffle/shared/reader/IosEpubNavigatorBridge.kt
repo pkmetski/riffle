@@ -199,6 +199,13 @@ interface IosEpubNavigatorBridge {
      */
     fun setErrorCallback(callback: ((message: String) -> Unit)?)
 
+    /**
+     * Called when [openEpub] or [openSyntheticEpub] fails to open the publication — e.g. asset
+     * retrieval fails, the EPUB parser rejects the file, or [EPUBNavigatorViewController] throws.
+     * Without this callback the failure is silent and the reader shows a blank page.
+     */
+    fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?)
+
     /** Release Readium resources. Renamed to avoid clash with NSObject.release on the Swift side. */
     fun disposeNavigator()
 
