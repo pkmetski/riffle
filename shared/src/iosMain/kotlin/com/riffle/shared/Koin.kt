@@ -467,7 +467,7 @@ private fun iosLibraryModule(
     single {
         val holder = get<AnnotationSyncTargetHolder>()
         AnnotationPullSweep(
-            targetProvider = { holder.current() },
+            targetProvider = { holder.awaitFirstLoad(); holder.current() },
             syncController = get(),
             sourceRepository = get(),
             statusStore = get(),

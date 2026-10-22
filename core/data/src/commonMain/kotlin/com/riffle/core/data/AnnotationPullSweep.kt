@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.first
  * Unconfigured target ⇒ silent no-op; status store is not touched.
  */
 class AnnotationPullSweep(
-    private val targetProvider: () -> AnnotationSyncTarget?,
+    private val targetProvider: suspend () -> AnnotationSyncTarget?,
     private val syncController: AnnotationSyncController,
     private val sourceRepository: SourceRepository,
     private val statusStore: AnnotationSyncStatusStore,

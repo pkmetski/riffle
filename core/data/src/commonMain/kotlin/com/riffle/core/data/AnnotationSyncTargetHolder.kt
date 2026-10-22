@@ -9,6 +9,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -73,9 +74,25 @@ class AnnotationSyncTargetHolder(
                     // `collectLatest` cancels an in-flight buildTarget when a newer config arrives,
                     // so a slow token read can never write a stale target on top of a fresh one.
                     state.value = buildTarget(webDavConfig, sources)
+                    firstLoad.complete(Unit)
                 }
         }
     }
+
+    /**
+     * Signals when the first source-driven rebuild of [state] has completed. The constructor seeds
+     * with [sources = emptyList()] to avoid a Room read on the main thread; the init coroutine
+     * fires quickly and completes this deferred. Callers that must not race startup (e.g.
+     * [AnnotationPullSweep]) await this before reading [current].
+     */
+    private val firstLoad: CompletableDeferred<Unit> = CompletableDeferred()
+
+    /**
+     * Suspends until the [init] coroutine has completed its first build from real sources.
+     * Resolves within milliseconds of startup (first Room emission). Subsequent calls return
+     * immediately — [CompletableDeferred.complete] is idempotent.
+     */
+    suspend fun awaitFirstLoad() { firstLoad.await() }
 
     /**
      * Synchronous accessor used by [AnnotationSyncController] and friends. Returns null when no
