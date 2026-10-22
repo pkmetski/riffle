@@ -1772,6 +1772,65 @@ class LibraryItemDetailViewModelTest {
         assertEquals(knownItem.id, upserted!!.id)
     }
 
+    // ── upload confirmation snackbar ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `importToDestination emits Uploaded snackbar when CatalogImportPhase Uploaded fires not after reconciliation`() = runTest(testDispatcher) {
+        val destinationSourceId = "abs-source-1"
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        val sourceCatalogItem = com.riffle.core.catalog.CatalogItem(
+            id = knownItem.id,
+            rootId = "chitanka-root",
+            title = knownItem.title,
+            author = knownItem.author,
+            coverUrl = null,
+            ebookFormat = com.riffle.core.catalog.BookFormat.Epub,
+        )
+        val sourceCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog {
+            override suspend fun getItem(itemId: String) = sourceCatalogItem
+        }
+        val importCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.BookImportCapability {
+            override suspend fun importBook(request: com.riffle.core.catalog.CatalogImportRequest): com.riffle.core.catalog.CatalogImportResult {
+                request.onProgress(com.riffle.core.catalog.CatalogImportProgress(com.riffle.core.catalog.CatalogImportPhase.Uploaded))
+                gate.await()
+                return com.riffle.core.catalog.CatalogImportResult.Uploaded()
+            }
+            override suspend fun listRoots() = listOf(
+                com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1")
+            )
+        }
+        val registry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive() = sourceCatalog
+            override suspend fun forSource(source: com.riffle.core.models.Source) = sourceCatalog
+            override suspend fun forSourceId(sourceId: String) =
+                if (sourceId == destinationSourceId) importCatalog else sourceCatalog
+        }
+
+        val vm = makeVm(repo = fakeRepo(knownItem), catalogRegistryOverride = registry)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val snackbarMessages = mutableListOf<String>()
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) { vm.snackbarEvents.collect { snackbarMessages += it } }
+
+        vm.importToDestination(
+            destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList()),
+            library = com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1"),
+        )
+        // Advance until the import coroutine reaches gate.await() — reconciliation has not completed yet.
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Regression: snackbar must fire at CatalogImportPhase.Uploaded (files accepted),
+        // not after importBook() returns (which would be post-reconciliation, up to 90 s later).
+        assertEquals(listOf("Uploaded"), snackbarMessages)
+
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        collector.cancel()
+    }
+
     private object NoopLibraryItemDao : LibraryItemDao {
         override fun observeByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
         override suspend fun listByLibraryId(sourceId: String, libraryId: String) = emptyList<LibraryItemEntity>()
