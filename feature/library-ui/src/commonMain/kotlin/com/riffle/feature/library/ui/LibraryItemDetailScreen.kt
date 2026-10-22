@@ -492,7 +492,10 @@ private fun DetailReadyScaffold(
             }
         },
     ) { innerPadding ->
-        RiffleMessageScaffold(messages) {
+        RiffleMessageScaffold(
+            messages = messages,
+            snackbarModifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
+        ) {
             content(innerPadding)
         }
     }
