@@ -201,15 +201,15 @@ final class NavDrawerTests: XCTestCase {
         }
     }
 
-    // MARK: - ND-3/4/7/8  Drawer contents, host subtitle, Downloads and version absences
+    // MARK: - ND-3/4/7/8  Drawer contents, host subtitle, Downloads and version footer
 
-    /// The navigation drawer must list the source name, Settings, and the source host subtitle;
-    /// it must not show Downloads (AbsCatalog is JVM-only on iOS); it must show a version footer
-    /// (appVersion is wired via CFBundleShortVersionString in HomeScreen.kt as of #1184).
+    /// The navigation drawer must list the source name, Settings, the source host subtitle,
+    /// Downloads, and a version footer.
     ///
     /// Consolidates ND-3 (source header + Settings present), ND-4 (host subtitle in header),
-    /// ND-7 (Downloads absent for ABS-only), and ND-8 (version footer present). All four
-    /// assertions need only one drawer open, so merging them saves three app launches.
+    /// ND-7 (Downloads present — AbsCommonCatalog implements DownloadsCapability as of #1244),
+    /// and ND-8 (version footer present). All four assertions need only one drawer open, so
+    /// merging them saves three app launches.
     func testDrawerContentsSubtitleAndAbsencesForAbsSource() throws {
         let burger = app.buttons["Open menu"]
         XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
@@ -243,10 +243,10 @@ final class NavDrawerTests: XCTestCase {
             "Source-switcher header must include the source host '\(host)' as a subtitle; got: \(header.label)"
         )
 
-        // ND-7: Downloads must not appear for ABS-only sources (AbsCatalog is JVM-only).
-        XCTAssertFalse(
+        // ND-7: Downloads must appear — AbsCommonCatalog implements DownloadsCapability (#1244).
+        XCTAssertTrue(
             app.staticTexts["Downloads"].exists,
-            "Downloads must not appear in the drawer for ABS-only sources on iOS (AbsCatalog is JVM-only)"
+            "Downloads must appear in the drawer for ABS sources (AbsCommonCatalog implements DownloadsCapability)"
         )
 
         // ND-8: iOS wires appVersion via CFBundleShortVersionString (HomeScreen.kt, issue #1184),
