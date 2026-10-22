@@ -766,10 +766,7 @@ extension ReadiumEpubNavigatorBridge {
     /// rather than crashing.
     func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
         Task { @MainActor in
-            guard let nav = self.epubNavigator else {
-                onResult(nil)
-                return
-            }
+            guard let nav = self.epubNavigator else { onResult(nil); return }
             let result = await nav.evaluateJavaScript(script)
             switch result {
             case let .success(value):

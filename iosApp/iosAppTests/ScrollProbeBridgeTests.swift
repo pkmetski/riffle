@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import WebKit
 import Riffle
 
 /// The part of Continuous mode that Kotlin cannot cover: whether the shared scroll probes read a
@@ -240,6 +241,231 @@ final class ScrollProbeBridgeTests: XCTestCase {
         }
         XCTAssertGreaterThan(fraction.doubleValue, 0.0)
         XCTAssertLessThan(fraction.doubleValue, 1.0)
+        bridge.disposeNavigator()
+    }
+
+    // MARK: - Chapter crossing
+
+    /// Regression guard for the Continuous-mode auto-advance mechanism. The boundary loop in
+    /// IosEpubReaderScreen calls bridge.goForwardInstant() when the scroll probe reports
+    /// atForwardBoundary=true. This test verifies that call actually crosses the chapter: if it
+    /// silently fails (wrong state, nil navigator, stale index) the loop fires but nothing moves.
+    func testGoForwardInstantCrossesToNextChapter() {
+        guard let bridge = openFixture(scroll: true) else { return }
+
+        let steps = scrollToBottom(bridge)
+        XCTAssertGreaterThan(steps, 0, "test.epub chapter 1 must overflow the viewport")
+
+        XCTAssertTrue(
+            boundary(bridge).atForwardBoundary,
+            "must be at the forward boundary before the crossing; if false the test is mis-measuring"
+        )
+
+        let crossed = expectation(description: "locationDidChange fires with chapter2 href")
+        bridge.setLocatorCallback { json in
+            guard
+                let data = json.data(using: .utf8),
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let href = obj["href"] as? String,
+                href.contains("chapter2")
+            else { return }
+            crossed.fulfill()
+        }
+
+        bridge.goForwardInstant()
+
+        let outcome = XCTWaiter().wait(for: [crossed], timeout: 3.0)
+        XCTAssertEqual(
+            outcome, .completed,
+            "goForwardInstant() must navigate to chapter 2; if this fails the crossing mechanism "
+                + "is broken — check that the EPUBNavigator state is .idle when goForwardInstant "
+                + "fires and that goToIndex receives an in-bounds index"
+        )
+
+        bridge.setLocatorCallback(callback: nil)
+        bridge.disposeNavigator()
+    }
+
+    /// Guards that the probe reads correctly when scrolling is driven by the UIScrollView directly
+    /// (i.e. physical touch), not by JS `window.scrollBy`. The two scroll paths are distinct:
+    /// `scrollByPx` moves `document.scrollingElement.scrollTop` via JavaScript; a finger gesture
+    /// moves `webView.scrollView.contentOffset` via UIKit. If Readium's content inset or
+    /// `contentInsetAdjustmentBehavior=.never` causes `window.scrollY` to lag behind the UIScrollView
+    /// position, the boundary loop in IosEpubReaderScreen would never fire a chapter crossing even
+    /// though the reader is visually at the bottom of the chapter.
+    func testUIScrollViewScrollReachesForwardBoundary() {
+        guard let bridge = openFixture(scroll: true) else { return }
+
+        // Find the WKWebView inside Readium's view hierarchy so we can drive its scroll view
+        // directly, bypassing JS, the same way a finger gesture does.
+        guard let vc = bridge.viewController() as? UIViewController else {
+            XCTFail("bridge.viewController() must return a UIViewController")
+            bridge.disposeNavigator()
+            return
+        }
+        guard let wkWebView = findWKWebView(in: vc.view) else {
+            XCTFail("Could not locate a WKWebView in the navigator's view tree — Readium changed its layout")
+            bridge.disposeNavigator()
+            return
+        }
+
+        let scrollView = wkWebView.scrollView
+
+        // Confirm the document is scrollable; if scrollHeight <= innerHeight the test cannot
+        // distinguish "at the top/bottom simultaneously" from "genuinely at the bottom".
+        let sh = Float(eval(bridge, "document.body.scrollHeight") ?? "0") ?? 0
+        let ih = Float(eval(bridge, "window.innerHeight") ?? "0") ?? 0
+        guard sh > ih + 10 else {
+            XCTFail(
+                "test.epub chapter 1 must overflow the viewport (scrollHeight=\(sh), innerHeight=\(ih)). "
+                    + "Increase chapter length or reduce the host window size."
+            )
+            bridge.disposeNavigator()
+            return
+        }
+
+        // Drive the UIScrollView to its physical maximum — exactly what the user's finger does.
+        let maxY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.contentInset.bottom
+        scrollView.setContentOffset(CGPoint(x: 0, y: max(0, maxY)), animated: false)
+        settle(seconds: 0.5)
+
+        let bounds = boundary(bridge)
+        XCTAssertTrue(
+            bounds.atForwardBoundary,
+            "The boundary probe must detect the chapter end when the UIScrollView reaches its "
+                + "physical maximum (contentSize.height=\(scrollView.contentSize.height), "
+                + "bounds.height=\(scrollView.bounds.height), "
+                + "contentInset.bottom=\(scrollView.contentInset.bottom), "
+                + "scrollY from JS=\(eval(bridge, "window.scrollY") ?? "?"), "
+                + "sh=\(sh), ih=\(ih)). "
+                + "If false: window.scrollY does not track UIScrollView scroll — the boundary loop in "
+                + "IosEpubReaderScreen will never fire a chapter crossing during physical reading."
+        )
+
+        bridge.disposeNavigator()
+    }
+
+    /// Same as `testUIScrollViewScrollReachesForwardBoundary` but with a non-zero content inset
+    /// that matches a real iPhone's safe area (Dynamic Island top ~59pt, home indicator bottom ~34pt).
+    /// In the unit-test window `view.window?.safeAreaInsets` is zero, so Readium applies no inset
+    /// and `window.scrollY` tracks UIScrollView scroll 1:1. The real app has safe-area insets and
+    /// Readium applies them via `EPUBReflowableSpreadView.updateContentInset`. If the WebKit DOM
+    /// does not expose `window.scrollY` beyond the content's natural scroll limit, the probe would
+    /// report `atForwardBoundary=false` even though the UIScrollView is at its physical maximum.
+    func testUIScrollViewScrollWithSafeAreaInsetReachesForwardBoundary() {
+        guard let bridge = openFixture(scroll: true) else { return }
+
+        guard let vc = bridge.viewController() as? UIViewController else {
+            XCTFail("bridge.viewController() must return a UIViewController")
+            bridge.disposeNavigator()
+            return
+        }
+        guard let wkWebView = findWKWebView(in: vc.view) else {
+            XCTFail("Could not locate a WKWebView in the navigator's view tree")
+            bridge.disposeNavigator()
+            return
+        }
+
+        let scrollView = wkWebView.scrollView
+
+        // Simulate iPhone 17 safe area insets (Dynamic Island top=59, home indicator bottom=34).
+        // Readium applies these via spreadViewContentInset in the real app; we inject them here.
+        let topInset: CGFloat = 59
+        let bottomInset: CGFloat = 34
+        scrollView.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: bottomInset, right: 0)
+        settle(seconds: 0.3)
+
+        let sh = Float(eval(bridge, "document.body.scrollHeight") ?? "0") ?? 0
+        let ih = Float(eval(bridge, "window.innerHeight") ?? "0") ?? 0
+        guard sh > ih + 10 else {
+            XCTFail("test.epub chapter 1 must overflow the viewport (sh=\(sh), ih=\(ih))")
+            bridge.disposeNavigator()
+            return
+        }
+
+        // Drive UIScrollView to max — includes the bottomInset extension (same as physical scroll).
+        let maxY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.contentInset.bottom
+        scrollView.setContentOffset(CGPoint(x: 0, y: max(0, maxY)), animated: false)
+        settle(seconds: 0.5)
+
+        let scrollY = eval(bridge, "window.scrollY") ?? "?"
+        let bounds = boundary(bridge)
+        XCTAssertTrue(
+            bounds.atForwardBoundary,
+            "The boundary probe must detect the chapter end with a real-device-like content inset "
+                + "(top=\(topInset), bottom=\(bottomInset)). "
+                + "UIScrollView maxY=\(maxY), "
+                + "contentSize.height=\(scrollView.contentSize.height), "
+                + "bounds.height=\(scrollView.bounds.height), "
+                + "window.scrollY=\(scrollY), sh=\(sh), ih=\(ih). "
+                + "If false: the boundary loop will never advance chapters on a real iPhone."
+        )
+
+        bridge.disposeNavigator()
+    }
+
+    private func findWKWebView(in view: UIView) -> WKWebView? {
+        if let wv = view as? WKWebView { return wv }
+        for sub in view.subviews {
+            if let found = findWKWebView(in: sub) { return found }
+        }
+        return nil
+    }
+
+    /// End-to-end regression for the Continuous-mode boundary loop:
+    /// UIScrollView scroll to physical bottom → boundary probe fires → goForwardInstant() → chapter advances.
+    ///
+    /// The existing tests cover each link in this chain in isolation. This test covers them together
+    /// because a timing or ordering bug between the scroll and the boundary read could pass every
+    /// isolated check while still silently breaking the loop in the real app.
+    func testUIScrollViewScrollThenBoundaryDetectionThenChapterCrossing() {
+        guard let bridge = openFixture(scroll: true) else { return }
+
+        guard let vc = bridge.viewController() as? UIViewController,
+              let wkWebView = findWKWebView(in: vc.view) else {
+            XCTFail("Could not locate WKWebView in navigator view tree")
+            bridge.disposeNavigator()
+            return
+        }
+
+        let scrollView = wkWebView.scrollView
+        let sh = Float(eval(bridge, "document.body.scrollHeight") ?? "0") ?? 0
+        let ih = Float(eval(bridge, "window.innerHeight") ?? "0") ?? 0
+        guard sh > ih + 10 else {
+            XCTFail("test.epub chapter 1 must overflow the viewport (sh=\(sh), ih=\(ih))")
+            bridge.disposeNavigator()
+            return
+        }
+
+        let maxY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.contentInset.bottom
+        scrollView.setContentOffset(CGPoint(x: 0, y: max(0, maxY)), animated: false)
+        settle(seconds: 0.5)
+
+        XCTAssertTrue(
+            boundary(bridge).atForwardBoundary,
+            "UIScrollView at max offset must yield atForwardBoundary=true (scrollY=\(eval(bridge, "window.scrollY") ?? "?"), sh=\(sh), ih=\(ih))"
+        )
+
+        let crossed = expectation(description: "chapter 2 href received after goForwardInstant")
+        bridge.setLocatorCallback { json in
+            guard
+                let data = json.data(using: .utf8),
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let href = obj["href"] as? String,
+                href.contains("chapter2")
+            else { return }
+            crossed.fulfill()
+        }
+
+        bridge.goForwardInstant()
+
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [crossed], timeout: 5.0),
+            .completed,
+            "After UIScrollView reaches bottom and boundary is confirmed, goForwardInstant() must navigate to chapter 2"
+        )
+
+        bridge.setLocatorCallback(callback: nil)
         bridge.disposeNavigator()
     }
 

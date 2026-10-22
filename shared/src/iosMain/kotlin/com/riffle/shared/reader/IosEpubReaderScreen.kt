@@ -57,6 +57,7 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
+import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.withResolvedTheme
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
@@ -220,6 +221,7 @@ fun EpubReaderScreen(
     val clock = koinInject<Clock>()
     val elidedPdfBridge = koinInject<IosElidedPdfBridge>()
     val highlightsResumeStore = koinInject<HighlightsResumeStore>()
+    val tocRepository = koinInject<TocRepository>()
     // Landscape flag — derived from the Compose container so it updates on rotation.
     val containerSize = LocalWindowInfo.current.containerSize
     val isLandscape = containerSize.width > containerSize.height
@@ -391,7 +393,8 @@ fun EpubReaderScreen(
             annotationStore.observeAnnotations(item.sourceId, item.id).collect { annotations ->
                 highlightsAnnotations = annotations
                 val annotationsWithEmphasis = joinEmphasisStylesToAnnotations(annotations)
-                val chapters = buildChapterElisionsFromAnnotations(annotationsWithEmphasis)
+                val bookToc = tocRepository.getCachedToc(item.sourceId, item.id)?.second.orEmpty()
+                val chapters = buildChapterElisionsFromAnnotations(annotationsWithEmphasis, bookToc)
 
                 if (chapters.isEmpty()) {
                     onBack()
@@ -661,21 +664,14 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
         if (localPath == null || orientation != ReaderOrientation.Continuous) {
-            // Reset the cursor override when leaving Continuous mode so the rail falls back to
-            // Readium's post-scroll-end position, which is accurate for Vertical and Paginated.
             continuousCursorOverride = null
             return@LaunchedEffect
         }
-        // The reader lands on whatever resource was open when the mode became Continuous, very
-        // possibly at its top or bottom. That landing is not a crossing.
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
         while (true) {
             val position = navigator.snapshotPosition()
             if (position != null && spine.hrefs.isNotEmpty()) {
                 val index = spineIndexOfHref(spine.hrefs, position.href)
-                // Combined probe: boundary flags + scroll progression in one JS round trip.
-                // Readium's locationDidChange fires 300 ms after scroll-end; the progression here
-                // lets the cursor track the reader's drag in real time (every 120 ms).
                 val (boundary, scrollProgression) = navigator.scrollBoundaryAndProgression()
                 val advance = boundaryPolicy.decide(
                     orientation = orientation,
