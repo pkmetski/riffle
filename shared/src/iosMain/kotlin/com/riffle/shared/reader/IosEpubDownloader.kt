@@ -48,7 +48,10 @@ class IosEpubDownloader(
         return try {
             catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
                 val written = IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)
-                if (written) cachePath else null
+                if (written) {
+                    contentCacheAccessStore.markAccessed(cacheKey)
+                    cachePath
+                } else null
             }
         } catch (e: CancellationException) {
             throw e

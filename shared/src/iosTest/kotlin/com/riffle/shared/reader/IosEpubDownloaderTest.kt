@@ -241,4 +241,18 @@ class IosEpubDownloaderTest {
         assertEquals(catalogItem.sourceId, accessStore.accessed.first().sourceId)
         assertEquals(catalogItem.id, accessStore.accessed.first().itemId)
     }
+
+    @Test
+    fun freshDownloadCallsMarkAccessed_soCleanerDoesNotEvictJustCachedFile() = runTest {
+        val store = TempFileStore()
+        val accessStore = RecordingAccessStore()
+        val downloader = IosEpubDownloader(registry(catalog(epubBytes)), store, accessStore)
+
+        val path = downloader.localPath(catalogItem)
+
+        assertNotNull(path, "localPath must return a path after download")
+        assertEquals(1, accessStore.accessed.size, "markAccessed must be called after writing the file")
+        assertEquals(catalogItem.sourceId, accessStore.accessed.first().sourceId)
+        assertEquals(catalogItem.id, accessStore.accessed.first().itemId)
+    }
 }
