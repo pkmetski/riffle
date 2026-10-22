@@ -48,6 +48,7 @@ import com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.app.feature.source.oreilly.OReillyBrowseViewModel
@@ -457,9 +458,13 @@ private val serverViewModelModule = module {
 }
 
 private val sourceViewModelModule = module {
-    viewModel {
+    // UnboundedBrowseScreen calls koin.get<>() { parametersOf(libraryId) } directly (no nav
+    // back-stack entry), so CreationExtras are not available and SavedStateHandle cannot be
+    // injected via viewModel {}. Use factory { params -> } and build it from the libraryId
+    // parameter instead — matching the iOS pattern in shared/src/iosMain/kotlin/Koin.kt.
+    factory { params ->
         ChitankaBrowseViewModel(
-            savedStateHandle = get(),
+            savedStateHandle = browseSavedStateHandle(params.get()),
             sourceRepository = get(),
             catalogRegistry = get(),
             libraryItemUpserter = get(),
@@ -471,9 +476,23 @@ private val sourceViewModelModule = module {
             dispatchers = get(),
         )
     }
-    viewModel {
+    factory { params ->
         GutenbergBrowseViewModel(
-            savedStateHandle = get(),
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+            dispatchers = get(),
+        )
+    }
+    factory { params ->
+        RadioEsBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
             sourceRepository = get(),
             catalogRegistry = get(),
             libraryItemUpserter = get(),
@@ -496,20 +515,6 @@ private val sourceViewModelModule = module {
             remoteItemFreshness = get(),
             connectivityObserver = get(),
             offlineAvailability = get(),
-        )
-    }
-    viewModel {
-        RadioEsBrowseViewModel(
-            savedStateHandle = get(),
-            sourceRepository = get(),
-            catalogRegistry = get(),
-            libraryItemUpserter = get(),
-            webSourceItemGate = get(),
-            coverGridDensityStore = get(),
-            libraryFilterPreferencesStore = get(),
-            libraryObserver = get(),
-            connectivityObserver = get(),
-            dispatchers = get(),
         )
     }
     viewModel { OReillyLoginViewModel(repository = get()) }
@@ -744,6 +749,9 @@ private val updateViewModelModule = module {
         )
     }
 }
+
+private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
+    SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
 
 internal fun riffleViewModelKoinModules(): List<Module> = listOf(
     appKoinModule,

@@ -96,8 +96,9 @@ fun BoxScope.RiffleSnackbarHost(
     }
     SnackbarHost(
         hostState = hostState,
-        modifier = modifier
+        modifier = Modifier
             .align(Alignment.BottomCenter)
+            .then(modifier)
             .testTag(TestTags.SNACKBAR_HOST),
         snackbar = { data -> Snackbar(snackbarData = data) },
     )
@@ -111,6 +112,7 @@ fun BoxScope.RiffleSnackbarHost(
 fun RiffleMessageScaffold(
     messages: TransientMessages,
     modifier: Modifier = Modifier,
+    snackbarModifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -120,6 +122,6 @@ fun RiffleMessageScaffold(
         // as it did before. The host stays a sibling with ordinary (wrap) constraints, or the
         // snackbar would be laid out full-screen and drawn at the top.
         Box(modifier = Modifier.fillMaxSize(), propagateMinConstraints = true) { content() }
-        RiffleSnackbarHost(messages)
+        RiffleSnackbarHost(messages, modifier = snackbarModifier)
     }
 }

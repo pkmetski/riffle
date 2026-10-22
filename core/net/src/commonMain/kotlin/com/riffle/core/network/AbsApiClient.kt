@@ -251,10 +251,13 @@ class AbsApiClient(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<Unit> = KtorClassifier.classify {
-        // A normal scan is ignored when ABS already has a scan in flight. Uploads can land in
-        // that window, so force the scan that discovers this upload instead of relying on the
-        // watcher or an earlier scan to notice it.
-        val response = client(insecureAllowed).post("$baseUrl/api/libraries/$libraryId/scan?force=1") {
+        // Do NOT use ?force=1 here. Forcing a scan while ABS's watcher scan (triggered by the
+        // upload) is still running causes both to race to create the same directory as a new
+        // library item, producing a duplicate. A non-forced scan is ignored when one is already
+        // in flight, which is exactly what we want: the watcher scan creates the canonical item
+        // and this recovery call is a no-op. When no scan is running, the non-forced scan runs
+        // and discovers the uploaded files normally.
+        val response = client(insecureAllowed).post("$baseUrl/api/libraries/$libraryId/scan") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
         if (!response.status.isSuccess()) {

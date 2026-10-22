@@ -361,8 +361,14 @@ class LibraryItemDetailViewModel constructor(
                     IllegalArgumentException("This library has no upload folder configured"),
                 )
             }
+            val progressWithConfirmation: (CatalogImportProgress) -> Unit = { progress ->
+                onProgress(progress)
+                if (progress.phase == CatalogImportPhase.Uploaded) {
+                    _snackbarEvents.tryEmit("Uploaded")
+                }
+            }
             val request = buildImportRequest(item.sourceId, sourceCatalog, sourceItem, library, item.readingProgress)
-                .copy(onProgress = onProgress, claimDestinationItem = claimItem)
+                .copy(onProgress = progressWithConfirmation, claimDestinationItem = claimItem)
             val result = destinationCatalog.importBook(request)
             if (result is CatalogImportResult.Uploaded) {
                 val upsertId = result.destinationItemId ?: sourceItem.id

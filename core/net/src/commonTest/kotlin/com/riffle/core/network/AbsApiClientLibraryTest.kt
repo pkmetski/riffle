@@ -168,9 +168,16 @@ class AbsApiClientLibraryTest {
         assertTrue(result is NetworkResult.Success)
         val req = engine.requestHistory[0]
         assertEquals(req.method.value, "POST")
-        assertEquals(req.url.encodedPath, "/api/libraries/lib-1/scan")
-        assertTrue(req.url.encodedPathAndQuery.contains("force=1"))
+        assertEquals(req.url.encodedPathAndQuery, "/api/libraries/lib-1/scan")
         assertEquals(req.headers["Authorization"], "Bearer tok")
+    }
+
+    @Test
+    fun `scanLibrary does not use force=1 to avoid duplicate-item race with ABS watcher`() = runTest {
+        val (engine, client) = mockAbsClient("" to HttpStatusCode.OK)
+        client.scanLibrary(BASE_URL, "lib-1", "tok", false)
+        val req = engine.requestHistory[0]
+        assertFalse(req.url.encodedPathAndQuery.contains("force"), "force=1 would interrupt ABS watcher scan and create a duplicate library item")
     }
 
     @Test

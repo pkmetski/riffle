@@ -274,9 +274,10 @@ class AbsCatalog(
             asin = request.metadata.asin,
         )
         repeat(RECONCILIATION_ATTEMPTS) { attempt ->
-            // ABS returns immediately when another library scan is already running. A scan
-            // kicked off before the upload can therefore miss these files; retry at intervals
-            // so the upload is picked up once that scan has finished.
+            // Recovery scan: if ABS's watcher hasn't picked up the files yet, a non-forced
+            // scan triggers discovery. The scan is intentionally non-forced (see AbsApiClient)
+            // so it is ignored when ABS's own watcher scan is still running — that watcher scan
+            // is the one creating the canonical item, and interrupting it would cause a duplicate.
             if (attempt > 0 && attempt % RESCAN_INTERVAL_ATTEMPTS == 0) {
                 try {
                     libraryApi.scanLibrary(
@@ -890,7 +891,9 @@ class AbsCatalog(
     )
 
     internal companion object {
-        const val RECONCILIATION_ATTEMPTS = 30
+        // ABS's watcher scan (triggered by /api/upload) can take over a minute on large
+        // libraries. 45 attempts × 2 s = 90 s gives the watcher time to complete.
+        const val RECONCILIATION_ATTEMPTS = 45
         const val RECONCILIATION_DELAY_MS = 2_000L
         // The upload may reuse an existing author/title directory, so ABS keeps the item's
         // original addedAt and it may no longer be in the newest ten results. Fetch a full
