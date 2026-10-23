@@ -187,7 +187,7 @@ enum IosContinuousCssInjector {
         :root{--RS__maxMediaHeight:none;}</style>\n\
         \(hasAuthorStyles ? "" : "<link rel=\"stylesheet\" type=\"text/css\" href=\"\(cssBase)/ReadiumCSS-default.css\"/>\n")
         """
-        if let headRange = out.range(of: "<head[^>]*>", options: .regularExpression, locale: nil) {
+        if let headRange = out.range(of: "<head[^>]*>", options: [.regularExpression, .caseInsensitive], locale: nil) {
             let insertAt = headRange.upperBound
             out.insert(contentsOf: beforeBlock, at: insertAt)
         } else {
@@ -208,7 +208,7 @@ enum IosContinuousCssInjector {
 
         // 3. --USER__* style attribute on <html>.
         let styleAttr = buildHtmlStyleAttr(prefs: prefs).replacingOccurrences(of: "\"", with: "&quot;")
-        if let htmlTagRange = out.range(of: "<html[^>]*", options: .regularExpression) {
+        if let htmlTagRange = out.range(of: "<html[^>]*", options: [.regularExpression, .caseInsensitive]) {
             let insertAt = htmlTagRange.upperBound
             out.insert(contentsOf: " style=\"\(styleAttr)\"", at: insertAt)
         }
@@ -219,8 +219,8 @@ enum IosContinuousCssInjector {
 
     static func buildStyleSetJs(prefs: IosReaderPreferences) -> String {
         let attr = buildHtmlStyleAttr(prefs: prefs)
-            .replacingOccurrences(of: "'", with: "\\'")
             .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
         return "(function(){document.documentElement.setAttribute('style','\(attr)');})();"
     }
 

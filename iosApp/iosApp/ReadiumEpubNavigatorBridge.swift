@@ -222,11 +222,12 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
         csv.onTap = { [weak self] point in
             guard let self else { return }
-            let viewW = self.hostViewController.view.bounds.width
-            let viewH = self.hostViewController.view.bounds.height
-            let relX = viewW > 0 ? Double(point.x / viewW) : 0.5
-            let relY = viewH > 0 ? Double(point.y / viewH) : 0.5
-            self.tapCallback?(TapCoords(x: relX, y: relY))
+            let viewW = Double(self.hostViewController.view.bounds.width)
+            let viewH = Double(self.hostViewController.view.bounds.height)
+            self.tapCallback?(TapCoords(
+                x: Double(point.x), y: Double(point.y),
+                viewWidth: viewW, viewHeight: viewH
+            ))
         }
 
         csv.initialize(

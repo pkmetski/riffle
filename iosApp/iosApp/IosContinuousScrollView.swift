@@ -160,7 +160,7 @@ final class IosContinuousScrollView: UIView {
     }
 
     private func updateContentHeight() {
-        let total = slotOffsets.last.flatMap { slotHeights.last.map { $0 + $1 } } ?? defaultSlotHeight
+        let total = (slotOffsets.last ?? 0) + (slotHeights.last ?? defaultSlotHeight)
         contentContainer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: total)
         outerScrollView.contentSize = CGSize(width: bounds.width, height: total)
     }
@@ -187,7 +187,8 @@ final class IosContinuousScrollView: UIView {
     private func loadChapter(index: Int, in wv: WKWebView) {
         guard index < spineHrefs.count else { return }
         let href = spineHrefs[index]
-        let urlString = "\(IosContinuousEpubSchemeHandler.scheme)://pub/\(href)"
+        let encodedHref = href.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? href
+        let urlString = "\(IosContinuousEpubSchemeHandler.scheme)://pub/\(encodedHref)"
         guard let url = URL(string: urlString) else { return }
         wv.load(URLRequest(url: url))
     }
@@ -325,9 +326,13 @@ extension IosContinuousScrollView: WKScriptMessageHandler {
 
 extension IosContinuousScrollView: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        let rawPath = webView.url?.path.removingPercentEncoding ?? ""
+        let escapedPath = rawPath
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
         let heightJs = """
         (function(){
-          var href='\(webView.url?.path.removingPercentEncoding ?? "")';
+          var href='\(escapedPath)';
           var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight,1);
           window.webkit.messageHandlers.riffleChapterHeight.postMessage({href:href,height:h});
         })();
