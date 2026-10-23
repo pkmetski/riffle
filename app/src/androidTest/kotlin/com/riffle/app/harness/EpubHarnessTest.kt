@@ -105,8 +105,9 @@ class EpubHarnessTest : KoinTest {
         }
         composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_SERIES_NAME).performClick()
 
-        // Series detail loads — tap the item
-        composeTestRule.waitUntil(timeoutMillis = 30_000) {
+        // Series detail loads — tap the item.
+        // 60s: matches the series-list wait above; slow CI runners take >30s to stream and render.
+        composeTestRule.waitUntil(timeoutMillis = 60_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_ITEM_TITLE).performClick()
