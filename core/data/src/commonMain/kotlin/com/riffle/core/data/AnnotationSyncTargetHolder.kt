@@ -83,10 +83,15 @@ class AnnotationSyncTargetHolder(
                 sourceRepository.observeAll(),
             ) { webDavConfig, sources -> webDavConfig to sources }
                 .collectLatest { (webDavConfig, sources) ->
-                    // `collectLatest` cancels an in-flight buildTarget when a newer config arrives,
-                    // so a slow token read can never write a stale target on top of a fresh one.
-                    state.value = buildTarget(webDavConfig, sources)
-                    firstLoad.complete(Unit)
+                    try {
+                        // `collectLatest` cancels an in-flight buildTarget when a newer config
+                        // arrives, so a slow token read can never write a stale target on top of
+                        // a fresh one.
+                        state.value = buildTarget(webDavConfig, sources)
+                    } finally {
+                        // Complete even if buildTarget throws so awaitFirstLoad never deadlocks.
+                        firstLoad.complete(Unit)
+                    }
                 }
         }
     }

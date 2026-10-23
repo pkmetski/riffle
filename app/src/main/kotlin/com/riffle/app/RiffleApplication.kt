@@ -142,7 +142,11 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         // transition on the holder), so the elided view populates immediately without a restart.
         val holder = get<AnnotationSyncTargetHolder>()
         applicationScope.launchSurvivable {
-            var prevNull = true
+            // Start with prevNull=false so the initial null→non-null at startup (which the
+            // explicit launchSurvivable above already handles) does not fire a second sweep.
+            // Only genuine mid-session additions (prevNull=true after a null seen at runtime)
+            // trigger an extra run.
+            var prevNull = false
             holder.observe().collect { target ->
                 val nowNull = target == null
                 if (prevNull && !nowNull) runCatching { annotationPullSweep.run() }

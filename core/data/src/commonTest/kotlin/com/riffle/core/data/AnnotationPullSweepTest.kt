@@ -127,8 +127,12 @@ class AnnotationPullSweepTest {
                     ),
                 ),
             ),
+            // Item-scoped keys so the fake distinguishes ITEM_1 from ITEM_2 reads.
+            // If the sweep ever routes ITEM_2's read to ITEM_1's key (or vice-versa), the
+            // per-item annotation IDs in the assertions below will be wrong.
             fileContent = mapOf(
-                "annotations-peer.jsonld" to jsonArrayOf(w3c("ann-A", 100L, "peer-device")),
+                "$ITEM_1/annotations-peer.jsonld" to jsonArrayOf(w3c("ann-item1", 100L, "peer-device")),
+                "$ITEM_2/annotations-peer.jsonld" to jsonArrayOf(w3c("ann-item2", 200L, "peer-device")),
             ),
         )
         val sweep = newSweep(target, sources = listOf(source(SRV, NS)))
@@ -136,8 +140,10 @@ class AnnotationPullSweepTest {
         sweep.run()
 
         val byItem = dao.upserts.groupBy { it.itemId }
-        assertTrue(byItem.containsKey(ITEM_1), "item-1 must have merged annotations")
-        assertTrue(byItem.containsKey(ITEM_2), "item-2 must have merged annotations")
+        val item1Ids = byItem[ITEM_1]?.map { it.id } ?: emptyList()
+        val item2Ids = byItem[ITEM_2]?.map { it.id } ?: emptyList()
+        assertTrue(item1Ids.any { it.contains("ann-item1") }, "item-1 must have its own annotations merged")
+        assertTrue(item2Ids.any { it.contains("ann-item2") }, "item-2 must have its own annotations merged")
     }
 
     // ===== own device file is skipped =====
@@ -280,7 +286,8 @@ class AnnotationPullSweepTest {
     ) : AnnotationSyncTarget {
         var enumerateCalls = 0
         override suspend fun list(namespace: String, itemId: String) = fileContent.keys.toList()
-        override suspend fun read(namespace: String, itemId: String, filename: String) = fileContent[filename]
+        override suspend fun read(namespace: String, itemId: String, filename: String) =
+            fileContent["$itemId/$filename"] ?: fileContent[filename]
         override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {}
         override suspend fun delete(namespace: String, itemId: String, filename: String) {}
         override suspend fun readDeviceMeta(namespace: String, deviceId: String) = null

@@ -927,7 +927,9 @@ private fun iosLibraryModule(
         // immediately without waiting for the next app-active event.
         val holder = get<AnnotationSyncTargetHolder>()
         get<ApplicationScope>().launchSurvivable {
-            var prevNull = true
+            // Start with prevNull=false so the initial startup null→non-null (already handled
+            // by ForegroundSyncDriver's first-active sweep) does not fire a duplicate run.
+            var prevNull = false
             holder.observe().collect { target ->
                 val nowNull = target == null
                 if (prevNull && !nowNull) runCatching { annotationPullSweep.run() }
