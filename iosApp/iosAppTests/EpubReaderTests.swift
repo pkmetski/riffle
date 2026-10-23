@@ -421,7 +421,8 @@ final class EpubReaderTests: XCTestCase {
             justifyText: true,
             textColorArgb: 0,
             publisherStyles: false,
-            columnCount: 1
+            columnCount: 1,
+            isContinuousMode: false
         )
         // applyReaderPreferences must not throw or crash when justifyText is true.
         bridge.applyReaderPreferences(preferences: prefs)
