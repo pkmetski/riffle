@@ -64,6 +64,18 @@ class AnnotationSyncTargetHolder(
         },
     )
 
+    /**
+     * Signals when the first source-driven rebuild of [state] has completed. The constructor seeds
+     * with [sources = emptyList()] to avoid a Room read on the main thread; the init coroutine
+     * fires quickly and completes this deferred. Callers that must not race startup (e.g.
+     * [AnnotationPullSweep]) await this before reading [current].
+     *
+     * Declared before the `init` block so it is always initialized before the launched coroutine
+     * can call [CompletableDeferred.complete] — on fast (unconfined) test dispatchers the coroutine
+     * may run inline during construction, and a lateinit or post-init declaration would NPE.
+     */
+    private val firstLoad: CompletableDeferred<Unit> = CompletableDeferred()
+
     init {
         scope.launch {
             combine(
@@ -78,14 +90,6 @@ class AnnotationSyncTargetHolder(
                 }
         }
     }
-
-    /**
-     * Signals when the first source-driven rebuild of [state] has completed. The constructor seeds
-     * with [sources = emptyList()] to avoid a Room read on the main thread; the init coroutine
-     * fires quickly and completes this deferred. Callers that must not race startup (e.g.
-     * [AnnotationPullSweep]) await this before reading [current].
-     */
-    private val firstLoad: CompletableDeferred<Unit> = CompletableDeferred()
 
     /**
      * Suspends until the [init] coroutine has completed its first build from real sources.

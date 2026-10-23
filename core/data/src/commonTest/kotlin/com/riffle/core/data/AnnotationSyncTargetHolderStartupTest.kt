@@ -22,16 +22,12 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -40,46 +36,37 @@ import kotlin.test.assertTrue
 /**
  * `commonTest` counterpart for the `awaitFirstLoad` / `observe()` tests in
  * `AnnotationSyncTargetHolderTest` (androidHostTest). The androidHostTest uses OkHttp; this suite
- * uses a Ktor MockEngine so the same state-machine assertions run on the iOS simulator in CI.
+ * uses a Ktor MockEngine so the same state-machine assertions run on the iOS simulator in CI via
+ * `:core:data:iosSimulatorArm64Test`.
  *
- * These tests pin the startup-race fix: the holder seeds with an empty-sources state before the
- * init coroutine fires, and callers must not see a stale null when sources are already configured.
+ * Each test creates the holder with `backgroundScope` so the holder's init coroutine shares the
+ * `runTest` scheduler. Using an independent `CoroutineScope(UnconfinedTestDispatcher())` would put
+ * the holder's coroutines on a different scheduler, making `awaitFirstLoad()` deadlock.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class AnnotationSyncTargetHolderStartupTest {
 
     private val mockHttpClient = HttpClient(MockEngine { respond(ByteArray(0), HttpStatusCode.OK, headersOf()) })
-    private val configStore = HolderStartupFakeConfigStore()
     private val webDavFactory = WebDavAnnotationSyncTargetFactory(mockHttpClient, DefaultDispatcherProvider)
-    private val absBookmarkFactory = AbsBookmarkAnnotationSyncTargetFactory(
-        absBookmarkApi = HolderStartupNoopAbsApi(),
-        tokenStorage = HolderStartupNoopTokenStorage(),
-    )
-    private lateinit var scope: CoroutineScope
 
-    private fun holder(
+    private fun makeHolder(
+        scope: CoroutineScope,
+        configStore: HolderStartupFakeConfigStore = HolderStartupFakeConfigStore(),
         sourceRepository: SourceRepository = HolderStartupEmptySourceRepository(),
+        tokenStorage: TokenStorage = HolderStartupNoopTokenStorage(),
     ) = AnnotationSyncTargetHolder(
         configStore = configStore,
         webDavFactory = webDavFactory,
-        absBookmarkFactory = absBookmarkFactory,
+        absBookmarkFactory = AbsBookmarkAnnotationSyncTargetFactory(
+            absBookmarkApi = HolderStartupNoopAbsApi(),
+            tokenStorage = tokenStorage,
+        ),
         sourceRepository = sourceRepository,
         scope = scope,
     )
 
-    @BeforeTest
-    fun setUp() {
-        scope = CoroutineScope(UnconfinedTestDispatcher())
-    }
-
-    @AfterTest
-    fun tearDown() {
-        scope.cancel()
-    }
-
     @Test
     fun awaitFirstLoadResolvesAfterInitCoroutineFires() = runTest {
-        val holder = holder()
+        val holder = makeHolder(scope = backgroundScope)
         var completed = false
         val job = launch { holder.awaitFirstLoad(); completed = true }
         job.join()
@@ -88,7 +75,7 @@ class AnnotationSyncTargetHolderStartupTest {
 
     @Test
     fun awaitFirstLoadIsIdempotent() = runTest {
-        val holder = holder()
+        val holder = makeHolder(scope = backgroundScope)
         holder.awaitFirstLoad()
         var completed = false
         val job = launch { holder.awaitFirstLoad(); completed = true }
@@ -98,33 +85,33 @@ class AnnotationSyncTargetHolderStartupTest {
 
     @Test
     fun observeEmitsNullInitiallyWhenNoConfigAndNoSources() = runTest {
-        val holder = holder()
+        val holder = makeHolder(scope = backgroundScope)
+        holder.awaitFirstLoad()
         assertNull(holder.observe().value, "no config and no sources => null target")
     }
 
     @Test
     fun observeEmitsNonNullAfterConfigIsSaved() = runTest {
-        val holder = holder()
+        val configStore = HolderStartupFakeConfigStore()
+        val holder = makeHolder(scope = backgroundScope, configStore = configStore)
+        holder.awaitFirstLoad()
         configStore.emit(AnnotationSyncConfig("https://dav.example.org/anno", "u", "p"))
-        assertNotNull(holder.observe().value, "config saved => non-null target")
+        // Suspend until the holder's init coroutine processes the new config and updates state.
+        val target = holder.observe().first { it != null }
+        assertNotNull(target, "config saved => non-null target")
     }
 
     @Test
     fun observeTransitionsNullToNonNullWhenAbsSourceAdded() = runTest {
         val mutableSources = HolderStartupMutableSourceRepository()
         val tokenStorage = HolderStartupInMemoryTokenStorage()
-        val absFactory = AbsBookmarkAnnotationSyncTargetFactory(
-            absBookmarkApi = HolderStartupNoopAbsApi(),
+        val holder = makeHolder(
+            scope = backgroundScope,
+            sourceRepository = mutableSources,
             tokenStorage = tokenStorage,
         )
-        val holder = AnnotationSyncTargetHolder(
-            configStore = configStore,
-            webDavFactory = webDavFactory,
-            absBookmarkFactory = absFactory,
-            sourceRepository = mutableSources,
-            scope = scope,
-        )
 
+        holder.awaitFirstLoad()
         assertNull(holder.observe().value, "before any source, no target")
 
         val absSource = Source(
@@ -139,8 +126,9 @@ class AnnotationSyncTargetHolderStartupTest {
         )
         tokenStorage.savedTokens[absSource.id] = "tok"
         mutableSources.emit(listOf(absSource))
+        val target = holder.observe().first { it != null }
 
-        assertNotNull(holder.observe().value, "after abs source added with a token, target must be non-null")
+        assertNotNull(target, "after abs source added with a token, target must be non-null")
     }
 
     @Test
@@ -160,23 +148,19 @@ class AnnotationSyncTargetHolderStartupTest {
         tokenStorage.savedTokens[absSource.id] = "tok"
         mutableSources.emit(listOf(absSource))
 
-        val absFactory = AbsBookmarkAnnotationSyncTargetFactory(
-            absBookmarkApi = HolderStartupNoopAbsApi(),
+        val holder = makeHolder(
+            scope = backgroundScope,
+            sourceRepository = mutableSources,
             tokenStorage = tokenStorage,
         )
-        val holder = AnnotationSyncTargetHolder(
-            configStore = configStore,
-            webDavFactory = webDavFactory,
-            absBookmarkFactory = absFactory,
-            sourceRepository = mutableSources,
-            scope = scope,
-        )
-
-        assertNotNull(holder.observe().value, "source present => non-null target")
+        // Suspend until the initial non-null state is confirmed.
+        val initialTarget = holder.observe().first { it != null }
+        assertNotNull(initialTarget, "source present => non-null target")
 
         mutableSources.emit(emptyList())
-
-        assertNull(holder.observe().value, "source removed, no WebDAV config => null target")
+        // Suspend until the holder transitions back to null.
+        val removedTarget = holder.observe().first { it == null }
+        assertNull(removedTarget, "source removed, no WebDAV config => null target")
     }
 }
 
