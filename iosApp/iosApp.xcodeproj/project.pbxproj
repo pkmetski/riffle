@@ -40,6 +40,8 @@
 		B1CA0040 /* ReadiumEpubNavigatorBridge+Continuous.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0041 /* ReadiumEpubNavigatorBridge+Continuous.swift */; };
 		B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0020 /* IosContinuousEpubSchemeHandler.swift */; };
 		B1CA0031 /* IosContinuousReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0032 /* IosContinuousReaderTests.swift */; };
+		B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0021 /* IosContinuousScrollView.swift */; };
+		B1CA0034 /* ReadiumEpubNavigatorBridge+Continuous.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0041 /* ReadiumEpubNavigatorBridge+Continuous.swift */; };
 		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
 		B1003020 /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
 		B1004010 /* AudiobookPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1004020 /* AudiobookPlayerTests.swift */; };
@@ -630,6 +632,8 @@
 				C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */,
 				B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */,
 				B1CA0031 /* IosContinuousReaderTests.swift in Sources */,
+				B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */,
+				B1CA0034 /* ReadiumEpubNavigatorBridge+Continuous.swift in Sources (unit tests) */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

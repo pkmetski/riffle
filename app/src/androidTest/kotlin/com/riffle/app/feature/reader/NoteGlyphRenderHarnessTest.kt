@@ -132,11 +132,7 @@ class NoteGlyphRenderHarnessTest : KoinTest {
         } else {
             ".riffle-note-glyph-icon"
         }
-        while (System.currentTimeMillis() < deadline) {
-            val details = visibleWebViews().map { webView ->
-                evalJs(
-                    webView,
-                    """
+        val jsQuery = """
                     (function () {
                       var e = document.querySelector('$glyphSelector');
                       if (!e) return 'missing';
@@ -160,16 +156,29 @@ class NoteGlyphRenderHarnessTest : KoinTest {
                         'opacity=' + s.opacity
                       ].join('|');
                     })()
-                    """.trimIndent(),
-                ).trim('"')
-            }
-            lastDetails = details.joinToString()
-            if (details.any { detail ->
-                    detail != "missing" &&
-                        evalGlyphVisible(detail)
+                    """.trimIndent()
+        while (System.currentTimeMillis() < deadline) {
+            // Short-circuit: stop evaluating remaining WebViews as soon as we find the glyph
+            // visible in any one of them — avoids up to (N-1) redundant IPC roundtrips per cycle
+            // on loaded CI runners where each evaluateJavascript call is slow.
+            var found = false
+            val allDetails = mutableListOf<String>()
+            for (webView in visibleWebViews()) {
+                val detail = evalJs(webView, jsQuery).trim('"')
+                allDetails += detail
+                if (detail != "missing" && evalGlyphVisible(detail)) {
+                    found = true
+                    break
                 }
-            ) return
-            Thread.sleep(250)
+            }
+            lastDetails = allDetails.joinToString()
+            if (found) return
+            // 100 ms poll: shorter than the previous 250 ms so a glyph that appears late in the
+            // 300 s window is caught within the next tick rather than up to 150 ms later. On slow
+            // CI runners where the annotation-focus reflow cycle runs right up to the budget edge,
+            // tighter polling maximises the chance of catching the stable position before the
+            // deadline expires.
+            Thread.sleep(100)
         }
         assertTrue("$orientation noted highlight glyph never became visible: $lastDetails", false)
     }
