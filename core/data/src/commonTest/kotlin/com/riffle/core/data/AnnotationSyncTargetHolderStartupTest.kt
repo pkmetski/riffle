@@ -4,7 +4,7 @@ import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -46,7 +46,13 @@ import kotlin.test.assertTrue
 class AnnotationSyncTargetHolderStartupTest {
 
     private val mockHttpClient = HttpClient(MockEngine { respond(ByteArray(0), HttpStatusCode.OK, headersOf()) })
-    private val webDavFactory = WebDavAnnotationSyncTargetFactory(mockHttpClient, DefaultDispatcherProvider)
+    private val testDispatchers = object : DispatcherProvider {
+        override val main = kotlinx.coroutines.Dispatchers.Default
+        override val mainImmediate = kotlinx.coroutines.Dispatchers.Default
+        override val io = kotlinx.coroutines.Dispatchers.Default
+        override val default = kotlinx.coroutines.Dispatchers.Default
+    }
+    private val webDavFactory = WebDavAnnotationSyncTargetFactory(mockHttpClient, testDispatchers)
 
     private fun makeHolder(
         scope: CoroutineScope,
