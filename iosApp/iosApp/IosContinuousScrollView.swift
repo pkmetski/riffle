@@ -137,20 +137,20 @@ final class IosContinuousScrollView: UIView {
             loadedWebViews.removeValue(forKey: key)
         }
 
-        for i in lo...hi {
-            guard loadedWebViews[i] == nil else { continue }
+        for idx in lo...hi {
+            guard loadedWebViews[idx] == nil else { continue }
             let wv = makeWebView()
-            loadedWebViews[i] = wv
+            loadedWebViews[idx] = wv
             contentContainer.addSubview(wv)
-            positionWebView(wv, at: i)
-            loadChapter(index: i, in: wv)
+            positionWebView(wv, at: idx)
+            loadChapter(index: idx, in: wv)
         }
     }
 
     private func positionWebView(_ wv: WKWebView, at index: Int) {
-        let y = slotOffsets[index]
-        let h = slotHeights[index]
-        wv.frame = CGRect(x: 0, y: y, width: contentContainer.bounds.width, height: h)
+        let yPos = slotOffsets[index]
+        let cht = slotHeights[index]
+        wv.frame = CGRect(x: 0, y: yPos, width: contentContainer.bounds.width, height: cht)
     }
 
     private func updateAllWebViewFrames() {
@@ -213,11 +213,11 @@ final class IosContinuousScrollView: UIView {
     // MARK: - Position tracking
 
     private func updatePosition() {
-        let y = outerScrollView.contentOffset.y
+        let yPos = outerScrollView.contentOffset.y
         let viewH = outerScrollView.bounds.height
-        let midY = y + viewH * 0.5
+        let midY = yPos + viewH * 0.5
 
-        let idx = slotIndexAt(y: midY)
+        let idx = slotIndexAt(yPos: midY)
         let chapterY = midY - slotOffsets[idx]
         let chapterH = slotHeights[idx]
         let progression = chapterH > 0 ? Double(chapterY / chapterH).clamped(to: 0...1) : 0
@@ -233,19 +233,19 @@ final class IosContinuousScrollView: UIView {
         loadWindow(around: idx)
     }
 
-    private func slotIndexAt(y: CGFloat) -> Int {
+    private func slotIndexAt(yPos: CGFloat) -> Int {
         var lo = 0; var hi = slotOffsets.count - 1
         while lo < hi {
             let mid = (lo + hi + 1) / 2
-            if slotOffsets[mid] <= y { lo = mid } else { hi = mid - 1 }
+            if slotOffsets[mid] <= yPos { lo = mid } else { hi = mid - 1 }
         }
         return lo
     }
 
     private func scrollTo(index: Int, progression: Float) {
         guard index < slotOffsets.count, index < slotHeights.count else { return }
-        let y = slotOffsets[index] + CGFloat(progression) * slotHeights[index]
-        outerScrollView.setContentOffset(CGPoint(x: 0, y: max(0, y)), animated: false)
+        let yPos = slotOffsets[index] + CGFloat(progression) * slotHeights[index]
+        outerScrollView.setContentOffset(CGPoint(x: 0, y: max(0, yPos)), animated: false)
         loadWindow(around: index)
     }
 
@@ -270,7 +270,7 @@ final class IosContinuousScrollView: UIView {
 
     private func computeOffsets(from heights: [CGFloat]) -> [CGFloat] {
         var offsets = [CGFloat](repeating: 0, count: heights.count)
-        for i in 1..<heights.count { offsets[i] = offsets[i - 1] + heights[i - 1] }
+        for idx in 1..<heights.count { offsets[idx] = offsets[idx - 1] + heights[idx - 1] }
         return offsets
     }
 

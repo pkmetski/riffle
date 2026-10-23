@@ -1,5 +1,6 @@
 import Foundation
 import WebKit
+import Riffle
 import ReadiumShared
 import ReadiumNavigator
 
@@ -244,10 +245,10 @@ enum IosContinuousCssInjector {
 
         // DarkDim muted text colour.
         if prefs.textColorArgb != 0 {
-            let r = (prefs.textColorArgb >> 16) & 0xFF
-            let g = (prefs.textColorArgb >> 8) & 0xFF
-            let b = prefs.textColorArgb & 0xFF
-            props.append(("--USER__textColor", String(format: "#%02X%02X%02X", r, g, b)))
+            let red = (prefs.textColorArgb >> 16) & 0xFF
+            let grn = (prefs.textColorArgb >> 8) & 0xFF
+            let blu = prefs.textColorArgb & 0xFF
+            props.append(("--USER__textColor", String(format: "#%02X%02X%02X", red, grn, blu)))
         }
 
         // Font family.
