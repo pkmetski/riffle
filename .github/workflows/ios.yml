@@ -277,6 +277,9 @@ jobs:
         run: |
           # Static K/N framework has no Xcode dependency edge; force relink so a warm cache doesn't ship stale Kotlin.
           rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppUnitTests.xctest,iosAppTests-Runner.app}
+          # Purge Riffle module intermediates so a restore-key cache hit from a prior commit
+          # can never serve a .swiftmodule that predates newly added Swift source files.
+          rm -rf "$HOME"/derived-data/Build/Intermediates.noindex/iosApp.build/Debug-iphonesimulator/Riffle.build
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosAppUnitTests \
