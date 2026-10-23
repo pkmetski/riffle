@@ -135,7 +135,7 @@ final class IosContinuousCssInjectorTests: XCTestCase {
     // MARK: - buildStyleSetJs
 
     func testBuildStyleSetJsProducesValidJs() {
-        let prefs = makePrefs(theme: "dark", fontSizePercent: 1.25)
+        let prefs = makePrefs(fontSizePercent: 1.25, theme: "dark")
         let js = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
         XCTAssertTrue(js.contains("document.documentElement.setAttribute"), "JS must call setAttribute")
         XCTAssertTrue(js.contains("style"), "JS must set the style attribute")
