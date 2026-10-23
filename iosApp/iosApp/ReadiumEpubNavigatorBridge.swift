@@ -14,7 +14,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 /// Wraps Readium Swift 3.x EPUBNavigatorViewController, bridging it to the KMP shared layer.
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
-    private let hostViewController = UIViewController()
+    let hostViewController = UIViewController()
     var epubNavigator: EPUBNavigatorViewController?
     private var publication: Publication?
     // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
@@ -37,7 +37,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var footnoteCallback: ((String) -> Void)?
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
-    private var scrollStartCallback: (() -> Void)?
+    var scrollStartCallback: (() -> Void)?
     private var publicationOpenErrorCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
@@ -57,8 +57,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var pendingPreferences: EPUBPreferences = EPUBPreferences()
 
     // Native Continuous mode (multi-WebView sliding window, iOS-only).
-    private var continuousScrollView: IosContinuousScrollView?
-    private var pendingIsContinuousMode = false
+    var continuousScrollView: IosContinuousScrollView?
+    var pendingIsContinuousMode = false
 
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
@@ -276,7 +276,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
               let locator = try? Locator(json: jsonValue, warnings: nil) else { return }
         Task { @MainActor in
             if let csv = continuousScrollView {
-                csv.navigateTo(href: locator.href.string, progression: Float(locator.locations.progression ?? 0))
+                csv.navigateTo(href: "\(locator.href)", progression: Float(locator.locations.progression ?? 0))
             } else {
                 _ = await epubNavigator?.go(to: locator, options: .animated)
             }
@@ -776,7 +776,7 @@ extension ReadiumEpubNavigatorBridge {
     /// `weightSegmentsByChapterLength` rely on. When Readium cannot compute positions the counts
     /// stay empty and the Kotlin side falls back to unweighted segments rather than mis-weighting
     /// them.
-    private func prefetchSpine(_ pub: Publication) {
+    func prefetchSpine(_ pub: Publication) {
         Task { @MainActor in
             let hrefs = pub.readingOrder
                 .map { "\"\($0.href.jsonEscaped)\"" }

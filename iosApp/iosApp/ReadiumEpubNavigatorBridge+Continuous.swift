@@ -12,8 +12,8 @@ extension ReadiumEpubNavigatorBridge {
 
     @MainActor
     func attachContinuous(publication pub: Publication, initialLocator: Locator?) {
-        let spineHrefs = pub.readingOrder.map { $0.href.string }
-        let initialHref = initialLocator?.href.string ?? spineHrefs.first ?? ""
+        let spineHrefs = pub.readingOrder.map { $0.href }
+        let initialHref = initialLocator.map { "\($0.href)" } ?? spineHrefs.first ?? ""
         let initialProgression = Float(initialLocator?.locations.progression ?? 0)
         let prefs = currentContinuousPrefs ?? IosReaderPreferences(
             fontSizePercent: 1.0, scrollMode: true, theme: "light", fontFamilyCss: "",
