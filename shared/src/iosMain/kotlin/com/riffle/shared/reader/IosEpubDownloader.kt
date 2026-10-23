@@ -3,16 +3,15 @@ package com.riffle.shared.reader
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.EpubLocalPathResolver
 import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_EPUB_CACHE
-import com.riffle.core.data.NS_EPUB_DOWNLOADS
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.models.LibraryItem
 import com.riffle.shared.library.IosEpubPaths
 import kotlinx.coroutines.CancellationException
-import platform.Foundation.NSFileManager
 
 /**
  * Returns a local path for the given EPUB, used by the reader to open the file.
@@ -30,26 +29,19 @@ class IosEpubDownloader(
     private val fileStore: FileStore,
     private val contentCacheAccessStore: ContentCacheAccessStore,
 ) {
-    suspend fun localPath(item: LibraryItem): String? {
-        val cacheKey = ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Epub)
-        val downloadPath = fileStore.resolve(NS_EPUB_DOWNLOADS, IosEpubPaths.downloadRelativePath(item.sourceId, item.id))
-        if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) {
-            contentCacheAccessStore.markAccessed(cacheKey)
-            return downloadPath
-        }
+    private val localPathResolver = EpubLocalPathResolver(fileStore, contentCacheAccessStore)
 
-        val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
-        if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) {
-            contentCacheAccessStore.markAccessed(cacheKey)
-            return cachePath
-        }
+    suspend fun localPath(item: LibraryItem): String? {
+        val localPath = localPathResolver.resolve(item.sourceId, item.id)
+        if (localPath != null) return localPath
 
         val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
+        val cachePath = fileStore.resolve(NS_EPUB_CACHE, IosEpubPaths.cacheRelativePath(item.sourceId, item.id))
         return try {
             catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
                 val written = IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)
                 if (written) {
-                    contentCacheAccessStore.markAccessed(cacheKey)
+                    contentCacheAccessStore.markAccessed(ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Epub))
                     cachePath
                 } else {
                     null

@@ -60,6 +60,9 @@ class IosPdfAndCoverTest {
             }
             return full
         }
+
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
     }
 
     private object NoopPositionStore : ReadingPositionStore {

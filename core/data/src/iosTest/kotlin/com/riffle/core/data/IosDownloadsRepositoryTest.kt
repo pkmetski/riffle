@@ -177,6 +177,9 @@ class IosDownloadsRepositoryTest {
             IosAudiobookFiles.mkdirs(base)
             return if (relativePath.isEmpty()) base else "$base/$relativePath"
         }
+
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
     }
 
     private class RecordingAvailabilityEvents : LocalAvailabilityEvents {

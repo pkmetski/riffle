@@ -52,6 +52,9 @@ class IosPdfDownloaderTest {
             NSFileManager.defaultManager.createDirectoryAtPath(base, withIntermediateDirectories = true, attributes = null, error = null)
             return if (relativePath.isEmpty()) base else "$base/$relativePath"
         }
+
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
     }
 
     private val pdfBytes = byteArrayOf(0x25, 0x50, 0x44, 0x46, 1, 2, 3, 4) // %PDF magic

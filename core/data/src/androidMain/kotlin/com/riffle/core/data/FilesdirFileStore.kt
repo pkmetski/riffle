@@ -21,4 +21,7 @@ class FilesdirFileStore constructor(
             File(base, relativePath).also { it.parentFile?.mkdirs() }.absolutePath
         }
     }
+
+    override fun exists(namespace: String, relativePath: String): Boolean =
+        File(resolve(namespace, relativePath)).exists()
 }

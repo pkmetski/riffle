@@ -55,6 +55,9 @@ class IosPackStoreImplTest {
                 )
                 return if (relativePath.isEmpty()) base else "$base/$relativePath"
             }
+
+            override fun exists(namespace: String, relativePath: String): Boolean =
+                NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
         }
     }
 

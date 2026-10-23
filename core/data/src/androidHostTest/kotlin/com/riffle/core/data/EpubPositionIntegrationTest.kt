@@ -38,6 +38,7 @@ class EpubPositionIntegrationTest {
     val tmp = TemporaryFolder()
 
     private lateinit var source: MockWebServer
+    private lateinit var cacheDir: java.io.File
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var sharedPositionDao: InMemoryReadingPositionDao
 
@@ -47,7 +48,8 @@ class EpubPositionIntegrationTest {
     fun setUp() {
         source = MockWebServer()
         source.start()
-        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
+        cacheDir = tmp.newFolder("cache")
+        cacheStore = LocalStoreImpl(cacheDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         sharedPositionDao = InMemoryReadingPositionDao()
     }
 
@@ -74,12 +76,14 @@ class EpubPositionIntegrationTest {
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
+        val downloadsDir = tmp.newFolder("downloads-${System.nanoTime()}")
         return EpubRepositoryImpl(
             catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
             cacheStore = cacheStore,
-            downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
+            downloadsStore = LocalStoreImpl(downloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
             positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
             sourceRepository = sourceRepo,
+            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
     }
 
@@ -186,12 +190,14 @@ class EpubPositionIntegrationTest {
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
+        val crossSourceDownloadsDir = tmp.newFolder("downloads-cross-source")
         val repo2 = EpubRepositoryImpl(
             catalogRegistry = TestCatalogRegistry(differentActiveSourceRepo, mapOf("source-1" to "test-token", "source-2" to "test-token")),
             cacheStore = cacheStore,
-            downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-cross-source"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
+            downloadsStore = LocalStoreImpl(crossSourceDownloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
             positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
             sourceRepository = differentActiveSourceRepo,
+            epubFileStore = AndroidEpubFileStore(downloadsDir = crossSourceDownloadsDir, cacheDir = cacheDir),
         )
 
         val result = repo2.openEpub(item()) as EpubOpenResult.Success
