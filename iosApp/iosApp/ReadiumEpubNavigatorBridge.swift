@@ -56,6 +56,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     // Pending preferences — stored before the navigator exists so openEpub can use them.
     var pendingPreferences: EPUBPreferences = EPUBPreferences()
 
+    // Native Continuous mode (multi-WebView sliding window, iOS-only).
+    private var continuousScrollView: IosContinuousScrollView?
+    private var pendingIsContinuousMode = false
+
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
 
@@ -165,6 +169,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     /// silently not apply to the other.
     @MainActor
     private func attach(publication pub: Publication, initialLocator: Locator?) throws {
+        if pendingIsContinuousMode {
+            attachContinuous(publication: pub, initialLocator: initialLocator)
+            return
+        }
         let config = makeNavigatorConfiguration()
         let navigator = try EPUBNavigatorViewController(
             publication: pub,
@@ -185,6 +193,58 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         installBookmarkCornerBlocker(on: hostViewController.view)
         disableScrollsToTop(in: navigator.view)
     }
+
+    @MainActor
+    private func attachContinuous(publication pub: Publication, initialLocator: Locator?) {
+        let spineHrefs = pub.readingOrder.map { $0.href }
+        let initialHref = initialLocator?.href ?? spineHrefs.first ?? ""
+        let initialProgression = Float(initialLocator?.locations.progression ?? 0)
+        let prefs = currentContinuousPrefs ?? IosReaderPreferences(
+            fontSizePercent: 1.0, scrollMode: true, theme: "light", fontFamilyCss: "",
+            lineHeightMultiplier: 1.5, pageMargins: 1.0, justifyText: false,
+            textColorArgb: 0, publisherStyles: false, columnCount: 1, isContinuousMode: true
+        )
+
+        let csv = IosContinuousScrollView()
+        csv.frame = hostViewController.view.bounds
+        csv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        hostViewController.view.addSubview(csv)
+
+        csv.onLocator = { [weak self] json in
+            self?.cachedLocatorJson = json
+            self?.locatorCallback?(json)
+        }
+        csv.onPageLoad = { [weak self] in
+            self?.pageLoadCallback?()
+        }
+        csv.onScrollStart = { [weak self] in
+            self?.scrollStartCallback?()
+        }
+        csv.onTap = { [weak self] point in
+            guard let self else { return }
+            let viewW = self.hostViewController.view.bounds.width
+            let viewH = self.hostViewController.view.bounds.height
+            let relX = viewW > 0 ? Double(point.x / viewW) : 0.5
+            let relY = viewH > 0 ? Double(point.y / viewH) : 0.5
+            self.tapCallback?(TapCoords(x: relX, y: relY))
+        }
+
+        csv.initialize(
+            publication: pub,
+            spineHrefs: spineHrefs,
+            initialHref: initialHref,
+            initialProgression: initialProgression,
+            prefs: prefs
+        )
+        continuousScrollView = csv
+
+        // Pre-populate spine JSON from the publication so position tracking works immediately.
+        prefetchSpine(pub)
+    }
+
+    /// Most recent IosReaderPreferences seen — used when attaching the continuous view
+    /// before applyReaderPreferences fires.
+    private var currentContinuousPrefs: IosReaderPreferences?
 
     // Adds a transparent UIView over the top-right corner of the host view so that taps on the
     // Compose CornerBookmarkIndicator are NOT also delivered to the Readium WKWebView underneath.
@@ -262,7 +322,13 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     func goToLocator(locatorJson: String) {
         guard let jsonValue = try? JSONValue(jsonString: locatorJson),
               let locator = try? Locator(json: jsonValue, warnings: nil) else { return }
-        Task { @MainActor in _ = await epubNavigator?.go(to: locator, options: .animated) }
+        Task { @MainActor in
+            if let csv = continuousScrollView {
+                csv.navigateTo(href: locator.href, progression: Float(locator.locations.progression ?? 0))
+            } else {
+                _ = await epubNavigator?.go(to: locator, options: .animated)
+            }
+        }
     }
 
     /// Thread-safe: returns the cached locator JSON last emitted by the delegate on the main thread.
@@ -340,6 +406,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.epubNavigator?.view.removeFromSuperview()
             self.epubNavigator?.removeFromParent()
             self.epubNavigator = nil
+            self.continuousScrollView?.removeFromSuperview()
+            self.continuousScrollView = nil
             self.publication = nil
             self.cachedLocatorJson = nil
             self.cachedTocJson = "[]"
@@ -369,6 +437,17 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     }
 
     func applyReaderPreferences(preferences: IosReaderPreferences) {
+        currentContinuousPrefs = preferences
+        pendingIsContinuousMode = preferences.isContinuousMode
+
+        // If we have a live continuous scroll view, update its preferences in-place.
+        if preferences.isContinuousMode, let csv = continuousScrollView {
+            Task { @MainActor in
+                csv.updatePreferences(preferences)
+            }
+            return
+        }
+
         // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
         // This switch is a Readium-Swift type adapter only — move any string-value logic there.
         let resolvedTheme: Theme? = switch preferences.theme {
