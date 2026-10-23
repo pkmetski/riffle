@@ -81,7 +81,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt') }}
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt', 'iosApp/iosApp/**/*.swift', 'iosApp/iosApp.xcodeproj/project.pbxproj') }}
           restore-keys: |
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
@@ -166,7 +166,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt') }}
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt', 'iosApp/iosApp/**/*.swift', 'iosApp/iosApp.xcodeproj/project.pbxproj') }}
           restore-keys: |
             derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
