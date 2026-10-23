@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.common.FileStore
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
@@ -15,6 +16,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.File
 
 class EpubRepositoryImpl(
     private val catalogRegistry: CatalogRegistry,
@@ -24,7 +26,10 @@ class EpubRepositoryImpl(
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
+    epubFileStore: FileStore,
 ) : JvmEpubRepository {
+
+    private val localPathResolver = EpubLocalPathResolver(epubFileStore, contentCacheAccessStore)
 
     /**
      * Single-flight guard: at most one network fetch may be in flight per (sourceId, itemId).
@@ -47,13 +52,9 @@ class EpubRepositoryImpl(
         // made the opener look under the new row's dir, miss the truly-cached file, and fall into
         // the network branch — surfacing "unable to resolve host" when offline even though the
         // library detail badge (which correctly keys by item.sourceId) said the book was cached.
-        val downloaded = downloadsStore.get(item.sourceId, item.id)
-        val cached = if (downloaded == null) cacheStore.get(item.sourceId, item.id) else null
-        val epubFile = if (downloaded != null) {
-            downloaded
-        } else if (cached != null) {
-            contentCacheAccessStore.markAccessed(contentCacheKey(item))
-            cached
+        val localPath = localPathResolver.resolve(item.sourceId, item.id)
+        val epubFile = if (localPath != null) {
+            File(localPath)
         } else {
             val catalog = catalogRegistry.forSourceId(item.sourceId)
                 ?: return EpubOpenResult.NetworkError(IllegalStateException("No catalog for item"))
@@ -61,10 +62,7 @@ class EpubRepositoryImpl(
                 // Re-check after acquiring: a concurrent openEpub/downloadEpub may have populated
                 // either store while we were waiting for the lock. Reuse those bytes instead of
                 // firing a second HTTP request (Chitanka 429s concurrent fetches for the same IP).
-                downloadsStore.get(item.sourceId, item.id)
-                    ?: cacheStore.get(item.sourceId, item.id)?.also {
-                        contentCacheAccessStore.markAccessed(contentCacheKey(item))
-                    }
+                localPathResolver.resolve(item.sourceId, item.id)?.let { File(it) }
                     ?: try {
                         CatalogFileTransfer.acquire(
                             catalog, item.sourceId, item.id, BookFormat.Epub,

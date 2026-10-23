@@ -33,6 +33,9 @@ class IosSourceFilesCleanerTest {
             NSFileManager.defaultManager.createDirectoryAtPath(base, withIntermediateDirectories = true, attributes = null, error = null)
             return if (relativePath.isEmpty()) base else "$base/$relativePath"
         }
+
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
     }
 
     private fun write(namespace: String, sourceId: String, name: String): String {

@@ -7,8 +7,6 @@ import com.riffle.core.models.LibraryItem
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSFileManager
 
-const val NS_EPUB_DOWNLOADS = "epub-downloads"
-const val NS_EPUB_CACHE = "epub-cache"
 const val NS_PDF_DOWNLOADS = "pdf-downloads"
 const val NS_PDF_CACHE = "pdf-cache"
 const val NS_CBZ_DOWNLOADS = "cbz-downloads"

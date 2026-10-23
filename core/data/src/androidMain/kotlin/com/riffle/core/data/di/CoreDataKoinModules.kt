@@ -732,6 +732,7 @@ private val coreDataRepositoriesModule = module {
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(get(), get(), get()) }
 
     single<JvmEpubRepository> {
+        val ctx = androidContext()
         EpubRepositoryImpl(
             catalogRegistry = get(),
             cacheStore = get(named(EPUB_CACHE_STORE)),
@@ -740,6 +741,10 @@ private val coreDataRepositoriesModule = module {
             sourceRepository = get(),
             localAvailabilityEvents = get(),
             contentCacheAccessStore = get(),
+            epubFileStore = com.riffle.core.data.AndroidEpubFileStore(
+                downloadsDir = ctx.filesDir.resolve("downloads/epubs").also { it.mkdirs() },
+                cacheDir = ctx.cacheDir.resolve("epubs").also { it.mkdirs() },
+            ),
         )
     }
     single<EpubRepository> { get<JvmEpubRepository>() }

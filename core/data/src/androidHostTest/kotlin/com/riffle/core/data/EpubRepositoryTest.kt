@@ -40,6 +40,8 @@ class EpubRepositoryTest {
     val tmp = TemporaryFolder()
 
     private lateinit var source: MockWebServer
+    private lateinit var cacheDir: java.io.File
+    private lateinit var downloadsDir: java.io.File
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePositionStore
@@ -51,8 +53,10 @@ class EpubRepositoryTest {
     fun setUp() {
         source = MockWebServer()
         source.start()
-        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
-        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
+        cacheDir = tmp.newFolder("cache")
+        downloadsDir = tmp.newFolder("downloads")
+        cacheStore = LocalStoreImpl(cacheDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
+        downloadsStore = LocalStoreImpl(downloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePositionStore()
         val sourceRepo = fakeServerRepository(source.url("/").toString().trimEnd('/'))
         repo = EpubRepositoryImpl(
@@ -61,6 +65,7 @@ class EpubRepositoryTest {
             downloadsStore = downloadsStore,
             positionStore = positionStore,
             sourceRepository = sourceRepo,
+            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
     }
 
@@ -170,6 +175,7 @@ class EpubRepositoryTest {
             positionStore = positionStore,
             sourceRepository = fakeServerRepository(source.url("/").toString().trimEnd('/')),
             localAvailabilityEvents = events,
+            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
 
@@ -433,6 +439,7 @@ class EpubRepositoryTest {
             downloadsStore = downloadsStore,
             positionStore = positionStore,
             sourceRepository = sourceRepository,
+            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
 
     @Test

@@ -70,6 +70,9 @@ class IosReadaloudBundleTest {
             full.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }?.let { IosAudiobookFiles.mkdirs(it) }
             return full
         }
+
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
     }
 
     private fun repo(fileStore: FileStore) = IosReadaloudAudioRepositoryImpl(

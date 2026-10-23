@@ -19,4 +19,7 @@ interface FileStore {
      * When [relativePath] is empty, returns the namespace root directory path.
      */
     fun resolve(namespace: String, relativePath: String = ""): String
+
+    /** Returns true when the file at [namespace]/[relativePath] exists on disk. */
+    fun exists(namespace: String, relativePath: String): Boolean
 }
