@@ -118,44 +118,44 @@ final class IosContinuousScrollView: UIView {
 
     func updatePreferences(_ prefs: IosReaderPreferences) {
         currentPrefs = prefs
-        let js = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
-        for (_, wv) in loadedWebViews {
-            wv.evaluateJavaScript(js, completionHandler: nil)
+        let styleJs = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(styleJs, completionHandler: nil)
         }
     }
 
     // MARK: - Window management
 
     private func loadWindow(around centerIndex: Int) {
-        let lo = max(0, centerIndex - windowRadius)
-        let hi = min(spineHrefs.count - 1, centerIndex + windowRadius)
+        let low = max(0, centerIndex - windowRadius)
+        let high = min(spineHrefs.count - 1, centerIndex + windowRadius)
 
         // Evict WebViews outside the new window.
-        let keysToEvict = loadedWebViews.keys.filter { $0 < lo || $0 > hi }
+        let keysToEvict = loadedWebViews.keys.filter { $0 < low || $0 > high }
         for key in keysToEvict {
             loadedWebViews[key]?.removeFromSuperview()
             loadedWebViews.removeValue(forKey: key)
         }
 
-        for idx in lo...hi {
+        for idx in low...high {
             guard loadedWebViews[idx] == nil else { continue }
-            let wv = makeWebView()
-            loadedWebViews[idx] = wv
-            contentContainer.addSubview(wv)
-            positionWebView(wv, at: idx)
-            loadChapter(index: idx, in: wv)
+            let webView = makeWebView()
+            loadedWebViews[idx] = webView
+            contentContainer.addSubview(webView)
+            positionWebView(webView, at: idx)
+            loadChapter(index: idx, in: webView)
         }
     }
 
-    private func positionWebView(_ wv: WKWebView, at index: Int) {
+    private func positionWebView(_ webView: WKWebView, at index: Int) {
         let yPos = slotOffsets[index]
         let cht = slotHeights[index]
-        wv.frame = CGRect(x: 0, y: yPos, width: contentContainer.bounds.width, height: cht)
+        webView.frame = CGRect(x: 0, y: yPos, width: contentContainer.bounds.width, height: cht)
     }
 
     private func updateAllWebViewFrames() {
-        for (index, wv) in loadedWebViews {
-            positionWebView(wv, at: index)
+        for (index, webView) in loadedWebViews {
+            positionWebView(webView, at: index)
         }
     }
 
@@ -173,24 +173,24 @@ final class IosContinuousScrollView: UIView {
         let msgHandler = WeakScriptMessageHandler(target: self)
         config.userContentController.add(msgHandler, name: "riffleChapterHeight")
 
-        let wv = WKWebView(frame: .zero, configuration: config)
-        wv.scrollView.isScrollEnabled = false
-        wv.scrollView.bounces = false
-        wv.isOpaque = false
-        wv.backgroundColor = .clear
-        wv.navigationDelegate = self
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.navigationDelegate = self
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleWebViewTap(_:)))
-        wv.addGestureRecognizer(tapGesture)
-        return wv
+        webView.addGestureRecognizer(tapGesture)
+        return webView
     }
 
-    private func loadChapter(index: Int, in wv: WKWebView) {
+    private func loadChapter(index: Int, in webView: WKWebView) {
         guard index < spineHrefs.count else { return }
         let href = spineHrefs[index]
         let encodedHref = href.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? href
         let urlString = "\(IosContinuousEpubSchemeHandler.scheme)://pub/\(encodedHref)"
         guard let url = URL(string: urlString) else { return }
-        wv.load(URLRequest(url: url))
+        webView.load(URLRequest(url: url))
     }
 
     // MARK: - Height measurement
@@ -234,12 +234,12 @@ final class IosContinuousScrollView: UIView {
     }
 
     private func slotIndexAt(yPos: CGFloat) -> Int {
-        var lo = 0; var hi = slotOffsets.count - 1
-        while lo < hi {
-            let mid = (lo + hi + 1) / 2
-            if slotOffsets[mid] <= yPos { lo = mid } else { hi = mid - 1 }
+        var low = 0; var high = slotOffsets.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if slotOffsets[mid] <= yPos { low = mid } else { high = mid - 1 }
         }
-        return lo
+        return low
     }
 
     private func scrollTo(index: Int, progression: Float) {
@@ -251,9 +251,9 @@ final class IosContinuousScrollView: UIView {
 
     // MARK: - Tap
 
-    @objc private func handleWebViewTap(_ gr: UITapGestureRecognizer) {
-        let pt = gr.location(in: self)
-        onTap?(pt)
+    @objc private func handleWebViewTap(_ gesture: UITapGestureRecognizer) {
+        let tapPt = gesture.location(in: self)
+        onTap?(tapPt)
     }
 
     // MARK: - Layout
@@ -261,8 +261,8 @@ final class IosContinuousScrollView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         outerScrollView.frame = bounds
-        for (index, wv) in loadedWebViews {
-            wv.frame = CGRect(x: 0, y: slotOffsets[index], width: bounds.width, height: slotHeights[index])
+        for (index, webView) in loadedWebViews {
+            webView.frame = CGRect(x: 0, y: slotOffsets[index], width: bounds.width, height: slotHeights[index])
         }
     }
 

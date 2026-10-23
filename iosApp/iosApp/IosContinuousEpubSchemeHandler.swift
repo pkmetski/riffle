@@ -99,7 +99,7 @@ final class IosContinuousEpubSchemeHandler: NSObject, WKURLSchemeHandler {
             throw makeError("Cannot read resource: \(href)")
         }
         let mime = link.mediaType?.string ?? mimeType(for: href)
-        if (mime.contains("html") || mime.contains("xhtml")),
+        if mime.contains("html") || mime.contains("xhtml"),
            let transformer = htmlTransformer,
            let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) {
             data = transformer(href, html).data(using: .utf8) ?? data
