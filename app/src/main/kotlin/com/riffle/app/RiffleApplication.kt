@@ -15,6 +15,7 @@ import com.riffle.core.data.di.coreDataKoinModules
 import com.riffle.core.logging.loggingKoinModule
 import com.riffle.core.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationPullSweep
+import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.PlaylistSweep
@@ -136,6 +137,18 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         // Pull peer annotations into Room on startup so the elided view is populated without
         // requiring each book to be individually opened in the reader.
         applicationScope.launchSurvivable { runCatching { annotationPullSweep.run() } }
+
+        // Re-run the pull sweep whenever a source is added or re-authed (null → non-null
+        // transition on the holder), so the elided view populates immediately without a restart.
+        val holder = get<AnnotationSyncTargetHolder>()
+        applicationScope.launchSurvivable {
+            var prevNull = true
+            holder.observe().collect { target ->
+                val nowNull = target == null
+                if (prevNull && !nowNull) runCatching { annotationPullSweep.run() }
+                prevNull = nowNull
+            }
+        }
 
         // Auto-scan configured LocalFiles folders on app foreground and on SAF change events.
         // Users adding a book to a picked folder never have to hit a manual "Rescan" button.

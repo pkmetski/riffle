@@ -913,7 +913,7 @@ private fun iosLibraryModule(
         val annotationSweeps = get<IosAnnotationSweepEnqueuer>()
         val annotationPullSweep = get<AnnotationPullSweep>()
         val playlistSweep = get<PlaylistSweep>()
-        ForegroundSyncDriver(
+        val driver = ForegroundSyncDriver(
             runProgressSweep = { sweep.run() },
             runAnnotationSweep = {
                 annotationSweeps.runNow()
@@ -922,6 +922,19 @@ private fun iosLibraryModule(
             runPlaylistSweep = { playlistSweep.run() },
             nowMs = get<Clock>()::nowMs,
         )
+        // Re-run the pull sweep whenever a source is added or re-authed mid-session
+        // (null → non-null transition on the holder), so the elided view populates
+        // immediately without waiting for the next app-active event.
+        val holder = get<AnnotationSyncTargetHolder>()
+        get<ApplicationScope>().launchSurvivable {
+            var prevNull = true
+            holder.observe().collect { target ->
+                val nowNull = target == null
+                if (prevNull && !nowNull) runCatching { annotationPullSweep.run() }
+                prevNull = nowNull
+            }
+        }
+        driver
     }
 
     // One IosReadaloudSidecarStore serves both roles, as ReadaloudSidecarStore does on Android.

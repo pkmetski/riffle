@@ -94,6 +94,9 @@ class AnnotationSyncTargetHolder(
      */
     suspend fun awaitFirstLoad() { firstLoad.await() }
 
+    /** Emits the current target whenever it changes. Null means sync is not configured. */
+    fun observe(): kotlinx.coroutines.flow.StateFlow<AnnotationSyncTarget?> = state
+
     /**
      * Synchronous accessor used by [AnnotationSyncController] and friends. Returns null when no
      * target is currently configured; a mid-op rebuild does not invalidate any target reference a
