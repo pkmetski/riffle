@@ -13,6 +13,7 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.FileStore
 import com.riffle.core.data.AndroidDeviceLabelResolver
+import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
@@ -1133,6 +1134,16 @@ private val coreDataSyncModule = module {
             dirtyLedger = get(),
             locks = get(),
             sentinelWriter = get(),
+        )
+    }
+
+    single {
+        val holder = get<AnnotationSyncTargetHolder>()
+        AnnotationPullSweep(
+            targetProvider = { holder.awaitFirstLoad(); holder.current() },
+            syncController = get(),
+            sourceRepository = get(),
+            statusStore = get(),
         )
     }
 

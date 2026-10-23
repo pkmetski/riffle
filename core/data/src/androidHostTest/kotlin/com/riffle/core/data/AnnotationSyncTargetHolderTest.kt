@@ -25,6 +25,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -167,6 +168,110 @@ class AnnotationSyncTargetHolderTest {
         // Different config → different target instance.
         assert(first !== second) { "second config should produce a fresh target" }
     }
+
+    // awaitFirstLoad / observe() tests — covering the startup-race fix.
+
+    @Test
+    fun `awaitFirstLoad resolves after init coroutine fires`() = runTest {
+        val holder = holder()
+        var completed = false
+        val job = launch { holder.awaitFirstLoad(); completed = true }
+        job.join()
+        assertTrue("awaitFirstLoad must complete after the init coroutine's first emission", completed)
+    }
+
+    @Test
+    fun `awaitFirstLoad is idempotent - second call returns immediately`() = runTest {
+        val holder = holder()
+        holder.awaitFirstLoad()
+        var completed = false
+        val job = launch { holder.awaitFirstLoad(); completed = true }
+        job.join()
+        assertTrue(completed)
+    }
+
+    @Test
+    fun `observe emits null initially when no config and no sources`() = runTest {
+        val holder = holder()
+        assertNull("no config and no sources → null target", holder.observe().value)
+    }
+
+    @Test
+    fun `observe emits non-null after config is saved`() = runTest {
+        val holder = holder()
+        configStore.emit(AnnotationSyncConfig("https://dav.example.org/anno", "u", "p"))
+        assertNotNull("config saved → non-null target", holder.observe().value)
+    }
+
+    @Test
+    fun `observe transitions null to non-null when abs source is added mid-session`() = runTest {
+        val mutableSources = MutableSourceRepository()
+        val tokenStorage = InMemoryTokenStorage()
+        val absFactory = AbsBookmarkAnnotationSyncTargetFactory(
+            absBookmarkApi = HolderTestNoopAbsBookmarkApi(),
+            tokenStorage = tokenStorage,
+        )
+        val holder = AnnotationSyncTargetHolder(
+            configStore = configStore,
+            webDavFactory = factory,
+            absBookmarkFactory = absFactory,
+            sourceRepository = mutableSources,
+            scope = scope,
+        )
+
+        assertNull("before any source is added, no target", holder.observe().value)
+
+        val absSource = Source(
+            id = "src-added",
+            url = SourceUrl.parse("http://abs.local")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "user",
+            type = SourceType.ABS,
+            serverType = ServerType.AUDIOBOOKSHELF,
+            absUserId = "abs-user-1",
+        )
+        tokenStorage.savedTokens[absSource.id] = "tok"
+        mutableSources.emit(listOf(absSource))
+
+        assertNotNull("after abs source added with a token, target must be non-null", holder.observe().value)
+    }
+
+    @Test
+    fun `observe transitions non-null to null when source is removed`() = runTest {
+        val mutableSources = MutableSourceRepository()
+        val tokenStorage = InMemoryTokenStorage()
+        val absSource = Source(
+            id = "src-remove",
+            url = SourceUrl.parse("http://abs.local")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "user",
+            type = SourceType.ABS,
+            serverType = ServerType.AUDIOBOOKSHELF,
+            absUserId = "abs-user-2",
+        )
+        tokenStorage.savedTokens[absSource.id] = "tok"
+        mutableSources.emit(listOf(absSource))
+
+        val absFactory = AbsBookmarkAnnotationSyncTargetFactory(
+            absBookmarkApi = HolderTestNoopAbsBookmarkApi(),
+            tokenStorage = tokenStorage,
+        )
+        val holder = AnnotationSyncTargetHolder(
+            configStore = configStore,
+            webDavFactory = factory,
+            absBookmarkFactory = absFactory,
+            sourceRepository = mutableSources,
+            scope = scope,
+        )
+
+        assertNotNull("source present → non-null target", holder.observe().value)
+
+        mutableSources.emit(emptyList())
+
+        assertNull("source removed and no WebDAV config → null target", holder.observe().value)
+    }
 }
 
 private class FakeConfigStore : AnnotationSyncConfigStore {
@@ -215,6 +320,18 @@ private class SingleSourceRepository(private val source: Source) : SourceReposit
     private val state = MutableStateFlow(listOf(source))
     override fun observeAll(): Flow<List<Source>> = state
     override suspend fun getActive(): Source? = source
+    override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+        CommitSourceResult.Failure(UnsupportedOperationException())
+    override suspend fun setActive(sourceId: String) {}
+    override suspend fun remove(sourceId: String) {}
+    override suspend fun getSourceVersion(sourceId: String): String? = null
+}
+
+private class MutableSourceRepository : SourceRepository {
+    private val state = MutableStateFlow<List<Source>>(emptyList())
+    fun emit(sources: List<Source>) { state.value = sources }
+    override fun observeAll(): Flow<List<Source>> = state
+    override suspend fun getActive(): Source? = state.value.firstOrNull { it.isActive }
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
         CommitSourceResult.Failure(UnsupportedOperationException())
     override suspend fun setActive(sourceId: String) {}

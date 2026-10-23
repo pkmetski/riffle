@@ -13,6 +13,7 @@ import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
+import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
@@ -463,6 +464,15 @@ private fun iosLibraryModule(
         IosAnnotationSweepEnqueuer(scope = get<ApplicationScope>(), runSweep = { sweep.run() })
     }
     single<AnnotationSweepEnqueuer> { get<IosAnnotationSweepEnqueuer>() }
+    single {
+        val holder = get<AnnotationSyncTargetHolder>()
+        AnnotationPullSweep(
+            targetProvider = { holder.awaitFirstLoad(); holder.current() },
+            syncController = get(),
+            sourceRepository = get(),
+            statusStore = get(),
+        )
+    }
     // Runs the real ProgressSweep the moment a source's sync config is saved, so anything that
     // went dirty while the source was misconfigured is pushed without waiting for the next
     // launch. Android's equivalent enqueues ProgressSyncScheduler.sweepNow (#1071 §14).
@@ -901,13 +911,32 @@ private fun iosLibraryModule(
         // Through the enqueuer so the driver's pass and an on-demand enqueue never run the
         // annotation sweep concurrently.
         val annotationSweeps = get<IosAnnotationSweepEnqueuer>()
+        val annotationPullSweep = get<AnnotationPullSweep>()
         val playlistSweep = get<PlaylistSweep>()
-        ForegroundSyncDriver(
+        val driver = ForegroundSyncDriver(
             runProgressSweep = { sweep.run() },
-            runAnnotationSweep = { annotationSweeps.runNow() },
+            runAnnotationSweep = {
+                annotationSweeps.runNow()
+                runCatching { annotationPullSweep.run() }
+            },
             runPlaylistSweep = { playlistSweep.run() },
             nowMs = get<Clock>()::nowMs,
         )
+        // Re-run the pull sweep whenever a source is added or re-authed mid-session
+        // (null → non-null transition on the holder), so the elided view populates
+        // immediately without waiting for the next app-active event.
+        val holder = get<AnnotationSyncTargetHolder>()
+        get<ApplicationScope>().launchSurvivable {
+            // Start with prevNull=false so the initial startup null→non-null (already handled
+            // by ForegroundSyncDriver's first-active sweep) does not fire a duplicate run.
+            var prevNull = false
+            holder.observe().collect { target ->
+                val nowNull = target == null
+                if (prevNull && !nowNull) runCatching { annotationPullSweep.run() }
+                prevNull = nowNull
+            }
+        }
+        driver
     }
 
     // One IosReadaloudSidecarStore serves both roles, as ReadaloudSidecarStore does on Android.

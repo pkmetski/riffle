@@ -14,6 +14,8 @@ import com.riffle.app.di.riffleViewModelKoinModules
 import com.riffle.core.data.di.coreDataKoinModules
 import com.riffle.core.logging.loggingKoinModule
 import com.riffle.core.sync.kickSweepsOnReconnect
+import com.riffle.core.data.AnnotationPullSweep
+import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.PlaylistSweep
@@ -118,15 +120,38 @@ class RiffleApplication : Application(), SingletonImageLoader.Factory {
         // validated edge is authoritative.
         val connectivity = get<com.riffle.core.domain.ConnectivityObserver>()
         val annotationSweep = get<AnnotationSweep>()
+        val annotationPullSweep = get<AnnotationPullSweep>()
         val progressSweep = get<ProgressSweep>()
         val playlistSweep = get<PlaylistSweep>()
         applicationScope.launchSurvivable {
             kickSweepsOnReconnect(
                 isOnline = connectivity.isOnline,
                 runProgressSweep = { runCatching { progressSweep.run() } },
-                runAnnotationSweep = { runCatching { annotationSweep.run() } },
+                runAnnotationSweep = {
+                    runCatching { annotationSweep.run() }
+                    runCatching { annotationPullSweep.run() }
+                },
                 runPlaylistSweep = { runCatching { playlistSweep.run() } },
             )
+        }
+        // Pull peer annotations into Room on startup so the elided view is populated without
+        // requiring each book to be individually opened in the reader.
+        applicationScope.launchSurvivable { runCatching { annotationPullSweep.run() } }
+
+        // Re-run the pull sweep whenever a source is added or re-authed (null → non-null
+        // transition on the holder), so the elided view populates immediately without a restart.
+        val holder = get<AnnotationSyncTargetHolder>()
+        applicationScope.launchSurvivable {
+            // Start with prevNull=false so the initial null→non-null at startup (which the
+            // explicit launchSurvivable above already handles) does not fire a second sweep.
+            // Only genuine mid-session additions (prevNull=true after a null seen at runtime)
+            // trigger an extra run.
+            var prevNull = false
+            holder.observe().collect { target ->
+                val nowNull = target == null
+                if (prevNull && !nowNull) runCatching { annotationPullSweep.run() }
+                prevNull = nowNull
+            }
         }
 
         // Auto-scan configured LocalFiles folders on app foreground and on SAF change events.

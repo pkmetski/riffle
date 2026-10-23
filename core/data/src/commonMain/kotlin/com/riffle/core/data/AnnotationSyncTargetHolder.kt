@@ -9,6 +9,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -63,6 +64,18 @@ class AnnotationSyncTargetHolder(
         },
     )
 
+    /**
+     * Signals when the first source-driven rebuild of [state] has completed. The constructor seeds
+     * with [sources = emptyList()] to avoid a Room read on the main thread; the init coroutine
+     * fires quickly and completes this deferred. Callers that must not race startup (e.g.
+     * [AnnotationPullSweep]) await this before reading [current].
+     *
+     * Declared before the `init` block so it is always initialized before the launched coroutine
+     * can call [CompletableDeferred.complete] — on fast (unconfined) test dispatchers the coroutine
+     * may run inline during construction, and a lateinit or post-init declaration would NPE.
+     */
+    private val firstLoad: CompletableDeferred<Unit> = CompletableDeferred()
+
     init {
         scope.launch {
             combine(
@@ -70,12 +83,28 @@ class AnnotationSyncTargetHolder(
                 sourceRepository.observeAll(),
             ) { webDavConfig, sources -> webDavConfig to sources }
                 .collectLatest { (webDavConfig, sources) ->
-                    // `collectLatest` cancels an in-flight buildTarget when a newer config arrives,
-                    // so a slow token read can never write a stale target on top of a fresh one.
-                    state.value = buildTarget(webDavConfig, sources)
+                    try {
+                        // `collectLatest` cancels an in-flight buildTarget when a newer config
+                        // arrives, so a slow token read can never write a stale target on top of
+                        // a fresh one.
+                        state.value = buildTarget(webDavConfig, sources)
+                    } finally {
+                        // Complete even if buildTarget throws so awaitFirstLoad never deadlocks.
+                        firstLoad.complete(Unit)
+                    }
                 }
         }
     }
+
+    /**
+     * Suspends until the [init] coroutine has completed its first build from real sources.
+     * Resolves within milliseconds of startup (first Room emission). Subsequent calls return
+     * immediately — [CompletableDeferred.complete] is idempotent.
+     */
+    suspend fun awaitFirstLoad() { firstLoad.await() }
+
+    /** Emits the current target whenever it changes. Null means sync is not configured. */
+    fun observe(): kotlinx.coroutines.flow.StateFlow<AnnotationSyncTarget?> = state
 
     /**
      * Synchronous accessor used by [AnnotationSyncController] and friends. Returns null when no

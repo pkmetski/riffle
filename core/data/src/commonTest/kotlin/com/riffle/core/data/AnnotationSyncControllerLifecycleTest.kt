@@ -3,9 +3,11 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.DirtySourceItem
+import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
+import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.NamespaceDeviceListing
@@ -1005,6 +1007,59 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals(1, enqueuer.enqueueCalls)
     }
 
+    // ===== pullAll =====
+
+    @Test
+    fun pullAllIsNoopWhenTargetIsNull() = runTest {
+        currentTarget = null
+
+        newController().pullAll(SRV, NS)
+
+        assertTrue(dao.upserts.isEmpty())
+    }
+
+    @Test
+    fun pullAllMergesPeerAnnotationsSkippingOwnDevice() = runTest {
+        target.files["annotations-peer-B.jsonld"] = jsonArrayOf(
+            w3c("ann-from-B", updatedAt = 100L, deviceId = "dev-B"),
+        )
+        // Simulate enumerateDevices returning one peer device and one own-device entry.
+        target.deviceListingOverride = NamespaceDeviceListing(
+            listOf(
+                DeviceFileSummary("dev-B", listOf(com.riffle.core.domain.AnnotationFileRef(ITEM, "annotations-peer-B.jsonld"))),
+                DeviceFileSummary(DEVICE_ID, listOf(com.riffle.core.domain.AnnotationFileRef(ITEM, "annotations-$DEVICE_ID.jsonld"))),
+            ),
+        )
+
+        newController().pullAll(SRV, NS)
+
+        assertEquals(setOf("ann-from-B"), dao.upserts.map { it.id }.toSet())
+    }
+
+    @Test
+    fun pullAllMergesFilesAcrossMultipleItems() = runTest {
+        target.files["annotations-peer.jsonld"] = jsonArrayOf(
+            w3c("ann-1", updatedAt = 10L, deviceId = "dev-B"),
+        )
+        target.deviceListingOverride = NamespaceDeviceListing(
+            listOf(
+                DeviceFileSummary(
+                    "dev-B",
+                    listOf(
+                        com.riffle.core.domain.AnnotationFileRef("item-A", "annotations-peer.jsonld"),
+                        com.riffle.core.domain.AnnotationFileRef("item-B", "annotations-peer.jsonld"),
+                    ),
+                ),
+            ),
+        )
+
+        newController().pullAll(SRV, NS)
+
+        val items = dao.upserts.map { it.itemId }.toSet()
+        assertTrue("item-A" in items)
+        assertTrue("item-B" in items)
+    }
+
     private class RecordingEnqueuer : AnnotationSweepEnqueuer {
         var enqueueCalls = 0
         override fun enqueue() {
@@ -1030,6 +1085,7 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     var failNextList: Boolean = false
     var writeException: Throwable? = null
     var deleteException: Throwable? = null
+    var deviceListingOverride: NamespaceDeviceListing? = null
 
     data class Write(val namespace: String, val itemId: String, val filename: String, val content: String)
     data class Delete(val namespace: String, val itemId: String, val filename: String)
@@ -1063,7 +1119,8 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
         deviceMetaWrites += DeviceMetaWrite(namespace, deviceId, content)
     }
     override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {}
-    override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
+    override suspend fun enumerateDevices(namespace: String) =
+        deviceListingOverride ?: NamespaceDeviceListing(emptyList())
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
     override suspend fun forgetNamespace(namespace: String): Int = 0
 }
