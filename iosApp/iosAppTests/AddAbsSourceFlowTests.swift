@@ -130,6 +130,11 @@ final class AddAbsSourceFlowTests: XCTestCase {
 
         let connect = revealConnectButton(in: app)
         XCTAssertTrue(connect.exists, "Connect button must be reachable once fields are filled")
+        // Compose form validation propagates asynchronously; wait for the button to become
+        // enabled rather than asserting the property immediately after the last keystroke.
+        let enabledPredicate = NSPredicate(format: "isEnabled == true")
+        let connectEnabled = XCTNSPredicateExpectation(predicate: enabledPredicate, object: connect)
+        wait(for: [connectEnabled], timeout: 5.0)
         XCTAssertTrue(connect.isEnabled, "Connect must be enabled once all fields are filled")
         connect.tap()
 
