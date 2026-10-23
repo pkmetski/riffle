@@ -48,12 +48,16 @@ enum class AutoScrollStall {
  */
 class ContinuousBoundaryAdvancePolicy(
     private val cooldownMs: Long = DEFAULT_COOLDOWN_MS,
+    private val shortChapterDwellMs: Long = SHORT_CHAPTER_DWELL_MS,
 ) {
     private var sawForward = false
     private var sawBackward = false
     // Null rather than a sentinel: `nowMs - Long.MIN_VALUE` overflows back to a negative number,
     // which reads as "still inside the cooldown" and disables the policy for the whole session.
     private var lastAdvanceMs: Long? = null
+    // When both boundaries are true simultaneously (chapter shorter than viewport), tracks when
+    // we first entered that state so we can auto-advance after a dwell rather than blocking forever.
+    private var shortChapterDwellEnteredMs: Long? = null
 
     /**
      * @param orientation the *effective* reading orientation.
@@ -77,14 +81,23 @@ class ContinuousBoundaryAdvancePolicy(
         }
         // A resource shorter than the viewport reports BOTH boundaries at once and never leaves
         // either, so an edge-trigger alone would not save us: the first probe after it loads is a
-        // rising edge on both. Advancing there would walk the whole publication in one frame —
-        // a copyright page, a part-title page and a short dedication in a row is enough. The
-        // reader crosses those with an ordinary page turn instead.
+        // rising edge on both. Advancing immediately would walk the whole publication in one frame.
+        // Instead, hold for a dwell period so the reader can see the chapter's content, then
+        // cross forward (or backward when at the end of the book).
         if (boundary.atForwardBoundary && boundary.atBackwardBoundary) {
+            val dwellStart = shortChapterDwellEnteredMs ?: nowMs.also { shortChapterDwellEnteredMs = it }
             sawForward = true
             sawBackward = true
-            return BoundaryAdvance.None
+            if (nowMs - dwellStart < shortChapterDwellMs) return BoundaryAdvance.None
+            shortChapterDwellEnteredMs = null
+            lastAdvanceMs = nowMs
+            return when {
+                canGoForward -> BoundaryAdvance.Forward
+                canGoBackward -> BoundaryAdvance.Backward
+                else -> BoundaryAdvance.None
+            }
         }
+        shortChapterDwellEnteredMs = null
 
         val risingForward = boundary.atForwardBoundary && !sawForward
         val risingBackward = boundary.atBackwardBoundary && !sawBackward
@@ -121,6 +134,7 @@ class ContinuousBoundaryAdvancePolicy(
     fun suppressUntilTheReaderLeavesTheBoundary() {
         sawForward = true
         sawBackward = true
+        shortChapterDwellEnteredMs = null
     }
 
     companion object {
@@ -130,6 +144,13 @@ class ContinuousBoundaryAdvancePolicy(
          * straight through a one-screen chapter is not blocked at its end.
          */
         const val DEFAULT_COOLDOWN_MS: Long = 700L
+
+        /**
+         * How long the reader dwells on a chapter shorter than the viewport before the policy
+         * auto-advances them forward. Long enough to read the chapter content (copyright page,
+         * part title, dedication); short enough that the reader is not waiting noticeably.
+         */
+        const val SHORT_CHAPTER_DWELL_MS: Long = 1_500L
     }
 }
 

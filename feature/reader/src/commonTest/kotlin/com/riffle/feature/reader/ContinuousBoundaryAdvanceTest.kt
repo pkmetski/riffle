@@ -92,13 +92,63 @@ class ContinuousBoundaryAdvanceTest {
     }
 
     @Test
-    fun aResourceShorterThanTheViewportDoesNotCascade() {
-        // A copyright page, a part title and a dedication in a row all report both boundaries at
-        // once and never leave either. Advancing on that walks the publication in one frame.
-        val policy = ContinuousBoundaryAdvancePolicy()
+    fun aResourceShorterThanTheViewportAutoAdvancesForwardAfterDwell() {
+        // A copyright page shorter than the viewport reports both boundaries simultaneously. The
+        // policy must not cascade (advance immediately, walking the whole book in one frame), but
+        // must also not block forever — after the dwell period the reader crosses forward.
+        val policy = ContinuousBoundaryAdvancePolicy(shortChapterDwellMs = 100L)
         assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 0))
-        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 5_000))
-        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 50_000))
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 99))
+        assertEquals(BoundaryAdvance.Forward, policy.decideAt(bothEnds, 100))
+    }
+
+    @Test
+    fun consecutiveShortChaptersEachRequireTheirOwnDwellBeforeAdvancing() {
+        // Three short chapters back-to-back must each cost a full dwell — no cascade to the next
+        // one the moment the current one fires.
+        val policy = ContinuousBoundaryAdvancePolicy(shortChapterDwellMs = 100L)
+        // First short chapter advances at t=100
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 0))
+        assertEquals(BoundaryAdvance.Forward, policy.decideAt(bothEnds, 100))
+        // After the advance, another bothEnds probe (still loading next chapter) starts a new dwell
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 101))
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 200))
+        assertEquals(BoundaryAdvance.Forward, policy.decideAt(bothEnds, 201))
+    }
+
+    @Test
+    fun aShortChapterAtTheEndOfTheBookAdvancesBackwardAfterDwell() {
+        // Last chapter is short: canGoForward=false, so after the dwell it goes backward instead.
+        val policy = ContinuousBoundaryAdvancePolicy(shortChapterDwellMs = 100L)
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 0, canGoForward = false))
+        assertEquals(BoundaryAdvance.Backward, policy.decideAt(bothEnds, 100, canGoForward = false))
+    }
+
+    @Test
+    fun aShortChapterAtBothEdgesOfTheBookDoesNotAdvance() {
+        // Single-chapter book that is shorter than the viewport — nothing to advance to.
+        val policy = ContinuousBoundaryAdvancePolicy(shortChapterDwellMs = 100L)
+        assertEquals(
+            BoundaryAdvance.None,
+            policy.decideAt(bothEnds, 100, canGoForward = false, canGoBackward = false),
+        )
+    }
+
+    @Test
+    fun aTocJumpToAShortChapterRestartsTheDwell() {
+        // Navigating via TOC to a short chapter (suppressUntilTheReaderLeavesTheBoundary) must
+        // reset the dwell timer — otherwise a dwell started before the TOC tap would fire
+        // immediately on the new chapter and advance past it.
+        val policy = ContinuousBoundaryAdvancePolicy(shortChapterDwellMs = 100L)
+        // Start dwell on a short chapter at t=0 — without the reset, advance would fire at t=100
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 0))
+        // TOC tap at conceptual t=90 resets the dwell timer
+        policy.suppressUntilTheReaderLeavesTheBoundary()
+        // First probe after the reset at t=95 starts a fresh dwell from 95
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 95))
+        // Advance fires 100 ms after the NEW dwell started (at t=95), so at t=195
+        assertEquals(BoundaryAdvance.None, policy.decideAt(bothEnds, 194))
+        assertEquals(BoundaryAdvance.Forward, policy.decideAt(bothEnds, 195))
     }
 
     @Test
