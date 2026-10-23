@@ -88,6 +88,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
                 textColorArgb = 0L,
                 publisherStyles = false,
                 columnCount = 0,
+                isContinuousMode = false,
             )
         }
         return nav
