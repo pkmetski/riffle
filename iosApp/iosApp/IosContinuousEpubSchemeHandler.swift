@@ -121,8 +121,8 @@ final class IosContinuousEpubSchemeHandler: NSObject, WKURLSchemeHandler {
 
     private func readiumNavigatorBundle() -> Bundle {
         if let url = Bundle.main.url(forResource: "Readium_ReadiumNavigator", withExtension: "bundle"),
-           let b = Bundle(url: url) {
-            return b
+           let bundle = Bundle(url: url) {
+            return bundle
         }
         return Bundle(for: EPUBNavigatorViewController.self)
     }

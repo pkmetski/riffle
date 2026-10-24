@@ -99,10 +99,10 @@ final class IosContinuousScrollView: UIView {
         outerScrollView.addGestureRecognizer(tapRecognizer)
     }
 
-    @objc private func handleScrollViewTap(_ g: UITapGestureRecognizer) {
-        let tapInScrollView = g.location(in: outerScrollView)
+    @objc private func handleScrollViewTap(_ gesture: UITapGestureRecognizer) {
+        let tapInScrollView = gesture.location(in: outerScrollView)
         let absoluteY = tapInScrollView.y + outerScrollView.contentOffset.y
-        let tapInSelf = g.location(in: self)
+        let tapInSelf = gesture.location(in: self)
 
         // Find which chapter slot the tap landed in.
         let idx = slotIndexAt(yPos: absoluteY)
@@ -131,7 +131,7 @@ final class IosContinuousScrollView: UIView {
         """
         webView.evaluateJavaScript(js) { [weak self] result, _ in
             guard let self else { return }
-            if let s = result as? String, s == "interactive" { return }
+            if let hitType = result as? String, hitType == "interactive" { return }
             self.onTap?(tapInSelf)
         }
     }
