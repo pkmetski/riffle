@@ -122,8 +122,9 @@ internal fun immersiveSystemBarsBehavior(sdkInt: Int): Int =
 class ImmersiveModeState internal constructor(
     private val controller: SystemBarsController,
     private val clock: () -> Long,
+    initialIsImmersive: Boolean = false,
 ) {
-    var isImmersive by mutableStateOf(false)
+    var isImmersive by mutableStateOf(initialIsImmersive)
         internal set
 
     // Distinct from isImmersive (TopAppBar visibility): tracks whether controller.hide()
@@ -231,6 +232,14 @@ class ImmersiveModeState internal constructor(
             controller.hide()
             return
         }
+        if (isImmersive) {
+            // isImmersive=true but systemBarsHidden=false: initialization race — state was seeded
+            // immersive but controller.hide() hasn't fired from LaunchedEffect(state) yet.
+            // Re-hide now and record it so LaunchedEffect's subsequent hide() is idempotent.
+            systemBarsHidden = true
+            controller.hide()
+            return
+        }
         systemBarsHidden = false
         isImmersive = false
     }
@@ -263,12 +272,12 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     // Only updated by user-initiated toggle()s — NOT by onBarsRestoredExternally().
     var savedIsImmersive by rememberSaveable { mutableStateOf(true) }
 
-    // isImmersive is set synchronously on state creation so the first composition frame
-    // never renders the strip when the user was in immersive mode before rotation.
+    // initialIsImmersive seeds the mutableStateOf so the very first composition frame already
+    // has isImmersive=true when the user was in immersive mode before rotation — no strip flash.
+    // Using a constructor param (not a write inside remember) avoids a mutableStateOf mutation
+    // during the composition phase, which would trigger an extra invalidation cycle.
     val state = remember(controller) {
-        ImmersiveModeState(controller, clock = SystemClock::elapsedRealtime).also {
-            if (savedIsImmersive) it.isImmersive = true
-        }
+        ImmersiveModeState(controller, clock = SystemClock::elapsedRealtime, initialIsImmersive = savedIsImmersive)
     }
 
     // Wire the user-toggle callback into savedIsImmersive after every recomposition.

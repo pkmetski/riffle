@@ -131,6 +131,11 @@ fun AppShell(
     var destination by remember { mutableStateOf<HomeViewModel.StartDestination?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     var activeLibraryId by remember { mutableStateOf<String?>(null) }
+    // Hoisted here (not inside LibraryHost) so the stack survives the ModalNavigationDrawer ↔
+    // PermanentNavigationDrawer switch that RiffleNavigationDrawer performs on rotation. When the
+    // drawer type changes, the content lambda is remounted, losing any remember state inside it.
+    // Keeping navStack in AppShell (which is never remounted during a drawer switch) preserves it.
+    var libraryNavStack by remember(activeLibraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
     var isInReaderDestination by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var pendingLibraryNav by remember { mutableStateOf<LibraryNav?>(null) }
@@ -603,6 +608,8 @@ fun AppShell(
                             onReaderActiveChanged = { isInReaderDestination = it },
                             pendingNav = pendingLibraryNav,
                             onPendingNavHandled = { pendingLibraryNav = null },
+                            navStack = libraryNavStack,
+                            onNavStackChange = { libraryNavStack = it },
                             slots = slots,
                         )
                     }
@@ -622,9 +629,10 @@ internal fun LibraryHost(
     onReaderActiveChanged: (Boolean) -> Unit,
     pendingNav: LibraryNav? = null,
     onPendingNavHandled: () -> Unit,
+    navStack: List<LibraryNav>,
+    onNavStackChange: (List<LibraryNav>) -> Unit,
     slots: AppShellSlots,
 ) {
-    var navStack by remember(libraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
     val playIntentRegistry = koinInject<AudiobookPlayIntentRegistry>()
@@ -651,16 +659,16 @@ internal fun LibraryHost(
     LaunchedEffect(pendingNav) {
         val nav = pendingNav ?: return@LaunchedEffect
         if (!isAlreadyAtPlayerDestination(navStack, nav)) {
-            navStack = navStack + nav
+            onNavStackChange(navStack + nav)
         }
         onPendingNavHandled()
     }
 
     fun push(dest: LibraryNav) {
-        navStack = navStack + dest
+        onNavStackChange(navStack + dest)
     }
     fun pop() {
-        navStack = navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) }
+        onNavStackChange(navStack.dropLast(1).ifEmpty { listOf(LibraryNav.Items) })
     }
 
     BackHandler(enabled = navStack.size > 1, onBack = ::pop)
@@ -711,7 +719,7 @@ internal fun LibraryHost(
                                 result.annotation.cfi,
                                 result.annotation.progression,
                             )
-                            navStack = reduceNavStack(
+                            onNavStackChange(reduceNavStack(
                                 NavigationIntent.OpenAnnotationReader(
                                     itemId = result.annotation.itemId,
                                     sourceId = result.annotation.sourceId.ifEmpty { null },
@@ -720,15 +728,15 @@ internal fun LibraryHost(
                                     annotationId = result.annotation.id,
                                 ),
                                 navStack,
-                            )
+                            ))
                         },
                         onAudiobookBookmarkSelected = { result ->
                             playIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
                             val bookmarkSourceId = result.bookmark.sourceId.ifEmpty { null }
-                            navStack = reduceNavStack(
+                            onNavStackChange(reduceNavStack(
                                 NavigationIntent.OpenAudiobookBookmark(result.bookmark.itemId, bookmarkSourceId, result.bookmark.positionSec),
                                 navStack,
-                            )
+                            ))
                         },
                         onSeriesSelected = { series ->
                             push(LibraryNav.SeriesDetail(seriesId = series.id, seriesLibraryId = series.libraryId, seriesName = series.name))
@@ -775,7 +783,7 @@ internal fun LibraryHost(
                     val newStack = reduceNavStack(NavigationIntent.ReadItem(item), navStack)
                     if (newStack.size > navStack.size) {
                         applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        navStack = newStack
+                        onNavStackChange(newStack)
                     }
                 },
                 onListen = { item ->
@@ -783,14 +791,14 @@ internal fun LibraryHost(
                     val newStack = reduceNavStack(NavigationIntent.ListenItem(item), navStack)
                     if (newStack.size > navStack.size) {
                         applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        navStack = newStack
+                        onNavStackChange(newStack)
                     }
                 },
                 onReadItemAtHref = { item, href ->
                     val newStack = reduceNavStack(NavigationIntent.ReadItemAtHref(item, href), navStack)
                     if (newStack.size > navStack.size) {
                         applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        navStack = newStack
+                        onNavStackChange(newStack)
                     }
                 },
                 onListenItemAtSec = { item, sec ->
@@ -798,7 +806,7 @@ internal fun LibraryHost(
                     val newStack = reduceNavStack(NavigationIntent.ListenItemAtSec(item, sec), navStack)
                     if (newStack.size > navStack.size) {
                         applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        navStack = newStack
+                        onNavStackChange(newStack)
                     }
                 },
                 onNavigateToSeries = { libId, seriesId, seriesName ->
@@ -855,7 +863,7 @@ internal fun LibraryHost(
                     .firstOrNull { it.id == nextItemId }
                 playIntentRegistry.recordIntent(context.item.sourceId, nextItemId)
                 val nextNav = playlistAdvanceNav(next, context)
-                navStack = navStack.dropLast(1) + nextNav
+                onNavStackChange(navStack.dropLast(1) + nextNav)
             }
             slots.readerHost(
                 current,
@@ -863,13 +871,13 @@ internal fun LibraryHost(
                     onBack = ::pop,
                     onSwitchToAudiobook = {
                         val readerDest = current as? LibraryNav.Reader ?: return@ReaderHostActions
-                        navStack = navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item)
+                        onNavStackChange(navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item))
                     },
                     onOpenInBook = { locatorJson ->
-                        navStack = navStack.dropLast(1) + LibraryNav.Reader(
+                        onNavStackChange(navStack.dropLast(1) + LibraryNav.Reader(
                             item = current.item,
                             initialLocatorJson = locatorJson,
-                        )
+                        ))
                     },
                 ),
                 PlayerHostActions(
@@ -878,7 +886,7 @@ internal fun LibraryHost(
                     onSwitchToReadaloud = { ebookItemId, atSec ->
                         scope.launch {
                             val item = libraryObserver.getItem(ebookItemId) ?: return@launch
-                            navStack = navStack + LibraryNav.Reader(item, startReadaloudAtSec = atSec)
+                            onNavStackChange(navStack + LibraryNav.Reader(item, startReadaloudAtSec = atSec))
                         }
                     },
                 ),
