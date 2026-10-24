@@ -1935,7 +1935,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 75, true,
+            TEST_DB, 76, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -2010,6 +2010,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_72_73,
             RiffleDatabase.MIGRATION_73_74,
             RiffleDatabase.MIGRATION_74_75,
+            RiffleDatabase.MIGRATION_75_76,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3402,6 +3403,33 @@ class MigrationTest {
                 assertTrue(c.moveToFirst())
                 assertEquals(0.42f, c.getFloat(0), 0.0001f)
                 assertEquals("new column defaults to 0", 0L, c.getLong(1))
+            }
+        }
+    }
+
+    @Test
+    fun migration75To76_addsShowChapterMapAndShowPageProgressToComicFormatting() {
+        helper.createDatabase(TEST_DB, 75).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO book_comic_formatting_preferences (source_id, item_id, panel_view_on, panel_overflow, panel_animation_speed_ms, background_theme) " +
+                    "VALUES ('src1', 'item1', 1, 'SPLIT', 250, 'Dark')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 76, true, RiffleDatabase.MIGRATION_75_76
+        ).use { db ->
+            db.query(
+                "SELECT panel_view_on, show_chapter_map, show_page_progress FROM book_comic_formatting_preferences WHERE source_id = 'src1' AND item_id = 'item1'"
+            ).use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals(1, c.getInt(0))
+                assertEquals("show_chapter_map defaults to null", true, c.isNull(1))
+                assertEquals("show_page_progress defaults to null", true, c.isNull(2))
             }
         }
     }

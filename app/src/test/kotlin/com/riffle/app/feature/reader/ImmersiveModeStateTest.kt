@@ -314,6 +314,38 @@ class ImmersiveModeStateTest {
     }
 
     @Test
+    fun `initialIsImmersive true seeds isImmersive without calling controller`() {
+        // On rotation rememberImmersiveModeState recreates state from remember(controller), seeding
+        // isImmersive via the constructor so the first composition frame never flashes the toolbar.
+        // The constructor must not call controller.hide() — that comes from LaunchedEffect(state).
+        val freshController = FakeController()
+        val seeded = ImmersiveModeState(freshController, clock = { nowMs }, initialIsImmersive = true)
+
+        assertTrue(seeded.isImmersive)
+        assertFalse(seeded.systemBarsHiddenForTest)
+        assertEquals(0, freshController.hideCount) // LaunchedEffect fires this, not the constructor
+    }
+
+    @Test
+    fun `onBarsRestoredExternally initialization race re-hides when isImmersive but systemBarsHidden false`() {
+        // Race: state seeded with isImmersive=true but LaunchedEffect(state).hide() hasn't run yet.
+        // The topInset watcher may fire onBarsRestoredExternally in that window. Without this branch
+        // the bars would remain visible (systemBarsHidden=false gates the early return in the first
+        // branch). With the branch we re-hide and mark systemBarsHidden so the subsequent hide() is
+        // idempotent.
+        val freshController = FakeController()
+        val seeded = ImmersiveModeState(freshController, clock = { nowMs }, initialIsImmersive = true)
+        // systemBarsHidden is still false — LaunchedEffect hasn't fired yet.
+        assertFalse(seeded.systemBarsHiddenForTest)
+
+        seeded.onBarsRestoredExternally()
+
+        assertTrue(seeded.isImmersive)
+        assertTrue(seeded.systemBarsHiddenForTest)
+        assertEquals(1, freshController.hideCount) // initialization race re-hid
+    }
+
+    @Test
     fun `sleep-resume flow keeps nav bar hidden when immersive before sleep`() {
         // Reproduces the bug scenario:
         //   1. User is immersive (bars hidden via controller.hide()).

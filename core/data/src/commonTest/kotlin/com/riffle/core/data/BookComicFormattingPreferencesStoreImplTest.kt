@@ -165,4 +165,66 @@ class BookComicFormattingPreferencesStoreImplTest {
 
         assertEquals("Dark", saved?.backgroundTheme)
     }
+
+    @Test fun showPageProgressIsRoundTrippedThroughEntity() = runTest {
+        val entity = BookComicFormattingPreferencesEntity(
+            sourceId = "src", itemId = "item",
+            backgroundTheme = null,
+            panelViewOn = null, panelOverflow = null,
+            panelAnimationSpeedMs = null,
+            showChapterMap = null,
+            showPageProgress = true,
+        )
+        val result = storeWith(entity).overrides("src::item").first()
+        assertEquals(true, result.showPageProgress)
+        assertNull(result.showChapterMap)
+    }
+
+    @Test fun showChapterMapIsRoundTrippedThroughEntity() = runTest {
+        val entity = BookComicFormattingPreferencesEntity(
+            sourceId = "src", itemId = "item",
+            backgroundTheme = null,
+            panelViewOn = null, panelOverflow = null,
+            panelAnimationSpeedMs = null,
+            showChapterMap = true,
+            showPageProgress = null,
+        )
+        val result = storeWith(entity).overrides("src::item").first()
+        assertEquals(true, result.showChapterMap)
+        assertNull(result.showPageProgress)
+    }
+
+    @Test fun saveWritesShowPageProgressOverrideIntoEntity() = runTest {
+        var saved: BookComicFormattingPreferencesEntity? = null
+        val dao = object : BookComicFormattingPreferencesDao {
+            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) { saved = entity }
+            override suspend fun getByItemId(sourceId: String, itemId: String) = null
+            override suspend fun deleteByItemId(sourceId: String, itemId: String) {}
+        }
+
+        BookComicFormattingPreferencesStoreImpl(dao).save(
+            "src::item",
+            BookComicFormattingOverrides(showPageProgress = true),
+        )
+
+        assertEquals(true, saved?.showPageProgress)
+        assertNull(saved?.showChapterMap)
+    }
+
+    @Test fun saveWritesShowChapterMapOverrideIntoEntity() = runTest {
+        var saved: BookComicFormattingPreferencesEntity? = null
+        val dao = object : BookComicFormattingPreferencesDao {
+            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) { saved = entity }
+            override suspend fun getByItemId(sourceId: String, itemId: String) = null
+            override suspend fun deleteByItemId(sourceId: String, itemId: String) {}
+        }
+
+        BookComicFormattingPreferencesStoreImpl(dao).save(
+            "src::item",
+            BookComicFormattingOverrides(showChapterMap = true),
+        )
+
+        assertEquals(true, saved?.showChapterMap)
+        assertNull(saved?.showPageProgress)
+    }
 }

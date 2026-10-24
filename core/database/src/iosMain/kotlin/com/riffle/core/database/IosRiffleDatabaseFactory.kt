@@ -54,7 +54,10 @@ fun openRiffleDatabase(path: String): RiffleDatabaseAccess {
         newPath
     }
     val db = Room.databaseBuilder<RiffleDatabase>(name = absolutePath)
-        .addMigrations(RiffleDatabase.MIGRATION_IOS_SQLDELIGHT_6_75)
+        .addMigrations(
+            RiffleDatabase.MIGRATION_IOS_SQLDELIGHT_6_75,
+            RiffleDatabase.MIGRATION_75_76,
+        )
         // Devices that were on SQLDelight schema versions 1–5 (very old iOS installs, pre-v4
         // of the iOS app) have no reading positions / audiobook positions / formatting prefs
         // tables. Those rows can't be preserved through the witness migration, so fall back to

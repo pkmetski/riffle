@@ -94,6 +94,7 @@ fun CbzReaderScreen(
     val ready = state as? CbzReaderState.Ready
     val effectiveThumbnailSource = ready?.let { it.thumbnailSource ?: it.imageSource }
     val thumbnailCache = remember(effectiveThumbnailSource) { LruCache<Int, Bitmap>(50) }
+    val pageCache = remember(effectiveThumbnailSource) { LruCache<Int, Bitmap>(5) }
 
     LaunchedEffect(effectiveThumbnailSource) {
         if (effectiveThumbnailSource == null) return@LaunchedEffect
@@ -104,6 +105,18 @@ fun CbzReaderScreen(
         withContext(Dispatchers.IO) {
             prewarmThumbnailCache(startPage, pageCount, thumbnailCache) { index ->
                 runCatching { decodeSampledBitmap(source, index, MAX_THUMB_DIMENSION) }.getOrNull()
+            }
+        }
+    }
+
+    LaunchedEffect(currentPage, ready) {
+        if (ready == null) return@LaunchedEffect
+        val next = currentPage + 1
+        if (next < ready.pageCount && pageCache.get(next) == null) {
+            withContext(Dispatchers.IO) {
+                runCatching { decodeSampledBitmap(ready.imageSource, next, MAX_PAGE_DIMENSION) }
+                    .getOrNull()
+                    ?.let { pageCache.put(next, it) }
             }
         }
     }
@@ -124,6 +137,7 @@ fun CbzReaderScreen(
                     modifier = modifier,
                     imageSource = ready.imageSource,
                     page = page,
+                    cache = pageCache,
                 )
             }
         },
@@ -213,14 +227,21 @@ private fun CbzAndroidPageContent(
     modifier: Modifier,
     imageSource: ComicPageSource,
     page: Int,
+    cache: LruCache<Int, Bitmap>,
 ) {
     val rawDecode by produceState(initialValue = CbzPageDecodeState(), key1 = page, key2 = imageSource) {
+        val cached = cache.get(page)
+        if (cached != null) {
+            value = CbzPageDecodeState(bitmap = cached, settled = true, forPage = page)
+            return@produceState
+        }
         value = CbzPageDecodeState()
         val result = decodeWithRetry(attempts = decodeAttemptsFor(imageSource)) {
             withContext(Dispatchers.IO) {
                 runCatching { decodeSampledBitmap(imageSource, page, MAX_PAGE_DIMENSION) }.getOrNull()
             }
         }
+        result?.let { cache.put(page, it) }
         value = CbzPageDecodeState(bitmap = result, settled = true, forPage = page)
     }
     val decode = decodeForPage(rawDecode, page)

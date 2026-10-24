@@ -83,6 +83,26 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     var isImmersive by remember { mutableStateOf(false) }
     val ready by vm.state.collectAsState()
+    val readyState = ready as? CbzReaderState.Ready
+    val pageCache = remember(readyState?.imageSource) { mutableMapOf<Int, ImageBitmap>() }
+
+    LaunchedEffect(currentPage, readyState) {
+        if (readyState == null) return@LaunchedEffect
+        val next = currentPage + 1
+        if (next < readyState.pageCount && !pageCache.containsKey(next)) {
+            withContext(Dispatchers.IO) {
+                iosDecodeWithRetry(attempts = readyState.imageSource.decodeRetries) {
+                    runCatching {
+                        SkiaImage.makeFromEncoded(readyState.imageSource.imageBytes(next)).toComposeImageBitmap()
+                    }.getOrNull()
+                }
+            }?.let { pageCache[next] = it }
+        }
+        if (pageCache.size > 5) {
+            val toRemove = pageCache.keys.filter { it < currentPage - 1 }
+            toRemove.forEach { pageCache.remove(it) }
+        }
+    }
 
     DisposableEffect(item.id) {
         vm.onReaderResumed()
@@ -115,9 +135,9 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     var reportMaskPng by remember { mutableStateOf<ByteArray?>(null) }
 
     val pageContent: @Composable (Modifier, Int) -> Unit = { modifier, page ->
-        val source = (ready as? CbzReaderState.Ready)?.imageSource
+        val source = readyState?.imageSource
         if (source != null) {
-            IosComicPageContent(modifier = modifier, imageSource = source, pageIndex = page)
+            IosComicPageContent(modifier = modifier, imageSource = source, pageIndex = page, cache = pageCache)
         }
     }
 
@@ -186,11 +206,17 @@ private sealed interface PageState {
 private fun IosComicPageContent(
     imageSource: com.riffle.core.domain.comic.ComicPageSource,
     pageIndex: Int,
+    cache: MutableMap<Int, ImageBitmap>,
     modifier: Modifier = Modifier,
 ) {
     var state by remember(imageSource, pageIndex) { mutableStateOf<PageState>(PageState.Loading) }
 
     LaunchedEffect(imageSource, pageIndex) {
+        val cached = cache[pageIndex]
+        if (cached != null) {
+            state = PageState.Loaded(cached)
+            return@LaunchedEffect
+        }
         state = PageState.Loading
         val result = withContext(Dispatchers.IO) {
             iosDecodeWithRetry(attempts = imageSource.decodeRetries) {
@@ -199,6 +225,7 @@ private fun IosComicPageContent(
                 }.getOrNull()
             }
         }
+        result?.let { cache[pageIndex] = it }
         state = if (result != null) PageState.Loaded(result) else PageState.Error
     }
 

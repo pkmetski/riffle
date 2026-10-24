@@ -1080,6 +1080,7 @@ private fun EpubChapterRailOverlay(
         bookmarkPositions = bookmarkPositions,
         onSegmentClick = viewModel::navigateToSegment,
         modifier = modifier,
+        railHeight = 3.dp,
     )
 }
 
