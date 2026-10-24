@@ -458,13 +458,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         scrollStartCallback = callback
     }
 
-    func setPullMoveCallback(callback: ((KotlinFloat, KotlinLong) -> Void)?) { pullMoveCallback = callback }
-    func setPullResetCallback(callback: (() -> Void)?) { pullResetCallback = callback }
-    func setPullGestureEnabled(enabled: Bool) {
-        pullGestureEnabled = enabled
-        if !enabled { lastPanTranslationY = 0 }
-    }
-
     private func serializeTocLinks(_ links: [Link]) -> String {
         let items = links.map { serializeTocLink($0) }.joined(separator: ",")
         return "[\(items)]"
@@ -946,6 +939,17 @@ extension ReadiumEpubNavigatorBridge {
         }
     }
 
+}
+
+// MARK: - Pull gesture callbacks (IosEpubNavigatorBridge)
+
+extension ReadiumEpubNavigatorBridge {
+    func setPullMoveCallback(callback: ((KotlinFloat, KotlinLong) -> Void)?) { pullMoveCallback = callback }
+    func setPullResetCallback(callback: (() -> Void)?) { pullResetCallback = callback }
+    func setPullGestureEnabled(enabled: Bool) {
+        pullGestureEnabled = enabled
+        if !enabled { lastPanTranslationY = 0 }
+    }
 }
 
 // MARK: - URL utilities
