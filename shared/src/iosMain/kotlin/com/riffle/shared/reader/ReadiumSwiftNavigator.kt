@@ -67,6 +67,8 @@ class ReadiumSwiftNavigator(
     private val _positionFlow = MutableSharedFlow<NavigatorPosition>(replay = 1, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<NavigatorPageLoad>(extraBufferCapacity = 16)
     private val _scrollStartEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
+    private val _pullMoveEvents = MutableSharedFlow<Pair<Float, Long>>(extraBufferCapacity = 32)
+    private val _pullResetEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
     private val _eventFlow = MutableSharedFlow<NavigatorEvent>(extraBufferCapacity = 16)
     private val _selectionFlow = MutableStateFlow<NavigatorSelection?>(null)
     private val _decorationActivations =
@@ -147,6 +149,8 @@ class ReadiumSwiftNavigator(
      * not at scroll-end, so collectors can enter immersive mode immediately.
      */
     val scrollStartEvents: Flow<Unit> = _scrollStartEvents
+    val pullMoveEvents: Flow<Pair<Float, Long>> = _pullMoveEvents
+    val pullResetEvents: Flow<Unit> = _pullResetEvents
 
     private fun registerBridgeCallbacks() {
         bridge.setLocatorCallback { json ->
@@ -215,6 +219,12 @@ class ReadiumSwiftNavigator(
         bridge.setScrollStartCallback {
             _scrollStartEvents.tryEmit(Unit)
         }
+        bridge.setPullMoveCallback { dy, nowMs ->
+            _pullMoveEvents.tryEmit(Pair(dy, nowMs))
+        }
+        bridge.setPullResetCallback {
+            _pullResetEvents.tryEmit(Unit)
+        }
     }
 
     init {
@@ -251,9 +261,16 @@ class ReadiumSwiftNavigator(
         bridge.setInternalLinkCallback(null)
         bridge.setRiffleUrlCallback(null)
         bridge.setScrollStartCallback(null)
+        bridge.setPullMoveCallback(null)
+        bridge.setPullResetCallback(null)
+        bridge.setPullGestureEnabled(false)
         bridge.setPublicationOpenErrorCallback(null)
         _selectionFlow.value = null
         bridge.disposeNavigator()
+    }
+
+    fun enablePullGesture(enabled: Boolean) {
+        bridge.setPullGestureEnabled(enabled)
     }
 
     /** Drop the live selection — called once the user has acted on it. */

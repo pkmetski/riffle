@@ -1,5 +1,10 @@
 package com.riffle.shared.reader
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,6 +24,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -105,6 +111,7 @@ import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
+import com.riffle.feature.reader.PullBoundaryGestureState
 import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.feature.reader.activeTocHref
 import com.riffle.feature.reader.autoScrollStallAction
@@ -143,6 +150,7 @@ import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.FigureZoomOverlay
 import com.riffle.feature.reader.ui.FootnotePopup
 import com.riffle.feature.reader.ui.NoteEditorSheet
+import com.riffle.feature.reader.ui.PullChip
 import com.riffle.feature.reader.ui.ReaderTopBar
 import com.riffle.feature.reader.ui.ReturnToPositionCard
 import com.riffle.feature.reader.ui.SharedAnnotationsPanel
@@ -165,6 +173,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -701,6 +710,61 @@ fun EpubReaderScreen(
         }
     }
 
+    // ---- Vertical mode pull-to-navigate ------------------------------------------------------
+    //
+    // Mirrors Android's ScrollBoundaryNavigationContainer: polls the JS scroll boundary every
+    // BOUNDARY_POLL_INTERVAL_MS in Vertical mode and delivers pan gesture deltas from the Swift
+    // bridge to the shared PullBoundaryGestureState. When the accumulated pull crosses the
+    // threshold the PullChip fills and navigator.pageBy fires.
+    LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
+        val orientation = resolvedPrefs?.effectiveOrientation(isLandscape)
+        if (localPath == null || orientation != ReaderOrientation.Vertical) {
+            navigator.enablePullGesture(false)
+            pullActive = false
+            return@LaunchedEffect
+        }
+        navigator.enablePullGesture(true)
+        val gestureState = PullBoundaryGestureState(density = density)
+        gestureState.onPullStarted = { fwd -> pullForward = fwd; pullProgress = 0f; pullActive = true }
+        gestureState.onPullEnded = { pullActive = false }
+        gestureState.onPullProgress = { p -> pullProgress = p }
+        gestureState.onNavigate = { fwd ->
+            scope.launch {
+                if (fwd) {
+                    navigator.pageBy(NavigatorPageDirection.Forward)
+                } else {
+                    navigator.pageBy(NavigatorPageDirection.Backward)
+                }
+            }
+        }
+        var atFwd = false
+        var atBwd = false
+        var canFwd = false
+        var canBwd = false
+        coroutineScope {
+            launch {
+                while (true) {
+                    val position = navigator.snapshotPosition()
+                    if (position != null && spine.hrefs.isNotEmpty()) {
+                        val index = spineIndexOfHref(spine.hrefs, position.href)
+                        val boundary = navigator.scrollBoundary()
+                        atFwd = boundary.atForwardBoundary
+                        atBwd = boundary.atBackwardBoundary
+                        canFwd = index in 0 until spine.hrefs.size - 1
+                        canBwd = index > 0
+                    }
+                    delay(BOUNDARY_POLL_INTERVAL_MS)
+                }
+            }
+            launch {
+                navigator.pullResetEvents.collect { gestureState.reset() }
+            }
+            navigator.pullMoveEvents.collect { (dy, nowMs) ->
+                gestureState.onMove(dy, atFwd, atBwd, canFwd, canBwd, nowMs)
+            }
+        }
+    }
+
     // ---- Annotations -------------------------------------------------------------------------
     //
     // Works in all three reading modes. Paginated and the two scroll modes (Vertical and
@@ -934,6 +998,9 @@ fun EpubReaderScreen(
     val autoScroll = remember(item.id) { AutoScrollController(dispatchers) }
     val autoScrollState by autoScroll.state.collectAsState()
     val density = LocalDensity.current.density
+    var pullActive by remember { mutableStateOf(false) }
+    var pullForward by remember { mutableStateOf(true) }
+    var pullProgress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(autoScroll, resolvedPrefs?.autoScrollWpm) {
         resolvedPrefs?.let { autoScroll.setDefaultSpeed(AutoScrollSpeed.of(it.autoScrollWpm)) }
@@ -1351,6 +1418,23 @@ fun EpubReaderScreen(
             imageContent = { href, imgModifier -> IosEpubFigureImage(href, navigator, imgModifier) },
             svgContent = { svgMarkup, imgModifier -> IosEpubSvgView(svgMarkup, imgModifier) },
         )
+
+        // Pull-to-navigate chip — Vertical mode only. Slides in from the boundary edge being pulled.
+        if (localPath != null) {
+            AnimatedVisibility(
+                visible = pullActive,
+                enter = slideInVertically(initialOffsetY = { if (pullForward) it else -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { if (pullForward) it else -it }) + fadeOut(),
+                modifier = Modifier
+                    .align(if (pullForward) Alignment.BottomCenter else Alignment.TopCenter)
+                    .padding(
+                        bottom = if (pullForward) 56.dp else 0.dp,
+                        top = if (pullForward) 0.dp else 56.dp,
+                    ),
+            ) {
+                PullChip(forward = pullForward, progress = pullProgress)
+            }
+        }
 
         // The corner bookmark ribbon — placed before the top bar so it sits below the bar in
         // z-order and the top-bar buttons (formatting, TOC, etc.) receive taps first when chrome

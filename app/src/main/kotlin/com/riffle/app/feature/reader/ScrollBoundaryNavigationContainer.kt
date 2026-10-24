@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
+import com.riffle.feature.reader.PullBoundaryGestureState
 import kotlin.math.abs
 
 class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context) {
@@ -27,9 +28,6 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
 
     var onNavigateForward: (() -> Unit)? = null
     var onNavigateBackward: (() -> Unit)? = null
-    // Two-channel feedback API. Visibility binds to the started/ended pair; the circle's
-    // fill binds to onPullProgress, which reports cumulative pull distance — the same value
-    // that gates navigation. When the circle hits 1.0, nav fires.
     var onPullStarted: ((forward: Boolean) -> Unit)? = null
     var onPullEnded: (() -> Unit)? = null
     var onPullProgress: ((progress: Float) -> Unit)? = null
@@ -47,18 +45,22 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
      */
     var onScrollStart: (() -> Unit)? = null
 
-    private var lastNavigationMs = 0L
     private var lastVolumeNavMs = 0L
     private var lastTouchY = 0f
     private var downX = 0f
     private var downY = 0f
     private var scrollStartFired = false
-    private var lastMoveTimeMs = 0L
-    private var pullDirection = 0 // 1 = forward pull, -1 = backward pull, 0 = inactive
-    private var pullDistancePx = 0f
     private val density = context.resources.displayMetrics.density
-    private val pullDistanceThresholdPx = PULL_DISTANCE_THRESHOLD_DP * density
-    private val maxFillRatePxPerMs = MAX_FILL_RATE_DP_PER_MS * density
+    private val gestureState = PullBoundaryGestureState(density).also { gs ->
+        gs.onPullStarted = { fwd -> onPullStarted?.invoke(fwd) }
+        gs.onPullEnded = { onPullEnded?.invoke() }
+        gs.onPullProgress = { p -> onPullProgress?.invoke(p) }
+        gs.onNavigate = { fwd ->
+            Handler(Looper.getMainLooper()).post {
+                if (fwd) onNavigateForward?.invoke() else onNavigateBackward?.invoke()
+            }
+        }
+    }
     private var gestureStartX = 0f
     private var gestureStartY = 0f
     private var sawHorizontalMotion = false
@@ -171,107 +173,28 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         val dy = y - lastTouchY
         lastTouchY = y
         val now = SystemClock.elapsedRealtime()
-        if (now - lastNavigationMs < NAVIGATION_COOLDOWN_MS) return
-
-        // Direction reversal cancels an active pull; the user is no longer trying to push
-        // through the boundary.
-        if (pullDirection == 1 && dy > MOVEMENT_SLOP_PX) {
-            resetPull(); return
-        }
-        if (pullDirection == -1 && dy < -MOVEMENT_SLOP_PX) {
-            resetPull(); return
-        }
-
-        // If the WebView left the boundary mid-pull (e.g. the JS poll detected scroll
-        // headroom), the user is no longer wedged against the wall.
-        if (pullDirection == 1 && !atForwardBoundary) {
-            resetPull(); return
-        }
-        if (pullDirection == -1 && !atBackwardBoundary) {
-            resetPull(); return
-        }
-
-        // Start a new pull only when finger moves in the correct direction at a boundary AND
-        // the gesture is predominantly vertical. A horizontal swipe has tiny y jitter that
-        // easily passes MOVEMENT_SLOP_PX, which previously armed the pull on left/right swipes
-        // at a boundary — only up/down pulls should trigger chapter navigation in scroll mode.
+        // Only up/down pulls should trigger chapter navigation in scroll mode. A horizontal
+        // swipe has tiny y jitter that easily passes MOVEMENT_SLOP_PX; guard before delegating.
         val totalDx = x - downX
         val totalDy = y - downY
-        if (pullDirection == 0 && abs(totalDx) >= abs(totalDy)) return
-        if (pullDirection == 0) {
-            when {
-                dy < -MOVEMENT_SLOP_PX && atForwardBoundary && canNavigateForward -> {
-                    pullDirection = 1
-                    pullDistancePx = 0f
-                    lastMoveTimeMs = now
-                    onPullStarted?.invoke(true)
-                    onPullProgress?.invoke(0f)
-                }
-                dy > MOVEMENT_SLOP_PX && atBackwardBoundary && canNavigateBackward -> {
-                    pullDirection = -1
-                    pullDistancePx = 0f
-                    lastMoveTimeMs = now
-                    onPullStarted?.invoke(false)
-                    onPullProgress?.invoke(0f)
-                }
-                else -> return
-            }
-        }
-
-        // Accumulate physical pull distance, capped by a maximum fill rate. The cap is
-        // what makes a sudden swipe unable to trigger nav: even if the finger covers the
-        // threshold distance in 150 ms, the circle only fills by maxFillRate * 150 ms.
-        // Deliberate slow pulls fall below the cap and accumulate at their natural rate.
-        val deltaMs = (now - lastMoveTimeMs).coerceIn(0L, 100L)
-        lastMoveTimeMs = now
-        val maxAddPx = maxFillRatePxPerMs * deltaMs
-        when (pullDirection) {
-            1 -> if (dy < 0) pullDistancePx += (-dy).coerceAtMost(maxAddPx)
-            -1 -> if (dy > 0) pullDistancePx += dy.coerceAtMost(maxAddPx)
-        }
-        val distanceProgress = (pullDistancePx / pullDistanceThresholdPx).coerceIn(0f, 1f)
-        onPullProgress?.invoke(distanceProgress)
-
-        if (pullDistancePx >= pullDistanceThresholdPx) {
-            val wasForward = pullDirection == 1
-            lastNavigationMs = now
-            pullDirection = 0
-            pullDistancePx = 0f
-            onPullEnded?.invoke()
-            Handler(Looper.getMainLooper()).post {
-                if (wasForward) onNavigateForward?.invoke() else onNavigateBackward?.invoke()
-            }
-        }
+        if (abs(totalDx) >= abs(totalDy)) return
+        gestureState.onMove(dy, atForwardBoundary, atBackwardBoundary,
+            canNavigateForward, canNavigateBackward, now)
     }
 
     private fun resetPull() {
-        if (pullDirection != 0) onPullEnded?.invoke()
-        pullDirection = 0
-        pullDistancePx = 0f
-        lastMoveTimeMs = 0L
+        gestureState.reset()
     }
 
     companion object {
-        internal const val NAVIGATION_COOLDOWN_MS = 1500L
-        // Pixels of finger movement that count as a deliberate pull direction. Small enough
-        // to start the pull on any clear motion; large enough to ignore touch jitter.
-        internal const val MOVEMENT_SLOP_PX = 2f
-        // Physical pull distance (in dp) past a chapter boundary that triggers navigation.
-        // Doubles as the circle's full-fill threshold — so the visible feedback (full circle)
-        // and the trigger condition (nav fires) coincide.
-        internal const val PULL_DISTANCE_THRESHOLD_DP = 160f
-        // Maximum rate at which the pull-distance accumulator can grow, in dp per ms.
-        // 0.25 dp/ms = 250 dp/sec. A typical fling is ~1500-3000 dp/sec; deliberate pulls
-        // sit around 200-500 dp/sec. Capping at 250 dp/sec means a fling fills the circle
-        // far slower than the finger moves, so the gesture ends before the threshold is met.
-        internal const val MAX_FILL_RATE_DP_PER_MS = 0.25f
-        // Short cooldown for volume key presses — just long enough to absorb OS key-repeat
-        // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding chapter transition
-        // never swallows a deliberate button press.
+        // Pull gesture thresholds — delegate to the shared state machine so both platforms
+        // use identical values. Exposed here so existing tests can reference them via this class.
+        internal val NAVIGATION_COOLDOWN_MS: Long get() = PullBoundaryGestureState.NAVIGATION_COOLDOWN_MS
+        internal val MOVEMENT_SLOP_PX: Float get() = PullBoundaryGestureState.MOVEMENT_SLOP_PX
+        internal val PULL_DISTANCE_THRESHOLD_DP: Float get() = PullBoundaryGestureState.PULL_DISTANCE_THRESHOLD_DP
+        internal val MAX_FILL_RATE_DP_PER_MS: Float get() = PullBoundaryGestureState.MAX_FILL_RATE_DP_PER_MS
         internal const val VOLUME_NAV_COOLDOWN_MS = 300L
         internal const val VOLUME_SCROLL_FRACTION = 0.9f
-        // Mirrors R2WebView's hardcoded "navigate only if |yDelta| < 200 px" threshold
-        // (R2WebView.kt:746). Used to decide whether to swallow ACTION_UP.
         internal const val NAV_Y_DELTA_THRESHOLD_PX = 200
     }
 }

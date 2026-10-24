@@ -18,15 +18,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,7 +31,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
@@ -125,6 +121,7 @@ import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.PullChip
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -3198,38 +3195,6 @@ private fun EpubNavigatorView(
         }
     }
 }
-
-@Composable
-private fun PullChip(forward: Boolean, progress: Float) {
-    // inverseSurface/inverseOnSurface is the same pair Material 3 uses for Snackbars — it's
-    // explicitly the "always contrasts with the page" pair, so the chip stays visible in
-    // light, dark, and sepia reader themes alike.
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.inverseSurface,
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-        shadowElevation = 6.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CircularProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.size(14.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.inverseOnSurface,
-                trackColor = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.3f),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = if (forward) "Next chapter" else "Previous chapter",
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-    }
-}
-
 
 // Maps an annotation colour token to a Readium highlight tint. v1 has only yellow (ADR 0028); a
 // later colour-picker slice maps `color` to other tints.

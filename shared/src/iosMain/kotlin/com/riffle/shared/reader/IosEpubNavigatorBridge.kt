@@ -71,6 +71,12 @@ interface IosEpubNavigatorBridge {
      */
     fun setScrollStartCallback(callback: (() -> Unit)?)
 
+    fun setPullMoveCallback(callback: ((dy: Float, nowMs: Long) -> Unit)?)
+
+    fun setPullResetCallback(callback: (() -> Unit)?)
+
+    fun setPullGestureEnabled(enabled: Boolean)
+
     /**
      * Called when the user taps on the book body (not a link).
      *

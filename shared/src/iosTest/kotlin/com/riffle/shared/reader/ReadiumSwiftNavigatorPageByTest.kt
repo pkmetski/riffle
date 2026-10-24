@@ -28,10 +28,18 @@ class ReadiumSwiftNavigatorPageByTest {
         var goForwardInstantCalls = 0
         var goBackwardInstantCalls = 0
 
-        override fun goForward() { goForwardCalls++ }
-        override fun goBackward() { goBackwardCalls++ }
-        override fun goForwardInstant() { goForwardInstantCalls++ }
-        override fun goBackwardInstant() { goBackwardInstantCalls++ }
+        override fun goForward() {
+            goForwardCalls++
+        }
+        override fun goBackward() {
+            goBackwardCalls++
+        }
+        override fun goForwardInstant() {
+            goForwardInstantCalls++
+        }
+        override fun goBackwardInstant() {
+            goBackwardInstantCalls++
+        }
 
         override fun viewController(): UIViewController = UIViewController()
         override fun openEpub(filePath: String, locatorJson: String?) = Unit
