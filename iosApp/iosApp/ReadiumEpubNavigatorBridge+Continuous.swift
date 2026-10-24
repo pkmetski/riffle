@@ -13,7 +13,11 @@ extension ReadiumEpubNavigatorBridge {
     @MainActor
     func attachContinuous(publication pub: Publication, initialLocator: Locator?) {
         let spineHrefs = pub.readingOrder.map { $0.href }
-        let initialHref = initialLocator.map { "\($0.href)" } ?? spineHrefs.first ?? ""
+        // locator.href.string mirrors what locationDidChange stores in lastLoadedHref and may be
+        // relative or absolute depending on the Readium version. stripOrigin handles both: for a
+        // relative path the regex simply does not match and the string is returned as-is.
+        let rawHref = initialLocator.map { $0.href.string } ?? spineHrefs.first ?? ""
+        let initialHref = ReadiumEpubNavigatorBridge.stripOrigin(from: rawHref)
         let initialProgression = Float(initialLocator?.locations.progression ?? 0)
         let prefs = currentContinuousPrefs ?? IosReaderPreferences(
             fontSizePercent: 1.0, scrollMode: true, theme: "light", fontFamilyCss: "",
@@ -63,14 +67,80 @@ extension ReadiumEpubNavigatorBridge {
         currentContinuousPrefs = preferences
         pendingIsContinuousMode = preferences.isContinuousMode
 
-        // If we have a live continuous scroll view, update its preferences in-place.
-        if preferences.isContinuousMode, let csv = continuousScrollView {
-            Task { @MainActor in
-                csv.updatePreferences(preferences)
+        if preferences.isContinuousMode {
+            if let csv = continuousScrollView {
+                // Already in continuous mode — update preferences in-place.
+                Task { @MainActor in csv.updatePreferences(preferences) }
+                return
             }
+            // Switching from non-continuous → continuous while a publication is open.
+            if let pub = publication {
+                Task { @MainActor in
+                    let initialLocator = self.captureCurrentLocator()
+                    self.tearDownEpubNavigator()
+                    self.attachContinuous(publication: pub, initialLocator: initialLocator)
+                }
+                return
+            }
+            // No publication yet — pendingIsContinuousMode recorded above; attach() will honour it.
             return
         }
 
+        // preferences.isContinuousMode == false
+        if let csv = continuousScrollView {
+            // Switching from continuous → non-continuous while a publication is open.
+            if let pub = publication {
+                let epubPrefs = buildEpubPreferences(from: preferences)
+                pendingPreferences = epubPrefs
+                Task { @MainActor in
+                    let initialLocator = self.captureCurrentLocator()
+                    csv.removeFromSuperview()
+                    self.continuousScrollView = nil
+                    self.lastLoadedHref = nil
+                    try? self.attach(publication: pub, initialLocator: initialLocator)
+                    // pendingPreferences was already set to epubPrefs before this Task was created;
+                    // makeNavigatorConfiguration() picks it up so submitPreferences is redundant here.
+                    // Calling submitPreferences again can trigger Readium's spread reload, resetting position.
+                }
+                return
+            }
+        }
+
+        // Already in non-continuous mode — update preferences in-place.
+        let epubPrefs = buildEpubPreferences(from: preferences)
+        pendingPreferences = epubPrefs
+        Task { @MainActor in
+            epubNavigator?.submitPreferences(epubPrefs)
+        }
+    }
+
+    // MARK: - Helpers
+
+    @MainActor
+    private func captureCurrentLocator() -> Locator? {
+        if continuousScrollView != nil {
+            // Continuous mode: locator JSON comes from makeLocatorJson (relative hrefs). Parse it.
+            guard let json = cachedLocatorJson,
+                  let jsonValue = try? JSONValue(jsonString: json) else { return nil }
+            return try? Locator(json: jsonValue, warnings: nil)
+        } else {
+            // Non-continuous mode: return the cached Locator directly — no JSON round-trip.
+            // Mirrors Android's PositionOrchestrator.snapshotLastLocator(); avoids losing position
+            // when locator.jsonString() fails transiently (which would leave cachedLocatorJson nil).
+            return cachedLocator
+        }
+    }
+
+    @MainActor
+    private func tearDownEpubNavigator() {
+        epubNavigator?.willMove(toParent: nil)
+        epubNavigator?.view.removeFromSuperview()
+        epubNavigator?.removeFromParent()
+        epubNavigator = nil
+        lastLoadedHref = nil
+    }
+
+    private func buildEpubPreferences(from preferences: IosReaderPreferences) -> EPUBPreferences {
         // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
         // This switch is a Readium-Swift type adapter only — move any string-value logic there.
         let resolvedTheme: Theme? = switch preferences.theme {
@@ -100,7 +170,7 @@ extension ReadiumEpubNavigatorBridge {
         default: nil
         }
 
-        let epubPrefs = EPUBPreferences(
+        return EPUBPreferences(
             columnCount: columns,
             fontFamily: fontFamily,
             fontSize: Double(preferences.fontSizePercent),
@@ -112,9 +182,5 @@ extension ReadiumEpubNavigatorBridge {
             textColor: textColor,
             theme: resolvedTheme
         )
-        pendingPreferences = epubPrefs
-        Task { @MainActor in
-            epubNavigator?.submitPreferences(epubPrefs)
-        }
     }
 }

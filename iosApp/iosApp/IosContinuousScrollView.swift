@@ -48,6 +48,10 @@ final class IosContinuousScrollView: UIView {
     private var pendingInitialProgression: Float = 0
     private var initialScrollApplied = false
 
+    // Exposed for regression tests: lets tests verify the eviction guard keeps the pending chapter
+    // loaded across a simulated contentOffset-reset-to-0 that would otherwise evict it.
+    internal var loadedChapterIndices: Set<Int> { Set(loadedWebViews.keys) }
+
     // Window radius of 2 keeps ±2 chapters live. This means a chapter 2 ahead starts loading
     // while the user is still reading the previous one, eliminating the 1-2 second blank flash
     // that occurred when only the immediate neighbour was preloaded (radius=1).
@@ -76,15 +80,12 @@ final class IosContinuousScrollView: UIView {
             outerScrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             outerScrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
-        contentContainer.translatesAutoresizingMaskIntoConstraints = false
+        // contentContainer uses manual frames, NOT Auto Layout pinned to contentLayoutGuide.
+        // Pinning to contentLayoutGuide with translatesAutoresizingMaskIntoConstraints=false would
+        // cause UIScrollView to derive contentSize.height from Auto Layout (0, since WebViews use
+        // manual frames), overriding the manually-set contentSize and clamping contentOffset to 0
+        // on every layout pass — which evicts the target chapter before onHeightMeasured fires.
         outerScrollView.addSubview(contentContainer)
-        NSLayoutConstraint.activate([
-            contentContainer.topAnchor.constraint(equalTo: outerScrollView.contentLayoutGuide.topAnchor),
-            contentContainer.bottomAnchor.constraint(equalTo: outerScrollView.contentLayoutGuide.bottomAnchor),
-            contentContainer.leadingAnchor.constraint(equalTo: outerScrollView.contentLayoutGuide.leadingAnchor),
-            contentContainer.trailingAnchor.constraint(equalTo: outerScrollView.contentLayoutGuide.trailingAnchor),
-            contentContainer.widthAnchor.constraint(equalTo: outerScrollView.frameLayoutGuide.widthAnchor),
-        ])
 
         // UIKit tap recognizer on the outer scroll view to reliably detect taps for chrome toggle.
         // JS click events inside WKWebViews embedded in UIScrollViews are unreliable: when the
@@ -149,7 +150,18 @@ final class IosContinuousScrollView: UIView {
             guard let prefs = self?.currentPrefs else { return html }
             return IosContinuousCssInjector.injectInto(html: html, href: href, prefs: prefs)
         }
+        setupSlots(spineHrefs: spineHrefs, initialHref: initialHref, initialProgression: initialProgression, prefs: prefs)
+    }
 
+    // Separated from initialize() so tests can exercise slot geometry and pre-scroll without
+    // a real Publication. scrollTo() pre-scrolls to the approximate initial position using
+    // default slot heights so the user sees the right chapter immediately, not chapter 1.
+    internal func setupSlots(
+        spineHrefs: [String],
+        initialHref: String,
+        initialProgression: Float,
+        prefs: IosReaderPreferences
+    ) {
         self.spineHrefs = spineHrefs
         self.currentPrefs = prefs
         applyThemeBackground(theme: prefs.theme)
@@ -161,7 +173,10 @@ final class IosContinuousScrollView: UIView {
         slotHeights = Array(repeating: defaultSlotHeight, count: spineHrefs.count)
         slotOffsets = computeOffsets(from: slotHeights)
         updateContentHeight()
-        loadWindow(around: initialIndex)
+        // Pre-scroll to the approximate initial position using default slot heights.
+        // Without this, the user sees chapter 1 for 1–2 s until onHeightMeasured fires.
+        // scrollTo() also calls loadWindow(), so no separate loadWindow() call is needed.
+        scrollTo(index: initialIndex, progression: initialProgression)
     }
 
     func navigateTo(href: String, progression: Float) {
@@ -197,8 +212,15 @@ final class IosContinuousScrollView: UIView {
         let low = max(0, centerIndex - windowRadius)
         let high = min(spineHrefs.count - 1, centerIndex + windowRadius)
 
-        // Evict WebViews outside the new window.
-        let keysToEvict = loadedWebViews.keys.filter { $0 < low || $0 > high }
+        // Evict WebViews outside the new window, but never evict the pending initial chapter
+        // before its height is measured and the initial scroll is applied. Without this guard,
+        // a transient contentOffset reset to 0 (from a UIScrollView layout pass) causes
+        // updatePosition → loadWindow(0), which evicts the target chapter before its
+        // onHeightMeasured fires — leaving the view permanently at the beginning.
+        let keysToEvict = loadedWebViews.keys.filter { key in
+            guard key < low || key > high else { return false }
+            return initialScrollApplied || key != pendingInitialIndex
+        }
         for key in keysToEvict {
             loadedWebViews[key]?.removeFromSuperview()
             loadedWebViews.removeValue(forKey: key)
@@ -211,6 +233,18 @@ final class IosContinuousScrollView: UIView {
             contentContainer.addSubview(webView)
             positionWebView(webView, at: idx)
             loadChapter(index: idx, in: webView)
+        }
+
+        // Ensure the pending initial chapter is always loaded even when outside the current
+        // window (e.g. the window has drifted to idx=0 due to a layout-pass contentOffset reset).
+        if !initialScrollApplied,
+           pendingInitialIndex < spineHrefs.count,
+           loadedWebViews[pendingInitialIndex] == nil {
+            let webView = makeWebView()
+            loadedWebViews[pendingInitialIndex] = webView
+            contentContainer.addSubview(webView)
+            positionWebView(webView, at: pendingInitialIndex)
+            loadChapter(index: pendingInitialIndex, in: webView)
         }
     }
 
@@ -352,6 +386,10 @@ final class IosContinuousScrollView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         outerScrollView.frame = bounds
+        // Re-establish contentSize and contentContainer.frame after bounds change (rotation,
+        // first layout pass). Without this, the manually-set contentSize would be stale after
+        // any bounds change that changes the scroll view's width.
+        updateContentHeight()
         for (index, webView) in loadedWebViews {
             webView.frame = CGRect(x: 0, y: slotOffsets[index], width: bounds.width, height: slotHeights[index])
         }

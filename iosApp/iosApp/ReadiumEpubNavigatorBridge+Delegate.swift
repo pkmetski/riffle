@@ -8,6 +8,7 @@ import ReadiumNavigator
 
 extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
+        cachedLocator = locator
         guard let json = try? locator.jsonString() else { return }
         cachedLocatorJson = json
         locatorCallback?(json)

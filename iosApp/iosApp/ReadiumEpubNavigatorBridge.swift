@@ -16,7 +16,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     let hostViewController = UIViewController()
     var epubNavigator: EPUBNavigatorViewController?
-    private var publication: Publication?
+    var publication: Publication?
     // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
     var cachedLocatorJson: String?
     // TOC fetched asynchronously after open; getTocJson() returns from this cache.
@@ -59,6 +59,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     // Pending preferences — stored before the navigator exists so openEpub can use them.
     var pendingPreferences: EPUBPreferences = EPUBPreferences()
+    // Direct Locator cache set from locationDidChange before JSON serialization; used by
+    // captureCurrentLocator() for mode switches so a serialization failure cannot silently
+    // drop the reading position (mirrors Android's PositionOrchestrator.lastLocator).
+    var cachedLocator: Locator?
 
     // Native Continuous mode (multi-WebView sliding window, iOS-only).
     var continuousScrollView: IosContinuousScrollView?
@@ -172,7 +176,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     /// this existed the lazy path was a copy of the file path, and any wiring added to one would
     /// silently not apply to the other.
     @MainActor
-    private func attach(publication pub: Publication, initialLocator: Locator?) throws {
+    func attach(publication pub: Publication, initialLocator: Locator?) throws {
         if pendingIsContinuousMode {
             attachContinuous(publication: pub, initialLocator: initialLocator)
             return
@@ -260,7 +264,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             let dy = currentY - lastPanTranslationY
             lastPanTranslationY = currentY
             let nowMs = Int64(ProcessInfo.processInfo.systemUptime * 1000)
-            pullMoveCallback?(KotlinFloat(value: dy), KotlinLong(value: nowMs))
+            // UIPanGestureRecognizer.translation is in UIKit points (density-independent).
+            // PullBoundaryGestureState expects physical pixels (matching Android's MotionEvent).
+            // Multiply by screen scale so the 160dp threshold fires at the same drag distance.
+            let scale = Float(UIScreen.main.scale)
+            pullMoveCallback?(KotlinFloat(value: dy * scale), KotlinLong(value: nowMs))
         case .ended, .cancelled, .failed:
             pullResetCallback?(); lastPanTranslationY = 0
         default: break
@@ -378,6 +386,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.continuousScrollView = nil
             self.publication = nil
             self.cachedLocatorJson = nil
+            self.cachedLocator = nil
             self.cachedTocJson = "[]"
             self.cachedSpineJson = emptySpineJson
             // Remove the figure-tap message handler from every spread's WKWebView to break the
@@ -633,6 +642,10 @@ extension ReadiumEpubNavigatorBridge: WKScriptMessageHandler {
 extension ReadiumEpubNavigatorBridge {
     @objc func simulateLocatorUpdate(_ json: String) {
         cachedLocatorJson = json
+        if let jsonValue = try? JSONValue(jsonString: json),
+           let locator = try? Locator(json: jsonValue, warnings: nil) {
+            cachedLocator = locator
+        }
         locatorCallback?(json)
         pageLoadCallback?()
     }

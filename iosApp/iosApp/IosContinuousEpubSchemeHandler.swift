@@ -108,13 +108,23 @@ final class IosContinuousEpubSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func serveReadiumCss(name: String) throws -> (Data, String) {
-        let bundle = Bundle(for: EPUBNavigatorViewController.self)
+        // ReadiumNavigator is linked statically via SPM, so Bundle(for:EPUBNavigatorViewController.self)
+        // resolves to the main app bundle. Resources live in the named sub-bundle instead.
+        let bundle = readiumNavigatorBundle()
         guard let url = bundle.url(forResource: name, withExtension: nil,
                                    subdirectory: "Assets/Static/readium-css"),
               let data = try? Data(contentsOf: url) else {
-            throw makeError("ReadiumCSS not found: \(name)", code: 404)
+            throw makeError("ReadiumCSS not found: \(name) in \(bundle.bundleIdentifier ?? bundle.bundlePath)", code: 404)
         }
         return (data, "text/css")
+    }
+
+    private func readiumNavigatorBundle() -> Bundle {
+        if let url = Bundle.main.url(forResource: "Readium_ReadiumNavigator", withExtension: "bundle"),
+           let b = Bundle(url: url) {
+            return b
+        }
+        return Bundle(for: EPUBNavigatorViewController.self)
     }
 
     private func serveAppFont(name: String) throws -> (Data, String) {
@@ -266,17 +276,17 @@ enum IosContinuousCssInjector {
         }
 
         // Font family — must REMOVE both override and family when switching back to publisher font.
-        // The CSS value must be a quoted string (e.g. "Literata") so ReadiumCSS can use it
-        // directly in font-family: var(--USER__fontFamily).
         if !prefs.fontFamilyCss.isEmpty {
-            // Font name is embedded inside a JS single-quoted string whose value is the CSS
-            // quoted-string "FamilyName". Escape backslashes and single quotes in the name.
             let family = prefs.fontFamilyCss
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")
             lines.append("r.style.setProperty('--USER__fontOverride','readium-font-on','important');")
-            // Value passed to setProperty is '"FamilyName"' (CSS quoted string).
-            lines.append("r.style.setProperty('--USER__fontFamily','\"' + '\(family)' + '\"','important');")
+            // CSS generic keywords (serif, sans-serif, monospace) must be unquoted.
+            // Named families (Literata, Merriweather, OpenDyslexic) need quoted-string form "Name".
+            let isGeneric = ["serif", "sans-serif", "monospace", "cursive", "fantasy"]
+                .contains(prefs.fontFamilyCss)
+            let cssValue = isGeneric ? "'\(family)'" : "'\"' + '\(family)' + '\"'"
+            lines.append("r.style.setProperty('--USER__fontFamily',\(cssValue),'important');")
         } else {
             lines.append("r.style.removeProperty('--USER__fontOverride');")
             lines.append("r.style.removeProperty('--USER__fontFamily');")
@@ -339,7 +349,10 @@ enum IosContinuousCssInjector {
         // Font family.
         if !prefs.fontFamilyCss.isEmpty {
             props.append(("--USER__fontOverride", "readium-font-on"))
-            props.append(("--USER__fontFamily", "\"\(prefs.fontFamilyCss)\""))
+            let isGeneric = ["serif", "sans-serif", "monospace", "cursive", "fantasy"]
+                .contains(prefs.fontFamilyCss)
+            let cssFamily = isGeneric ? prefs.fontFamilyCss : "\"\(prefs.fontFamilyCss)\""
+            props.append(("--USER__fontFamily", cssFamily))
         }
 
         // Font size: fontSizePercent is a multiplier (1.0 = 100 %, 1.5 = 150 %).
