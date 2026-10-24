@@ -72,6 +72,9 @@ class ReadiumSwiftNavigatorScrollProbeTest {
         override fun setScrollStartCallback(callback: (() -> Unit)?) {
             scrollStartCallback = callback
         }
+        override fun setPullMoveCallback(callback: ((dy: Float, nowMs: Long) -> Unit)?) = Unit
+        override fun setPullResetCallback(callback: (() -> Unit)?) = Unit
+        override fun setPullGestureEnabled(enabled: Boolean) = Unit
         fun triggerScrollStart() {
             scrollStartCallback?.invoke()
         }

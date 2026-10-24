@@ -250,25 +250,19 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     }
 
     @objc func onPanGesture(_ recognizer: UIPanGestureRecognizer) {
-        if recognizer.state == .began {
-            scrollStartCallback?()
-            lastPanTranslationY = 0
-        }
+        if recognizer.state == .began { scrollStartCallback?(); lastPanTranslationY = 0 }
         guard pullGestureEnabled else { return }
-        let translation = recognizer.translation(in: recognizer.view)
+        let pan = recognizer.translation(in: recognizer.view)
         switch recognizer.state {
         case .changed:
-            guard abs(translation.y) > abs(translation.x) else { return }
-            let currentY = Float(translation.y)
+            guard abs(pan.y) > abs(pan.x) else { return }
+            let currentY = Float(pan.y)
             let dy = currentY - lastPanTranslationY
             lastPanTranslationY = currentY
-            let nowMs = Int64(ProcessInfo.processInfo.systemUptime * 1000)
-            pullMoveCallback?(dy, nowMs)
+            pullMoveCallback?(dy, Int64(ProcessInfo.processInfo.systemUptime * 1000))
         case .ended, .cancelled, .failed:
-            pullResetCallback?()
-            lastPanTranslationY = 0
-        default:
-            break
+            pullResetCallback?(); lastPanTranslationY = 0
+        default: break
         }
     }
 
@@ -409,7 +403,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
-
     func getTocJson() -> String { cachedTocJson }
 
     private func prefetchToc(_ pub: Publication) {
@@ -455,19 +448,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         scrollStartCallback = callback
     }
 
-    func setPullMoveCallback(callback: ((Float, Int64) -> Void)?) {
-        pullMoveCallback = callback
-    }
-
-    func setPullResetCallback(callback: (() -> Void)?) {
-        pullResetCallback = callback
-    }
-
+    func setPullMoveCallback(callback: ((Float, Int64) -> Void)?) { pullMoveCallback = callback }
+    func setPullResetCallback(callback: (() -> Void)?) { pullResetCallback = callback }
     func setPullGestureEnabled(enabled: Bool) {
         pullGestureEnabled = enabled
-        if !enabled {
-            lastPanTranslationY = 0
-        }
+        if !enabled { lastPanTranslationY = 0 }
     }
 
     private func serializeTocLinks(_ links: [Link]) -> String {
@@ -628,7 +613,6 @@ extension ReadiumEpubNavigatorBridge {
 }
 
 // MARK: - EPUBNavigatorDelegate (see ReadiumEpubNavigatorBridge+Delegate.swift)
-
 
 // MARK: - WKScriptMessageHandler (figure-tap bridge)
 
