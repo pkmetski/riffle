@@ -81,6 +81,54 @@ final class IosContinuousScrollView: UIView {
             contentContainer.trailingAnchor.constraint(equalTo: outerScrollView.contentLayoutGuide.trailingAnchor),
             contentContainer.widthAnchor.constraint(equalTo: outerScrollView.frameLayoutGuide.widthAnchor),
         ])
+
+        // UIKit tap recognizer on the outer scroll view to reliably detect taps for chrome toggle.
+        // JS click events inside WKWebViews embedded in UIScrollViews are unreliable: when the
+        // user taps to stop a decelerating scroll, UIScrollView absorbs the touch and WKWebView's
+        // JS engine never sees a click event. A UITapGestureRecognizer on the scroll view itself
+        // fires in all cases. We use elementFromPoint JS to distinguish background taps (toggle
+        // chrome) from link/button taps (do not toggle — let the WebView's own handling fire).
+        let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleScrollViewTap(_:)))
+        tapRecognizer.cancelsTouchesInView = false
+        tapRecognizer.delegate = self
+        outerScrollView.addGestureRecognizer(tapRecognizer)
+    }
+
+    @objc private func handleScrollViewTap(_ g: UITapGestureRecognizer) {
+        let tapInScrollView = g.location(in: outerScrollView)
+        let absoluteY = tapInScrollView.y + outerScrollView.contentOffset.y
+        let tapInSelf = g.location(in: self)
+
+        // Find which chapter slot the tap landed in.
+        let idx = slotIndexAt(yPos: absoluteY)
+        guard idx < slotOffsets.count, idx < slotHeights.count,
+              let webView = loadedWebViews[idx] else {
+            onTap?(tapInSelf)
+            return
+        }
+
+        // Convert to CSS px within the WebView's document coordinate space.
+        // WKWebView's internal scroll is disabled (contentOffset = 0,0), so
+        // CSS (0,0) aligns with the WebView frame's top-left corner.
+        let cssX = tapInScrollView.x
+        let cssY = absoluteY - slotOffsets[idx]
+
+        let js = """
+        (function(){
+          var el=document.elementFromPoint(\(cssX),\(cssY));
+          while(el){
+            var t=el.tagName?el.tagName.toLowerCase():'';
+            if(t==='a'||t==='button'||t==='input'||t==='select'||t==='textarea'||t==='label')return'interactive';
+            el=el.parentElement;
+          }
+          return'background';
+        })();
+        """
+        webView.evaluateJavaScript(js) { [weak self] result, _ in
+            guard let self else { return }
+            if let s = result as? String, s == "interactive" { return }
+            self.onTap?(tapInSelf)
+        }
     }
 
     // MARK: - Public API
@@ -172,14 +220,6 @@ final class IosContinuousScrollView: UIView {
         config.setURLSchemeHandler(schemeHandler, forURLScheme: IosContinuousEpubSchemeHandler.scheme)
         let heightHandler = WeakScriptMessageHandler(target: self)
         config.userContentController.add(heightHandler, name: "riffleChapterHeight")
-        let tapHandler = WeakScriptMessageHandler(target: self)
-        config.userContentController.add(tapHandler, name: "riffleTap")
-        let typographyScript = WKUserScript(
-            source: TypographyOverrideKt.TYPOGRAPHY_OVERRIDE_INSTALL_SCRIPT,
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(typographyScript)
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
@@ -299,6 +339,17 @@ final class IosContinuousScrollView: UIView {
     }
 }
 
+// MARK: - UIGestureRecognizerDelegate
+
+extension IosContinuousScrollView: UIGestureRecognizerDelegate {
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        return true
+    }
+}
+
 // MARK: - UIScrollViewDelegate
 
 extension IosContinuousScrollView: UIScrollViewDelegate {
@@ -331,16 +382,6 @@ extension IosContinuousScrollView: WKScriptMessageHandler {
            let href = body["href"] as? String,
            let height = body["height"] as? Double {
             onHeightMeasured(href: href, height: CGFloat(height))
-        } else if message.name == "riffleTap",
-                  let body = message.body as? [String: Any],
-                  let clientX = body["x"] as? Double,
-                  let clientY = body["y"] as? Double,
-                  let webView = message.webView,
-                  let index = loadedWebViews.first(where: { $0.value === webView })?.key {
-            let screenX = CGFloat(clientX)
-            let screenY = (slotOffsets[index] + CGFloat(clientY) - outerScrollView.contentOffset.y)
-                .clamped(to: 0...bounds.height)
-            onTap?(CGPoint(x: screenX, y: screenY))
         }
     }
 }
@@ -353,37 +394,48 @@ extension IosContinuousScrollView: WKNavigationDelegate {
         let escapedPath = rawPath
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
-        // Mirrors Android's HEIGHT_MEASUREMENT_JS: avoids scrollHeight viewport-clamp on short chapters.
+        // Mirrors Android HEIGHT_MEASUREMENT_JS: ResizeObserver re-reports on every layout change
+        // (font swap, image decode, ReadiumCSS settle) so late growth is compensated rather than
+        // clipping the end of the chapter. Font-ready gate prevents measuring with fallback-font
+        // metrics. Safety re-measures at 300ms and 1000ms cover browsers without ResizeObserver.
         let heightJs = """
         (function(){
+          if(window.__riffleMeasureWired)return;
+          window.__riffleMeasureWired=true;
           var href='\(escapedPath)';
-          var de=document.documentElement,b=document.body;
-          var bodyBottom=b?(b.getBoundingClientRect().bottom+(window.pageYOffset||0)):0;
-          var rootPadBottom=0;
-          if(de){var pb=parseFloat(window.getComputedStyle(de).paddingBottom);if(pb===pb)rootPadBottom=pb;}
-          var h=Math.max(bodyBottom+rootPadBottom,de?de.offsetHeight:0,b?b.offsetHeight:0,1);
-          window.webkit.messageHandlers.riffleChapterHeight.postMessage({href:href,height:h});
+          function measure(){
+            var de=document.documentElement,b=document.body;
+            var bodyBottom=b?(b.getBoundingClientRect().bottom+(window.pageYOffset||0)):0;
+            var rootPadBottom=0;
+            if(de){var pb=parseFloat(window.getComputedStyle(de).paddingBottom);if(pb===pb)rootPadBottom=pb;}
+            return Math.max(bodyBottom+rootPadBottom,de?de.offsetHeight:0,b?b.offsetHeight:0,1);
+          }
+          var last=-1;
+          var held=false;
+          function report(){
+            if(held)return;
+            var h=measure();
+            if(h>0&&h!==last){last=h;window.webkit.messageHandlers.riffleChapterHeight.postMessage({href:href,height:h});}
+          }
+          window.__riffleReport=report;
+          void(document.documentElement&&document.documentElement.offsetHeight);
+          if(document.fonts&&document.fonts.ready&&document.fonts.status!=='loaded'){
+            held=true;
+            document.fonts.ready.then(function(){held=false;requestAnimationFrame(report);});
+          } else {
+            report();
+          }
+          if(window.ResizeObserver){
+            var ro=new ResizeObserver(function(){report();});
+            ro.observe(document.documentElement);
+            if(document.body)ro.observe(document.body);
+          }
+          if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){requestAnimationFrame(report);});}
+          setTimeout(report,300);
+          setTimeout(report,1000);
         })();
         """
         webView.evaluateJavaScript(heightJs, completionHandler: nil)
-        // JS tap listener mirrors Android's TAP_LISTENER_JS, routing via message handler instead of JSInterface.
-        let tapJs = """
-        (function(){
-          if(window._riffleTapWired)return;
-          window._riffleTapWired=true;
-          document.addEventListener('click',function(e){
-            if(window.getSelection&&window.getSelection().toString().length>0)return;
-            var el=e.target;
-            while(el){
-              var tag=el.tagName?el.tagName.toLowerCase():'';
-              if(tag==='a'||tag==='button'||tag==='input'||tag==='select'||tag==='textarea'||tag==='label')return;
-              el=el.parentElement;
-            }
-            window.webkit.messageHandlers.riffleTap.postMessage({x:e.clientX,y:e.clientY});
-          });
-        })();
-        """
-        webView.evaluateJavaScript(tapJs, completionHandler: nil)
     }
 }
 

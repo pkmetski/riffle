@@ -143,6 +143,41 @@ final class IosContinuousCssInjectorTests: XCTestCase {
         XCTAssertFalse(result.contains("ReadiumCSS-default.css"), "default CSS must be skipped when author styles present")
     }
 
+    func testTypographyOverrideCssIsInjectedInline() {
+        let html = "<html><head></head><body><p>Text</p></body></html>"
+        let result = IosContinuousCssInjector.injectInto(html: html, href: "ch1.xhtml", prefs: makePrefs())
+        // Must contain the typography override gate selector so high-specificity publisher rules
+        // don't beat user-set font/line-height/justify preferences (mirrors Android ContinuousStyleInjector).
+        XCTAssertTrue(result.contains("--USER__lineHeight"), "typography override CSS must be injected inline")
+        XCTAssertTrue(result.contains("--USER__textAlign"), "justify typography override must be injected inline")
+        XCTAssertTrue(result.contains("--USER__fontFamily"), "font-family typography override must be injected inline")
+    }
+
+    func testTableFitCssIsInjectedInline() {
+        let html = "<html><head></head><body><table><tr><td>Cell</td></tr></table></body></html>"
+        let result = IosContinuousCssInjector.injectInto(html: html, href: "ch1.xhtml", prefs: makePrefs())
+        XCTAssertTrue(result.contains("table-layout: fixed"), "TableFit CSS must be injected so wide publisher tables don't overflow")
+        XCTAssertTrue(result.contains("overflow-wrap: break-word"), "TableFit cell wrapping must be injected")
+    }
+
+    func testImageOverflowCapIsInjected() {
+        let html = "<html><head></head><body><img src='cover.jpg'/></body></html>"
+        let result = IosContinuousCssInjector.injectInto(html: html, href: "cover.xhtml", prefs: makePrefs())
+        XCTAssertTrue(result.contains("max-width:100%"), "img max-width cap must be injected to prevent cover-page zoom")
+        XCTAssertTrue(result.contains("height:auto"), "img height:auto must be injected alongside max-width")
+    }
+
+    func testTypographyOverrideAppearsAfterReadiumAfterCss() {
+        // Typography overrides must come after ReadiumCSS-after.css so they can beat ReadiumCSS's
+        // own high-specificity rules (which are in -after.css) using the !important gate pattern.
+        let html = "<html><head></head><body></body></html>"
+        let result = IosContinuousCssInjector.injectInto(html: html, href: "ch1.xhtml", prefs: makePrefs())
+        let afterCssRange = result.range(of: "ReadiumCSS-after.css")!
+        let typographyRange = result.range(of: "--USER__lineHeight")!
+        XCTAssertTrue(afterCssRange.lowerBound < typographyRange.lowerBound,
+                      "typography override must appear after ReadiumCSS-after.css in the injected HTML")
+    }
+
     // MARK: - buildStyleSetJs
 
     func testBuildStyleSetJsProducesValidJs() {

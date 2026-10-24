@@ -197,10 +197,15 @@ enum IosContinuousCssInjector {
             out = beforeBlock + out
         }
 
-        // 2. After-CSS + bundled @font-face + height measurement script before </head>.
+        // 2. After-CSS + bundled @font-face + typography overrides + table-fit + image cap before </head>.
+        // Typography and TableFit CSS are injected inline (like Android's ContinuousStyleInjector)
+        // so they apply before first paint, avoiding FOUC from the WKUserScript path.
         let afterBlock = """
         \n<link rel="stylesheet" type="text/css" href="\(cssBase)/ReadiumCSS-after.css"/>\n\
         <style type="text/css">\n\(bundledFontFaces())\n</style>\n\
+        <style type="text/css">\n\(TypographyOverrideKt.TYPOGRAPHY_OVERRIDE_CSS)\n</style>\n\
+        <style type="text/css">\n\(TableFit.shared.CSS)\n</style>\n\
+        <style type="text/css">img,svg,video{max-width:100%!important;height:auto!important;}</style>\n\
         \(domReadyScript())
         """
         if let headCloseRange = out.range(of: "</head>", options: .caseInsensitive) {
