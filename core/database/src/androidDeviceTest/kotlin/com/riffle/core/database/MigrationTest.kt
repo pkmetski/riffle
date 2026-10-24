@@ -2024,7 +2024,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(75, cursor.getInt(0))
+            assertEquals(76, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
