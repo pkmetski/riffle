@@ -62,6 +62,9 @@ class ReadiumSwiftNavigatorContinuousCursorTest {
         override fun openSyntheticEpub(dirPath: String, locatorJson: String?) = Unit
         override fun goToLocator(locatorJson: String) = Unit
         override fun snapshotLocatorJson(): String? = null
+        override fun setPullMoveCallback(callback: ((dy: Float, nowMs: Long) -> Unit)?) = Unit
+        override fun setPullResetCallback(callback: (() -> Unit)?) = Unit
+        override fun setPullGestureEnabled(enabled: Boolean) = Unit
     }
 
     private fun applyPrefs(nav: ReadiumSwiftNavigator, isContinuousMode: Boolean) {

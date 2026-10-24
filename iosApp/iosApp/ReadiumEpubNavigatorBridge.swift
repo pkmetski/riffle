@@ -946,6 +946,11 @@ extension ReadiumEpubNavigatorBridge {
         }
     }
 
+}
+
+// MARK: - URL utilities
+
+extension ReadiumEpubNavigatorBridge {
     /// Strips any `scheme://host/` origin prefix from a WebView resource URL and removes any
     /// fragment, leaving only the publication-relative path (e.g. `EPUB/images/cover.jpg`).
     ///

@@ -42,8 +42,7 @@ final class EpubReaderTests: XCTestCase {
 
         XCTAssertNil(bridge.snapshotLocatorJson(),
                      "disposeNavigator must clear the cached locator JSON")
-        XCTAssertNil(bridge.cachedLocator,
-                     "disposeNavigator must clear the cached Locator object")
+        XCTAssertNil(bridge.cachedLocator, "disposeNavigator must clear the cached Locator object")
     }
 
     // MARK: - Scenario 03-C: Callback registration
@@ -542,10 +541,8 @@ final class EpubReaderTests: XCTestCase {
         """
         bridge.simulateLocatorUpdate(locatorJson)
 
-        XCTAssertNotNil(bridge.cachedLocator,
-                        "simulateLocatorUpdate must set cachedLocator so non-continuous→continuous switch works")
-        XCTAssertEqual(bridge.cachedLocator?.locations.progression, 0.42,
-                       "cachedLocator must carry the correct in-chapter progression")
+        XCTAssertNotNil(bridge.cachedLocator, "simulateLocatorUpdate must set cachedLocator so mode switch works")
+        XCTAssertEqual(bridge.cachedLocator?.locations.progression, 0.42, "cachedLocator must carry the progression")
     }
 
     // Regression: before the fix, the cached locator was cleared by disposeNavigator() when the
@@ -566,10 +563,8 @@ final class EpubReaderTests: XCTestCase {
 
         let snapshot = bridge.snapshotLocatorJson()
         XCTAssertNotNil(snapshot, "mode switch must not erase the cached locator")
-        XCTAssertTrue(snapshot?.contains("ch5.xhtml") == true,
-                      "mode switch must preserve the href of the cached locator")
-        XCTAssertTrue(snapshot?.contains("0.42") == true,
-                      "mode switch must preserve the progression of the cached locator")
+        XCTAssertTrue(snapshot?.contains("ch5.xhtml") == true, "mode switch must preserve the href")
+        XCTAssertTrue(snapshot?.contains("0.42") == true, "mode switch must preserve the progression")
     }
 }
 
