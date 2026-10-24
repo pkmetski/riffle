@@ -38,7 +38,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
     var scrollStartCallback: (() -> Void)?
-    var pullMoveCallback: ((Float, Int64) -> Void)?
+    var pullMoveCallback: ((KotlinFloat, KotlinLong) -> Void)?
     var pullResetCallback: (() -> Void)?
     var pullGestureEnabled = false
     private var lastPanTranslationY: Float = 0
@@ -259,7 +259,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             let currentY = Float(pan.y)
             let dy = currentY - lastPanTranslationY
             lastPanTranslationY = currentY
-            pullMoveCallback?(dy, Int64(ProcessInfo.processInfo.systemUptime * 1000))
+            let nowMs = Int64(ProcessInfo.processInfo.systemUptime * 1000)
+            pullMoveCallback?(KotlinFloat(value: dy), KotlinLong(value: nowMs))
         case .ended, .cancelled, .failed:
             pullResetCallback?(); lastPanTranslationY = 0
         default: break
@@ -448,7 +449,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         scrollStartCallback = callback
     }
 
-    func setPullMoveCallback(callback: ((Float, Int64) -> Void)?) { pullMoveCallback = callback }
+    func setPullMoveCallback(callback: ((KotlinFloat, KotlinLong) -> Void)?) { pullMoveCallback = callback }
     func setPullResetCallback(callback: (() -> Void)?) { pullResetCallback = callback }
     func setPullGestureEnabled(enabled: Bool) {
         pullGestureEnabled = enabled

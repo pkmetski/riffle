@@ -12,7 +12,7 @@ final class IosVerticalReaderPullGestureTests: XCTestCase {
         bridge.setPullResetCallback { resetFired = true }
         bridge.setPullGestureEnabled(enabled: true)
 
-        bridge.pullMoveCallback?(5.0, 1000)
+        bridge.pullMoveCallback?(KotlinFloat(value: 5.0), KotlinLong(value: 1000))
         bridge.pullResetCallback?()
 
         XCTAssertTrue(moveFired, "pullMoveCallback should fire when invoked")
@@ -31,7 +31,7 @@ final class IosVerticalReaderPullGestureTests: XCTestCase {
         bridge.setPullMoveCallback(callback: nil)
         bridge.setPullResetCallback(callback: nil)
 
-        bridge.pullMoveCallback?(5.0, 1000)
+        bridge.pullMoveCallback?(KotlinFloat(value: 5.0), KotlinLong(value: 1000))
         bridge.pullResetCallback?()
 
         XCTAssertFalse(moveFired, "cleared pullMoveCallback should not fire")
