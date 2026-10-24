@@ -175,7 +175,10 @@ class AnnotationSyncTargetHolderTest {
     fun `awaitFirstLoad resolves after init coroutine fires`() = runTest {
         val holder = holder()
         var completed = false
-        val job = launch { holder.awaitFirstLoad(); completed = true }
+        val job = launch {
+            holder.awaitFirstLoad()
+            completed = true
+        }
         job.join()
         assertTrue("awaitFirstLoad must complete after the init coroutine's first emission", completed)
     }
@@ -185,7 +188,10 @@ class AnnotationSyncTargetHolderTest {
         val holder = holder()
         holder.awaitFirstLoad()
         var completed = false
-        val job = launch { holder.awaitFirstLoad(); completed = true }
+        val job = launch {
+            holder.awaitFirstLoad()
+            completed = true
+        }
         job.join()
         assertTrue(completed)
     }
@@ -329,7 +335,9 @@ private class SingleSourceRepository(private val source: Source) : SourceReposit
 
 private class MutableSourceRepository : SourceRepository {
     private val state = MutableStateFlow<List<Source>>(emptyList())
-    fun emit(sources: List<Source>) { state.value = sources }
+    fun emit(sources: List<Source>) {
+        state.value = sources
+    }
     override fun observeAll(): Flow<List<Source>> = state
     override suspend fun getActive(): Source? = state.value.firstOrNull { it.isActive }
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =

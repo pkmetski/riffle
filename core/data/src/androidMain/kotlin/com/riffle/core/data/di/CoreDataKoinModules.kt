@@ -1140,7 +1140,10 @@ private val coreDataSyncModule = module {
     single {
         val holder = get<AnnotationSyncTargetHolder>()
         AnnotationPullSweep(
-            targetProvider = { holder.awaitFirstLoad(); holder.current() },
+            targetProvider = {
+                holder.awaitFirstLoad()
+                holder.current()
+            },
             syncController = get(),
             sourceRepository = get(),
             statusStore = get(),

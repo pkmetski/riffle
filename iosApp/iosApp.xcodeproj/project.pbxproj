@@ -20,6 +20,7 @@
 		A1C0DE04001A /* ReadiumDecorationTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE040002 /* ReadiumDecorationTemplates.swift */; };
 		A1C0DE050001 /* AnnotationWireFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE050002 /* AnnotationWireFormatTests.swift */; };
 		A1C0DE060001 /* ScrollProbeBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE060002 /* ScrollProbeBridgeTests.swift */; };
+		B1VP0010 /* IosVerticalReaderPullGestureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1VP0020 /* IosVerticalReaderPullGestureTests.swift */; };
 		A1C0DE070001 /* HostWiringProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0DE070002 /* HostWiringProbeTests.swift */; };
 		A1EL1D010001 /* ElidedAnnotationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL1D020001 /* ElidedAnnotationsViewTests.swift */; };
 		A1EL2D010001 /* ElidedPdfBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EL2D020001 /* ElidedPdfBridgeTests.swift */; };
@@ -129,6 +130,7 @@
 		A1C0DE040002 /* ReadiumDecorationTemplates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumDecorationTemplates.swift; sourceTree = "<group>"; };
 		A1C0DE050002 /* AnnotationWireFormatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationWireFormatTests.swift; sourceTree = "<group>"; };
 		A1C0DE060002 /* ScrollProbeBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollProbeBridgeTests.swift; sourceTree = "<group>"; };
+		B1VP0020 /* IosVerticalReaderPullGestureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosVerticalReaderPullGestureTests.swift; sourceTree = "<group>"; };
 		A1C0DE070002 /* HostWiringProbeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostWiringProbeTests.swift; sourceTree = "<group>"; };
 		A1EL1D020001 /* ElidedAnnotationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedAnnotationsViewTests.swift; sourceTree = "<group>"; };
 		A1EL2D020001 /* ElidedPdfBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridgeTests.swift; sourceTree = "<group>"; };
@@ -327,6 +329,7 @@
 				B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */,
 				BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */,
 				B1070020 /* AppShellSmokeTest.swift */,
+				B1VP0020 /* IosVerticalReaderPullGestureTests.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -634,6 +637,7 @@
 				B1CA0031 /* IosContinuousReaderTests.swift in Sources */,
 				B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */,
 				B1CA0034 /* ReadiumEpubNavigatorBridge+Continuous.swift in Sources (unit tests) */,
+				B1VP0010 /* IosVerticalReaderPullGestureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

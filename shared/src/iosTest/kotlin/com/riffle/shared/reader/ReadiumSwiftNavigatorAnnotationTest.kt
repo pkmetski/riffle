@@ -84,6 +84,9 @@ class ReadiumSwiftNavigatorAnnotationTest {
             riffleUrlCallback = callback
         }
         override fun setScrollStartCallback(callback: (() -> Unit)?) = Unit
+        override fun setPullMoveCallback(callback: ((dy: Float, nowMs: Long) -> Unit)?) = Unit
+        override fun setPullResetCallback(callback: (() -> Unit)?) = Unit
+        override fun setPullGestureEnabled(enabled: Boolean) = Unit
     }
 
     private fun navigator(bridge: FakeBridge) = ReadiumSwiftNavigator(bridge, RecordingLogger())

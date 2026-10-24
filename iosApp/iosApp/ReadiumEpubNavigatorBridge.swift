@@ -38,6 +38,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
     var scrollStartCallback: (() -> Void)?
+    var pullMoveCallback: ((KotlinFloat, KotlinLong) -> Void)?
+    var pullResetCallback: (() -> Void)?
+    var pullGestureEnabled = false
+    private var lastPanTranslationY: Float = 0
     private var publicationOpenErrorCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
@@ -245,9 +249,21 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         view.addGestureRecognizer(pan)
     }
 
-    @objc private func onPanGesture(_ recognizer: UIPanGestureRecognizer) {
-        if recognizer.state == .began {
-            scrollStartCallback?()
+    @objc func onPanGesture(_ recognizer: UIPanGestureRecognizer) {
+        if recognizer.state == .began { scrollStartCallback?(); lastPanTranslationY = 0 }
+        guard pullGestureEnabled else { return }
+        let pan = recognizer.translation(in: recognizer.view)
+        switch recognizer.state {
+        case .changed:
+            guard abs(pan.y) > abs(pan.x) else { return }
+            let currentY = Float(pan.y)
+            let dy = currentY - lastPanTranslationY
+            lastPanTranslationY = currentY
+            let nowMs = Int64(ProcessInfo.processInfo.systemUptime * 1000)
+            pullMoveCallback?(KotlinFloat(value: dy), KotlinLong(value: nowMs))
+        case .ended, .cancelled, .failed:
+            pullResetCallback?(); lastPanTranslationY = 0
+        default: break
         }
     }
 
@@ -388,7 +404,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
-
     func getTocJson() -> String { cachedTocJson }
 
     private func prefetchToc(_ pub: Publication) {
@@ -432,6 +447,13 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     func setScrollStartCallback(callback: (() -> Void)?) {
         scrollStartCallback = callback
+    }
+
+    func setPullMoveCallback(callback: ((KotlinFloat, KotlinLong) -> Void)?) { pullMoveCallback = callback }
+    func setPullResetCallback(callback: (() -> Void)?) { pullResetCallback = callback }
+    func setPullGestureEnabled(enabled: Bool) {
+        pullGestureEnabled = enabled
+        if !enabled { lastPanTranslationY = 0 }
     }
 
     private func serializeTocLinks(_ links: [Link]) -> String {
@@ -592,7 +614,6 @@ extension ReadiumEpubNavigatorBridge {
 }
 
 // MARK: - EPUBNavigatorDelegate (see ReadiumEpubNavigatorBridge+Delegate.swift)
-
 
 // MARK: - WKScriptMessageHandler (figure-tap bridge)
 
