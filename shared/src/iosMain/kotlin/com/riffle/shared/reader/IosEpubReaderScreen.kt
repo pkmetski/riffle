@@ -716,6 +716,10 @@ fun EpubReaderScreen(
     // BOUNDARY_POLL_INTERVAL_MS in Vertical mode and delivers pan gesture deltas from the Swift
     // bridge to the shared PullBoundaryGestureState. When the accumulated pull crosses the
     // threshold the PullChip fills and navigator.pageBy fires.
+    val density = LocalDensity.current.density
+    var pullActive by remember { mutableStateOf(false) }
+    var pullForward by remember { mutableStateOf(true) }
+    var pullProgress by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape)
         if (localPath == null || orientation != ReaderOrientation.Vertical) {
@@ -997,10 +1001,6 @@ fun EpubReaderScreen(
     // the shared ones — only the thing that consumes the pixel deltas is platform-specific.
     val autoScroll = remember(item.id) { AutoScrollController(dispatchers) }
     val autoScrollState by autoScroll.state.collectAsState()
-    val density = LocalDensity.current.density
-    var pullActive by remember { mutableStateOf(false) }
-    var pullForward by remember { mutableStateOf(true) }
-    var pullProgress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(autoScroll, resolvedPrefs?.autoScrollWpm) {
         resolvedPrefs?.let { autoScroll.setDefaultSpeed(AutoScrollSpeed.of(it.autoScrollWpm)) }
