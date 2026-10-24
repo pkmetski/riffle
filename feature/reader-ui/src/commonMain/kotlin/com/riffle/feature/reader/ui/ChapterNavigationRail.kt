@@ -87,7 +87,7 @@ fun ChapterNavigationRail(
     coloredChapterMap: Boolean = true,
     bookmarkPositions: List<Float> = emptyList(),
     modifier: Modifier = Modifier,
-    railHeight: Dp = 4.dp,
+    railHeight: Dp = 2.dp,
 ) {
     if (segments.isEmpty()) return
 
