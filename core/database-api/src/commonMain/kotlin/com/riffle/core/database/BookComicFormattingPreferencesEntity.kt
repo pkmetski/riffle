@@ -31,6 +31,8 @@ data class BookComicFormattingPreferencesEntity(
     @ColumnInfo(name = "panel_view_on") val panelViewOn: Boolean?,
     @ColumnInfo(name = "panel_overflow") val panelOverflow: String?,
     @ColumnInfo(name = "panel_animation_speed_ms") val panelAnimationSpeedMs: Int?,
+    @ColumnInfo(name = "show_chapter_map") val showChapterMap: Boolean? = null,
+    @ColumnInfo(name = "show_page_progress") val showPageProgress: Boolean? = null,
 )
 
 @Dao

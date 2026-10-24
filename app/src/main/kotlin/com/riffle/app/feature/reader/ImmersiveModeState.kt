@@ -258,20 +258,26 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     val controller = remember(window) {
         WindowInsetsBarsController(window, WindowInsetsControllerCompat(window, window.decorView))
     }
-    val state = remember(controller) {
-        ImmersiveModeState(controller, clock = SystemClock::elapsedRealtime)
-    }
 
     // Persists across rotation. Default true = always enter immersive on first open.
     // Only updated by user-initiated toggle()s — NOT by onBarsRestoredExternally().
     var savedIsImmersive by rememberSaveable { mutableStateOf(true) }
+
+    // isImmersive is set synchronously on state creation so the first composition frame
+    // never renders the strip when the user was in immersive mode before rotation.
+    val state = remember(controller) {
+        ImmersiveModeState(controller, clock = SystemClock::elapsedRealtime).also {
+            if (savedIsImmersive) it.isImmersive = true
+        }
+    }
 
     // Wire the user-toggle callback into savedIsImmersive after every recomposition.
     SideEffect {
         state.onUserImmersiveChanged = { savedIsImmersive = it }
     }
 
-    // Enter immersive mode on first open or after rotation if was immersive.
+    // Applies the actual system bar hide (controller call) after the first composition.
+    // isImmersive is already true at this point, so no visual change occurs here.
     LaunchedEffect(state) {
         if (savedIsImmersive) state.hide()
     }
