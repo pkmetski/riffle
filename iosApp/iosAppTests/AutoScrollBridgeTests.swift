@@ -45,7 +45,8 @@ final class AutoScrollBridgeTests: XCTestCase {
             justifyText: false,
             textColorArgb: 0,
             publisherStyles: true,
-            columnCount: 0
+            columnCount: 0,
+            isContinuousMode: false
         )
     }
 

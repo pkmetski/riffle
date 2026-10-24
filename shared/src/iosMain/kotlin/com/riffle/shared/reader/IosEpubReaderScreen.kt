@@ -560,6 +560,9 @@ fun EpubReaderScreen(
                     textColorArgb = styling.textColorArgb ?: 0L,
                     publisherStyles = styling.publisherStyles,
                     columnCount = styling.columnCount ?: 0,
+                    // Signals the bridge to activate IosContinuousScrollView (native multi-WebView
+                    // stacking) instead of EPUBNavigatorViewController for this mode.
+                    isContinuousMode = effectiveOrient == ReaderOrientation.Continuous,
                 )
             }
     }

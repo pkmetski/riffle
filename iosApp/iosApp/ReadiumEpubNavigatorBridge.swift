@@ -14,7 +14,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 /// Wraps Readium Swift 3.x EPUBNavigatorViewController, bridging it to the KMP shared layer.
 @objc class ReadiumEpubNavigatorBridge: NSObject, IosEpubNavigatorBridge {
 
-    private let hostViewController = UIViewController()
+    let hostViewController = UIViewController()
     var epubNavigator: EPUBNavigatorViewController?
     private var publication: Publication?
     // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
@@ -37,7 +37,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var footnoteCallback: ((String) -> Void)?
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
-    private var scrollStartCallback: (() -> Void)?
+    var scrollStartCallback: (() -> Void)?
     private var publicationOpenErrorCallback: ((String) -> Void)?
     /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
     /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
@@ -55,6 +55,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     // Pending preferences — stored before the navigator exists so openEpub can use them.
     var pendingPreferences: EPUBPreferences = EPUBPreferences()
+
+    // Native Continuous mode (multi-WebView sliding window, iOS-only).
+    var continuousScrollView: IosContinuousScrollView?
+    var pendingIsContinuousMode = false
 
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
@@ -165,6 +169,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     /// silently not apply to the other.
     @MainActor
     private func attach(publication pub: Publication, initialLocator: Locator?) throws {
+        if pendingIsContinuousMode {
+            attachContinuous(publication: pub, initialLocator: initialLocator)
+            return
+        }
         let config = makeNavigatorConfiguration()
         let navigator = try EPUBNavigatorViewController(
             publication: pub,
@@ -185,6 +193,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         installBookmarkCornerBlocker(on: hostViewController.view)
         disableScrollsToTop(in: navigator.view)
     }
+
+    /// Most recent IosReaderPreferences seen — used when attaching the continuous view
+    /// before applyReaderPreferences fires.
+    var currentContinuousPrefs: IosReaderPreferences?
 
     // Adds a transparent UIView over the top-right corner of the host view so that taps on the
     // Compose CornerBookmarkIndicator are NOT also delivered to the Readium WKWebView underneath.
@@ -262,7 +274,13 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     func goToLocator(locatorJson: String) {
         guard let jsonValue = try? JSONValue(jsonString: locatorJson),
               let locator = try? Locator(json: jsonValue, warnings: nil) else { return }
-        Task { @MainActor in _ = await epubNavigator?.go(to: locator, options: .animated) }
+        Task { @MainActor in
+            if let csv = continuousScrollView {
+                csv.navigateTo(href: "\(locator.href)", progression: Float(locator.locations.progression ?? 0))
+            } else {
+                _ = await epubNavigator?.go(to: locator, options: .animated)
+            }
+        }
     }
 
     /// Thread-safe: returns the cached locator JSON last emitted by the delegate on the main thread.
@@ -340,6 +358,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.epubNavigator?.view.removeFromSuperview()
             self.epubNavigator?.removeFromParent()
             self.epubNavigator = nil
+            self.continuousScrollView?.removeFromSuperview()
+            self.continuousScrollView = nil
             self.publication = nil
             self.cachedLocatorJson = nil
             self.cachedTocJson = "[]"
@@ -368,53 +388,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
-    func applyReaderPreferences(preferences: IosReaderPreferences) {
-        // Theme strings are owned by the Kotlin layer (IosEpubReaderScreen.kt).
-        // This switch is a Readium-Swift type adapter only — move any string-value logic there.
-        let resolvedTheme: Theme? = switch preferences.theme {
-        case "dark": .dark
-        case "sepia": .sepia
-        default: .light
-        }
-
-        var fontFamily: FontFamily? = nil
-        if !preferences.fontFamilyCss.isEmpty {
-            fontFamily = FontFamily(rawValue: preferences.fontFamilyCss)
-        }
-
-        let textAlign: TextAlignment? = preferences.justifyText ? .justify : nil
-        let lineHeight: Double? = preferences.lineHeightMultiplier > 0 ? Double(preferences.lineHeightMultiplier) : nil
-
-        // 0 means "leave it to the theme". Non-zero only for DarkDim, whose muted body colour is
-        // the only thing distinguishing it from Dark — without this it renders as plain Dark.
-        let textColor: ReadiumNavigator.Color? = preferences.textColorArgb != 0
-            ? ReadiumNavigator.Color(uiColor: UIColor(argb: preferences.textColorArgb))
-            : nil
-        // 0 means "Readium's default". Android pins one column because Readium 3.3.0's
-        // two-column default mispositions decorations.
-        let columns: ColumnCount? = switch preferences.columnCount {
-        case 1: .one
-        case 2: .two
-        default: nil
-        }
-
-        let prefs = EPUBPreferences(
-            columnCount: columns,
-            fontFamily: fontFamily,
-            fontSize: Double(preferences.fontSizePercent),
-            lineHeight: lineHeight,
-            pageMargins: preferences.pageMargins > 0 ? preferences.pageMargins : nil,
-            publisherStyles: preferences.publisherStyles,
-            scroll: preferences.scrollMode,
-            textAlign: textAlign,
-            textColor: textColor,
-            theme: resolvedTheme
-        )
-        pendingPreferences = prefs
-        Task { @MainActor in
-            epubNavigator?.submitPreferences(prefs)
-        }
-    }
 
     func getTocJson() -> String { cachedTocJson }
 
@@ -803,7 +776,7 @@ extension ReadiumEpubNavigatorBridge {
     /// `weightSegmentsByChapterLength` rely on. When Readium cannot compute positions the counts
     /// stay empty and the Kotlin side falls back to unweighted segments rather than mis-weighting
     /// them.
-    private func prefetchSpine(_ pub: Publication) {
+    func prefetchSpine(_ pub: Publication) {
         Task { @MainActor in
             let hrefs = pub.readingOrder
                 .map { "\"\($0.href.jsonEscaped)\"" }

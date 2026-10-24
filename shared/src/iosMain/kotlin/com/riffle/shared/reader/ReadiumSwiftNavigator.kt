@@ -87,6 +87,12 @@ class ReadiumSwiftNavigator(
     // before Compose's LaunchedEffect fires does not accidentally navigate in vertical/scroll mode.
     private var isPaginatedMode: Boolean? = null
 
+    // True when the bridge is using IosContinuousScrollView (native multi-WebView stacking).
+    // When set, scrollBoundaryAndProgression() returns (None, lastPosition.progression) so the
+    // boundary loop never crosses chapters but still drives continuousCursorOverride updates from
+    // the locator-callback-derived position rather than a live JS probe.
+    internal var isNativeContinuousActive = false
+
     // Number of pending BodyTap events to discard. Incremented synchronously by the Compose
     // onClick of an overlay (e.g. CornerBookmarkIndicator) that leaks through to the Readium
     // UIKit view; checked by consumeSuppressedBodyTap() in the BodyTap collector, which runs
@@ -603,8 +609,18 @@ class ReadiumSwiftNavigator(
      * active scrolling without a second JS hop. Readium's own [locationDidChange] fires 300 ms
      * after scroll-end, so the cursor would otherwise be frozen while the reader is dragging.
      */
-    internal suspend fun scrollBoundaryAndProgression(): ScrollProbes.BoundaryAndProgression =
-        ScrollProbes.parseBoundaryAndProgression(evaluateJs(ScrollProbes.BOUNDARY_PROGRESS_PROBE_JS))
+    internal suspend fun scrollBoundaryAndProgression(): ScrollProbes.BoundaryAndProgression {
+        if (isNativeContinuousActive) {
+            // Native IosContinuousScrollView owns scroll; the Kotlin boundary loop must not fire
+            // chapter transitions. Return None boundary so BoundaryAdvance stays None, but report
+            // the last known within-chapter progression so continuousCursorOverride still updates.
+            return ScrollProbes.BoundaryAndProgression(
+                NavigatorScrollBoundary.None,
+                lastPosition?.progression ?: 0f,
+            )
+        }
+        return ScrollProbes.parseBoundaryAndProgression(evaluateJs(ScrollProbes.BOUNDARY_PROGRESS_PROBE_JS))
+    }
 
     /**
      * Measure the visible resource and publish it on [viewportFractionEvents] against
@@ -630,6 +646,7 @@ class ReadiumSwiftNavigator(
         textColorArgb: Long,
         publisherStyles: Boolean,
         columnCount: Int,
+        isContinuousMode: Boolean,
     ) {
         isPaginatedMode = !scrollMode
         bridge.applyReaderPreferences(
@@ -644,6 +661,7 @@ class ReadiumSwiftNavigator(
                 textColorArgb = textColorArgb,
                 publisherStyles = publisherStyles,
                 columnCount = columnCount,
+                isContinuousMode = isContinuousMode,
             ),
         )
     }

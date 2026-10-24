@@ -50,7 +50,8 @@ final class AnnotationBridgeTests: XCTestCase {
             justifyText: false,
             textColorArgb: 0,
             publisherStyles: true,
-            columnCount: 1
+            columnCount: 1,
+            isContinuousMode: false
         )
     }
 

@@ -25,6 +25,21 @@ dependencyResolutionManagement {
     }
 }
 
+// Synthesise local.properties when it is absent (e.g. fresh Conductor worktrees). KMP modules
+// with Android targets require sdk.dir even when only an iOS framework is being built, because
+// Gradle configures all modules. Resolution order matches the Android Gradle Plugin's own lookup:
+// ANDROID_HOME → ANDROID_SDK_ROOT → the standard macOS install location.
+val localPropsFile = file("local.properties")
+if (!localPropsFile.exists()) {
+    val sdkDir = System.getenv("ANDROID_HOME")
+        ?: System.getenv("ANDROID_SDK_ROOT")
+        ?: "${System.getProperty("user.home")}/Library/Android/sdk"
+            .takeIf { java.io.File(it).isDirectory }
+    if (sdkDir != null) {
+        localPropsFile.writeText("sdk.dir=$sdkDir\n")
+    }
+}
+
 rootProject.name = "riffle"
 
 include(":app")

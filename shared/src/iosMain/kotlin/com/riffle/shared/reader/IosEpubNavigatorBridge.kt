@@ -360,4 +360,11 @@ data class IosReaderPreferences(
     val publisherStyles: Boolean,
     /** Columns to pin, or 0 for Readium's default. Android pins 1 (Readium 3.3.0 decorations). */
     val columnCount: Int,
+    /**
+     * True when the effective reading orientation is Continuous. Signals the bridge to use the
+     * native multi-WebView stacking view ([IosContinuousScrollView]) instead of Readium's
+     * single-resource EPUBNavigatorViewController, giving simultaneous visibility of adjacent
+     * chapter content across chapter boundaries — equivalent to Android's [ContinuousReaderView].
+     */
+    val isContinuousMode: Boolean,
 )
