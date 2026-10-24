@@ -666,6 +666,7 @@ class ReadiumSwiftNavigator(
         isContinuousMode: Boolean,
     ) {
         isPaginatedMode = !scrollMode
+        isNativeContinuousActive = isContinuousMode
         bridge.applyReaderPreferences(
             IosReaderPreferences(
                 fontSizePercent = fontSizePercent,
