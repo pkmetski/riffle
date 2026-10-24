@@ -170,20 +170,27 @@ final class IosContinuousCssInjectorTests: XCTestCase {
     func testTypographyOverrideAppearsAfterReadiumAfterCss() {
         // Typography overrides must come after ReadiumCSS-after.css so they can beat ReadiumCSS's
         // own high-specificity rules (which are in -after.css) using the !important gate pattern.
+        // Search for `var(--USER__lineHeight)` — this is the CSS *declaration* in the typography
+        // override block, distinct from `--USER__lineHeight:1.5` that also appears in the <html>
+        // style attribute (which comes earlier in the string and would give a false position).
         let html = "<html><head></head><body></body></html>"
         let result = IosContinuousCssInjector.injectInto(html: html, href: "ch1.xhtml", prefs: makePrefs())
         let afterCssRange = result.range(of: "ReadiumCSS-after.css")!
-        let typographyRange = result.range(of: "--USER__lineHeight")!
+        let typographyRange = result.range(of: "var(--USER__lineHeight)")!
         XCTAssertTrue(afterCssRange.lowerBound < typographyRange.lowerBound,
                       "typography override must appear after ReadiumCSS-after.css in the injected HTML")
     }
 
     // MARK: - buildStyleSetJs
 
-    func testBuildStyleSetJsProducesValidJs() {
+    func testBuildStyleSetJsUsesThreeArgSetPropertyForImportant() {
+        // Readium's utils.js documents that !important embedded in the value is ignored by WebKit;
+        // the third 'important' argument is the only form WebKit serializes into getAttribute('style'),
+        // which ReadiumCSS attribute selectors ([style*="--USER__*"]) need to fire on live updates.
         let prefs = makePrefs(fontSizePercent: 1.25, theme: "dark")
         let js = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
-        XCTAssertTrue(js.contains("style.setProperty"), "JS must use style.setProperty to avoid WebKit !important parsing quirk")
+        XCTAssertTrue(js.contains(",'important'"),
+                      "JS must pass 'important' as third arg to setProperty so WebKit serializes the property into getAttribute('style')")
         XCTAssertTrue(js.contains("readium-night-on"), "JS must include dark theme variable")
     }
 

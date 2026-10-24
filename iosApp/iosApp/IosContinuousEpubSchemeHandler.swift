@@ -225,28 +225,31 @@ enum IosContinuousCssInjector {
 
     // MARK: - Live preference update JS
 
-    // Uses style.setProperty() / style.removeProperty() rather than setAttribute() because
-    // WebKit's CSSOM parser rejects !important on CSS custom properties in setAttribute() calls
-    // while the HTML parser accepts them. setProperty() bypasses string parsing entirely and
-    // is the recommended CSSOM-level API for mutating individual properties.
+    // Uses style.setProperty(key, value, 'important') — the three-argument form — because WebKit
+    // silently ignores !important when it appears *inside* the value string (either embedded in
+    // setAttribute() or as part of the value argument to setProperty()). Passing 'important' as
+    // the third argument is the only way that makes WebKit serialize the property into
+    // getAttribute('style'), which ReadiumCSS attribute selectors ([style*="--USER__*"]) need to
+    // match for live updates to take effect. This matches Readium's own setCSSProperties() in
+    // swift-toolkit/Sources/Navigator/EPUB/Scripts/src/utils.js (line: setProperty(key,value,"important")).
     static func buildStyleSetJs(prefs: IosReaderPreferences) -> String {
         var lines: [String] = []
         lines.append("var r=document.documentElement;")
 
         // Always scrolled in Continuous mode.
-        lines.append("r.style.setProperty('--USER__view','readium-scroll-on');")
+        lines.append("r.style.setProperty('--USER__view','readium-scroll-on','important');")
 
         // Page margins.
         let marginsVal = prefs.pageMargins.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(prefs.pageMargins))" : "\(prefs.pageMargins)"
-        lines.append("r.style.setProperty('--USER__pageMargins','\(marginsVal)');")
+        lines.append("r.style.setProperty('--USER__pageMargins','\(marginsVal)','important');")
 
         // Appearance — must REMOVE for light to clear a previous dark/sepia setting.
         switch prefs.theme {
         case "dark":
-            lines.append("r.style.setProperty('--USER__appearance','readium-night-on');")
+            lines.append("r.style.setProperty('--USER__appearance','readium-night-on','important');")
         case "sepia":
-            lines.append("r.style.setProperty('--USER__appearance','readium-sepia-on');")
+            lines.append("r.style.setProperty('--USER__appearance','readium-sepia-on','important');")
         default:
             lines.append("r.style.removeProperty('--USER__appearance');")
         }
@@ -257,7 +260,7 @@ enum IosContinuousCssInjector {
             let grn = (prefs.textColorArgb >> 8) & 0xFF
             let blu = prefs.textColorArgb & 0xFF
             let hex = String(format: "#%02X%02X%02X", red, grn, blu)
-            lines.append("r.style.setProperty('--USER__textColor','\(hex)');")
+            lines.append("r.style.setProperty('--USER__textColor','\(hex)','important');")
         } else {
             lines.append("r.style.removeProperty('--USER__textColor');")
         }
@@ -271,9 +274,9 @@ enum IosContinuousCssInjector {
             let family = prefs.fontFamilyCss
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")
-            lines.append("r.style.setProperty('--USER__fontOverride','readium-font-on');")
+            lines.append("r.style.setProperty('--USER__fontOverride','readium-font-on','important');")
             // Value passed to setProperty is '"FamilyName"' (CSS quoted string).
-            lines.append("r.style.setProperty('--USER__fontFamily','\"' + '\(family)' + '\"');")
+            lines.append("r.style.setProperty('--USER__fontFamily','\"' + '\(family)' + '\"','important');")
         } else {
             lines.append("r.style.removeProperty('--USER__fontOverride');")
             lines.append("r.style.removeProperty('--USER__fontFamily');")
@@ -283,21 +286,21 @@ enum IosContinuousCssInjector {
         let pct = prefs.fontSizePercent * 100
         let pctStr = pct.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(pct))%" : "\(pct)%"
-        lines.append("r.style.setProperty('--USER__fontSize','\(pctStr)');")
+        lines.append("r.style.setProperty('--USER__fontSize','\(pctStr)','important');")
 
         // Always advanced settings (publisher styles off).
-        lines.append("r.style.setProperty('--USER__advancedSettings','readium-advanced-on');")
+        lines.append("r.style.setProperty('--USER__advancedSettings','readium-advanced-on','important');")
 
         // Text alignment.
         if prefs.justifyText {
-            lines.append("r.style.setProperty('--USER__textAlign','justify');")
+            lines.append("r.style.setProperty('--USER__textAlign','justify','important');")
         } else {
             lines.append("r.style.removeProperty('--USER__textAlign');")
         }
 
         // Line height.
         if prefs.lineHeightMultiplier > 0 {
-            lines.append("r.style.setProperty('--USER__lineHeight','\(prefs.lineHeightMultiplier)');")
+            lines.append("r.style.setProperty('--USER__lineHeight','\(prefs.lineHeightMultiplier)','important');")
         } else {
             lines.append("r.style.removeProperty('--USER__lineHeight');")
         }
