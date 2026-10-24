@@ -299,11 +299,20 @@ final class IosContinuousScrollView: UIView {
         let chapterH = slotHeights[idx]
         let progression = chapterH > 0 ? Double(chapterY / chapterH).clamped(to: 0...1) : 0
 
+        // totalProgression is the viewport midpoint as a fraction of the total stacked height.
+        // Using height geometry rather than a uniform (chapterIndex / count) approximation gives
+        // correct weighting when chapters vary in length — the chapter map cursor tracks exactly
+        // where on the reading rail the user is, matching Android's continuous mode behaviour.
+        let totalHeight = outerScrollView.contentSize.height
+        let totalProgression = totalHeight > 0
+            ? Double(midY / totalHeight).clamped(to: 0...1)
+            : 0
+
         if idx != lastReportedIndex || abs(progression - lastReportedProgression) > 0.001 {
             lastReportedIndex = idx
             lastReportedProgression = progression
             let href = spineHrefs[idx]
-            let json = makeLocatorJson(href: href, progression: progression)
+            let json = makeLocatorJson(href: href, progression: progression, totalProgression: totalProgression)
             onLocator?(json)
         }
 
@@ -355,11 +364,11 @@ final class IosContinuousScrollView: UIView {
         href.hasPrefix("/") ? String(href.dropFirst()) : href
     }
 
-    private func makeLocatorJson(href: String, progression: Double) -> String {
+    private func makeLocatorJson(href: String, progression: Double, totalProgression: Double) -> String {
         let clean = href.replacingOccurrences(of: "\"", with: "\\\"")
         return """
         {"href":"\(clean)","type":"application/xhtml+xml",\
-        "locations":{"progression":\(progression),"position":null},"text":{}}
+        "locations":{"progression":\(progression),"totalProgression":\(totalProgression),"position":null},"text":{}}
         """
     }
 }
