@@ -41,6 +41,7 @@ final class IosContinuousScrollView: UIView {
     private var hasReportedScrollStart = false
     private var lastReportedIndex = -1
     private var lastReportedProgression = -1.0
+    private var lastReportedTotalProgression = -1.0
 
     // Pending initial scroll position applied once heights are known.
     private var pendingInitialIndex: Int = 0
@@ -308,9 +309,13 @@ final class IosContinuousScrollView: UIView {
             ? Double(midY / totalHeight).clamped(to: 0...1)
             : 0
 
-        if idx != lastReportedIndex || abs(progression - lastReportedProgression) > 0.001 {
+        // Emit when: chapter changed, or in-chapter progression moved enough, or totalProgression
+        // moved enough (drives the chapter-map cursor independently of chapter boundaries).
+        let totalProgressionMoved = abs(totalProgression - lastReportedTotalProgression) > 0.002
+        if idx != lastReportedIndex || abs(progression - lastReportedProgression) > 0.001 || totalProgressionMoved {
             lastReportedIndex = idx
             lastReportedProgression = progression
+            lastReportedTotalProgression = totalProgression
             let href = spineHrefs[idx]
             let json = makeLocatorJson(href: href, progression: progression, totalProgression: totalProgression)
             onLocator?(json)

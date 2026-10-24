@@ -225,14 +225,87 @@ enum IosContinuousCssInjector {
 
     // MARK: - Live preference update JS
 
+    // Uses style.setProperty() / style.removeProperty() rather than setAttribute() because
+    // WebKit's CSSOM parser rejects !important on CSS custom properties in setAttribute() calls
+    // while the HTML parser accepts them. setProperty() bypasses string parsing entirely and
+    // is the recommended CSSOM-level API for mutating individual properties.
     static func buildStyleSetJs(prefs: IosReaderPreferences) -> String {
-        let attr = buildHtmlStyleAttr(prefs: prefs)
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-        return "(function(){document.documentElement.setAttribute('style','\(attr)');})();"
+        var lines: [String] = []
+        lines.append("var r=document.documentElement;")
+
+        // Always scrolled in Continuous mode.
+        lines.append("r.style.setProperty('--USER__view','readium-scroll-on');")
+
+        // Page margins.
+        let marginsVal = prefs.pageMargins.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(prefs.pageMargins))" : "\(prefs.pageMargins)"
+        lines.append("r.style.setProperty('--USER__pageMargins','\(marginsVal)');")
+
+        // Appearance — must REMOVE for light to clear a previous dark/sepia setting.
+        switch prefs.theme {
+        case "dark":
+            lines.append("r.style.setProperty('--USER__appearance','readium-night-on');")
+        case "sepia":
+            lines.append("r.style.setProperty('--USER__appearance','readium-sepia-on');")
+        default:
+            lines.append("r.style.removeProperty('--USER__appearance');")
+        }
+
+        // DarkDim muted text colour.
+        if prefs.textColorArgb != 0 {
+            let red = (prefs.textColorArgb >> 16) & 0xFF
+            let grn = (prefs.textColorArgb >> 8) & 0xFF
+            let blu = prefs.textColorArgb & 0xFF
+            let hex = String(format: "#%02X%02X%02X", red, grn, blu)
+            lines.append("r.style.setProperty('--USER__textColor','\(hex)');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__textColor');")
+        }
+
+        // Font family — must REMOVE both override and family when switching back to publisher font.
+        // The CSS value must be a quoted string (e.g. "Literata") so ReadiumCSS can use it
+        // directly in font-family: var(--USER__fontFamily).
+        if !prefs.fontFamilyCss.isEmpty {
+            // Font name is embedded inside a JS single-quoted string whose value is the CSS
+            // quoted-string "FamilyName". Escape backslashes and single quotes in the name.
+            let family = prefs.fontFamilyCss
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+            lines.append("r.style.setProperty('--USER__fontOverride','readium-font-on');")
+            // Value passed to setProperty is '"FamilyName"' (CSS quoted string).
+            lines.append("r.style.setProperty('--USER__fontFamily','\"' + '\(family)' + '\"');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__fontOverride');")
+            lines.append("r.style.removeProperty('--USER__fontFamily');")
+        }
+
+        // Font size.
+        let pct = prefs.fontSizePercent * 100
+        let pctStr = pct.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(pct))%" : "\(pct)%"
+        lines.append("r.style.setProperty('--USER__fontSize','\(pctStr)');")
+
+        // Always advanced settings (publisher styles off).
+        lines.append("r.style.setProperty('--USER__advancedSettings','readium-advanced-on');")
+
+        // Text alignment.
+        if prefs.justifyText {
+            lines.append("r.style.setProperty('--USER__textAlign','justify');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__textAlign');")
+        }
+
+        // Line height.
+        if prefs.lineHeightMultiplier > 0 {
+            lines.append("r.style.setProperty('--USER__lineHeight','\(prefs.lineHeightMultiplier)');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__lineHeight');")
+        }
+
+        return "(function(){\(lines.joined())})()"
     }
 
-    // MARK: - CSS variable builder
+    // MARK: - CSS variable builder (used for initial HTML injection only)
 
     static func buildHtmlStyleAttr(prefs: IosReaderPreferences) -> String {
         var props: [(String, String)] = []
@@ -241,7 +314,9 @@ enum IosContinuousCssInjector {
         props.append(("--USER__view", "readium-scroll-on"))
 
         // Page margins.
-        props.append(("--USER__pageMargins", String(prefs.pageMargins)))
+        let marginsVal = prefs.pageMargins.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(prefs.pageMargins))" : "\(prefs.pageMargins)"
+        props.append(("--USER__pageMargins", marginsVal))
 
         // Appearance.
         switch prefs.theme {
@@ -283,7 +358,10 @@ enum IosContinuousCssInjector {
             props.append(("--USER__lineHeight", String(prefs.lineHeightMultiplier)))
         }
 
-        return props.map { "\($0.0): \($0.1) !important;" }.joined(separator: " ")
+        // No !important on custom properties — inline style already wins the cascade, and
+        // WebKit's HTML-attribute parser and CSSOM (setAttribute) parser handle !important
+        // on custom properties differently, causing silent update failures.
+        return props.map { "\($0.0): \($0.1);" }.joined(separator: " ")
     }
 
     // MARK: - Private helpers

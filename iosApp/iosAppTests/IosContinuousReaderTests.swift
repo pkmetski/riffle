@@ -183,9 +183,33 @@ final class IosContinuousCssInjectorTests: XCTestCase {
     func testBuildStyleSetJsProducesValidJs() {
         let prefs = makePrefs(fontSizePercent: 1.25, theme: "dark")
         let js = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
-        XCTAssertTrue(js.contains("document.documentElement.setAttribute"), "JS must call setAttribute")
-        XCTAssertTrue(js.contains("style"), "JS must set the style attribute")
+        XCTAssertTrue(js.contains("style.setProperty"), "JS must use style.setProperty to avoid WebKit !important parsing quirk")
         XCTAssertTrue(js.contains("readium-night-on"), "JS must include dark theme variable")
+    }
+
+    func testBuildStyleSetJsRemovesAppearanceForLightTheme() {
+        let prefs = makePrefs(theme: "light")
+        let js = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
+        XCTAssertTrue(js.contains("removeProperty('--USER__appearance')"),
+                      "light theme must remove appearance so a previous dark/sepia setting is cleared")
+        XCTAssertFalse(js.contains("readium-night-on"), "light theme must not set night-on")
+        XCTAssertFalse(js.contains("readium-sepia-on"), "light theme must not set sepia-on")
+    }
+
+    func testBuildStyleSetJsRemovesFontOverrideWhenNoFamily() {
+        let prefs = makePrefs(fontFamilyCss: "")
+        let js = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
+        XCTAssertTrue(js.contains("removeProperty('--USER__fontOverride')"),
+                      "empty fontFamilyCss must remove fontOverride so publisher font is restored")
+        XCTAssertTrue(js.contains("removeProperty('--USER__fontFamily')"),
+                      "empty fontFamilyCss must remove fontFamily")
+    }
+
+    func testBuildHtmlStyleAttrHasNoImportant() {
+        let prefs = makePrefs(fontSizePercent: 1.5, theme: "dark", fontFamilyCss: "Literata")
+        let attr = IosContinuousCssInjector.buildHtmlStyleAttr(prefs: prefs)
+        XCTAssertFalse(attr.contains("!important"),
+                       "buildHtmlStyleAttr must not emit !important — WebKit treats it differently in setAttribute vs HTML parsing")
     }
 }
 
