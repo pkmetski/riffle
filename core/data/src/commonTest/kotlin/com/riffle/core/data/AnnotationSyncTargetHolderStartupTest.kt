@@ -74,7 +74,10 @@ class AnnotationSyncTargetHolderStartupTest {
     fun awaitFirstLoadResolvesAfterInitCoroutineFires() = runTest {
         val holder = makeHolder(scope = backgroundScope)
         var completed = false
-        val job = launch { holder.awaitFirstLoad(); completed = true }
+        val job = launch {
+            holder.awaitFirstLoad()
+            completed = true
+        }
         job.join()
         assertTrue(completed, "awaitFirstLoad must complete after the init coroutine's first emission")
     }
@@ -84,7 +87,10 @@ class AnnotationSyncTargetHolderStartupTest {
         val holder = makeHolder(scope = backgroundScope)
         holder.awaitFirstLoad()
         var completed = false
-        val job = launch { holder.awaitFirstLoad(); completed = true }
+        val job = launch {
+            holder.awaitFirstLoad()
+            completed = true
+        }
         job.join()
         assertTrue(completed)
     }
@@ -173,9 +179,15 @@ class AnnotationSyncTargetHolderStartupTest {
 private class HolderStartupFakeConfigStore : AnnotationSyncConfigStore {
     private val state = MutableStateFlow<AnnotationSyncConfig?>(null)
     override fun observe(): StateFlow<AnnotationSyncConfig?> = state
-    override suspend fun save(config: AnnotationSyncConfig) { state.value = config }
-    override suspend fun clear() { state.value = null }
-    fun emit(value: AnnotationSyncConfig?) { state.value = value }
+    override suspend fun save(config: AnnotationSyncConfig) {
+        state.value = config
+    }
+    override suspend fun clear() {
+        state.value = null
+    }
+    fun emit(value: AnnotationSyncConfig?) {
+        state.value = value
+    }
 }
 
 private class HolderStartupEmptySourceRepository : SourceRepository {
@@ -191,7 +203,9 @@ private class HolderStartupEmptySourceRepository : SourceRepository {
 
 private class HolderStartupMutableSourceRepository : SourceRepository {
     private val state = MutableStateFlow<List<Source>>(emptyList())
-    fun emit(sources: List<Source>) { state.value = sources }
+    fun emit(sources: List<Source>) {
+        state.value = sources
+    }
     override fun observeAll(): Flow<List<Source>> = state
     override suspend fun getActive(): Source? = state.value.firstOrNull { it.isActive }
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
@@ -209,9 +223,13 @@ private class HolderStartupNoopTokenStorage : TokenStorage {
 
 private class HolderStartupInMemoryTokenStorage : TokenStorage {
     val savedTokens: MutableMap<String, String> = mutableMapOf()
-    override suspend fun saveToken(sourceId: String, token: String) { savedTokens[sourceId] = token }
+    override suspend fun saveToken(sourceId: String, token: String) {
+        savedTokens[sourceId] = token
+    }
     override suspend fun getToken(sourceId: String): String? = savedTokens[sourceId]
-    override suspend fun deleteToken(sourceId: String) { savedTokens.remove(sourceId) }
+    override suspend fun deleteToken(sourceId: String) {
+        savedTokens.remove(sourceId)
+    }
 }
 
 private class HolderStartupNoopAbsApi : AbsBookmarkApi {

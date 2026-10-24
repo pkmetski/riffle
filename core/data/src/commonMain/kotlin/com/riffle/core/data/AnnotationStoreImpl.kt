@@ -386,11 +386,10 @@ class AnnotationStoreImpl(
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun logMissingEmphasisTarget(id: String) {
         // Intentionally quiet — the store has no logger dependency; callers with logging can
         // observe the effect (zero-row change followed by their own sync-cost push).
-        @Suppress("UNUSED_VARIABLE")
-        val _unused = id
     }
 
     override suspend fun delete(id: String) {

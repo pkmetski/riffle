@@ -36,7 +36,7 @@ class AnnotationPullSweep(
                 val namespace = (
                     sourceRepository.ensureSyncNamespace(source.id)
                         as? SyncNamespace.Configured
-                )?.value ?: continue
+                    )?.value ?: continue
                 syncController.pullAll(source.id, namespace)
             }
             CycleOutcome.Success(clock())

@@ -101,7 +101,9 @@ class AnnotationSyncTargetHolder(
      * Resolves within milliseconds of startup (first Room emission). Subsequent calls return
      * immediately — [CompletableDeferred.complete] is idempotent.
      */
-    suspend fun awaitFirstLoad() { firstLoad.await() }
+    suspend fun awaitFirstLoad() {
+        firstLoad.await()
+    }
 
     /** Emits the current target whenever it changes. Null means sync is not configured. */
     fun observe(): kotlinx.coroutines.flow.StateFlow<AnnotationSyncTarget?> = state

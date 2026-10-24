@@ -18,8 +18,11 @@ internal class AndroidEpubFileStore(
 
     override fun resolve(namespace: String, relativePath: String): String {
         val root = rootFor(namespace)
-        return if (relativePath.isEmpty()) root.absolutePath
-        else File(root, relativePath).absolutePath
+        return if (relativePath.isEmpty()) {
+            root.absolutePath
+        } else {
+            File(root, relativePath).absolutePath
+        }
     }
 
     override fun exists(namespace: String, relativePath: String): Boolean =
