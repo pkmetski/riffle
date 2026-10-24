@@ -170,17 +170,22 @@ final class IosContinuousScrollView: UIView {
     private func makeWebView() -> WKWebView {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(schemeHandler, forURLScheme: IosContinuousEpubSchemeHandler.scheme)
-        let msgHandler = WeakScriptMessageHandler(target: self)
-        config.userContentController.add(msgHandler, name: "riffleChapterHeight")
-
+        let heightHandler = WeakScriptMessageHandler(target: self)
+        config.userContentController.add(heightHandler, name: "riffleChapterHeight")
+        let tapHandler = WeakScriptMessageHandler(target: self)
+        config.userContentController.add(tapHandler, name: "riffleTap")
+        let typographyScript = WKUserScript(
+            source: TypographyOverrideKt.TYPOGRAPHY_OVERRIDE_INSTALL_SCRIPT,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(typographyScript)
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.navigationDelegate = self
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleWebViewTap(_:)))
-        webView.addGestureRecognizer(tapGesture)
         return webView
     }
 
@@ -197,11 +202,25 @@ final class IosContinuousScrollView: UIView {
 
     private func onHeightMeasured(href: String, height: CGFloat) {
         guard let index = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(href) }) else { return }
+        let oldHeight = slotHeights[index]
+        let oldChapterTop = slotOffsets[index]
         slotHeights[index] = max(height, 1)
+        let newHeight = slotHeights[index]
         heightMeasured[index] = true
         slotOffsets = computeOffsets(from: slotHeights)
         updateAllWebViewFrames()
         updateContentHeight()
+
+        // Compensate scroll offset so content above the viewport doesn't shift visible content.
+        let delta = newHeight - oldHeight
+        if delta != 0 {
+            let viewportY = outerScrollView.contentOffset.y
+            let oldChapterBottom = oldChapterTop + oldHeight
+            if oldChapterBottom <= viewportY {
+                let compensated = max(0, viewportY + delta)
+                outerScrollView.setContentOffset(CGPoint(x: 0, y: compensated), animated: false)
+            }
+        }
 
         if !initialScrollApplied, heightMeasured[pendingInitialIndex] == true {
             initialScrollApplied = true
@@ -247,13 +266,6 @@ final class IosContinuousScrollView: UIView {
         let yPos = slotOffsets[index] + CGFloat(progression) * slotHeights[index]
         outerScrollView.setContentOffset(CGPoint(x: 0, y: max(0, yPos)), animated: false)
         loadWindow(around: index)
-    }
-
-    // MARK: - Tap
-
-    @objc private func handleWebViewTap(_ gesture: UITapGestureRecognizer) {
-        let tapPt = gesture.location(in: self)
-        onTap?(tapPt)
     }
 
     // MARK: - Layout
@@ -314,11 +326,22 @@ extension IosContinuousScrollView: UIScrollViewDelegate {
 
 extension IosContinuousScrollView: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "riffleChapterHeight",
-              let body = message.body as? [String: Any],
-              let href = body["href"] as? String,
-              let height = body["height"] as? Double else { return }
-        onHeightMeasured(href: href, height: CGFloat(height))
+        if message.name == "riffleChapterHeight",
+           let body = message.body as? [String: Any],
+           let href = body["href"] as? String,
+           let height = body["height"] as? Double {
+            onHeightMeasured(href: href, height: CGFloat(height))
+        } else if message.name == "riffleTap",
+                  let body = message.body as? [String: Any],
+                  let clientX = body["x"] as? Double,
+                  let clientY = body["y"] as? Double,
+                  let webView = message.webView,
+                  let index = loadedWebViews.first(where: { $0.value === webView })?.key {
+            let screenX = CGFloat(clientX)
+            let screenY = (slotOffsets[index] + CGFloat(clientY) - outerScrollView.contentOffset.y)
+                .clamped(to: 0...bounds.height)
+            onTap?(CGPoint(x: screenX, y: screenY))
+        }
     }
 }
 
@@ -330,14 +353,37 @@ extension IosContinuousScrollView: WKNavigationDelegate {
         let escapedPath = rawPath
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
+        // Mirrors Android's HEIGHT_MEASUREMENT_JS: avoids scrollHeight viewport-clamp on short chapters.
         let heightJs = """
         (function(){
           var href='\(escapedPath)';
-          var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight,1);
+          var de=document.documentElement,b=document.body;
+          var bodyBottom=b?(b.getBoundingClientRect().bottom+(window.pageYOffset||0)):0;
+          var rootPadBottom=0;
+          if(de){var pb=parseFloat(window.getComputedStyle(de).paddingBottom);if(pb===pb)rootPadBottom=pb;}
+          var h=Math.max(bodyBottom+rootPadBottom,de?de.offsetHeight:0,b?b.offsetHeight:0,1);
           window.webkit.messageHandlers.riffleChapterHeight.postMessage({href:href,height:h});
         })();
         """
         webView.evaluateJavaScript(heightJs, completionHandler: nil)
+        // JS tap listener mirrors Android's TAP_LISTENER_JS, routing via message handler instead of JSInterface.
+        let tapJs = """
+        (function(){
+          if(window._riffleTapWired)return;
+          window._riffleTapWired=true;
+          document.addEventListener('click',function(e){
+            if(window.getSelection&&window.getSelection().toString().length>0)return;
+            var el=e.target;
+            while(el){
+              var tag=el.tagName?el.tagName.toLowerCase():'';
+              if(tag==='a'||tag==='button'||tag==='input'||tag==='select'||tag==='textarea'||tag==='label')return;
+              el=el.parentElement;
+            }
+            window.webkit.messageHandlers.riffleTap.postMessage({x:e.clientX,y:e.clientY});
+          });
+        })();
+        """
+        webView.evaluateJavaScript(tapJs, completionHandler: nil)
     }
 }
 

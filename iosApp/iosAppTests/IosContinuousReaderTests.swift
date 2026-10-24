@@ -47,6 +47,17 @@ final class IosContinuousCssInjectorTests: XCTestCase {
         XCTAssertTrue(result.contains("ReadiumCSS-after.css"), "after CSS must be injected")
     }
 
+    func testInjectInsertsViewportMetaBeforeCssLinks() {
+        let html = "<html><head></head><body><p>Hello</p></body></html>"
+        let result = IosContinuousCssInjector.injectInto(html: html, href: "ch1.xhtml", prefs: makePrefs())
+        XCTAssertTrue(result.contains(#"<meta name="viewport" content="width=device-width, initial-scale=1.0"/>"#),
+                      "viewport meta must be injected so WKWebView uses device-width layout, not 980px virtual viewport")
+        let viewportRange = result.range(of: "viewport")!
+        let cssRange = result.range(of: "ReadiumCSS-before.css")!
+        XCTAssertTrue(viewportRange.lowerBound < cssRange.lowerBound,
+                      "viewport meta must appear before the ReadiumCSS-before link")
+    }
+
     func testInjectInsertsScrollOnVariable() {
         let html = "<html><head></head><body></body></html>"
         let result = IosContinuousCssInjector.injectInto(html: html, href: "ch1.xhtml", prefs: makePrefs())

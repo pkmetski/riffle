@@ -182,8 +182,10 @@ enum IosContinuousCssInjector {
             || html.range(of: "<link ", options: .caseInsensitive) != nil
 
         // 1. Before-CSS (+ default-CSS when no author styles) after <head>.
+        // Viewport meta pins layout to device CSS width; without it WKWebView uses its 980px virtual viewport.
         let beforeBlock = """
-        \n<link rel="stylesheet" type="text/css" href="\(cssBase)/ReadiumCSS-before.css"/>\n\
+        \n<meta name="viewport" content="width=device-width, initial-scale=1.0"/>\n\
+        <link rel="stylesheet" type="text/css" href="\(cssBase)/ReadiumCSS-before.css"/>\n\
         <style>:root[style],:root{overflow:visible!important;}:root[style]>body,:root>body{overflow:visible!important;}\
         :root{--RS__maxMediaHeight:none;}</style>\n\
         \(hasAuthorStyles ? "" : "<link rel=\"stylesheet\" type=\"text/css\" href=\"\(cssBase)/ReadiumCSS-default.css\"/>\n")
