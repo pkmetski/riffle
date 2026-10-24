@@ -47,7 +47,10 @@ final class IosContinuousScrollView: UIView {
     private var pendingInitialProgression: Float = 0
     private var initialScrollApplied = false
 
-    private let windowRadius = 1
+    // Window radius of 2 keeps ±2 chapters live. This means a chapter 2 ahead starts loading
+    // while the user is still reading the previous one, eliminating the 1-2 second blank flash
+    // that occurred when only the immediate neighbour was preloaded (radius=1).
+    private let windowRadius = 2
     private let defaultSlotHeight: CGFloat = 2000
 
     // MARK: - Setup
@@ -148,6 +151,7 @@ final class IosContinuousScrollView: UIView {
 
         self.spineHrefs = spineHrefs
         self.currentPrefs = prefs
+        applyThemeBackground(theme: prefs.theme)
 
         let initialIndex = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(initialHref) }) ?? 0
         pendingInitialIndex = initialIndex
@@ -166,10 +170,24 @@ final class IosContinuousScrollView: UIView {
 
     func updatePreferences(_ prefs: IosReaderPreferences) {
         currentPrefs = prefs
+        applyThemeBackground(theme: prefs.theme)
         let styleJs = IosContinuousCssInjector.buildStyleSetJs(prefs: prefs)
         for (_, webView) in loadedWebViews {
             webView.evaluateJavaScript(styleJs, completionHandler: nil)
         }
+    }
+
+    // Apply reading-theme background to the scroll canvas so that a WKWebView that is still
+    // loading (transparent) blends in rather than showing a jarring white flash.
+    private func applyThemeBackground(theme: String) {
+        let bg: UIColor
+        switch theme {
+        case "dark":  bg = UIColor(red: 0.071, green: 0.071, blue: 0.071, alpha: 1)
+        case "sepia": bg = UIColor(red: 0.992, green: 0.965, blue: 0.91,  alpha: 1)
+        default:      bg = .white
+        }
+        outerScrollView.backgroundColor = bg
+        contentContainer.backgroundColor = bg
     }
 
     // MARK: - Window management
@@ -289,7 +307,14 @@ final class IosContinuousScrollView: UIView {
             onLocator?(json)
         }
 
-        loadWindow(around: idx)
+        // When past 60% of the current chapter, bias the preload window one chapter forward so
+        // the chapter after the immediate neighbour starts loading before the user reaches it.
+        // This mirrors Android's deferred-load strategy and eliminates the blank-for-a-second
+        // flash that appeared when radius=1 only started loading the next chapter on arrival.
+        let preloadCenter = progression > 0.6
+            ? min(idx + 1, spineHrefs.count - 1)
+            : idx
+        loadWindow(around: preloadCenter)
     }
 
     private func slotIndexAt(yPos: CGFloat) -> Int {
