@@ -108,13 +108,23 @@ final class IosContinuousEpubSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func serveReadiumCss(name: String) throws -> (Data, String) {
-        let bundle = Bundle(for: EPUBNavigatorViewController.self)
+        // ReadiumNavigator is linked statically via SPM, so Bundle(for:EPUBNavigatorViewController.self)
+        // resolves to the main app bundle. Resources live in the named sub-bundle instead.
+        let bundle = readiumNavigatorBundle()
         guard let url = bundle.url(forResource: name, withExtension: nil,
                                    subdirectory: "Assets/Static/readium-css"),
               let data = try? Data(contentsOf: url) else {
-            throw makeError("ReadiumCSS not found: \(name)", code: 404)
+            throw makeError("ReadiumCSS not found: \(name) in \(bundle.bundleIdentifier ?? bundle.bundlePath)", code: 404)
         }
         return (data, "text/css")
+    }
+
+    private func readiumNavigatorBundle() -> Bundle {
+        if let url = Bundle.main.url(forResource: "Readium_ReadiumNavigator", withExtension: "bundle"),
+           let bundle = Bundle(url: url) {
+            return bundle
+        }
+        return Bundle(for: EPUBNavigatorViewController.self)
     }
 
     private func serveAppFont(name: String) throws -> (Data, String) {
@@ -182,8 +192,10 @@ enum IosContinuousCssInjector {
             || html.range(of: "<link ", options: .caseInsensitive) != nil
 
         // 1. Before-CSS (+ default-CSS when no author styles) after <head>.
+        // Viewport meta pins layout to device CSS width; without it WKWebView uses its 980px virtual viewport.
         let beforeBlock = """
-        \n<link rel="stylesheet" type="text/css" href="\(cssBase)/ReadiumCSS-before.css"/>\n\
+        \n<meta name="viewport" content="width=device-width, initial-scale=1.0"/>\n\
+        <link rel="stylesheet" type="text/css" href="\(cssBase)/ReadiumCSS-before.css"/>\n\
         <style>:root[style],:root{overflow:visible!important;}:root[style]>body,:root>body{overflow:visible!important;}\
         :root{--RS__maxMediaHeight:none;}</style>\n\
         \(hasAuthorStyles ? "" : "<link rel=\"stylesheet\" type=\"text/css\" href=\"\(cssBase)/ReadiumCSS-default.css\"/>\n")
@@ -195,10 +207,15 @@ enum IosContinuousCssInjector {
             out = beforeBlock + out
         }
 
-        // 2. After-CSS + bundled @font-face + height measurement script before </head>.
+        // 2. After-CSS + bundled @font-face + typography overrides + table-fit + image cap before </head>.
+        // Typography and TableFit CSS are injected inline (like Android's ContinuousStyleInjector)
+        // so they apply before first paint, avoiding FOUC from the WKUserScript path.
         let afterBlock = """
         \n<link rel="stylesheet" type="text/css" href="\(cssBase)/ReadiumCSS-after.css"/>\n\
         <style type="text/css">\n\(bundledFontFaces())\n</style>\n\
+        <style type="text/css">\n\(TypographyOverrideKt.TYPOGRAPHY_OVERRIDE_CSS)\n</style>\n\
+        <style type="text/css">\n\(TableFit.shared.CSS)\n</style>\n\
+        <style type="text/css">img,svg,video{max-width:100%!important;height:auto!important;}</style>\n\
         \(domReadyScript())
         """
         if let headCloseRange = out.range(of: "</head>", options: .caseInsensitive) {
@@ -218,14 +235,90 @@ enum IosContinuousCssInjector {
 
     // MARK: - Live preference update JS
 
+    // Uses style.setProperty(key, value, 'important') — the three-argument form — because WebKit
+    // silently ignores !important when it appears *inside* the value string (either embedded in
+    // setAttribute() or as part of the value argument to setProperty()). Passing 'important' as
+    // the third argument is the only way that makes WebKit serialize the property into
+    // getAttribute('style'), which ReadiumCSS attribute selectors ([style*="--USER__*"]) need to
+    // match for live updates to take effect. This matches Readium's own setCSSProperties() in
+    // swift-toolkit/Sources/Navigator/EPUB/Scripts/src/utils.js (line: setProperty(key,value,"important")).
     static func buildStyleSetJs(prefs: IosReaderPreferences) -> String {
-        let attr = buildHtmlStyleAttr(prefs: prefs)
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-        return "(function(){document.documentElement.setAttribute('style','\(attr)');})();"
+        var lines: [String] = []
+        lines.append("var r=document.documentElement;")
+
+        // Always scrolled in Continuous mode.
+        lines.append("r.style.setProperty('--USER__view','readium-scroll-on','important');")
+
+        // Page margins.
+        let marginsVal = prefs.pageMargins.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(prefs.pageMargins))" : "\(prefs.pageMargins)"
+        lines.append("r.style.setProperty('--USER__pageMargins','\(marginsVal)','important');")
+
+        // Appearance — must REMOVE for light to clear a previous dark/sepia setting.
+        switch prefs.theme {
+        case "dark":
+            lines.append("r.style.setProperty('--USER__appearance','readium-night-on','important');")
+        case "sepia":
+            lines.append("r.style.setProperty('--USER__appearance','readium-sepia-on','important');")
+        default:
+            lines.append("r.style.removeProperty('--USER__appearance');")
+        }
+
+        // DarkDim muted text colour.
+        if prefs.textColorArgb != 0 {
+            let red = (prefs.textColorArgb >> 16) & 0xFF
+            let grn = (prefs.textColorArgb >> 8) & 0xFF
+            let blu = prefs.textColorArgb & 0xFF
+            let hex = String(format: "#%02X%02X%02X", red, grn, blu)
+            lines.append("r.style.setProperty('--USER__textColor','\(hex)','important');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__textColor');")
+        }
+
+        // Font family — must REMOVE both override and family when switching back to publisher font.
+        if !prefs.fontFamilyCss.isEmpty {
+            let family = prefs.fontFamilyCss
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+            lines.append("r.style.setProperty('--USER__fontOverride','readium-font-on','important');")
+            // CSS generic keywords (serif, sans-serif, monospace) must be unquoted.
+            // Named families (Literata, Merriweather, OpenDyslexic) need quoted-string form "Name".
+            let isGeneric = ["serif", "sans-serif", "monospace", "cursive", "fantasy"]
+                .contains(prefs.fontFamilyCss)
+            let cssValue = isGeneric ? "'\(family)'" : "'\"' + '\(family)' + '\"'"
+            lines.append("r.style.setProperty('--USER__fontFamily',\(cssValue),'important');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__fontOverride');")
+            lines.append("r.style.removeProperty('--USER__fontFamily');")
+        }
+
+        // Font size.
+        let pct = prefs.fontSizePercent * 100
+        let pctStr = pct.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(pct))%" : "\(pct)%"
+        lines.append("r.style.setProperty('--USER__fontSize','\(pctStr)','important');")
+
+        // Always advanced settings (publisher styles off).
+        lines.append("r.style.setProperty('--USER__advancedSettings','readium-advanced-on','important');")
+
+        // Text alignment.
+        if prefs.justifyText {
+            lines.append("r.style.setProperty('--USER__textAlign','justify','important');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__textAlign');")
+        }
+
+        // Line height.
+        if prefs.lineHeightMultiplier > 0 {
+            lines.append("r.style.setProperty('--USER__lineHeight','\(prefs.lineHeightMultiplier)','important');")
+        } else {
+            lines.append("r.style.removeProperty('--USER__lineHeight');")
+        }
+
+        return "(function(){\(lines.joined())})()"
     }
 
-    // MARK: - CSS variable builder
+    // MARK: - CSS variable builder (used for initial HTML injection only)
 
     static func buildHtmlStyleAttr(prefs: IosReaderPreferences) -> String {
         var props: [(String, String)] = []
@@ -234,7 +327,9 @@ enum IosContinuousCssInjector {
         props.append(("--USER__view", "readium-scroll-on"))
 
         // Page margins.
-        props.append(("--USER__pageMargins", String(prefs.pageMargins)))
+        let marginsVal = prefs.pageMargins.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(prefs.pageMargins))" : "\(prefs.pageMargins)"
+        props.append(("--USER__pageMargins", marginsVal))
 
         // Appearance.
         switch prefs.theme {
@@ -254,7 +349,10 @@ enum IosContinuousCssInjector {
         // Font family.
         if !prefs.fontFamilyCss.isEmpty {
             props.append(("--USER__fontOverride", "readium-font-on"))
-            props.append(("--USER__fontFamily", "\"\(prefs.fontFamilyCss)\""))
+            let isGeneric = ["serif", "sans-serif", "monospace", "cursive", "fantasy"]
+                .contains(prefs.fontFamilyCss)
+            let cssFamily = isGeneric ? prefs.fontFamilyCss : "\"\(prefs.fontFamilyCss)\""
+            props.append(("--USER__fontFamily", cssFamily))
         }
 
         // Font size: fontSizePercent is a multiplier (1.0 = 100 %, 1.5 = 150 %).
@@ -276,7 +374,10 @@ enum IosContinuousCssInjector {
             props.append(("--USER__lineHeight", String(prefs.lineHeightMultiplier)))
         }
 
-        return props.map { "\($0.0): \($0.1) !important;" }.joined(separator: " ")
+        // No !important on custom properties — inline style already wins the cascade, and
+        // WebKit's HTML-attribute parser and CSSOM (setAttribute) parser handle !important
+        // on custom properties differently, causing silent update failures.
+        return props.map { "\($0.0): \($0.1);" }.joined(separator: " ")
     }
 
     // MARK: - Private helpers

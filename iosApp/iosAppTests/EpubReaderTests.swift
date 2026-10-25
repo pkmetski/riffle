@@ -42,6 +42,7 @@ final class EpubReaderTests: XCTestCase {
 
         XCTAssertNil(bridge.snapshotLocatorJson(),
                      "disposeNavigator must clear the cached locator JSON")
+        XCTAssertNil(bridge.cachedLocator, "disposeNavigator must clear the cached Locator object")
     }
 
     // MARK: - Scenario 03-C: Callback registration
@@ -506,6 +507,81 @@ final class EpubReaderTests: XCTestCase {
         bridge.disableScrollsToTop(in: root)
         XCTAssertFalse(root.scrollsToTop, "Calling disableScrollsToTop twice must leave scrollsToTop=false")
     }
+
+    // MARK: - Mode switching (no publication)
+
+    // These pin the regression introduced when mode switching required a close/reopen cycle.
+    // Without a live publication, `applyReaderPreferences` must still update
+    // `pendingIsContinuousMode` so that `attach()` honours the correct mode when the book opens.
+
+    func testSwitchToContinuousModeSetsPendingFlag() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        bridge.applyReaderPreferences(preferences: makePrefs(isContinuousMode: true))
+        XCTAssertTrue(bridge.pendingIsContinuousMode,
+                      "pendingIsContinuousMode must be true after switching to Continuous with no publication")
+    }
+
+    func testSwitchToNonContinuousModeSetsPendingFlagFalse() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        bridge.applyReaderPreferences(preferences: makePrefs(isContinuousMode: true))
+        bridge.applyReaderPreferences(preferences: makePrefs(isContinuousMode: false))
+        XCTAssertFalse(bridge.pendingIsContinuousMode,
+                       "pendingIsContinuousMode must be false after switching back to non-Continuous")
+    }
+
+    // Regression: captureCurrentLocator() for non-continuous mode must use cachedLocator directly,
+    // not go through JSON parsing. If locator.jsonString() failed transiently, cachedLocatorJson
+    // would be nil and the mode switch would reset to ch1/0%. The Locator object is cached first
+    // in locationDidChange (before the JSON guard), so it is always available regardless of
+    // serialization success. simulateLocatorUpdate mirrors this by also setting cachedLocator.
+    func testSimulateLocatorUpdateSetsCachedLocatorForModeSwitchPath() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        let locatorJson = """
+        {"href":"/ch5.xhtml","type":"application/xhtml+xml","locations":{"progression":0.42}}
+        """
+        bridge.simulateLocatorUpdate(locatorJson)
+
+        XCTAssertNotNil(bridge.cachedLocator, "simulateLocatorUpdate must set cachedLocator so mode switch works")
+        XCTAssertEqual(bridge.cachedLocator?.locations.progression, 0.42, "cachedLocator must carry the progression")
+    }
+
+    // Regression: before the fix, the cached locator was cleared by disposeNavigator() when the
+    // user closed and reopened the book to trigger the mode switch. The new code performs the
+    // switch in-place without clearing cachedLocatorJson, so the position survives. This test
+    // pins the fact that snapshotLocatorJson() returns the cached value immediately after
+    // applyReaderPreferences is called (i.e. no dispose-and-clear happens in the no-publication path).
+    func testModeSwitchWithoutPublicationDoesNotClearCachedLocator() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        let locatorJson = """
+        {"href":"/ch5.xhtml","type":"application/xhtml+xml","locations":{"progression":0.42}}
+        """
+        bridge.simulateLocatorUpdate(locatorJson)
+        XCTAssertNotNil(bridge.snapshotLocatorJson(), "precondition: locator is cached before mode switch")
+
+        bridge.applyReaderPreferences(preferences: makePrefs(isContinuousMode: true))
+        bridge.applyReaderPreferences(preferences: makePrefs(isContinuousMode: false))
+
+        let snapshot = bridge.snapshotLocatorJson()
+        XCTAssertNotNil(snapshot, "mode switch must not erase the cached locator")
+        XCTAssertTrue(snapshot?.contains("ch5.xhtml") == true, "mode switch must preserve the href")
+        XCTAssertTrue(snapshot?.contains("0.42") == true, "mode switch must preserve the progression")
+    }
+}
+
+private func makePrefs(isContinuousMode: Bool = false) -> IosReaderPreferences {
+    IosReaderPreferences(
+        fontSizePercent: 1.0,
+        scrollMode: true,
+        theme: "light",
+        fontFamilyCss: "",
+        lineHeightMultiplier: 1.5,
+        pageMargins: 1.0,
+        justifyText: false,
+        textColorArgb: 0,
+        publisherStyles: false,
+        columnCount: 1,
+        isContinuousMode: isContinuousMode
+    )
 }
 
 /// Minimal `Navigator` for the two delegate methods above, both of which ignore the navigator

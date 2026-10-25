@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 FONTS_DIR := app/src/main/assets/fonts
 WRAPPER_JAR := gradle/wrapper/gradle-wrapper.jar
-GRADLE_VERSION := 9.4.1
+GRADLE_VERSION := 9.8.1
 
 # Auto-detect JAVA_HOME when not already set.
 # Prefers Android Studio's bundled JBR so the build works without a
