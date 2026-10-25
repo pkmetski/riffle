@@ -57,7 +57,9 @@ class ShowAllAnnotationsHarnessTest : KoinTest {
     @After
     fun tearDown() {
         stubServer.shutdown()
+        Thread.sleep(800)
         composeTestRule.activityRule.scenario.close()
+        Runtime.getRuntime().gc()
         Thread.sleep(400)
         database.clearAllTables()
     }
