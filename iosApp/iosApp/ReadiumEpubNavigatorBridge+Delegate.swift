@@ -44,13 +44,18 @@ extension ReadiumEpubNavigatorBridge: EPUBNavigatorDelegate {
             window.RiffleFigureBridge = {
                 onFigureTap: function(p) {
                     window.webkit.messageHandlers.RiffleFigureBridge.postMessage(p);
+                },
+                onFigureLongPress: function(p) {
+                    window.webkit.messageHandlers.RiffleFigureBridgeLongPress.postMessage(p);
                 }
             };
             """
         // Remove before add — idempotent guard against duplicate registration if Readium calls
         // setupUserScripts more than once for the same WKUserContentController.
         userContentController.removeScriptMessageHandler(forName: "RiffleFigureBridge")
+        userContentController.removeScriptMessageHandler(forName: "RiffleFigureBridgeLongPress")
         userContentController.add(self, name: "RiffleFigureBridge")
+        userContentController.add(self, name: "RiffleFigureBridgeLongPress")
         userContentController.addUserScript(WKUserScript(
             source: shim,
             injectionTime: .atDocumentStart,

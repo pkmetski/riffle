@@ -97,10 +97,12 @@ import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
 import com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy
+import com.riffle.feature.reader.FigureLongPressMessageParser
 import com.riffle.feature.reader.FigureTapMessageParser
 import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.FootnoteContent
 import com.riffle.feature.reader.FootnotePopupState
+import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.NavigatorDecoration
 import com.riffle.feature.reader.NavigatorEvent
@@ -150,6 +152,7 @@ import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.FigureZoomOverlay
 import com.riffle.feature.reader.ui.FootnotePopup
 import com.riffle.feature.reader.ui.NoteEditorSheet
+import com.riffle.feature.reader.ui.NoteOnlyPopup
 import com.riffle.feature.reader.ui.PullChip
 import com.riffle.feature.reader.ui.ReaderTopBar
 import com.riffle.feature.reader.ui.ReturnToPositionCard
@@ -341,6 +344,10 @@ fun EpubReaderScreen(
     // fresh create so the sheet switches from "annotate this selection" to "edit this
     // annotation" without the user having to tap the new highlight.
     var editTargetId by remember { mutableStateOf<String?>(null) }
+    // True when `editTargetId` was set by tapping a note glyph rather than the highlight body.
+    // When true and the annotation has a note, shows NoteOnlyPopup instead of the full sheet —
+    // mirrors Android's HighlightActionsPopup(noteOnly=true) path.
+    var editTargetWasGlyphTap by remember { mutableStateOf(false) }
     // Non-null while the note editor is up; the value is the annotation id, or "" for a note
     // being written on a selection that has not been persisted yet.
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
@@ -798,6 +805,7 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator) {
         navigator.decorationActivations.collect { activation ->
             editTargetId = activation.id.substringBefore('#')
+            editTargetWasGlyphTap = activation.group == NOTE_GLYPH_DECORATION_GROUP
             annotationsPanelOpen = false
         }
     }
@@ -815,6 +823,7 @@ fun EpubReaderScreen(
                     // that call has already happened, so the counter is non-zero and we discard.
                     if (navigator.consumeSuppressedBodyTap()) return@collect
                     editTargetId = null
+                    editTargetWasGlyphTap = false
                     pendingStyles = emptySet()
                     chromeVisible = !chromeVisible
                     // Suppress position-triggered auto-hide for 500 ms so a tap that reveals
@@ -1170,6 +1179,40 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator) {
         navigator.figureTapPayloads.collect { payload ->
             figureZoomState = FigureTapMessageParser.parse(payload)
+        }
+    }
+    LaunchedEffect(navigator, item.sourceId, item.id) {
+        navigator.figureLongPressPayloads.collect { payload ->
+            val p = runCatching { FigureLongPressMessageParser.parse(payload) }.getOrNull() ?: return@collect
+            val existing = annotationStore.findImageAnnotationForFigure(
+                sourceId = item.sourceId,
+                itemId = item.id,
+                chapterHref = navigator.snapshotPosition()?.href ?: return@collect,
+                imageHref = p.href,
+                imageSvg = p.svg,
+            )
+            if (existing != null) {
+                editTargetId = existing.id
+                editTargetWasGlyphTap = false
+            } else {
+                val position = navigator.snapshotPosition() ?: return@collect
+                val href = position.href
+                val spineIndex = spineIndexOfHref(spineRef.value.hrefs, href).coerceAtLeast(0)
+                val created = annotationStore.createImageAnnotation(
+                    sourceId = item.sourceId,
+                    itemId = item.id,
+                    cfi = position.locatorJson,
+                    textSnippet = p.caption,
+                    chapterHref = href,
+                    spineIndex = spineIndex,
+                    progression = position.progression.toDouble(),
+                    imageHref = p.href,
+                    imageSvg = p.svg,
+                    imageBytes = p.imageBytes,
+                )
+                editTargetId = created.id
+                editTargetWasGlyphTap = false
+            }
         }
     }
     // Accent-bar tap in Highlights mode: open the actions sheet for the tapped annotation.
@@ -1641,7 +1684,86 @@ fun EpubReaderScreen(
         // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
         val liveSelection = selection
-        if (noteEditorFor == null && (editTarget != null || liveSelection != null)) {
+
+        // Selection action strip: Copy / Search / Share — mirrors Android's ActionMode items.
+        // Shown while text is selected but before the user taps Annotate or the full sheet opens.
+        if (liveSelection != null && editTarget == null && noteEditorFor == null) {
+            val selText = liveSelection.text
+            val selRect = liveSelection.rect
+            val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+            val stripTargetY = if (selRect != null) {
+                val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
+                annotationSheetTargetY(
+                    selectionY = selRect.y,
+                    selectionHeight = selRect.height,
+                    minAboveY = statusBarTopDp.value + 8f,
+                    maxBelowY = screenHeightDp,
+                )
+            } else {
+                null
+            }
+            val stripModifier = if (stripTargetY != null) {
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = stripTargetY.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+            } else {
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            }
+            SelectionActionStrip(
+                onCopy = {
+                    com.riffle.shared.reader.IosClipboard.copyToClipboard(selText)
+                    navigator.clearSelection()
+                },
+                onSearchWeb = {
+                    com.riffle.shared.reader.IosSystemActions.searchWeb(selText)
+                    navigator.clearSelection()
+                },
+                onShare = {
+                    com.riffle.shared.reader.IosSystemActions.share(selText)
+                    navigator.clearSelection()
+                },
+                onPlayFromHere = if (readaloudVisible) {
+                    {
+                        val href = liveSelection.href
+                        navigator.clearSelection()
+                        scope.launch {
+                            readaloudSession.ensureSentenceQuotesReady()
+                            readaloudSession.playFromHere(href)
+                        }
+                    }
+                } else {
+                    null
+                },
+                modifier = stripModifier,
+            )
+        }
+
+        // NoteOnlyPopup: when the user taps a note glyph on an annotation that has a note, show
+        // a compact read-only card matching Android's noteOnly=true popup path.
+        if (noteEditorFor == null && editTargetWasGlyphTap && editTarget != null && liveSelection == null) {
+            val readerBackground = (resolvedPrefs ?: FormattingPreferences()).readerSwatchBackdropColor
+            NoteOnlyPopup(
+                note = editTarget.note,
+                labels = annotationSheetLabels(),
+                readerBackground = readerBackground,
+                onOpenNoteEditor = {
+                    noteEditorFor = editTarget.id
+                    editTargetWasGlyphTap = false
+                },
+                onDismiss = {
+                    editTargetId = null
+                    editTargetWasGlyphTap = false
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            )
+        }
+
+        if (noteEditorFor == null && (editTarget != null || liveSelection != null) && !editTargetWasGlyphTap) {
             // The reader's own paper colour, not the app surface: an alpha-0x80 swatch composited
             // over the wrong backdrop previews a colour the book will never show. Same shared
             // derivation Android's popup reads.
@@ -1759,18 +1881,6 @@ fun EpubReaderScreen(
                     editTargetId = null
                     onOpenInBook?.invoke(locatorJson)
                 },
-                onPlayFromHere = if (liveSelection != null && editTarget == null && readaloudVisible) {
-                    {
-                        val href = liveSelection.href
-                        navigator.clearSelection()
-                        scope.launch {
-                            readaloudSession.ensureSentenceQuotesReady()
-                            readaloudSession.playFromHere(href)
-                        }
-                    }
-                } else {
-                    null
-                },
                 modifier = annotationSheetModifier,
             )
         }
@@ -1813,7 +1923,7 @@ fun EpubReaderScreen(
         // Shared annotations panel — every highlight, note, and bookmark, tap to navigate.
         if (annotationsPanelOpen) {
             SharedAnnotationsPanel(
-                annotations = annotations.filter { it.type != AnnotationEntity.TYPE_EMPHASIS },
+                annotations = annotations,
                 onNavigate = { id ->
                     annotationsPanelOpen = false
                     if (source == ReaderSource.Highlights) {

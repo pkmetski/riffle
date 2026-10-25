@@ -34,6 +34,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
     private var figureTapCallback: ((String) -> Void)?
+    private var figureLongPressCallback: ((String) -> Void)?
     var footnoteCallback: ((String) -> Void)?
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
@@ -326,6 +327,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         figureTapCallback = callback
     }
 
+    func setFigureLongPressCallback(callback: ((String) -> Void)?) {
+        figureLongPressCallback = callback
+    }
+
     func setFootnoteCallback(callback: ((String) -> Void)?) {
         footnoteCallback = callback
     }
@@ -389,10 +394,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.cachedLocator = nil
             self.cachedTocJson = "[]"
             self.cachedSpineJson = emptySpineJson
-            // Remove the figure-tap message handler from every spread's WKWebView to break the
+            // Remove figure message handlers from every spread's WKWebView to break the
             // strong WKUserContentController → WKScriptMessageHandler retain cycle.
             for controller in self.figureHandlerControllers.allObjects {
                 controller.removeScriptMessageHandler(forName: "RiffleFigureBridge")
+                controller.removeScriptMessageHandler(forName: "RiffleFigureBridgeLongPress")
             }
             self.figureHandlerControllers.removeAllObjects()
         }
@@ -624,9 +630,15 @@ extension ReadiumEpubNavigatorBridge: WKScriptMessageHandler {
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
-        guard message.name == "RiffleFigureBridge",
-              let body = message.body as? String else { return }
-        figureTapCallback?(body)
+        guard let body = message.body as? String else { return }
+        switch message.name {
+        case "RiffleFigureBridge":
+            figureTapCallback?(body)
+        case "RiffleFigureBridgeLongPress":
+            figureLongPressCallback?(body)
+        default:
+            break
+        }
     }
 }
 
@@ -651,6 +663,7 @@ extension ReadiumEpubNavigatorBridge {
     }
     @objc func simulateScrollStart() { scrollStartCallback?() }
     @objc func simulateFigureTap(_ payload: String) { figureTapCallback?(payload) }
+    @objc func simulateFigureLongPress(_ payload: String) { figureLongPressCallback?(payload) }
     @objc func simulateNavigatorError(_ message: String) { errorCallback?(message) }
     @objc func simulateSelection(_ json: String?) { selectionCallback?(json) }
     @objc func simulateDecorationActivated(_ json: String) { decorationActivatedCallback?(json) }

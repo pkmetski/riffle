@@ -76,6 +76,7 @@ class ReadiumSwiftNavigator(
     private val _viewportFractionEvents =
         MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private val _figureTapPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    private val _figureLongPressPayloads = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val _riffleUrls = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val _publicationOpenErrors = MutableSharedFlow<String>(extraBufferCapacity = 4)
 
@@ -140,6 +141,9 @@ class ReadiumSwiftNavigator(
      * state use that parser rather than dealing with raw JSON.
      */
     val figureTapPayloads: Flow<String> = _figureTapPayloads
+
+    /** Raw JSON long-press payloads from [FigureTapScript]'s 500ms press listener. */
+    val figureLongPressPayloads: Flow<String> = _figureLongPressPayloads
 
     /** `riffle://` URLs intercepted from the Highlights-mode synthetic EPUB's tap targets. */
     val riffleUrls: Flow<String> = _riffleUrls
@@ -207,6 +211,9 @@ class ReadiumSwiftNavigator(
         bridge.setFigureTapCallback { payload ->
             _figureTapPayloads.tryEmit(payload)
         }
+        bridge.setFigureLongPressCallback { payload ->
+            _figureLongPressPayloads.tryEmit(payload)
+        }
         bridge.setFootnoteCallback { contentHtml ->
             _eventFlow.tryEmit(NavigatorEvent.Footnote(contentHtml))
         }
@@ -257,6 +264,7 @@ class ReadiumSwiftNavigator(
         bridge.setSelectionCallback(null)
         bridge.setDecorationActivatedCallback(null)
         bridge.setFigureTapCallback(null)
+        bridge.setFigureLongPressCallback(null)
         bridge.setFootnoteCallback(null)
         bridge.setInternalLinkCallback(null)
         bridge.setRiffleUrlCallback(null)

@@ -11,12 +11,12 @@ import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
-import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
@@ -30,13 +30,13 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentLength
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
-import io.ktor.http.encodeURLParameter
-import kotlin.concurrent.Volatile
-import kotlin.time.measureTimedValue
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
+import kotlin.concurrent.Volatile
+import kotlin.time.measureTimedValue
 
 /**
  * Komga-backed [Catalog]. One instance per configured Komga Source row. Reads over the
@@ -97,7 +97,9 @@ class KomgaCatalog(
         // made `SeriesDao.observeItemsBySeriesId`'s INNER JOIN return empty ("No books in this
         // series" on the series-detail screen). Sweep every page here so the refresh sees the
         // whole library; paged callers (grid scroll) keep the single-page path.
-        return if (pageSize == Int.MAX_VALUE) sweepAllBooks(rootId, sort) else {
+        return if (pageSize == Int.MAX_VALUE) {
+            sweepAllBooks(rootId, sort)
+        } else {
             val url = booksBrowseUrl(rootId, sort, page, pageSize)
             fetchBookPage(url, rootId)
         }
@@ -591,14 +593,14 @@ class KomgaCatalog(
             val body = try {
                 http.getString(url)
             } catch (e: KomgaHttpException) {
-                if (e.code == 404) continue  // try next endpoint
+                if (e.code == 404) continue // try next endpoint
                 throw e
             }
             val me = KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body)
             cachedCurrentUserId = me.id
             return me.id
         }
-        return null  // neither endpoint exists (very old Komga)
+        return null // neither endpoint exists (very old Komga)
     }
 
     /**
@@ -824,7 +826,9 @@ class KomgaCatalog(
         internal fun locatorJsonForPage(page: Int, totalPages: Int?, mediaProfile: String?): String {
             val progression = if (totalPages != null && totalPages > 0) {
                 (page.toDouble() / totalPages.toDouble()).coerceIn(0.0, 1.0)
-            } else 0.0
+            } else {
+                0.0
+            }
             val isEpub = mediaProfile?.equals("EPUB", ignoreCase = true) == true
             val (href, type) = if (isEpub) {
                 "publication.epub" to "application/epub+zip"

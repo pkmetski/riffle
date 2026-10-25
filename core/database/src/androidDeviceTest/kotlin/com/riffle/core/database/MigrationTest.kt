@@ -709,9 +709,7 @@ class MigrationTest {
                 "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 1, 1000, 2000)"
         )
-        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use {
-                cursor
-            ->
+        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("book-42", cursor.getString(0))
@@ -872,9 +870,7 @@ class MigrationTest {
             "INSERT INTO cross_epub_index (absEpubChecksum, storytellerEpubChecksum, perChapterMapsBlob, builtAt) " +
                 "VALUES ('absChk', 'stChk', '[{\"absChars\":12,\"storytellerChars\":12}]', 5000)"
         )
-        db.query("SELECT perChapterMapsBlob, builtAt FROM cross_epub_index WHERE absEpubChecksum = 'absChk' AND storytellerEpubChecksum = 'stChk'").use {
-                cursor
-            ->
+        db.query("SELECT perChapterMapsBlob, builtAt FROM cross_epub_index WHERE absEpubChecksum = 'absChk' AND storytellerEpubChecksum = 'stChk'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("[{\"absChars\":12,\"storytellerChars\":12}]", cursor.getString(0))

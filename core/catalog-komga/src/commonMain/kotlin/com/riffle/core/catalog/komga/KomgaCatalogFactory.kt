@@ -2,9 +2,9 @@ package com.riffle.core.catalog.komga
 
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFactory
+import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import com.riffle.core.domain.TokenStorage
 import io.ktor.client.HttpClient
 
 /**
