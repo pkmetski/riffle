@@ -1,6 +1,8 @@
 package com.riffle.feature.shellui
 
 import androidx.compose.runtime.Composable
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.models.CrashReport
 import com.riffle.feature.navigation.LibraryNav
 import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.ui.ReaderHostActions
@@ -61,4 +63,8 @@ data class AppShellSlots(
     val appVersion: String? = null,
     val appSha: String? = null,
     val localFilePicker: (() -> Unit)? = null,
+    val onShareAllCrashReports: ((subject: String, chooserTitle: String) -> Unit)? = null,
+    val onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
+    val onShareDebugLog: ((channels: Set<LogChannel>?, chooserTitle: String) -> Unit)? = null,
+    val editLocalFileMetadataDialog: (@Composable (itemId: String, sourceId: String?, onDismiss: () -> Unit) -> Unit)? = null,
 )

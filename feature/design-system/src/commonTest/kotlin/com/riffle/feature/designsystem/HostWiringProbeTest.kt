@@ -46,12 +46,6 @@ class HostWiringProbeTest {
     }
 
     @Test
-    fun detectsShowAllAnnotationsUnavailableOnIos() {
-        val fields = listOf("onShowAllAnnotations" to NoOp.showAllAnnotationsUnavailableOnIos)
-        assertEquals(listOf("onShowAllAnnotations"), HostWiringProbe.check(fields))
-    }
-
-    @Test
     fun detectsBackHandledByIosHost() {
         val fields = listOf("onNavigateBack" to NoOp.backHandledByIosHost)
         assertEquals(listOf("onNavigateBack"), HostWiringProbe.check(fields))
@@ -60,20 +54,19 @@ class HostWiringProbeTest {
     @Test
     fun allowlistedNoOpsAreNotReported() {
         val fields = listOf(
-            "onShowAllAnnotations" to NoOp.showAllAnnotationsUnavailableOnIos,
             "onNavigateBack" to NoOp.backHandledByIosHost,
         )
-        val allowlist = setOf("onShowAllAnnotations", "onNavigateBack")
+        val allowlist = setOf("onNavigateBack")
         assertTrue(HostWiringProbe.check(fields, allowlist).isEmpty())
     }
 
     @Test
     fun onlyUnallowlistedViolationsAreReported() {
         val fields = listOf(
-            "onShowAllAnnotations" to NoOp.showAllAnnotationsUnavailableOnIos,
+            "onNavigateBack" to NoOp.backHandledByIosHost,
             "onFacetSelected" to NoOp.facetNavUnavailableInDownloads,
         )
-        val allowlist = setOf("onShowAllAnnotations")
+        val allowlist = setOf("onNavigateBack")
         assertEquals(listOf("onFacetSelected"), HostWiringProbe.check(fields, allowlist))
     }
 

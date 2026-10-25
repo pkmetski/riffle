@@ -14,7 +14,7 @@ private val MONTH_ABBREV = listOf(
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 )
 
-internal fun releaseDateLabel(publishedAt: String): String? {
+fun releaseDateLabel(publishedAt: String): String? {
     if (publishedAt.isBlank()) return null
     return runCatching {
         val local = Instant.parse(publishedAt).toLocalDateTime(TimeZone.currentSystemDefault())
@@ -24,7 +24,7 @@ internal fun releaseDateLabel(publishedAt: String): String? {
 }
 
 @Composable
-internal fun ReleaseDateText(
+fun ReleaseDateText(
     publishedAt: String,
     color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {

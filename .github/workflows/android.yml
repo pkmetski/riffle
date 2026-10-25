@@ -86,6 +86,7 @@ jobs:
           :feature:library-ui:testAndroidHostTest
           :feature:player-ui:testAndroidHostTest
           :feature:settings-ui:testAndroidHostTest
+          :feature:shell-ui:testAndroidHostTest
           :core:logging:testAndroidHostTest
           -PversionName=0.0.0-ci
       - name: Upload test reports

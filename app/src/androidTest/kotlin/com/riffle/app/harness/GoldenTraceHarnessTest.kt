@@ -28,21 +28,6 @@ import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
 
-/**
- * Golden trace sentinel for the multi-platform-core migration (issue #550).
- *
- * Composes the full user-visible round trip in a single test so subsequent phases
- * (#551–#557) can be gated on "does this still pass". If any phase breaks
- * serialization, networking, persistence, or reader wiring, this fails first.
- *
- * Trace: login to ABS → open library → open EPUB → progress-sync round-trip.
- *
- * Scope note: the original scope also mentioned "readaloud one sentence" but readaloud
- * requires a Storyteller peer stub that doesn't exist in the harness, and audio playback
- * is unreliable on the headless API-25 AVD (audio-HAL stalls). Readaloud regressions
- * during the migration remain covered by unit tests in the readaloud/ package and by
- * on-device verification.
- */
 @RunWith(AndroidJUnit4::class)
 class GoldenTraceHarnessTest : KoinTest {
 

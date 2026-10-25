@@ -30,20 +30,11 @@ class HostWiringBundleProbeTest {
     }
 
     @Test
-    fun libraryItemsActionsDetectsShowAllAnnotationsNoOp() {
-        val actions = realLibraryItemsActions().copy(
-            onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
-        )
-        assertEquals(listOf("onShowAllAnnotations"), HostWiringProbe.check(actions.probeFields()))
-    }
-
-    @Test
     fun libraryItemsActionsIosAllowlistPassesProbe() {
         val iosActions = realLibraryItemsActions().copy(
-            onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
             onNavigateBack = NoOp.backHandledByIosHost,
         )
-        val allowlist = setOf("onShowAllAnnotations", "onNavigateBack")
+        val allowlist = setOf("onNavigateBack")
         assertTrue(HostWiringProbe.check(iosActions.probeFields(), allowlist).isEmpty())
     }
 

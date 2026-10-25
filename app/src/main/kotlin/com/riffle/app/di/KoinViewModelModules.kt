@@ -14,6 +14,7 @@ import com.riffle.app.feature.library.ExtractPdfPageCountUseCase
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.AnnotationSearchViewModel
 import com.riffle.feature.library.FilteredBooksViewModel
+import com.riffle.feature.library.urlFormEncode
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
@@ -253,9 +254,9 @@ private val libraryViewModelModule = module {
             dispatchers = get(),
         )
     }
-    viewModel {
+    viewModel { params ->
         AnnotationSearchViewModel(
-            savedStateHandle = get(),
+            savedStateHandle = annotationSearchSavedStateHandle(params.get(0), params.get(1)),
             libraryObserver = get(),
             annotationStore = get(),
             audiobookBookmarkStore = get(),
@@ -752,6 +753,16 @@ private val updateViewModelModule = module {
 
 private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
     SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
+
+private fun annotationSearchSavedStateHandle(
+    libraryId: String,
+    query: String,
+): SavedStateHandle = SavedStateHandle(
+    mapOf(
+        AnnotationSearchViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+        AnnotationSearchViewModel.ROUTE_ARG_QUERY to query.urlFormEncode(),
+    ),
+)
 
 internal fun riffleViewModelKoinModules(): List<Module> = listOf(
     appKoinModule,

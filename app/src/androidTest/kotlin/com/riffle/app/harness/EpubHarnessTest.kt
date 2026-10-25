@@ -40,10 +40,6 @@ import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
 
-/**
- * End-to-end harness test: drives the full UI from server setup through EPUB reader.
- * Uses StubAbsServer for all network calls — no real server required.
- */
 @RunWith(AndroidJUnit4::class)
 class EpubHarnessTest : KoinTest {
 

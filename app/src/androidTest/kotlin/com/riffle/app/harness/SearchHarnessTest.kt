@@ -36,10 +36,6 @@ import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
 
-/**
- * End-to-end harness test for EPUB full-text search.
- * Drives the real UI through search open → query → navigation → close.
- */
 @RunWith(AndroidJUnit4::class)
 class SearchHarnessTest : KoinTest {
 
