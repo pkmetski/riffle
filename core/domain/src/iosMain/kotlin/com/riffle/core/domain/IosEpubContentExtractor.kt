@@ -30,7 +30,7 @@ object IosEpubContentExtractor {
     /**
      * Reads the bundle at [bundlePath] into memory and extracts the EPUB spine.
      *
-     * Convenience for [IosReadaloudSession] which only has a path, not bytes. The full file is
+     * Convenience for callers that only have a path, not bytes. The full file is
      * materialized once; large audio entries are compressed in the zip and never inflated — only
      * the HTML chapters and SMIL overlays are decoded.
      */

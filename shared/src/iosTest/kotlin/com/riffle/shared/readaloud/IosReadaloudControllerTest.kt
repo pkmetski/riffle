@@ -1,5 +1,6 @@
 package com.riffle.shared.readaloud
 
+import com.riffle.core.data.StreamingMediaItem
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.shared.audiobook.BundleAudioExtractor
@@ -254,5 +255,25 @@ class IosReadaloudControllerTest {
         handoff.preWarmSeek(0.0)
         val pos = handoff.consumePreWarmedPosition()
         assertEquals("audio/ch01.mp3", pos?.audioSrc, "handoff must have the track set after prepare")
+    }
+
+    @Test
+    fun prepareStreamingQueuesHttpUrls() = runTest {
+        val bridge = FakeBridge()
+        val scope = CoroutineScope(UnconfinedTestDispatcher())
+        val controller = IosReadaloudController(bridge, FakeBundleAudioExtractor(), IosReadaloudHandoff(), scope)
+
+        val streamingItems = listOf(
+            StreamingMediaItem(audioSrc = "audio/ch01.mp3", url = "https://abs.example.com/ch01.mp3", clipStartMs = 0L, clipEndMs = 10_000L),
+            StreamingMediaItem(audioSrc = "audio/ch02.mp3", url = "https://abs.example.com/ch02.mp3", clipStartMs = 0L, clipEndMs = 15_000L),
+        )
+        controller.prepareStreaming(track, streamingItems)
+
+        assertEquals(
+            listOf("https://abs.example.com/ch01.mp3", "https://abs.example.com/ch02.mp3"),
+            bridge.preparedUrls,
+            "prepareStreaming must pass HTTP URLs from streaming items directly to the bridge",
+        )
+        assertEquals(0, bridge.preparedStartIndex)
     }
 }

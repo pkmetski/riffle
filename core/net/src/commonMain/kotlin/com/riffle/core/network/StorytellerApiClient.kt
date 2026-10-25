@@ -10,15 +10,26 @@ import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 class StorytellerApiClient(
     private val httpClient: HttpClient,
-) : StorytellerApi, StorytellerLibraryApi {
+) : StorytellerApi, StorytellerLibraryApi, StorytellerPositionApi {
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun login(
         baseUrl: String,
@@ -99,6 +110,47 @@ class StorytellerApiClient(
         if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
         // Success(null) replaces the old NoAudiobook variant.
         response.body<StorytellerV2BookResponse>().toFingerprint()
+    }
+
+    override suspend fun getPosition(
+        baseUrl: String,
+        bookId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<StorytellerPosition?> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/v2/books/$bookId/positions") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        when (response.status) {
+            HttpStatusCode.NotFound -> null
+            else -> {
+                if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+                val root = json.parseToJsonElement(response.body<String>()).jsonObject
+                val locator = root["locator"]?.jsonObject ?: return@classify null
+                val ts = root["timestamp"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
+                StorytellerPosition(locator.toString(), ts)
+            }
+        }
+    }
+
+    override suspend fun putPosition(
+        baseUrl: String,
+        bookId: String,
+        locatorJson: String,
+        timestampMillis: Long,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val payload = buildJsonObject {
+            put("locator", json.parseToJsonElement(locatorJson))
+            put("timestamp", JsonPrimitive(timestampMillis))
+        }.toString()
+        val response = client(insecureAllowed).patch("$baseUrl/api/v2/books/$bookId/positions") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(payload)
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
     }
 
     private fun client(insecureAllowed: Boolean): HttpClient =

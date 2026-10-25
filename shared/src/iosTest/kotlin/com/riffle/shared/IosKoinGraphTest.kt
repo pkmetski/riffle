@@ -68,7 +68,6 @@ import com.riffle.shared.readaloud.IosReadaloudBridge
 import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
 import com.riffle.shared.readaloud.IosReadaloudPlayingCallback
 import com.riffle.shared.readaloud.IosReadaloudPositionCallback
-import com.riffle.shared.readaloud.IosReadaloudSession
 import com.riffle.shared.reader.IosEpubNavigatorBridge
 import com.riffle.shared.reader.IosEpubNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPdfNavigatorBridge
@@ -226,12 +225,9 @@ class IosKoinGraphTest {
         assertNotNull(koin.get<ReadaloudSidecarDownloads>())
         assertNotNull(koin.get<ReadaloudOfflineDownloader>())
         assertNotNull(koin.get<ReadaloudHandoff>())
-        val readaloudFactory = koin.get<IosReadaloudSession.Factory>()
-        assertNotNull(readaloudFactory)
-        // Also invoke create() to verify all transitive deps (controller, extractor, etc.) resolve.
-        val session = readaloudFactory.create("test-source", "test-item")
-        assertNotNull(session)
-        session.onDestroy()
+        assertNotNull(koin.get<com.riffle.feature.reader.ReadaloudSidecarDelegate>())
+        assertNotNull(koin.get<com.riffle.feature.reader.StorytellerSyncDelegate>())
+        assertNotNull(koin.get<com.riffle.feature.reader.ReadaloudSession.Factory>())
         assertNotNull(koin.get<CrossEpubIndexStore>())
         assertNotNull(koin.get<CrossEpubIndexBuildTrigger>())
         assertNotNull(koin.get<ReaderSyncFactoryInterface>())

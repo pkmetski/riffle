@@ -46,3 +46,26 @@ interface StorytellerLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkResult<AudiobookFingerprint?> = NetworkResult.Unknown(NotImplementedError("getAudiobookFingerprint"))
 }
+
+/** Storyteller's single-peer reading-position endpoint (`/api/v2/books/{id}/positions`). */
+interface StorytellerPositionApi {
+    /** `Success(null)` = no position recorded yet. */
+    suspend fun getPosition(
+        baseUrl: String,
+        bookId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<StorytellerPosition?>
+
+    suspend fun putPosition(
+        baseUrl: String,
+        bookId: String,
+        locatorJson: String,
+        timestampMillis: Long,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit>
+}
+
+/** Storyteller reading position: a raw Readium locator JSON + millisecond update timestamp. */
+data class StorytellerPosition(val locatorJson: String, val timestampMillis: Long)

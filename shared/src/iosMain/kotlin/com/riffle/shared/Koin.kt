@@ -264,8 +264,8 @@ import com.riffle.shared.readaloud.IosReadaloudBridge
 import com.riffle.shared.readaloud.IosReadaloudBridgeFactory
 import com.riffle.shared.readaloud.IosReadaloudController
 import com.riffle.shared.readaloud.IosReadaloudPlayerController
-import com.riffle.shared.readaloud.IosReadaloudSession
 import com.riffle.shared.readaloud.IosReadaloudSidecarDelegate
+import com.riffle.shared.readaloud.IosReadaloudStreamingSessionFactory
 import com.riffle.shared.readaloud.IosStorytellerSyncDelegate
 import com.riffle.shared.reader.IosCbzDownloader
 import com.riffle.shared.reader.IosCbzRepository
@@ -377,6 +377,9 @@ private fun iosLibraryModule(
     // core:sources' AbsSourceAdapter and KomgaSourceAdapter are both commonMain.
     single { StorytellerApiClient(get()) }
     single<StorytellerApi> { get<StorytellerApiClient>() }
+    single<com.riffle.core.network.StorytellerLibraryApi> { get<StorytellerApiClient>() }
+    single<com.riffle.core.network.StorytellerPositionApi> { get<StorytellerApiClient>() }
+    single { com.riffle.core.data.StorytellerPositionSyncController(get(), get(), get(), get()) }
     single { AbsSourceAdapter(get(), get(), get()) }
     single { KomgaSourceAdapter(get()) }
     single<Map<SourceType, SourceAdapter>> {
@@ -688,29 +691,22 @@ private fun iosLibraryModule(
     single { IosReadaloudHandoff() }
     single<ReadaloudHandoff> { get<IosReadaloudHandoff>() }
     single<IosReadaloudBridgeFactory> { readaloudBridgeFactory }
-    single<IosReadaloudSession.Factory> {
-        IosReadaloudSession.Factory { sourceId, itemId ->
-            val bridge: IosReadaloudBridge = get<IosReadaloudBridgeFactory>().create()
-            val controller = IosReadaloudController(
-                bridge = bridge,
-                bundleAudioExtractor = IosBundleAudioExtractor(),
-                readaloudHandoff = get(),
-            )
-            IosReadaloudSession(
-                sourceId = sourceId,
-                itemId = itemId,
-                controller = controller,
-                audioRepository = get(),
-                bundleReader = get(),
-                readaloudPreferencesStore = get(),
-                resumeStore = get(),
-                sourceRepository = get(),
-                linkRepository = get(),
-                audiobookHandoffState = get(),
-                dispatchers = get(),
-                parentScope = get<ApplicationScope>().coroutineScope,
-            )
-        }
+    single {
+        IosReadaloudStreamingSessionFactory(
+            audioIdentityResolver = get(),
+            catalogRegistry = get(),
+            storytellerApi = get(),
+            sidecarStore = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            linkRepository = get(),
+        )
+    }
+    single<com.riffle.feature.reader.ReadaloudSidecarDelegate> {
+        IosReadaloudSidecarDelegate(get(), get())
+    }
+    single<com.riffle.feature.reader.StorytellerSyncDelegate> {
+        IosStorytellerSyncDelegate(get())
     }
     single<ReadaloudSession.Factory> {
         val handoffState: com.riffle.feature.player.AudiobookHandoffState = get()
@@ -728,8 +724,8 @@ private fun iosLibraryModule(
                 playerController = IosReadaloudPlayerController(iosController, scope),
                 audioRepository = get(),
                 bundleReader = get(),
-                sidecarDelegate = IosReadaloudSidecarDelegate,
-                storytellerSyncDelegate = IosStorytellerSyncDelegate,
+                sidecarDelegate = get(),
+                storytellerSyncDelegate = get(),
                 audioPlaybackPreferencesStore = get(),
                 listeningPreferencesStore = get(),
                 audioIdentityResolver = get(),

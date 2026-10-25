@@ -92,6 +92,7 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
+import com.riffle.feature.player.ui.ReadaloudPeek
 import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
@@ -337,6 +338,7 @@ fun EpubReaderScreen(
         .collectAsState(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
     val readaloudAudiobookItemId by readaloudSession.audiobookItemId.collectAsState()
     val readaloudHighlightColor by readaloudSession.readaloudHighlightColor.collectAsState()
+    var showAudiobookOverlay by remember { mutableStateOf(false) }
     // The annotation whose actions sheet is open, or null. Set by a decoration tap and by a
     // fresh create so the sheet switches from "annotate this selection" to "edit this
     // annotation" without the user having to tap the new highlight.
@@ -1941,34 +1943,47 @@ fun EpubReaderScreen(
             ) {
                 if (showReadaloudUi) {
                     val readerPalette = (resolvedPrefs ?: FormattingPreferences()).theme.readerPalette
-                    ReadaloudMiniPlayer(
-                        isPlaying = readaloudPlayback.isPlaying,
-                        speed = readaloudPlayback.speed,
-                        skipIntervalSeconds = readaloudSkipIntervalSeconds,
-                        rewindIntervalSeconds = readaloudRewindIntervalSeconds,
-                        canPreviousChapter = readaloudPlayback.currentChapterIndex > 0,
-                        canNextChapter = readaloudPlayback.currentChapterIndex < readaloudPlayback.chapterCount - 1,
-                        barMessage = readaloudBarMessage,
-                        downloadProgress = readaloudDownloadProgress,
-                        containerColor = readerPalette.background.copy(alpha = 0.65f),
-                        contentColor = readerPalette.foreground,
-                        onPlayPause = readaloudSession::togglePlayPause,
-                        onRewind = readaloudSession::rewind,
-                        onForward = readaloudSession::forward,
-                        onPreviousChapter = readaloudSession::previousChapter,
-                        onNextChapter = readaloudSession::nextChapter,
-                        onSpeedChange = readaloudSession::setSpeed,
-                        onClose = readaloudSession::closeReadaloud,
-                        onSwitchToAudiobook = if (onSwitchToAudiobook != null && readaloudAudiobookItemId != null) {
-                            {
+                    ReadaloudPeek(
+                        handleColor = readerPalette.foreground,
+                        enabled = readaloudAudiobookItemId != null,
+                        onSwipeUp = {
+                            if (readaloudAudiobookItemId != null) {
                                 readaloudSession.prepareAudiobookHandoff()
-                                onSwitchToAudiobook()
+                                showAudiobookOverlay = true
                             }
-                        } else {
-                            null
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                        onDragHint = { readaloudSession.hintAudiobookHandoff() },
+                        onDragAbandoned = { readaloudSession.cancelHandoffHint() },
+                    ) {
+                        ReadaloudMiniPlayer(
+                            isPlaying = readaloudPlayback.isPlaying,
+                            speed = readaloudPlayback.speed,
+                            skipIntervalSeconds = readaloudSkipIntervalSeconds,
+                            rewindIntervalSeconds = readaloudRewindIntervalSeconds,
+                            canPreviousChapter = readaloudPlayback.currentChapterIndex > 0,
+                            canNextChapter = readaloudPlayback.currentChapterIndex < readaloudPlayback.chapterCount - 1,
+                            barMessage = readaloudBarMessage,
+                            downloadProgress = readaloudDownloadProgress,
+                            containerColor = readerPalette.background.copy(alpha = 0.65f),
+                            contentColor = readerPalette.foreground,
+                            onPlayPause = readaloudSession::togglePlayPause,
+                            onRewind = readaloudSession::rewind,
+                            onForward = readaloudSession::forward,
+                            onPreviousChapter = readaloudSession::previousChapter,
+                            onNextChapter = readaloudSession::nextChapter,
+                            onSpeedChange = readaloudSession::setSpeed,
+                            onClose = readaloudSession::closeReadaloud,
+                            onSwitchToAudiobook = if (readaloudAudiobookItemId != null) {
+                                {
+                                    readaloudSession.prepareAudiobookHandoff()
+                                    showAudiobookOverlay = true
+                                }
+                            } else {
+                                null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
                 if (showRailOverlay && prefs != null) {
                     ChapterMapOverlay(
@@ -2001,6 +2016,21 @@ fun EpubReaderScreen(
                     )
                 }
             }
+        }
+
+        if (readaloudAudiobookItemId != null) {
+            IosAudiobookPlayerOverlay(
+                item = item,
+                visible = showAudiobookOverlay,
+                onDismiss = {
+                    showAudiobookOverlay = false
+                    readaloudSession.onAudiobookOverlayDismissed()
+                },
+                onSwitchToReadaloud = { _, atSec ->
+                    showAudiobookOverlay = false
+                    readaloudSession.startReadaloudAtSecond(atSec)
+                },
+            )
         }
 
         KoFiNudgeOverlay(

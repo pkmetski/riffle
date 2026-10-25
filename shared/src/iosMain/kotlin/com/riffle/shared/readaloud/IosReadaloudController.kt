@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
  * iOS counterpart to Android's [com.riffle.app.feature.reader.readaloud.ReadaloudController].
  *
  * Wraps [IosReadaloudBridge] (AVQueuePlayer via Swift) and exposes a [PlaybackState] StateFlow
- * that [IosReadaloudSession] observes to drive the synced sentence highlight and mini-player UI.
+ * that [com.riffle.feature.reader.ReadaloudSession] observes to drive the synced sentence highlight and mini-player UI.
  *
  * Audio is queued per **distinct audio file** in the [ReadaloudTrack] — exactly as the Android
  * controller queues Media3 MediaItems. The clips' `audioSrc` fields are zip-entry paths;
@@ -98,6 +98,37 @@ internal class IosReadaloudController(
         val startIndex = resumeAudioSrc?.let { audioIndex[it] } ?: 0
         val startOffset = if (resumeAudioSrc != null) resumeOffsetSec else 0.0
         bridge.prepareAudioSrcs(fileUrls, startIndex, startOffset)
+        pushStateFromBridge()
+    }
+
+    /**
+     * Prepares streaming playback using pre-built HTTP URLs (ABS `?token=` links) instead of
+     * extracting audio from a local zip. [audioSrcToUrl] maps each Storyteller audioSrc to its
+     * clipped ABS URL; [items] drives the order (one per distinct audioSrc in clip order).
+     */
+    suspend fun prepareStreaming(
+        track: ReadaloudTrack,
+        items: List<com.riffle.core.data.StreamingMediaItem>,
+        resumeAudioSrc: String? = null,
+        resumeOffsetSec: Double = 0.0,
+    ) {
+        this.track = track
+        readaloudHandoff.setTrack(track)
+
+        audioIndex.clear()
+        indexToAudioSrc.clear()
+        val orderedSrcs = items.map { it.audioSrc }.distinct()
+        orderedSrcs.forEachIndexed { i, src ->
+            audioIndex[src] = i
+            indexToAudioSrc.add(src)
+        }
+
+        val httpUrls = orderedSrcs.map { src -> items.first { it.audioSrc == src }.url }
+        if (httpUrls.isEmpty()) return
+
+        val startIndex = resumeAudioSrc?.let { audioIndex[it] } ?: 0
+        val startOffset = if (resumeAudioSrc != null) resumeOffsetSec else 0.0
+        bridge.prepareAudioSrcs(httpUrls, startIndex, startOffset)
         pushStateFromBridge()
     }
 

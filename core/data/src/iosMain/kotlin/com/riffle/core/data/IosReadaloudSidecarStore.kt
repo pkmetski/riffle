@@ -146,6 +146,9 @@ class IosReadaloudSidecarStore(
         return IosAudiobookFiles.writeBytes(sidecarPath(storytellerSourceId, storytellerBookId), sidecar)
     }
 
+    fun readSidecarBytes(storytellerSourceId: String, storytellerBookId: String): ByteArray? =
+        IosAudiobookFiles.readBytes(sidecarPath(storytellerSourceId, storytellerBookId))
+
     private fun sidecarPath(storytellerSourceId: String, storytellerBookId: String) =
         fileStore.resolve(NS_READALOUD_SIDECARS, "$storytellerSourceId/$storytellerBookId$SIDECAR_EXTENSION")
 

@@ -40,6 +40,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,7 +85,8 @@ class ReadaloudSessionTest {
         override suspend fun open(bookId: String, bundlePath: String, track: ReadaloudTrack) {}
         override suspend fun openStreaming(streamingSession: ReadaloudStreamingSession, track: ReadaloudTrack) {}
         override fun playFromHere(fragmentRef: String) {}
-        override fun playFromReaderPosition(href: String, fragmentId: String?) {}
+        val playFromReaderPositionCalls = mutableListOf<Pair<String, String?>>()
+        override fun playFromReaderPosition(href: String, fragmentId: String?) { playFromReaderPositionCalls.add(href to fragmentId) }
         override fun playFromSecond(globalSec: Double) {}
         override fun close() { closeCalled++; _state.value = _state.value.copy(isPlaying = false); _activeFragmentRef.value = null }
         override fun releaseForHandoff() {}
@@ -208,6 +210,15 @@ class ReadaloudSessionTest {
         override suspend fun clear(sourceId: String, itemId: String) {}
     }
 
+    private class RecordingReadaloudResumeStore : ReadaloudResumeStore {
+        val saves = mutableListOf<Triple<String, String, ReadaloudResumePosition>>()
+        override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) {
+            saves.add(Triple(sourceId, itemId, position))
+        }
+        override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(sourceId: String, itemId: String) {}
+    }
+
     // ── Session factory ───────────────────────────────────────────────────────────────────
 
     private fun makeSession(
@@ -217,6 +228,7 @@ class ReadaloudSessionTest {
         listeningPreferencesStore: ListeningPreferencesStore = FakeListeningPreferencesStore(),
         recordingAppScope: RecordingApplicationScope? = null,
         snapshotPosition: () -> ReadaloudPosition? = { null },
+        readaloudResumeStore: ReadaloudResumeStore = FakeReadaloudResumeStore,
     ): ReadaloudSession {
         val appScope = recordingAppScope ?: RecordingApplicationScope(scope)
         return ReadaloudSession(
@@ -231,7 +243,7 @@ class ReadaloudSessionTest {
             listeningPreferencesStore = listeningPreferencesStore,
             audioIdentityResolver = FakeAudioIdentityResolver,
             readaloudPreferencesStore = FakeReadaloudPreferencesStore,
-            readaloudResumeStore = FakeReadaloudResumeStore,
+            readaloudResumeStore = readaloudResumeStore,
             readingPositionStore = FakeReadingPositionStore,
             readingSyncStore = FakeReadingSyncStore,
             audioSyncStore = FakeAudioSyncStore,
@@ -370,6 +382,154 @@ class ReadaloudSessionTest {
             assertEquals(false, session.readaloudPrepared)
             assertEquals(false, session.readaloudStarted)
             assertEquals(false, session.readaloudOpen.value)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun openReadaloudSetsReadaloudOpen() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope)
+            session._readaloudAvailable.value = true
+
+            session.openReadaloud()
+
+            assertEquals(true, session.readaloudOpen.value, "readaloudOpen must be true after openReadaloud")
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun onPageTopResolvedForwardsToPlayerWhenOpen() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakePlayer = FakePlayerController()
+            val session = makeSession(scope = sessionScope, playerController = fakePlayer)
+            session._readaloudOpen.value = true
+
+            session.onPageTopResolved("ch01.html", "s1")
+
+            assertEquals(1, fakePlayer.playFromReaderPositionCalls.size, "playFromReaderPosition must be called once")
+            assertEquals("ch01.html" to "s1", fakePlayer.playFromReaderPositionCalls.first())
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun onPageTopResolvedIgnoredWhenClosed() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakePlayer = FakePlayerController()
+            val session = makeSession(scope = sessionScope, playerController = fakePlayer)
+
+            session.onPageTopResolved("ch01.html", "s1")
+
+            assertEquals(0, fakePlayer.playFromReaderPositionCalls.size, "playFromReaderPosition must not be called when readaloud is closed")
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun bindConsolidatesPerBookState() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope)
+
+            session.bind(
+                sourceId = "srv1",
+                itemId = "book1",
+                isStorytellerService = true,
+                audioBookId = "audio-book-1",
+                audioServerId = "srv1",
+                audioSettingsIdentity = AudioIdentity("srv1", "audio-book-1"),
+                audiobookItemId = "ab-item-1",
+                effectiveFormattingPreferencesFlow = MutableStateFlow(FormattingPreferences()),
+                readerSyncProvider = { null },
+                audiobookFollowProvider = { null },
+            )
+
+            assertEquals("book1", session.itemId, "itemId must be set from bind sourceId/itemId")
+            assertEquals("audio-book-1", session.audioBookId, "audioBookId must be set from bind")
+            assertEquals("srv1", session.audioServerId, "audioServerId must be set from bind")
+            assertEquals("ab-item-1", session.audiobookItemId.value, "audiobookItemId flow must reflect bound value")
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun onBookClosedResetsReadaloudState() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope)
+            session.readaloudPrepared = true
+            session.readaloudStarted = true
+            session._readaloudOpen.value = true
+
+            session.onBookClosed()
+
+            assertEquals(false, session.readaloudPrepared, "readaloudPrepared must be cleared on book close")
+            assertEquals(false, session.readaloudStarted, "readaloudStarted must be cleared on book close")
+            assertEquals(false, session.readaloudOpen.value, "readaloudOpen must be false after onBookClosed")
+            assertNull(session.parkPolicy.fragmentRef, "parkPolicy must be reset on book close")
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun onPositionBeforeForwardClearsParkState() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope)
+            session.parkPolicy.onPause("ch01.html#s1", "ch01.html", 0.5)
+            assertEquals("ch01.html#s1", session.parkPolicy.fragmentRef, "park must be set before test")
+
+            session.onPositionBeforeForward(ReadaloudPosition(href = "ch02.html", progression = 0.0, locatorJson = "{}"))
+
+            assertNull(session.parkPolicy.fragmentRef, "park must be cleared when moving to a different chapter")
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun cancelStorytellerSyncIsIdempotentWhenNothingActive() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope)
+
+            session.cancelStorytellerSync()
+            session.cancelStorytellerSync()
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun persistReadaloudResumePositionWritesToStore() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val store = RecordingReadaloudResumeStore()
+            val session = makeSession(scope = sessionScope, readaloudResumeStore = store)
+            session.readerServerId = "srv1"
+            session.itemId = "book1"
+            val position = ReadaloudPosition(href = "ch01.html", progression = 0.3, locatorJson = "{}")
+
+            session.persistReadaloudResumePosition(position, "ch01.html#s5")
+
+            assertEquals(1, store.saves.size, "store must receive exactly one save call")
+            val (srcId, itmId, saved) = store.saves.first()
+            assertEquals("srv1", srcId)
+            assertEquals("book1", itmId)
+            assertEquals("ch01.html", saved.href)
+            assertEquals(0.3, saved.progression)
+            assertEquals("ch01.html#s5", saved.fragmentRef)
         } finally {
             sessionScope.cancel()
         }
