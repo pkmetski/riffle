@@ -1,14 +1,5 @@
 import XCTest
 
-/// Regression test for issue #1311: annotation search navigation works on iOS.
-///
-/// Android counterpart: `ShowAllAnnotationsHarnessTest.kt` — covers the library-search-bar
-/// "Show all annotations" path. iOS reaches the same results screen via the Annotations-tab
-/// search field (`TestTags.ANNOTATIONS_SEARCH_FIELD` / "annotation-search-field") because iOS
-/// has no global library search bar.
-///
-/// Setup: seeds 6 highlight annotations via `--RIFFLE_SEED_ANNOTATIONS=6|item-test-2` so the
-/// Annotations tab becomes visible (it is hidden when the library has no annotated books).
 final class AnnotationSearchFlowTests: XCTestCase {
 
     var app: XCUIApplication!
