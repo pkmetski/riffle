@@ -472,7 +472,11 @@ jobs:
             local launch_pid=$!
             sleep 30
             local alive=0
-            pgrep -f "Riffle.app/Riffle" > /dev/null && alive=1
+            pgrep -f "Riffle.app/Riffle" > /dev/null 2>&1 && alive=1
+            # On macOS 15 / Xcode 16+ the app argv may not include the "Riffle.app/Riffle"
+            # path suffix (CoreSimulator may launch via a different argv), so the -f pattern
+            # silently misses the running process. Fall back to process-name matching.
+            [ "$alive" = 0 ] && pgrep -x Riffle > /dev/null 2>&1 && alive=1
             xcrun simctl terminate "$SIMULATOR_UDID" com.riffle.iosApp 2>/dev/null || true
             kill "$launch_pid" 2>/dev/null || true
             wait "$launch_pid" 2>/dev/null || true
