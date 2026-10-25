@@ -22,14 +22,14 @@ sealed interface StorytellerSyncOutcome {
  * position (no conflict prompt), then PATCH or jump as the [StorytellerPositionReconciler] decides.
  * The local canonical position is stored as the Readium locator JSON in [ReadingPositionStore].
  */
-class StorytellerPositionSyncController(
+open class StorytellerPositionSyncController(
     private val api: StorytellerPositionApi,
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) {
 
-    suspend fun runCycle(itemId: String, localLocatorJson: String): StorytellerSyncOutcome {
+    open suspend fun runCycle(itemId: String, localLocatorJson: String): StorytellerSyncOutcome {
         val source = sourceRepository.getActive() ?: return StorytellerSyncOutcome.Offline
         val token = tokenStorage.getToken(source.id) ?: return StorytellerSyncOutcome.Offline
         val localUpdatedAt = positionStore.loadLocalUpdatedAt(source.id, itemId)
