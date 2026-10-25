@@ -67,7 +67,10 @@ class ShowAllAnnotationsHarnessTest : KoinTest {
         addServerAndBrowseLibrary()
         seedAnnotations()
 
-        composeTestRule.onNodeWithText("Search").performTextReplacement(SEED_TEXT_PREFIX)
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(TestTags.LIBRARY_SEARCH).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag(TestTags.LIBRARY_SEARCH).performTextReplacement(SEED_TEXT_PREFIX)
 
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithTag(TestTags.SHOW_ALL_ANNOTATIONS).fetchSemanticsNodes().isNotEmpty()
@@ -97,7 +100,7 @@ class ShowAllAnnotationsHarnessTest : KoinTest {
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(TestTags.LIBRARY_SEARCH).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
