@@ -27,15 +27,6 @@ import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
 
-/**
- * Regression test for issue #1311: "Show all annotations" in the library search bar navigates to
- * the annotation search results screen on Android.
- *
- * Seeds 6 annotations (> ANNOTATION_PREVIEW_CAP=5) for a library item so the "Show all" footer
- * appears in the inline search results, then asserts that tapping it opens
- * [TestTags.ANNOTATION_SEARCH_RESULTS]. The iOS counterpart is AnnotationSearchFlowTests.swift,
- * which covers the Annotations-tab search field path (iOS's only route into the results screen).
- */
 @RunWith(AndroidJUnit4::class)
 class ShowAllAnnotationsHarnessTest : KoinTest {
 
