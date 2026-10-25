@@ -3,7 +3,6 @@ package com.riffle.shared.readaloud
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.AudiobookIdentityResolver
-import com.riffle.core.data.IosAudiobookFiles
 import com.riffle.core.data.IosMediaOverlayReader
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.StreamingMediaPlan
@@ -72,7 +71,7 @@ internal class IosReadaloudStreamingSessionFactory(
             ?.takeIf { it.isNotEmpty() } ?: return null
 
         val sidecarPath = sidecarStore.cachedSidecarPath(storytellerSourceId, storytellerBookId) ?: return null
-        val bytes = IosAudiobookFiles.readBytes(sidecarPath) ?: return null
+        val bytes = sidecarStore.readSidecarBytes(storytellerSourceId, storytellerBookId) ?: return null
 
         val track = runCatching { IosMediaOverlayReader.readTrack(bytes) }.getOrNull()
             ?.takeIf { it.clips.isNotEmpty() } ?: return null
@@ -98,7 +97,7 @@ internal class IosReadaloudStreamingSessionFactory(
         val segTotal = if (segments.isNotEmpty()) segments.values.sumOf { group -> group.maxOf { it.clipEndSec } } else -1.0
         val isPartial = segTotal >= 0.0 && absTotalSec - segTotal > 10.0 * segments.size
         if (clips.isEmpty() || isPartial) {
-            val bookKey = sidecarStore.key(sourceId, bookId)
+            val bookKey = "$sourceId/$bookId"
             if (evictedPartialSidecars.add(bookKey)) {
                 sidecarStore.remove(sourceId, bookId)
                 sidecarStore.prepare(sourceId, bookId)
