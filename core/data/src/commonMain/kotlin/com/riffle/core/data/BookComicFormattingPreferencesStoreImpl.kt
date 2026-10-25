@@ -35,6 +35,8 @@ class BookComicFormattingPreferencesStoreImpl constructor(
                 panelViewOn = overrides.panelViewOn,
                 panelOverflow = overrides.panelOverflow?.name,
                 panelAnimationSpeedMs = overrides.panelAnimationSpeedMs,
+                showChapterMap = overrides.showChapterMap,
+                showPageProgress = overrides.showPageProgress,
             )
         )
     }
@@ -53,5 +55,7 @@ class BookComicFormattingPreferencesStoreImpl constructor(
             runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull()
         },
         panelAnimationSpeedMs = panelAnimationSpeedMs,
+        showChapterMap = showChapterMap,
+        showPageProgress = showPageProgress,
     )
 }

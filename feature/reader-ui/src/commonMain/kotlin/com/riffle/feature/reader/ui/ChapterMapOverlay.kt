@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.common.TimeRemaining
 import com.riffle.core.domain.ReaderTheme
@@ -50,6 +51,7 @@ fun ChapterMapOverlay(
     bookmarkPositions: List<Float> = emptyList(),
     onSegmentClick: (RailSegment) -> Unit,
     modifier: Modifier = Modifier,
+    railHeight: Dp = 2.dp,
 ) {
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
@@ -87,6 +89,7 @@ fun ChapterMapOverlay(
                     onSegmentClick = onSegmentClick,
                     coloredChapterMap = coloredChapterMap,
                     bookmarkPositions = bookmarkPositions,
+                    railHeight = railHeight,
                 )
             }
         }

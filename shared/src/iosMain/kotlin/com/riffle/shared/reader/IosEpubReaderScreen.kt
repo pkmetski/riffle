@@ -1997,6 +1997,7 @@ fun EpubReaderScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        railHeight = 3.dp,
                     )
                 }
             }

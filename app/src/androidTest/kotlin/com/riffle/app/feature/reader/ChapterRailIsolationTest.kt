@@ -73,7 +73,7 @@ class ChapterRailIsolationTest {
             .fetchSemanticsNode()
             .boundsInRoot
             .height
-        val expectedHeight = with(composeTestRule.density) { 4.dp.toPx() }
+        val expectedHeight = with(composeTestRule.density) { 2.dp.toPx() }
         assertEquals(expectedHeight, railHeight, 0.5f)
 
         val screen = captureWindowToBitmap(composeTestRule.activity.window)
