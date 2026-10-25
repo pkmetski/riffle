@@ -311,30 +311,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     /// Thread-safe: returns the cached locator JSON last emitted by the delegate on the main thread.
     func snapshotLocatorJson() -> String? { cachedLocatorJson }
 
-    func setLocatorCallback(callback: ((String) -> Void)?) {
-        locatorCallback = callback
-    }
-
-    func setPageLoadCallback(callback: (() -> Void)?) {
-        pageLoadCallback = callback
-    }
-
-    func setTapCallback(callback: ((TapCoords) -> Void)?) {
-        tapCallback = callback
-    }
-
-    func setFigureTapCallback(callback: ((String) -> Void)?) {
-        figureTapCallback = callback
-    }
-
-    func setFigureLongPressCallback(callback: ((String) -> Void)?) {
-        figureLongPressCallback = callback
-    }
-
-    func setFootnoteCallback(callback: ((String) -> Void)?) {
-        footnoteCallback = callback
-    }
-
     /// Test seam: exercises the footnote-stripping + callback path without a live Readium Navigator.
     /// Returns `false` when a callback is registered (same semantics as the delegate), `true` otherwise.
     func simulateFootnoteTap(content: String) -> Bool {
@@ -345,18 +321,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             .trimmingCharacters(in: .whitespacesAndNewlines)
         cb(plain.isEmpty ? content : plain)
         return false
-    }
-
-    func setInternalLinkCallback(callback: ((String, String) -> Void)?) {
-        internalLinkCallback = callback
-    }
-
-    func setErrorCallback(callback: ((String) -> Void)?) {
-        errorCallback = callback
-    }
-
-    func setPublicationOpenErrorCallback(callback: ((String) -> Void)?) {
-        publicationOpenErrorCallback = callback
     }
 
     func openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: any IosLazyChapterFetcher) {
@@ -456,14 +420,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         activeSearchTask = nil
     }
 
-    func setRiffleUrlCallback(callback: ((String) -> Void)?) {
-        riffleUrlCallback = callback
-    }
-
-    func setScrollStartCallback(callback: (() -> Void)?) {
-        scrollStartCallback = callback
-    }
-
     private func serializeTocLinks(_ links: [Link]) -> String {
         let items = links.map { serializeTocLink($0) }.joined(separator: ",")
         return "[\(items)]"
@@ -488,6 +444,22 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
     // MARK: - Bundled font registration
 
+}
+
+// MARK: - Callback setters
+
+extension ReadiumEpubNavigatorBridge {
+    func setLocatorCallback(callback: ((String) -> Void)?) { locatorCallback = callback }
+    func setPageLoadCallback(callback: (() -> Void)?) { pageLoadCallback = callback }
+    func setTapCallback(callback: ((TapCoords) -> Void)?) { tapCallback = callback }
+    func setFigureTapCallback(callback: ((String) -> Void)?) { figureTapCallback = callback }
+    func setFigureLongPressCallback(callback: ((String) -> Void)?) { figureLongPressCallback = callback }
+    func setFootnoteCallback(callback: ((String) -> Void)?) { footnoteCallback = callback }
+    func setInternalLinkCallback(callback: ((String, String) -> Void)?) { internalLinkCallback = callback }
+    func setErrorCallback(callback: ((String) -> Void)?) { errorCallback = callback }
+    func setPublicationOpenErrorCallback(callback: ((String) -> Void)?) { publicationOpenErrorCallback = callback }
+    func setRiffleUrlCallback(callback: ((String) -> Void)?) { riffleUrlCallback = callback }
+    func setScrollStartCallback(callback: (() -> Void)?) { scrollStartCallback = callback }
 }
 
 // MARK: - Decoration parsing
