@@ -64,6 +64,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
@@ -121,7 +123,9 @@ import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.PullChip
+import com.riffle.feature.reader.ui.annotationSheetLabels
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -3188,11 +3192,19 @@ private fun EpubNavigatorView(
         val noteTarget = noteEditorTarget
         if (noteTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == noteTarget.id }
-            NoteEditorDialog(
-                initialNote = current?.note ?: "",
-                onConfirm = { text -> onCommitNoteEdit(noteTarget.id, text.takeIf { it.isNotBlank() }) },
-                onDismiss = onCancelNoteEdit,
-            )
+            val sheetLabels = annotationSheetLabels()
+            Popup(
+                alignment = Alignment.BottomCenter,
+                onDismissRequest = onCancelNoteEdit,
+                properties = PopupProperties(focusable = true),
+            ) {
+                NoteEditorSheet(
+                    initialNote = current?.note ?: "",
+                    labels = sheetLabels,
+                    onConfirm = { text -> onCommitNoteEdit(noteTarget.id, text.takeIf { it.isNotBlank() }) },
+                    onDismiss = onCancelNoteEdit,
+                )
+            }
         }
     }
 }

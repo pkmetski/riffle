@@ -39,4 +39,5 @@
     <string name="ui_action_search">Buscar</string>
     <string name="ui_action_share">Compartir</string>
     <string name="ui_action_play_from_here">Reproducir</string>
+    <string name="ui_action_look_up">Buscar en diccionario</string>
 </resources>

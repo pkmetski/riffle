@@ -1716,6 +1716,10 @@ fun EpubReaderScreen(
                     com.riffle.shared.reader.IosClipboard.copyToClipboard(selText)
                     navigator.clearSelection()
                 },
+                onLookUp = {
+                    com.riffle.shared.reader.IosSystemActions.lookUp(selText)
+                    navigator.clearSelection()
+                },
                 onSearchWeb = {
                     com.riffle.shared.reader.IosSystemActions.searchWeb(selText)
                     navigator.clearSelection()

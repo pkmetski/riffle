@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_action_copy
+import com.riffle.shared.generated.resources.ui_action_look_up
 import com.riffle.shared.generated.resources.ui_action_play_from_here
 import com.riffle.shared.generated.resources.ui_action_search
 import com.riffle.shared.generated.resources.ui_action_share
@@ -32,6 +33,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun SelectionActionStrip(
     onCopy: () -> Unit,
+    onLookUp: () -> Unit,
     onSearchWeb: () -> Unit,
     onShare: () -> Unit,
     onPlayFromHere: (() -> Unit)?,
@@ -48,6 +50,7 @@ internal fun SelectionActionStrip(
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         ) {
             TextButton(onClick = onCopy) { Text(stringResource(Res.string.ui_action_copy), style = MaterialTheme.typography.labelMedium) }
+            TextButton(onClick = onLookUp) { Text(stringResource(Res.string.ui_action_look_up), style = MaterialTheme.typography.labelMedium) }
             TextButton(onClick = onSearchWeb) { Text(stringResource(Res.string.ui_action_search), style = MaterialTheme.typography.labelMedium) }
             TextButton(onClick = onShare) { Text(stringResource(Res.string.ui_action_share), style = MaterialTheme.typography.labelMedium) }
             if (onPlayFromHere != null) {

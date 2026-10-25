@@ -4,6 +4,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSURL
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
+import platform.UIKit.UIReferenceLibraryViewController
 
 /**
  * Thin wrappers for iOS system actions (web search, share sheet) triggered from the EPUB reader's
@@ -26,5 +27,18 @@ internal object IosSystemActions {
         )
         UIApplication.sharedApplication.keyWindow?.rootViewController
             ?.presentViewController(activity, animated = true, completion = null)
+    }
+
+    fun lookUp(term: String) {
+        val rootVc = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return
+        if (!UIReferenceLibraryViewController.dictionaryHasDefinitionForTerm(term)) {
+            searchWeb(term)
+            return
+        }
+        rootVc.presentViewController(
+            UIReferenceLibraryViewController(term),
+            animated = true,
+            completion = null,
+        )
     }
 }
