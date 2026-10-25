@@ -39,8 +39,14 @@ fun ReadaloudPeek(
         modifier = modifier.pointerInput(Unit) {
             var total = 0f
             detectVerticalDragGestures(
-                onDragStart = { total = 0f; onDragHint() },
-                onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
+                onDragStart = {
+                    total = 0f
+                    onDragHint()
+                },
+                onVerticalDrag = { change, dragAmount ->
+                    total += dragAmount
+                    change.consume()
+                },
                 onDragEnd = {
                     if (total < -SWIPE_UP_THRESHOLD_PX) onSwipeUp() else onDragAbandoned()
                 },
