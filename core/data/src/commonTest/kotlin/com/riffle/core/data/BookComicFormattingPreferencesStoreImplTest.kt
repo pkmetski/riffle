@@ -197,7 +197,9 @@ class BookComicFormattingPreferencesStoreImplTest {
     @Test fun saveWritesShowPageProgressOverrideIntoEntity() = runTest {
         var saved: BookComicFormattingPreferencesEntity? = null
         val dao = object : BookComicFormattingPreferencesDao {
-            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) { saved = entity }
+            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) {
+                saved = entity
+            }
             override suspend fun getByItemId(sourceId: String, itemId: String) = null
             override suspend fun deleteByItemId(sourceId: String, itemId: String) {}
         }
@@ -214,7 +216,9 @@ class BookComicFormattingPreferencesStoreImplTest {
     @Test fun saveWritesShowChapterMapOverrideIntoEntity() = runTest {
         var saved: BookComicFormattingPreferencesEntity? = null
         val dao = object : BookComicFormattingPreferencesDao {
-            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) { saved = entity }
+            override suspend fun upsert(entity: BookComicFormattingPreferencesEntity) {
+                saved = entity
+            }
             override suspend fun getByItemId(sourceId: String, itemId: String) = null
             override suspend fun deleteByItemId(sourceId: String, itemId: String) {}
         }

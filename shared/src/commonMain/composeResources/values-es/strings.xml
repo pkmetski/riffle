@@ -33,4 +33,11 @@
     <string name="ui_report_panel_detection_issue">Reportar problema de detección de paneles</string>
     <string name="ui_more_options">Más opciones</string>
     <string name="ui_submit">Enviar</string>
+
+    <!-- Selection action strip (iOS text-selection overlay) -->
+    <string name="ui_action_copy">Copiar</string>
+    <string name="ui_action_search">Buscar</string>
+    <string name="ui_action_share">Compartir</string>
+    <string name="ui_action_play_from_here">Reproducir</string>
+    <string name="ui_action_look_up">Buscar en diccionario</string>
 </resources>

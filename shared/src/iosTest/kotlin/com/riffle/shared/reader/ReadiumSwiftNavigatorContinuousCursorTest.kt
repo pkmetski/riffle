@@ -40,6 +40,7 @@ class ReadiumSwiftNavigatorContinuousCursorTest {
         override fun readResource(href: String, onResult: (String?) -> Unit) = onResult(null)
         override fun evaluateJavaScript(script: String, onResult: (String?) -> Unit) = onResult(null)
         override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun setFigureLongPressCallback(callback: ((String) -> Unit)?) = Unit
         override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun disposeNavigator() = Unit
         override fun applyDecorations(decorationsJson: String, group: String) = Unit
@@ -87,9 +88,11 @@ class ReadiumSwiftNavigatorContinuousCursorTest {
     fun applyReaderPreferences_continuousMode_setsNativeContinuousActive() {
         val nav = ReadiumSwiftNavigator(RecordingBridge(), RecordingLogger())
         applyPrefs(nav, isContinuousMode = true)
-        assertTrue(nav.isNativeContinuousActive,
+        assertTrue(
+            nav.isNativeContinuousActive,
             "isNativeContinuousActive must be true in continuous mode so scrollBoundaryAndProgression() " +
-                "returns lastPosition.progression instead of running a JS probe on Readium's WebView")
+                "returns lastPosition.progression instead of running a JS probe on Readium's WebView"
+        )
     }
 
     @Test
@@ -97,8 +100,10 @@ class ReadiumSwiftNavigatorContinuousCursorTest {
         val nav = ReadiumSwiftNavigator(RecordingBridge(), RecordingLogger())
         applyPrefs(nav, isContinuousMode = true)
         applyPrefs(nav, isContinuousMode = false)
-        assertTrue(!nav.isNativeContinuousActive,
-            "isNativeContinuousActive must be cleared when leaving continuous mode")
+        assertTrue(
+            !nav.isNativeContinuousActive,
+            "isNativeContinuousActive must be cleared when leaving continuous mode"
+        )
     }
 
     @Test
@@ -112,9 +117,13 @@ class ReadiumSwiftNavigatorContinuousCursorTest {
         bridge.locatorCallback?.invoke(locatorJson)
 
         val (boundary, progression) = nav.scrollBoundaryAndProgression()
-        assertEquals(NavigatorScrollBoundary.None, boundary,
-            "boundary must be None in native continuous mode so chapter transitions are suppressed")
-        assertEquals(0.42f, progression, absoluteTolerance = 0.001f,
-            "progression must equal lastPosition.progression so continuousCursorOverride tracks the native scroll view")
+        assertEquals(
+            NavigatorScrollBoundary.None, boundary,
+            "boundary must be None in native continuous mode so chapter transitions are suppressed"
+        )
+        assertEquals(
+            0.42f, progression, absoluteTolerance = 0.001f,
+            "progression must equal lastPosition.progression so continuousCursorOverride tracks the native scroll view"
+        )
     }
 }

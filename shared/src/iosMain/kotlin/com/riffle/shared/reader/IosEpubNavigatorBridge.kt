@@ -95,6 +95,9 @@ interface IosEpubNavigatorBridge {
      */
     fun setFigureTapCallback(callback: ((payload: String) -> Unit)?)
 
+    /** Register a callback for figure long-press events (500ms press on `<img>`, `<svg>`, `<picture>`). */
+    fun setFigureLongPressCallback(callback: ((payload: String) -> Unit)?)
+
     /**
      * Register a callback for text-selection changes — the seam that makes annotation *creation*
      * possible at all.

@@ -34,4 +34,11 @@
     <string name="ui_report_panel_detection_issue">Report panel detection issue</string>
     <string name="ui_more_options">More options</string>
     <string name="ui_submit">Submit</string>
+
+    <!-- Selection action strip (iOS text-selection overlay) -->
+    <string name="ui_action_copy">Copy</string>
+    <string name="ui_action_search">Search</string>
+    <string name="ui_action_share">Share</string>
+    <string name="ui_action_play_from_here">Play</string>
+    <string name="ui_action_look_up">Look Up</string>
 </resources>

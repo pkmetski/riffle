@@ -33,4 +33,11 @@
     <string name="ui_report_panel_detection_issue">Докладвай проблем с разпознаването на панели</string>
     <string name="ui_more_options">Още опции</string>
     <string name="ui_submit">Изпрати</string>
+
+    <!-- Selection action strip (iOS text-selection overlay) -->
+    <string name="ui_action_copy">Копирай</string>
+    <string name="ui_action_search">Търси</string>
+    <string name="ui_action_share">Сподели</string>
+    <string name="ui_action_play_from_here">Пусни</string>
+    <string name="ui_action_look_up">Търси в речника</string>
 </resources>

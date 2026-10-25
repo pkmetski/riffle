@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.IntRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.reader.ui.NoteEditorSheet
+import com.riffle.feature.reader.ui.annotationSheetLabels
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -115,8 +117,9 @@ class HighlightActionsPopupTest {
     @Test
     fun noteEditor_autofocusesTextFieldWhenOpened() {
         composeTestRule.setContent {
-            NoteEditorDialog(
+            NoteEditorSheet(
                 initialNote = "",
+                labels = annotationSheetLabels(),
                 onConfirm = {},
                 onDismiss = {},
             )

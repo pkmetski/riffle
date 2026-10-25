@@ -56,6 +56,7 @@ class ReadiumSwiftNavigatorEdgeTapTest {
         override fun readResource(href: String, onResult: (String?) -> Unit) = onResult(null)
         override fun evaluateJavaScript(script: String, onResult: (String?) -> Unit) = onResult(null)
         override fun setFigureTapCallback(callback: ((String) -> Unit)?) = Unit
+        override fun setFigureLongPressCallback(callback: ((String) -> Unit)?) = Unit
         override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun disposeNavigator() = Unit
         override fun applyDecorations(decorationsJson: String, group: String) = Unit
