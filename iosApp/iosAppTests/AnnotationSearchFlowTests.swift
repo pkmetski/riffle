@@ -30,8 +30,6 @@ final class AnnotationSearchFlowTests: XCTestCase {
 
     // MARK: - Tests
 
-    /// Tapping the Annotations-tab search field, entering a query, and submitting navigates to
-    /// the annotation search results screen (accessibilityIdentifier "annotation-search-results").
     func testAnnotationSearchFieldOpensResultsScreen() {
         let annotationsTab = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'Annotations' OR label == 'Annotations'"))
