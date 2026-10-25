@@ -39,19 +39,6 @@ import org.koin.core.qualifier.named
 import org.koin.test.KoinTest
 import org.koin.test.inject
 
-/**
- * Verifies every navigation lands the reader properly column-snapped, against the REAL Readium reader
- * (where horizontal pagination works — unlike the bare-WebView fixture). Three criteria per navigation:
- *
- *   (1) target VISIBLE  — the target element's rect.left ∈ [0, innerWidth) (its column is on screen)
- *   (2) SNAPPED         — scrollLeft is a whole multiple of innerWidth (±1px), not between two pages
- *   (3) NO VISIBLE READJUSTMENT — the page does not hop/re-settle while the user can see it. A move under
- *       the nav cover (reader_nav_cover) is fine; a move in the open is not. For a same-chapter jump (never
- *       covered) the page must reach its final position in ONE motion: the first scroll lands on the snapped
- *       target, it never moves again.
- *
- * Avoids composeTestRule.waitForIdle() — it blocks indefinitely while the Readium WebView is active.
- */
 @RunWith(AndroidJUnit4::class)
 class NavigationSnapHarnessTest : KoinTest {
 
