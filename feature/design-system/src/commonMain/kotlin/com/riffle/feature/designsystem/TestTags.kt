@@ -238,6 +238,7 @@ object TestTags {
     fun collectionGridTile(id: String) = "collection_grid_tile_$id"
     const val ANNOTATION_SEARCH_SUBMIT = "annotation-search-submit"
     const val ANNOTATION_SEARCH_RESULTS = "annotation-search-results"
+    const val SHOW_ALL_ANNOTATIONS = "show-all-annotations"
     const val DETAIL_ADD_TO_PLAYLIST = "detail-add-to-playlist"
     const val FILTERED_BOOKS_GRID = "filtered-books-grid"
     const val PLAYLIST_NEW = "playlist-new"

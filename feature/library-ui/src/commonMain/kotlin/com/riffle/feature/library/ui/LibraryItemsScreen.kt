@@ -537,7 +537,10 @@ internal fun SearchResultsContent(
                     val showAllText = stringResource(LibRes.string.ui_show_all_annotations, totalAnnotations)
                     TextButton(
                         onClick = onShowAllAnnotations,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .testTag(TestTags.SHOW_ALL_ANNOTATIONS),
                     ) {
                         Text(showAllText)
                     }

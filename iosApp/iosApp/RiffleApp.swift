@@ -21,6 +21,9 @@ struct RiffleApp: App {
         // UI-test harness: add a stub source through the production authenticate → commit path so
         // tests start on the library home without driving the add-source screens (no-op otherwise).
         IosTestSourceSeederKt.seedTestSourceFromLaunchArguments()
+        // UI-test harness: seed highlight annotations for a given item via --RIFFLE_SEED_ANNOTATIONS=<count>|<itemId>
+        // so tests that need the Annotations tab visible can start without driving the reader UI (no-op otherwise).
+        IosTestAnnotationSeederKt.seedTestAnnotationsFromLaunchArguments()
     }
     var body: some Scene {
         WindowGroup {
