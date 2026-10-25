@@ -94,7 +94,7 @@ import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
-import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
+import com.riffle.feature.player.ui.ReadaloudPeek
 import com.riffle.app.feature.reader.renderer.DefaultRendererBridge
 import com.riffle.app.feature.reader.renderer.RendererBridge
 import com.riffle.app.feature.reader.sentence.SentencePlaybackController

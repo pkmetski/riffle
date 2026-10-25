@@ -64,7 +64,9 @@ internal class IosReadaloudPlayerController(
     }
 
     override suspend fun openStreaming(streamingSession: ReadaloudStreamingSession, track: ReadaloudTrack) {
-        // iOS does not yet support streaming sessions.
+        val session = streamingSession as? IosReadaloudStreamingSession ?: return
+        this.track = track
+        controller.prepareStreaming(track, session.items)
     }
 
     override fun playFromHere(fragmentRef: String) = controller.playFromFragment(fragmentRef)

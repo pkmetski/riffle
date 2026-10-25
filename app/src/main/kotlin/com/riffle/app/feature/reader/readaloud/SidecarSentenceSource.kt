@@ -9,7 +9,7 @@ import com.riffle.core.domain.sentence.SentenceSource
  * Readaloud's [SentenceSource]: wraps the existing [ReadaloudQuoteBuilder] pipeline (Storyteller
  * SMIL/text extraction) behind the shared interface.
  *
- * This is a pure wrap — no logic moves here. [ReadaloudSession][com.riffle.app.feature.reader.session.ReadaloudSession]
+ * This is a pure wrap — no logic moves here. [com.riffle.feature.reader.ReadaloudSession]
  * still consumes [ReadaloudQuoteBuilder.sentenceQuotes]/[ReadaloudQuoteBuilder.sentenceChapters]
  * directly as it does today; this class is present but unused until the swap (ADR 0046).
  */

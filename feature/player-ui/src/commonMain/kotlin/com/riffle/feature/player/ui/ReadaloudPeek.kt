@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.readaloud
+package com.riffle.feature.player.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -25,12 +25,8 @@ import androidx.compose.ui.unit.dp
 fun ReadaloudPeek(
     handleColor: Color,
     onSwipeUp: () -> Unit,
-    // Whether there's actually a player to switch to. When false the gesture + handle are omitted so
-    // the affordance is never shown for a title with no audiobook to swipe up to.
     enabled: Boolean,
     modifier: Modifier = Modifier,
-    // Pre-warm callbacks for the drag gesture (ADR 0039): called as soon as a drag starts so the
-    // incoming audiobook player can connect/prepare during the gesture rather than after the threshold.
     onDragHint: () -> Unit = {},
     onDragAbandoned: () -> Unit = {},
     content: @Composable () -> Unit,
@@ -52,7 +48,6 @@ fun ReadaloudPeek(
         },
     ) {
         content()
-        // Swipe-up affordance: a small drag handle pinned to the top edge of the bar.
         Box(
             Modifier
                 .align(Alignment.TopCenter)
@@ -64,5 +59,4 @@ fun ReadaloudPeek(
     }
 }
 
-// Minimum upward drag (px) on the mini player to switch to the large player — a deliberate swipe.
 private const val SWIPE_UP_THRESHOLD_PX = 60f

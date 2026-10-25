@@ -1,10 +1,18 @@
 package com.riffle.shared.readaloud
 
+import com.riffle.core.data.StorytellerPositionSyncController
+import com.riffle.core.data.StorytellerSyncOutcome
 import com.riffle.feature.reader.ReadaloudServerSyncOutcome
 import com.riffle.feature.reader.StorytellerSyncDelegate
 
-/** iOS does not run Storyteller-only position sync — always reports offline. */
-internal object IosStorytellerSyncDelegate : StorytellerSyncDelegate {
+internal class IosStorytellerSyncDelegate(
+    private val syncController: StorytellerPositionSyncController,
+) : StorytellerSyncDelegate {
     override suspend fun runCycle(itemId: String, locatorJson: String): ReadaloudServerSyncOutcome =
-        ReadaloudServerSyncOutcome.Offline
+        when (val outcome = syncController.runCycle(itemId, locatorJson)) {
+            is StorytellerSyncOutcome.PulledRemote -> ReadaloudServerSyncOutcome.PulledRemote(outcome.locatorJson)
+            StorytellerSyncOutcome.PushedLocal -> ReadaloudServerSyncOutcome.PushedLocal
+            StorytellerSyncOutcome.InSync -> ReadaloudServerSyncOutcome.InSync
+            StorytellerSyncOutcome.Offline -> ReadaloudServerSyncOutcome.Offline
+        }
 }
