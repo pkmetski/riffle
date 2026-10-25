@@ -328,61 +328,6 @@ final class EpubReaderTests: XCTestCase {
         XCTAssertEqual(received, payload)
     }
 
-    // MARK: - Figure long-press bridge (iOS parity for Android's FigureLongPressMessageParser path)
-    //
-    // simulateFigureLongPress forwards the raw JSON payload to the registered
-    // figureLongPressCallback. The Kotlin side (FigureLongPressMessageParser) parses it —
-    // the bridge is transparent, as with figureTapCallback. These tests pin the Swift wiring
-    // added alongside the JS shim's `onFigureLongPress` handler.
-
-    func testFigureLongPressCallbackReceivesPayload() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        var received: String?
-        bridge.setFigureLongPressCallback { payload in received = payload }
-
-        let payload = #"{"kind":"img","caption":"Fig 1","href":"images/fig1.jpg","rectX":10,"rectY":20,"rectW":300,"rectH":200}"#
-        bridge.simulateFigureLongPress(payload)
-
-        XCTAssertEqual(received, payload,
-                       "figureLongPressCallback must relay the exact payload from simulateFigureLongPress")
-    }
-
-    func testFigureLongPressCallbackDoesNotFireAfterClearing() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        var callCount = 0
-        bridge.setFigureLongPressCallback { _ in callCount += 1 }
-        bridge.setFigureLongPressCallback(callback: nil)
-
-        bridge.simulateFigureLongPress(#"{"kind":"img","caption":"","href":"a.png"}"#)
-
-        XCTAssertEqual(callCount, 0,
-                       "figureLongPressCallback must not fire after being cleared")
-    }
-
-    func testFigureLongPressSvgPayloadRelayed() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        var received: String?
-        bridge.setFigureLongPressCallback { received = $0 }
-
-        let payload = #"{"kind":"svg","caption":"A diagram","svg":"<svg/>","href":null}"#
-        bridge.simulateFigureLongPress(payload)
-
-        XCTAssertEqual(received, payload)
-    }
-
-    func testFigureTapAndLongPressCallbacksAreIndependent() {
-        let bridge = ReadiumEpubNavigatorBridge()
-        var tapFired = false
-        var longPressFired = false
-        bridge.setFigureTapCallback { _ in tapFired = true }
-        bridge.setFigureLongPressCallback { _ in longPressFired = true }
-
-        bridge.simulateFigureLongPress(#"{"kind":"img","caption":"","href":"a.png"}"#)
-
-        XCTAssertFalse(tapFired, "tap callback must not fire on long-press event")
-        XCTAssertTrue(longPressFired, "long-press callback must fire on long-press event")
-    }
-
     // MARK: - readResourceBase64 URL stripping (iOS-only: readium:// scheme fix)
     //
     // Readium Swift 3.x serves publication resources with a custom `readium://` scheme:
@@ -637,6 +582,61 @@ private func makePrefs(isContinuousMode: Bool = false) -> IosReaderPreferences {
         columnCount: 1,
         isContinuousMode: isContinuousMode
     )
+}
+
+// MARK: - Figure long-press bridge tests
+// simulateFigureLongPress forwards the raw JSON payload to the registered
+// figureLongPressCallback. These tests pin the Swift wiring added alongside
+// the JS shim's `onFigureLongPress` handler.
+final class FigureLongPressBridgeTests: XCTestCase {
+
+    func testFigureLongPressCallbackReceivesPayload() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var received: String?
+        bridge.setFigureLongPressCallback { payload in received = payload }
+
+        let payload = #"{"kind":"img","caption":"Fig 1","href":"images/fig1.jpg","rectX":10,"rectY":20,"rectW":300,"rectH":200}"#
+        bridge.simulateFigureLongPress(payload)
+
+        XCTAssertEqual(received, payload,
+                       "figureLongPressCallback must relay the exact payload from simulateFigureLongPress")
+    }
+
+    func testFigureLongPressCallbackDoesNotFireAfterClearing() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var callCount = 0
+        bridge.setFigureLongPressCallback { _ in callCount += 1 }
+        bridge.setFigureLongPressCallback(callback: nil)
+
+        bridge.simulateFigureLongPress(#"{"kind":"img","caption":"","href":"a.png"}"#)
+
+        XCTAssertEqual(callCount, 0,
+                       "figureLongPressCallback must not fire after being cleared")
+    }
+
+    func testFigureLongPressSvgPayloadRelayed() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var received: String?
+        bridge.setFigureLongPressCallback { received = $0 }
+
+        let payload = #"{"kind":"svg","caption":"A diagram","svg":"<svg/>","href":null}"#
+        bridge.simulateFigureLongPress(payload)
+
+        XCTAssertEqual(received, payload)
+    }
+
+    func testFigureTapAndLongPressCallbacksAreIndependent() {
+        let bridge = ReadiumEpubNavigatorBridge()
+        var tapFired = false
+        var longPressFired = false
+        bridge.setFigureTapCallback { _ in tapFired = true }
+        bridge.setFigureLongPressCallback { _ in longPressFired = true }
+
+        bridge.simulateFigureLongPress(#"{"kind":"img","caption":"","href":"a.png"}"#)
+
+        XCTAssertFalse(tapFired, "tap callback must not fire on long-press event")
+        XCTAssertTrue(longPressFired, "long-press callback must fire on long-press event")
+    }
 }
 
 /// Minimal `Navigator` for the two delegate methods above, both of which ignore the navigator
