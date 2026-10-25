@@ -19,7 +19,6 @@ object HostWiringProbe {
         add(NoOp.playlistAdvanceUnavailable)
         add(NoOp.facetNavUnavailableInDownloads)
         add(NoOp.seriesNavUnavailableInDownloads)
-        add(NoOp.showAllAnnotationsUnavailableOnIos)
         add(NoOp.backHandledByIosHost)
     }
 

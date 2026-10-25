@@ -334,11 +334,14 @@ fun AppShell(
                         DeveloperOptionsScreen(
                             onNavigateBack = { settingsSubScreen = null },
                             onNavigateToDebugLogs = { settingsSubScreen = SettingsSubScreen.DebugLogs },
+                            onShareAllCrashReports = slots.onShareAllCrashReports,
+                            onShareSingleCrashReport = slots.onShareSingleCrashReport,
                             viewModel = settingsViewModel,
                         )
                     }
                     SettingsSubScreen.DebugLogs -> DebugLogScreen(
                         onNavigateBack = { settingsSubScreen = SettingsSubScreen.DeveloperOptions },
+                        onShare = slots.onShareDebugLog,
                     )
                     SettingsSubScreen.DictionaryPacks -> DictionaryPacksScreen(
                         onNavigateBack = { settingsSubScreen = null },
@@ -762,7 +765,7 @@ internal fun LibraryHost(
                                 )
                             )
                         },
-                        onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
+                        onShowAllAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                         onNavigateBack = NoOp.backHandledByIosHost,
                     ),
                 )
@@ -774,49 +777,60 @@ internal fun LibraryHost(
             onNavigateBack = ::pop,
             onItemSelected = { item -> push(LibraryNav.ItemDetail(item.id, item.sourceId.ifEmpty { null })) },
         )
-        is LibraryNav.ItemDetail -> LibraryItemDetailScreen(
-            itemId = current.itemId,
-            sourceId = current.sourceId,
-            actions = LibraryItemDetailActions(
-                onBack = ::pop,
-                onRead = { item ->
-                    val newStack = reduceNavStack(NavigationIntent.ReadItem(item), navStack)
-                    if (newStack.size > navStack.size) {
-                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        onNavStackChange(newStack)
-                    }
-                },
-                onListen = { item ->
-                    playIntentRegistry.recordIntent(item.sourceId, item.id)
-                    val newStack = reduceNavStack(NavigationIntent.ListenItem(item), navStack)
-                    if (newStack.size > navStack.size) {
-                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        onNavStackChange(newStack)
-                    }
-                },
-                onReadItemAtHref = { item, href ->
-                    val newStack = reduceNavStack(NavigationIntent.ReadItemAtHref(item, href), navStack)
-                    if (newStack.size > navStack.size) {
-                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        onNavStackChange(newStack)
-                    }
-                },
-                onListenItemAtSec = { item, sec ->
-                    playIntentRegistry.recordIntent(item.sourceId, item.id)
-                    val newStack = reduceNavStack(NavigationIntent.ListenItemAtSec(item, sec), navStack)
-                    if (newStack.size > navStack.size) {
-                        applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
-                        onNavStackChange(newStack)
-                    }
-                },
-                onNavigateToSeries = { libId, seriesId, seriesName ->
-                    push(LibraryNav.SeriesDetail(seriesId, libId, seriesName))
-                },
-                onFacetSelected = { facetLibraryId, facet, value ->
-                    push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
-                },
-            ),
-        )
+        is LibraryNav.ItemDetail -> {
+            var showEditMetadataDialog by remember(current) { mutableStateOf(false) }
+            LibraryItemDetailScreen(
+                itemId = current.itemId,
+                sourceId = current.sourceId,
+                actions = LibraryItemDetailActions(
+                    onBack = ::pop,
+                    onRead = { item ->
+                        val newStack = reduceNavStack(NavigationIntent.ReadItem(item), navStack)
+                        if (newStack.size > navStack.size) {
+                            applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                            onNavStackChange(newStack)
+                        }
+                    },
+                    onListen = { item ->
+                        playIntentRegistry.recordIntent(item.sourceId, item.id)
+                        val newStack = reduceNavStack(NavigationIntent.ListenItem(item), navStack)
+                        if (newStack.size > navStack.size) {
+                            applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                            onNavStackChange(newStack)
+                        }
+                    },
+                    onReadItemAtHref = { item, href ->
+                        val newStack = reduceNavStack(NavigationIntent.ReadItemAtHref(item, href), navStack)
+                        if (newStack.size > navStack.size) {
+                            applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                            onNavStackChange(newStack)
+                        }
+                    },
+                    onListenItemAtSec = { item, sec ->
+                        playIntentRegistry.recordIntent(item.sourceId, item.id)
+                        val newStack = reduceNavStack(NavigationIntent.ListenItemAtSec(item, sec), navStack)
+                        if (newStack.size > navStack.size) {
+                            applicationScope.launchSurvivable { runCatching { recordItemOpened(item.id) } }
+                            onNavStackChange(newStack)
+                        }
+                    },
+                    onNavigateToSeries = { libId, seriesId, seriesName ->
+                        push(LibraryNav.SeriesDetail(seriesId, libId, seriesName))
+                    },
+                    onFacetSelected = { facetLibraryId, facet, value ->
+                        push(LibraryNav.FilteredBooks(facetLibraryId, facet, value))
+                    },
+                    onEditMetadata = if (slots.editLocalFileMetadataDialog != null) {
+                        { showEditMetadataDialog = true }
+                    } else null,
+                ),
+            )
+            if (showEditMetadataDialog) {
+                slots.editLocalFileMetadataDialog?.invoke(current.itemId, current.sourceId) {
+                    showEditMetadataDialog = false
+                }
+            }
+        }
         is LibraryNav.FilteredBooks -> FilteredBooksHost(
             destination = current,
             onBack = ::pop,

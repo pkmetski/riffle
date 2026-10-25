@@ -34,10 +34,10 @@ fun iosLibraryItemsActionsViolations(): List<String> {
         onSearchAnnotations = { _ -> },
         onAnnotationSelected = { _ -> },
         onAudiobookBookmarkSelected = { _ -> },
-        onShowAllAnnotations = NoOp.showAllAnnotationsUnavailableOnIos,
+        onShowAllAnnotations = { _ -> },
         onNavigateBack = NoOp.backHandledByIosHost,
     )
-    val allowlist = setOf("onShowAllAnnotations", "onNavigateBack")
+    val allowlist = setOf("onNavigateBack")
     return HostWiringProbe.check(actions.probeFields(), allowlist)
 }
 

@@ -16,9 +16,6 @@ object NoOp {
     /** Series navigation is not available in the Downloads context — there is no library tab to navigate to. */
     val seriesNavUnavailableInDownloads: (String, String, String) -> Unit = { _, _, _ -> }
 
-    /** "Show all annotations" is not applicable when using the iOS back-stack model. */
-    val showAllAnnotationsUnavailableOnIos: (String) -> Unit = {}
-
     /** The back-stack in this iOS context is managed by the host, not by the screen. */
     val backHandledByIosHost: () -> Unit = {}
 }

@@ -1,5 +1,7 @@
 package com.riffle.app.navigation
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -9,23 +11,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import com.riffle.app.BuildConfig
+import com.riffle.app.feature.library.EditLocalFileMetadataDialog
 import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
 import com.riffle.app.feature.update.StartupUpdateViewModel
 import com.riffle.app.feature.update.UpdateAvailableDialog
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.i18n.findActivity
+import com.riffle.feature.library.LibraryItemDetailUiState
+import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.navigation.guardedNavigateBack
+import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
+import com.riffle.feature.settings.ui.debug.DebugLogViewModel
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import com.riffle.feature.shellui.AppShell
 import com.riffle.feature.shellui.AppShellSlots
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 internal const val HOME = "home"
 internal const val RIFFLE = "riffle"
@@ -91,6 +100,8 @@ fun MainScreen(
     val context = LocalContext.current
     val activity = context.findActivity()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val settingsVm: SettingsViewModel = koinViewModel()
+    val debugLogVm: DebugLogViewModel = koinViewModel()
 
     val platformHooks = remember(context, activity, lifecycle) {
         object : PlatformSettingsHooks {
@@ -178,12 +189,44 @@ fun MainScreen(
                 appVersion = BuildConfig.VERSION_NAME,
                 appSha = BuildConfig.GIT_SHA,
                 localFilePicker = { showLocalFilePicker = true },
+                onShareAllCrashReports = { subject, chooserTitle ->
+                    val files = settingsVm.crashReportFilePaths().map { java.io.File(it) }
+                    if (files.isNotEmpty()) {
+                        val uris = ArrayList<Uri>(files.size)
+                        files.forEach { f ->
+                            uris += FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+                        }
+                        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = "text/plain"
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                            putExtra(Intent.EXTRA_SUBJECT, subject)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, chooserTitle))
+                    }
+                },
+                onShareSingleCrashReport = { report, subject, chooserTitle ->
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, subject)
+                        putExtra(Intent.EXTRA_TEXT, report.content)
+                    }
+                    context.startActivity(Intent.createChooser(intent, chooserTitle))
+                },
+                onShareDebugLog = { channels, chooserTitle ->
+                    val intent = debugLogVm.buildShareIntent(channels)
+                    if (intent != null) {
+                        context.startActivity(Intent.createChooser(intent, chooserTitle))
+                    }
+                },
+                editLocalFileMetadataDialog = { itemId, sourceId, onDismiss ->
+                    AndroidEditMetadataDialogHost(itemId = itemId, sourceId = sourceId, onDismiss = onDismiss)
+                },
             ),
         )
     }
 }
 
-// Retained for use by any remaining NavController-based callers (SourceNavGraph, LibraryNavGraph).
 internal fun NavController.navigateAsRoot(route: String) {
     navigate(route) {
         popUpTo(HOME) { inclusive = false }
@@ -200,10 +243,26 @@ internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry):
         action = { popBackStack() },
     )
 
-internal fun NavController.navigateAsRootIfTop(backStackEntry: NavBackStackEntry, route: String): Boolean =
-    guardedNavigateBack(
-        isStillTop = { isCommittedTop(backStackEntry) },
-        action = { navigateAsRoot(route) },
-    )
-
 internal fun shouldNavigateHomeOnSourceSwitch(): Boolean = true
+
+@Composable
+private fun AndroidEditMetadataDialogHost(
+    itemId: String,
+    sourceId: String?,
+    onDismiss: () -> Unit,
+) {
+    val vm: LibraryItemDetailViewModel = koinViewModel(parameters = { parametersOf(itemId, sourceId) })
+    val uiState by vm.uiState.collectAsState()
+    val readyState = uiState as? LibraryItemDetailUiState.Ready
+    if (readyState != null) {
+        EditLocalFileMetadataDialog(
+            item = readyState.item,
+            originalItem = readyState.originalItem,
+            onSave = { title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride ->
+                vm.saveMetadataOverride(title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride)
+                onDismiss()
+            },
+            onDismiss = onDismiss,
+        )
+    }
+}

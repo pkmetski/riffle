@@ -1,6 +1,8 @@
 package com.riffle.feature.shellui
 
 import androidx.compose.runtime.Composable
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.models.CrashReport
 import com.riffle.feature.navigation.LibraryNav
 import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.ui.ReaderHostActions
@@ -34,6 +36,14 @@ import com.riffle.feature.source.ui.AddSourceBackend
  * @param localFilePicker Invokes the platform's folder picker for adding local files.
  *   Called when the user taps "Add local folder" in Settings. Null on platforms that don't
  *   support local-files import.
+ * @param onShareAllCrashReports Shares all crash report files via the platform share sheet.
+ *   Null hides the "Share all" button in DeveloperOptionsScreen.
+ * @param onShareSingleCrashReport Shares a single crash report via the platform share sheet.
+ *   Null hides per-report share buttons in DeveloperOptionsScreen.
+ * @param onShareDebugLog Shares debug log contents via the platform share sheet.
+ *   Null hides the share button in DebugLogScreen.
+ * @param editLocalFileMetadataDialog Platform composable that shows the edit-metadata dialog for
+ *   a local-file library item. Null on platforms that don't support local-files metadata editing.
  */
 data class AppShellSlots(
     val readerHost: @Composable (
@@ -61,4 +71,8 @@ data class AppShellSlots(
     val appVersion: String? = null,
     val appSha: String? = null,
     val localFilePicker: (() -> Unit)? = null,
+    val onShareAllCrashReports: ((subject: String, chooserTitle: String) -> Unit)? = null,
+    val onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
+    val onShareDebugLog: ((channels: Set<LogChannel>?, chooserTitle: String) -> Unit)? = null,
+    val editLocalFileMetadataDialog: (@Composable (itemId: String, sourceId: String?, onDismiss: () -> Unit) -> Unit)? = null,
 )
