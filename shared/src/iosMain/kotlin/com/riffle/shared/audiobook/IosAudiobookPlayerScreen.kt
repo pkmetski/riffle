@@ -92,8 +92,8 @@ fun AudiobookPlayerScreen(
     // the 300dp cover column alongside the controls and must use the vertical layout instead.
     val containerSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current.density
-    val twoColumn = isCompactPlayerHeight(containerSize.height / density)
-        && !isCompactPlayerWidth(containerSize.width / density)
+    val twoColumn = isCompactPlayerHeight(containerSize.height / density) &&
+        !isCompactPlayerWidth(containerSize.width / density)
 
     AudiobookPlayerBody(
         viewModel = vm,
