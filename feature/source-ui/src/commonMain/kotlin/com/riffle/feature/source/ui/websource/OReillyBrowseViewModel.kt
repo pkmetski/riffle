@@ -2,8 +2,7 @@ package com.riffle.feature.source.ui.websource
 
 import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.catalog.oreilly.OReillyCatalog
-import com.riffle.core.catalog.oreilly.OReillyHttpException
+import com.riffle.core.catalog.oreilly.OReillyRoots
 import com.riffle.core.catalog.oreilly.oReillyFriendlyErrorMessage
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
@@ -47,7 +46,7 @@ class OReillyBrowseViewModel constructor(
     libraryObserver = libraryObserver,
     connectivityObserver = connectivityObserver,
     sourceType = SourceType.OREILLY,
-    defaultRootId = OReillyCatalog.ROOT_BOOKS,
+    defaultRootId = OReillyRoots.BOOKS,
     pageSize = 20,
     friendlyError = ::oReillyFriendlyErrorMessage,
     dispatchers = dispatchers,
