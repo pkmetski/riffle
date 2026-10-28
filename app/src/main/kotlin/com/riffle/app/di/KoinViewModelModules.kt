@@ -218,9 +218,9 @@ private val libraryViewModelModule = module {
             tokenStorage = get(),
         )
     }
-    viewModel {
+    viewModel { params ->
         FilteredBooksViewModel(
-            savedStateHandle = get(),
+            savedStateHandle = filteredBooksSavedStateHandle(params.get(0), params.get(1), params.get(2)),
             libraryObserver = get(),
             sourceRepository = get(),
             tokenStorage = get(),
@@ -750,6 +750,15 @@ private val updateViewModelModule = module {
         )
     }
 }
+
+private fun filteredBooksSavedStateHandle(libraryId: String, facetType: String, facetValue: String): SavedStateHandle =
+    SavedStateHandle(
+        mapOf(
+            FilteredBooksViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
+            FilteredBooksViewModel.ROUTE_ARG_FACET_TYPE to facetType,
+            FilteredBooksViewModel.ROUTE_ARG_FACET_VALUE to facetValue,
+        ),
+    )
 
 private fun browseSavedStateHandle(libraryId: String): SavedStateHandle =
     SavedStateHandle(mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to libraryId))
