@@ -2,16 +2,16 @@
 <!--
   Offline fallback / monogram for the O'Reilly (learning.oreilly.com) source icon.
   Shown when Coil has not yet fetched the remote favicon.
-  O'Reilly red (#D3002D) rounded square + white "O" mark.
+  Circular background matches the actual favicon silhouette so the crossfade is imperceptible.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="40dp"
     android:height="40dp"
     android:viewportWidth="40"
     android:viewportHeight="40">
-    <!-- Red rounded-square background -->
+    <!-- Red circle background — matches the circular shape of the actual favicon -->
     <path
-        android:pathData="M5,0 L35,0 Q40,0 40,5 L40,35 Q40,40 35,40 L5,40 Q0,40 0,35 L0,5 Q0,0 5,0 Z"
+        android:pathData="M20,0 A20,20 0 1 0 20,40 A20,20 0 1 0 20,0 Z"
         android:fillColor="#D3002D" />
     <!-- White ring "O" -->
     <path
