@@ -5,7 +5,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.statement.readBytes
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLQueryComponent
 
@@ -55,7 +55,7 @@ internal class OReillyApi(
     suspend fun getBytes(url: String): ByteArray {
         val response = authorizedGet(url, ACCEPT_ANY, RequestType.Asset)
         if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
-        return response.readBytes()
+        return response.readRawBytes()
     }
 
     suspend fun ping(): Boolean = runCatching {
