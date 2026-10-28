@@ -34,16 +34,11 @@ fun isAudioRoot(sourceType: SourceType, rootId: String): Boolean = when (sourceT
 
 /**
  * The unbounded-catalogue source types that can be browsed with `UnboundedBrowseScreen`
- * (defined in `:feature:library-ui`).
- *
- * Every `SourceType.isUnboundedCatalog` type except O'Reilly, which authenticates through an
- * in-app WebView login that harvests the `orm-jwt` cookie — iOS has no implementation of that, so
- * `OReillyCatalogFactory.create` would return null forever. Pinned by
- * `IosSupportedSourceTypesTest` so a new unbounded source cannot be added to `SourceType` and
- * silently skip this screen.
+ * (defined in `:feature:library-ui`). Pinned by `IosSupportedSourceTypesTest` so a new unbounded
+ * source cannot be added to `SourceType` and silently skip this screen.
  */
 fun unboundedBrowseSourceTypes(): Set<SourceType> =
-    SourceType.entries.filter { it.isUnboundedCatalog && it != SourceType.OREILLY }.toSet()
+    SourceType.entries.filter { it.isUnboundedCatalog }.toSet()
 
 /**
  * Whether the library host should render `UnboundedBrowseScreen` instead of `LibraryItemsScreen`.

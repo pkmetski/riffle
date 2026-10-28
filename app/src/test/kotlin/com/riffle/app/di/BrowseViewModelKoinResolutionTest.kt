@@ -12,6 +12,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import io.mockk.mockk
@@ -50,6 +51,22 @@ class BrowseViewModelKoinResolutionTest {
     }
 
     private fun testModule() = module {
+        factory { params: org.koin.core.parameter.ParametersHolder ->
+            OReillyBrowseViewModel(
+                savedStateHandle = SavedStateHandle(
+                    mapOf(UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID to params.get<String>()),
+                ),
+                sourceRepository = mockk(relaxed = true),
+                catalogRegistry = mockk(relaxed = true),
+                libraryItemUpserter = mockk(relaxed = true),
+                webSourceItemGate = mockk(relaxed = true),
+                coverGridDensityStore = mockk(relaxed = true),
+                libraryFilterPreferencesStore = mockk(relaxed = true),
+                libraryObserver = mockk(relaxed = true),
+                connectivityObserver = mockk(relaxed = true),
+                dispatchers = testDispatchers,
+            )
+        }
         factory { params: org.koin.core.parameter.ParametersHolder ->
             ChitankaBrowseViewModel(
                 savedStateHandle = SavedStateHandle(
@@ -119,5 +136,12 @@ class BrowseViewModelKoinResolutionTest {
         val koin = startKoin { modules(testModule()) }.koin
         val vm = koin.get<RadioEsBrowseViewModel> { parametersOf("lib-radioes") }
         assertEquals("lib-radioes", vm.rootId)
+    }
+
+    @Test
+    fun `OReillyBrowseViewModel resolves via parametersOf without SavedStateHandle in graph`() {
+        val koin = startKoin { modules(testModule()) }.koin
+        val vm = koin.get<OReillyBrowseViewModel> { parametersOf("lib-oreilly") }
+        assertEquals("lib-oreilly", vm.rootId)
     }
 }

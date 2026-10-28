@@ -39,6 +39,7 @@ import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.TAB_ANNOTATIONS
 import com.riffle.feature.source.ui.websource.TAB_HOME
@@ -223,6 +224,7 @@ private fun unboundedBrowseViewModel(
     return when (sourceType) {
         SourceType.CHITANKA -> koin.get<ChitankaBrowseViewModel> { parametersOf(libraryId) }
         SourceType.GUTENBERG -> koin.get<GutenbergBrowseViewModel> { parametersOf(libraryId) }
+        SourceType.OREILLY -> koin.get<OReillyBrowseViewModel> { parametersOf(libraryId) }
         SourceType.RADIO_ES -> koin.get<RadioEsBrowseViewModel> { parametersOf(libraryId) }
         else -> error("No browse ViewModel for $sourceType")
     }

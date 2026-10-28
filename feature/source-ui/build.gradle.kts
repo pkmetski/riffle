@@ -54,6 +54,7 @@ kotlin {
             // catalogue roots, so both hosts need these on their compile classpath: `api`.
             api(project(":core:catalog-chitanka"))
             api(project(":core:catalog-gutenberg"))
+            api(project(":core:catalog-oreilly"))
             api(project(":core:catalog-radio-es"))
             api(project(":feature:library"))
             implementation(project(":feature:settings"))
