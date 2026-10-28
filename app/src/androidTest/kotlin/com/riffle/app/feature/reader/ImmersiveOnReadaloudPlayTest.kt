@@ -3,6 +3,8 @@ package com.riffle.app.feature.reader
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.reader.ImmersiveModeState
+import com.riffle.feature.reader.SystemBarsController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,13 +51,13 @@ class ImmersiveOnReadaloudPlayTest {
         val controller = FakeController()
         val (state, setPlaying) = setContent(controller, initialPlaying = false)
         rule.waitForIdle()
-        assertFalse(state.isImmersive)
+        assertFalse(state.isImmersive.value)
         assertEquals(0, controller.hideCount)
 
         setPlaying(true)
         rule.waitForIdle()
 
-        assertTrue(state.isImmersive)
+        assertTrue(state.isImmersive.value)
         assertEquals(1, controller.hideCount)
     }
 
@@ -65,7 +67,7 @@ class ImmersiveOnReadaloudPlayTest {
         val (state, _) = setContent(controller, initialPlaying = true)
         rule.waitForIdle()
 
-        assertTrue(state.isImmersive)
+        assertTrue(state.isImmersive.value)
         assertEquals(1, controller.hideCount)
     }
 
@@ -74,13 +76,13 @@ class ImmersiveOnReadaloudPlayTest {
         val controller = FakeController()
         val (state, setPlaying) = setContent(controller, initialPlaying = true)
         rule.waitForIdle()
-        assertTrue(state.isImmersive)
+        assertTrue(state.isImmersive.value)
 
         setPlaying(false) // pause
         rule.waitForIdle()
 
         // One-way: pausing leaves immersive untouched and never calls show().
-        assertTrue(state.isImmersive)
+        assertTrue(state.isImmersive.value)
         assertEquals(0, controller.showCount)
     }
 
@@ -95,12 +97,12 @@ class ImmersiveOnReadaloudPlayTest {
         rule.waitForIdle()
         state.toggle()          // user taps to reveal the bars while paused
         rule.waitForIdle()
-        assertFalse(state.isImmersive)
+        assertFalse(state.isImmersive.value)
 
         setPlaying(true)        // resume
         rule.waitForIdle()
 
         // Every transition into playing re-hides, even after a manual reveal.
-        assertTrue(state.isImmersive)
+        assertTrue(state.isImmersive.value)
     }
 }

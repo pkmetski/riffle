@@ -71,6 +71,7 @@ fun CbzReaderScreen(
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
+    val isImmersive by immersiveState.isImmersive.collectAsState()
 
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -129,7 +130,7 @@ fun CbzReaderScreen(
     CbzReaderScreen(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
-        isImmersive = immersiveState.isImmersive,
+        isImmersive = isImmersive,
         onToggleImmersive = immersiveState::toggle,
         pageContent = { modifier, page ->
             if (ready != null) {

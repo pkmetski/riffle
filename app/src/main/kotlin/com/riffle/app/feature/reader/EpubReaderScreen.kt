@@ -225,6 +225,7 @@ fun EpubReaderScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var showFormattingPanel by remember { mutableStateOf(false) }
     val immersiveState = rememberImmersiveModeState()
+    val isImmersive by immersiveState.isImmersive.collectAsState()
 
     // Error state never loads a WebView, so immersive's auto-hide path is never reached.
     // Force-show system bars + TopAppBar so the Back button is reachable.
@@ -567,7 +568,7 @@ fun EpubReaderScreen(
                             // any prior path drifted, without triggering the direct decor-view
                             // reapply that would visibly flash bars during the ActionMode-close
                             // transition on pre-R.
-                            if (immersiveState.isImmersive) immersiveState.hide(force = true)
+                            if (immersiveState.isImmersive.value) immersiveState.hide(force = true)
                         },
                         onSelectionActiveChanged = { active -> readerSelectionActive = active },
                         latestLocator = { viewModel.latestLocator },
@@ -861,7 +862,7 @@ fun EpubReaderScreen(
             }
         }
 
-        if (!immersiveState.isImmersive && isSearchActive) {
+        if (!isImmersive && isSearchActive) {
             com.riffle.feature.reader.ui.SharedSearchTopBar(
                 query = searchQuery,
                 resultCount = searchResults.size,
@@ -874,7 +875,7 @@ fun EpubReaderScreen(
             )
         }
         com.riffle.feature.reader.ui.ReaderTopBar(
-            visible = !immersiveState.isImmersive && !isSearchActive,
+            visible = !isImmersive && !isSearchActive,
             title = title,
             isReady = state is ReaderState.Ready,
             onBack = onNavigateBack,

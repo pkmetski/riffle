@@ -14,11 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -103,6 +103,7 @@ import com.riffle.feature.reader.FigureTapMessageParser
 import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.FootnoteContent
 import com.riffle.feature.reader.FootnotePopupState
+import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.NavigatorDecoration
@@ -355,10 +356,15 @@ fun EpubReaderScreen(
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
     var annotationsPanelOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
-    var chromeVisible by remember { mutableStateOf(true) }
-    // Prevents position-triggered auto-hide for 500 ms after the user taps to reveal chrome,
-    // matching Android's ImmersiveModeState.TOGGLE_COOLDOWN_MS guard.
-    var inhibitAutoHide by remember { mutableStateOf(false) }
+    val immersiveClock = remember { kotlin.time.TimeSource.Monotonic.markNow() }
+    val immersiveState = remember {
+        ImmersiveModeState(
+            controller = IosSystemBarsController,
+            clock = { immersiveClock.elapsedNow().inWholeMilliseconds },
+            initialIsImmersive = false,
+        )
+    }
+    val isImmersive by immersiveState.isImmersive.collectAsState()
     var searchResultIndex by remember { mutableStateOf(0) }
     var footnotePopupState by remember { mutableStateOf<com.riffle.feature.reader.FootnotePopupState?>(null) }
     var returnToPositionTarget by remember { mutableStateOf<String?>(null) }
@@ -827,13 +833,7 @@ fun EpubReaderScreen(
                     editTargetId = null
                     editTargetWasGlyphTap = false
                     pendingStyles = emptySet()
-                    chromeVisible = !chromeVisible
-                    // Suppress position-triggered auto-hide for 500 ms so a tap that reveals
-                    // chrome isn't immediately cancelled by the position event that often
-                    // follows a page-edge tap — mirrors Android's TOGGLE_COOLDOWN_MS.
-                    inhibitAutoHide = true
-                    delay(500)
-                    inhibitAutoHide = false
+                    immersiveState.toggle()
                 }
                 is NavigatorEvent.Footnote -> {
                     footnotePopupState = FootnotePopupState(FootnoteContent(event.contentHtml))
@@ -872,21 +872,14 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator) {
         navigator.pageLoadEvents.first()
         navigator.scrollStartEvents.collect {
-            if (!inhibitAutoHide && orientationRef.value != ReaderOrientation.Horizontal) {
-                chromeVisible = false
+            if (orientationRef.value != ReaderOrientation.Horizontal) {
+                immersiveState.dismissOverlay()
             }
         }
     }
 
-    // Hide / restore the system status bar in step with chrome visibility via the Swift host,
-    // matching Android's WindowInsetsControllerCompat.hide(systemBars()) in ImmersiveModeState.
-    // The host (ContentView.swift) registers a Listener and applies .statusBarHidden() on its
-    // SwiftUI view; from Kotlin we only signal the desired state.
-    LaunchedEffect(chromeVisible) {
-        IosStatusBarBridge.setHidden(!chromeVisible)
-    }
-    DisposableEffect(Unit) {
-        onDispose { IosStatusBarBridge.setHidden(false) }
+    DisposableEffect(immersiveState) {
+        onDispose { immersiveState.show() }
     }
 
     // Keep the corner ribbon in step with the page. Recomputed on every position change and
@@ -1441,10 +1434,13 @@ fun EpubReaderScreen(
     Box(Modifier.fillMaxSize().onSizeChanged { viewportWidthPx = it.width }) {
         when {
             loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BasicText(loadError ?: errorText)
+                Text(
+                    text = loadError ?: errorText,
+                    modifier = Modifier.testTag(TestTags.READER_ERROR_STATE),
+                )
             }
             localPath == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(modifier = Modifier.testTag(TestTags.READER_LOADING))
             }
             else -> UIKitViewController(
                 factory = { bridge.viewController() },
@@ -1512,7 +1508,7 @@ fun EpubReaderScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(end = 8.dp)
+                    .padding(end = 12.dp)
                     .testTag(TestTags.READER_BOOKMARK),
             )
         }
@@ -1521,7 +1517,7 @@ fun EpubReaderScreen(
         // Auto-scroll and cadence toggles are extra actions injected by the host.
         val prefsForChrome = resolvedPrefs
         ReaderTopBar(
-            visible = chromeVisible && !searchOpen,
+            visible = !isImmersive && !searchOpen,
             title = item.title,
             isReady = localPath != null,
             onBack = onBack,
@@ -1972,6 +1968,7 @@ fun EpubReaderScreen(
                 onEntryClick = { entry ->
                     lastTocNavigatedHref = entry.href
                     tocOpen = false
+                    immersiveState.hide()
                     scope.launch {
                         goTo(
                             NavigatorNavigationTarget.ToHref(
