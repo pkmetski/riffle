@@ -45,7 +45,7 @@ private fun TestScope.makeVm(
     repository = repository,
     selectFailureTypeMessage = selectMsg,
     markFalsePanelMessage = markFalseMsg,
-    scope = backgroundScope,
+    scope = this,
 )
 
 class PanelReportViewModelTest {
@@ -78,7 +78,8 @@ class PanelReportViewModelTest {
         assertEquals(listOf(0), vm.state.value.orderedPanelIndices)
         vm.tapForOrder(150, 50)
         assertEquals(listOf(0, 1), vm.state.value.orderedPanelIndices)
-        vm.tapForOrder(50, 50)
+        // Re-tap panel 1 (at position 1 in [0, 1]): take(1) = [0]
+        vm.tapForOrder(150, 50)
         assertEquals(listOf(0), vm.state.value.orderedPanelIndices)
     }
 
@@ -167,7 +168,8 @@ class PanelReportViewModelTest {
     @Test
     fun panelIndexAt_misses_returnsNull() = runTest {
         val vm = makeVm()
-        vm.onTap(0, 99)
+        // y=100 is outside all panels (panels span y 0..99)
+        vm.onTap(50, 100)
         assertNull(vm.state.value.tappedPanelIndex)
     }
 }

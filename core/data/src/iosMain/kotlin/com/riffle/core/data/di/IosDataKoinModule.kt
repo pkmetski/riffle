@@ -43,6 +43,7 @@ import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
 import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
+import com.riffle.core.data.comic.panel.IosJsonPanelStore
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
 import com.riffle.core.data.comic.panel.IosPanelMaskServiceImpl
 import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
@@ -106,7 +107,6 @@ import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
-import com.riffle.core.data.comic.panel.IosJsonPanelStore
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.ColorPageDecoder
