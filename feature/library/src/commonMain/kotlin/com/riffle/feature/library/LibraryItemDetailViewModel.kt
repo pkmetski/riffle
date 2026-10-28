@@ -12,7 +12,6 @@ import com.riffle.core.catalog.BookImportCapability
 import com.riffle.core.catalog.CatalogImportChapter
 import com.riffle.core.catalog.CatalogImportFile
 import com.riffle.core.catalog.CatalogImportMetadata
-import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportRequest
 import com.riffle.core.catalog.CatalogImportResult
@@ -307,13 +306,9 @@ class LibraryItemDetailViewModel constructor(
                 _uploadPreflight.value = UploadPreflight.Blocked("The item is not loaded yet")
                 return@launch
             }
-            val sourceItem = try {
-                catalogRegistry.forSourceId(item.sourceId)?.getItem(item.id)
-            } catch (_: Throwable) {
-                null
-            }
+            val sourceItem = item.toUploadCatalogItem()
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId)
-            if (sourceItem == null || destinationCatalog !is BookImportCapability) {
+            if (destinationCatalog !is BookImportCapability) {
                 _uploadPreflight.value = UploadPreflight.Blocked("This item cannot be prepared for upload")
                 return@launch
             }
@@ -351,9 +346,16 @@ class LibraryItemDetailViewModel constructor(
         val key = importKey(item, destination, library)
         bookImportManager.start(key) { onProgress, claimItem ->
             val sourceCatalog = catalogRegistry.forSourceId(item.sourceId)
-            val sourceItem = sourceCatalog?.getItem(item.id)?.let { fetched -> withFallbackAuthor(fetched, item.author) }
+            // For audiobooks, getItem() returns ebook-format metadata — trust loadedItem's hasAudio/ebookFormat.
+            val sourceItem = if (item.hasAudio) {
+                item.toUploadCatalogItem()
+            } else {
+                sourceCatalog?.getItem(item.id)
+                    ?.let { fetched -> withFallbackAuthor(fetched, item.author) }
+                    ?: item.toUploadCatalogItem()
+            }
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId) as? BookImportCapability
-            if (sourceCatalog == null || sourceItem == null || destinationCatalog == null) {
+            if (sourceCatalog == null || destinationCatalog == null) {
                 return@start CatalogImportResult.Failed(IllegalStateException("This item cannot be uploaded"))
             }
             if (library.importFolderId == null) {
@@ -361,14 +363,8 @@ class LibraryItemDetailViewModel constructor(
                     IllegalArgumentException("This library has no upload folder configured"),
                 )
             }
-            val progressWithConfirmation: (CatalogImportProgress) -> Unit = { progress ->
-                onProgress(progress)
-                if (progress.phase == CatalogImportPhase.Uploaded) {
-                    _snackbarEvents.tryEmit("Uploaded")
-                }
-            }
             val request = buildImportRequest(item.sourceId, sourceCatalog, sourceItem, library, item.readingProgress)
-                .copy(onProgress = progressWithConfirmation, claimDestinationItem = claimItem)
+                .copy(onProgress = onProgress, claimDestinationItem = claimItem)
             val result = destinationCatalog.importBook(request)
             if (result is CatalogImportResult.Uploaded) {
                 val upsertId = result.destinationItemId ?: sourceItem.id
@@ -714,11 +710,17 @@ class LibraryItemDetailViewModel constructor(
                 .onEach { states ->
                     val item = loadedItem ?: return@onEach
                     val prefix = importKeyPrefix(item)
-                    states.entries
+                    val incoming = states.entries
                         .firstOrNull { it.key.startsWith(prefix) }
                         ?.value
-                        ?.let { _bookImportState.value = it }
-                        ?: run { _bookImportState.value = BookImportState.Idle }
+                    if (incoming != null) {
+                        if (incoming is BookImportState.Failed && _bookImportState.value !is BookImportState.Failed) {
+                            _snackbarEvents.tryEmit(incoming.message)
+                        }
+                        _bookImportState.value = incoming
+                    } else {
+                        _bookImportState.value = BookImportState.Idle
+                    }
                 }
                 .launchIn(viewModelScope)
         }
@@ -1018,6 +1020,30 @@ class LibraryItemDetailViewModel constructor(
 
     private fun isCachedOrDownloadedForFormat(item: LibraryItem): Boolean =
         isCachedForFormat(item) || isDownloadedForFormat(item)
+
+    private fun LibraryItem.toUploadCatalogItem(): CatalogItem = CatalogItem(
+        id = id,
+        rootId = libraryId,
+        title = title,
+        author = author,
+        coverUrl = coverUrl,
+        ebookFormat = when (ebookFormat) {
+            com.riffle.core.models.EbookFormat.Epub -> BookFormat.Epub
+            com.riffle.core.models.EbookFormat.Pdf -> BookFormat.Pdf
+            com.riffle.core.models.EbookFormat.Cbz -> BookFormat.Cbz
+            com.riffle.core.models.EbookFormat.Unsupported -> if (hasAudio) BookFormat.Audiobook else BookFormat.Unsupported
+        },
+        hasAudio = hasAudio,
+        audioDurationSec = audioDurationSec,
+        description = description,
+        seriesName = seriesName,
+        publishedYear = publishedYear,
+        genres = genres,
+        publisher = publisher,
+        language = language,
+        isbn = isbn,
+        asin = asin,
+    )
 }
 
 /**

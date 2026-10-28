@@ -237,7 +237,9 @@ internal class FakeDownloadManager : DownloadManager {
 }
 
 internal class FakeBookImportManager : BookImportManager {
-    override val states: StateFlow<Map<String, BookImportState>> = MutableStateFlow(emptyMap())
+    private val _states = MutableStateFlow<Map<String, BookImportState>>(emptyMap())
+    override val states: StateFlow<Map<String, BookImportState>> = _states
+    fun emit(key: String, state: BookImportState) { _states.value = _states.value + (key to state) }
     override fun start(
         key: String,
         work: suspend (

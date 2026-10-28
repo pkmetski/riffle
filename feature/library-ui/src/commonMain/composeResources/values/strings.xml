@@ -143,6 +143,7 @@
     <string name="ui_upload_conflict_message">An item with the same title already exists in %1$s. Overwrite it?</string>
     <string name="ui_upload_conflict_cannot_overwrite">Overwrite is blocked until the destination can safely replace files without invalidating annotations.</string>
     <string name="ui_overwrite">Overwrite</string>
+    <string name="ui_upload_completed">Uploaded</string>
     <string name="ui_cannot_upload_title">Cannot upload</string>
     <string name="ui_ok">OK</string>
     <!-- Item detail — Ko-fi nudge -->

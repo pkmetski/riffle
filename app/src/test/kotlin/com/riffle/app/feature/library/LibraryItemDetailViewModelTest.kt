@@ -10,6 +10,7 @@ import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.UploadDestination
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AuthenticateResult
@@ -1775,7 +1776,7 @@ class LibraryItemDetailViewModelTest {
     // ── upload confirmation snackbar ──────────────────────────────────────────────────────────────
 
     @Test
-    fun `importToDestination emits Uploaded snackbar when CatalogImportPhase Uploaded fires not after reconciliation`() = runTest(testDispatcher) {
+    fun `importToDestination sets bookImportState to Completed when CatalogImportPhase Uploaded fires not after reconciliation`() = runTest(testDispatcher) {
         val destinationSourceId = "abs-source-1"
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
 
@@ -1812,9 +1813,6 @@ class LibraryItemDetailViewModelTest {
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val snackbarMessages = mutableListOf<String>()
-        val collector = launch(start = CoroutineStart.UNDISPATCHED) { vm.snackbarEvents.collect { snackbarMessages += it } }
-
         vm.importToDestination(
             destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList()),
             library = com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1"),
@@ -1822,13 +1820,71 @@ class LibraryItemDetailViewModelTest {
         // Advance until the import coroutine reaches gate.await() — reconciliation has not completed yet.
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Regression: snackbar must fire at CatalogImportPhase.Uploaded (files accepted),
-        // not after importBook() returns (which would be post-reconciliation, up to 90 s later).
-        assertEquals(listOf("Uploaded"), snackbarMessages)
+        // Regression: bookImportState must be Completed at CatalogImportPhase.Uploaded (files
+        // accepted by the server), not after importBook() returns (post-reconciliation, up to 90 s
+        // later). The screen observes this state transition to show the upload-complete snackbar.
+        assertEquals(BookImportState.Completed, vm.bookImportState.value)
 
         gate.complete(Unit)
         testDispatcher.scheduler.advanceUntilIdle()
-        collector.cancel()
+    }
+
+    @Test
+    fun `importToDestination uses loadedItem directly for audiobook items without calling getItem`() = runTest(testDispatcher) {
+        val destinationSourceId = "abs-source-1"
+        val audiobookItem = knownItem.copy(
+            id = "9781491973899AU",
+            ebookFormat = EbookFormat.Unsupported,
+            hasAudio = true,
+            audioDurationSec = 3600.0,
+        )
+        var getItemCalled = false
+        var capturedDurationSec = -1.0
+
+        val sourceCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.AudiobookMediaCapability {
+            override suspend fun getItem(itemId: String): com.riffle.core.catalog.CatalogItem? {
+                getItemCalled = true
+                return null
+            }
+            override suspend fun getTracks(itemId: String) = emptyList<com.riffle.core.catalog.CatalogAudioTrack>()
+            override suspend fun getAudiobookChapters(itemId: String) = emptyList<com.riffle.core.catalog.CatalogAudiobookChapter>()
+            override suspend fun getFingerprint(itemId: String): com.riffle.core.catalog.CatalogAudioFingerprint? = null
+            override fun buildStreamUrl(itemId: String, trackIno: String): String = ""
+            override suspend fun openAudiobook(itemId: String, deviceLabel: String): com.riffle.core.catalog.CatalogAudiobookStream? = null
+        }
+        val importCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.BookImportCapability {
+            override suspend fun importBook(request: com.riffle.core.catalog.CatalogImportRequest): com.riffle.core.catalog.CatalogImportResult {
+                capturedDurationSec = request.audioDurationSec
+                return com.riffle.core.catalog.CatalogImportResult.Uploaded()
+            }
+            override suspend fun listRoots() = listOf(
+                com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1")
+            )
+        }
+        val registry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive() = sourceCatalog
+            override suspend fun forSource(source: com.riffle.core.models.Source) = sourceCatalog
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? =
+                if (sourceId == destinationSourceId) importCatalog else sourceCatalog
+        }
+
+        val audiobookPositionStore = io.mockk.mockk<com.riffle.core.domain.AudiobookPositionStore>().also {
+            io.mockk.coEvery { it.load(any(), any()) } returns null
+        }
+        val vm = makeVm(repo = fakeRepo(audiobookItem), catalogRegistryOverride = registry, audiobookPositionStore = audiobookPositionStore)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.importToDestination(
+            destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList()),
+            library = com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1"),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse("getItem() must not be called for hasAudio=true items — the EPUB endpoint returns stale format", getItemCalled)
+        assertEquals(BookImportState.Completed, vm.bookImportState.value)
     }
 
     private object NoopLibraryItemDao : LibraryItemDao {

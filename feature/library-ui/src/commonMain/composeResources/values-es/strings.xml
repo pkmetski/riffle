@@ -118,6 +118,7 @@
     <string name="ui_upload_conflict_message">Ya existe un elemento con el mismo título en %1$s. ¿Sobrescribirlo?</string>
     <string name="ui_upload_conflict_cannot_overwrite">La sobrescritura está bloqueada hasta que el destino pueda reemplazar archivos de forma segura sin invalidar las anotaciones.</string>
     <string name="ui_overwrite">Sobrescribir</string>
+    <string name="ui_upload_completed">Subido</string>
     <string name="ui_cannot_upload_title">No se puede cargar</string>
     <string name="ui_ok">Aceptar</string>
     <string name="ui_enjoying_riffle">Enjoying Riffle? Consider supporting development. ☕</string>

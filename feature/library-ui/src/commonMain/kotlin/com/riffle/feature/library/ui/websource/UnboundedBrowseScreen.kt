@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,6 +40,7 @@ import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.TAB_ANNOTATIONS
 import com.riffle.feature.source.ui.websource.TAB_HOME
@@ -96,8 +98,9 @@ fun UnboundedBrowseScreen(
     // The VM upserts the tapped CatalogItem into `library_items` through WebSourceItemGate and
     // only then emits, so the detail screen's LibraryObserver.getItem can resolve it. Same
     // contract Android's browse screens collect.
+    val currentOnOpenDetail by rememberUpdatedState(onOpenDetail)
     LaunchedEffect(viewModel) {
-        viewModel.openDetailEvents.collect { event -> onOpenDetail(event.itemId) }
+        viewModel.openDetailEvents.collect { event -> currentOnOpenDetail(event.itemId) }
     }
 
     val query by viewModel.query.collectAsState()
@@ -223,6 +226,7 @@ private fun unboundedBrowseViewModel(
     return when (sourceType) {
         SourceType.CHITANKA -> koin.get<ChitankaBrowseViewModel> { parametersOf(libraryId) }
         SourceType.GUTENBERG -> koin.get<GutenbergBrowseViewModel> { parametersOf(libraryId) }
+        SourceType.OREILLY -> koin.get<OReillyBrowseViewModel> { parametersOf(libraryId) }
         SourceType.RADIO_ES -> koin.get<RadioEsBrowseViewModel> { parametersOf(libraryId) }
         else -> error("No browse ViewModel for $sourceType")
     }

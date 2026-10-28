@@ -132,17 +132,22 @@ class OReillyCatalog internal constructor(
     }
 
     override suspend fun getItem(itemId: String): CatalogItem? {
-        val body = runCatching { api.getJson(api.bookDetailUrl(itemId)) }.getOrNull() ?: return null
-        // NOTE: O'Reilly's book-detail metadata (`/epubs/{urn}/`) carries NO author — authors only
-        // appear in the search listing — so this returns a blank author. The web-source gate fills it
-        // back in from the browse listing it already holds (WebSourceItemGate.openItem), which is free;
-        // recovering it here would cost an extra search request per detail open (see the bot-detection
-        // hardening doc). The ABS-upload path is covered by [withFallbackAuthor].
-        return OReillyParser.bookDetailToCatalogItem(
+        // Audiobook items carry an "AU" suffix; strip it before querying the EPUB endpoint.
+        val isAudioItem = itemId.endsWith("AU")
+        val epubId = if (isAudioItem) itemId.dropLast(2) else itemId
+        val body = runCatching { api.getJson(api.bookDetailUrl(epubId)) }
+            .getOrNull() ?: return null
+        // The EPUB endpoint returns no author — only the search listing does. withFallbackAuthor() fills it in for ABS uploads.
+        val item = OReillyParser.bookDetailToCatalogItem(
             id = itemId,
             detail = OReillyParser.parseBookDetail(body),
             coverUrl = api.coverUrl(itemId),
         )
+        return if (isAudioItem) item.copy(
+            ebookFormat = BookFormat.Audiobook,
+            hasAudio = true,
+            rootId = OReillyRoots.AUDIOBOOKS,
+        ) else item
     }
 
     /**
@@ -633,7 +638,9 @@ class OReillyCatalog internal constructor(
      * no audiobook (empty toc) or the Kaltura config/session can't be obtained.
      */
     private suspend fun loadAudiobookTracks(itemId: String): AudiobookAssembly? {
-        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(itemId))).toc
+        // videotocs uses the bare ISBN; audiobook item IDs carry an "AU" suffix in the catalogue.
+        val tocId = if (itemId.endsWith("AU")) itemId.dropLast(2) else itemId
+        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(tocId))).toc
             .filter { it.referenceId.isNotBlank() }
         if (toc.isEmpty()) return null
 
@@ -669,17 +676,17 @@ class OReillyCatalog internal constructor(
             val entryId = entryIdByRef[entry.referenceId].orEmpty()
             if (entryId.isBlank()) return null
             val duration = entry.duration.toDouble()
+            // MP4 download URL used as ino (ABS import byte-stream) and offline download; HLS cannot be byte-downloaded.
+            val downloadUrl = OReillyApi.kalturaDownloadUrl(partnerId, entryId, ks)
             tracks += CatalogAudioTrack(
-                ino = entry.referenceId,
+                ino = downloadUrl,
                 index = index,
                 startOffsetSec = offset,
                 durationSec = duration,
                 contentUrl = OReillyApi.kalturaHlsUrl(partnerId, entryId, ks),
-                mimeType = OReillyApi.HLS_MIME,
+                mimeType = OReillyApi.MP4_MIME,
             )
-            // HLS manifests cannot be byte-downloaded; the format/url redirect returns a signed MP4
-            // that AudiobookTrackDownloader can stream to disk (verified live 2026-09).
-            downloadUrls += OReillyApi.kalturaDownloadUrl(partnerId, entryId, ks)
+            downloadUrls += downloadUrl
             chapters += CatalogAudiobookChapter(
                 index = index,
                 startSec = offset,
@@ -700,7 +707,8 @@ class OReillyCatalog internal constructor(
     )
 
     override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? {
-        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(itemId))).toc
+        val tocId = if (itemId.endsWith("AU")) itemId.dropLast(2) else itemId
+        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(tocId))).toc
             .filter { it.referenceId.isNotBlank() }
         if (toc.isEmpty()) return null
         val durations = toc.map { it.duration.toDouble() }
@@ -746,7 +754,8 @@ class OReillyCatalog internal constructor(
 
     override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
         // Cheap: chapter titles + durations come straight from videotocs, no Kaltura session needed.
-        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(itemId))).toc
+        val tocId = if (itemId.endsWith("AU")) itemId.dropLast(2) else itemId
+        val toc = OReillyParser.parseVideoToc(api.getJson(api.videoTocUrl(tocId))).toc
             .filter { it.referenceId.isNotBlank() }
         var offset = 0.0
         return toc.mapIndexed { index, entry ->

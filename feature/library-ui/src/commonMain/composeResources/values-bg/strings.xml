@@ -118,6 +118,7 @@
     <string name="ui_upload_conflict_message">Елемент със същото заглавие вече съществува в %1$s. Да се презапише ли?</string>
     <string name="ui_upload_conflict_cannot_overwrite">Презаписването е блокирано, докато дестинацията не може безопасно да замени файлове, без да анулира анотациите.</string>
     <string name="ui_overwrite">Презаписване</string>
+    <string name="ui_upload_completed">Качено</string>
     <string name="ui_cannot_upload_title">Неуспешно качване</string>
     <string name="ui_ok">ОК</string>
     <string name="ui_enjoying_riffle">Enjoying Riffle? Consider supporting development. ☕</string>

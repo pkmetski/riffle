@@ -184,6 +184,7 @@ internal class OReillyApi(
 
         const val KALTURA_CDN = "https://cdnapisec.kaltura.com"
         const val HLS_MIME = "application/x-mpegURL"
+        const val MP4_MIME = "audio/mp4"
 
         /**
          * Kaltura HLS playManifest URL for one audiobook chapter. The [ks] authorizes playback (no

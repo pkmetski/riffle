@@ -1,6 +1,7 @@
 package com.riffle.feature.source.ui.websource
 
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.models.SourceType
 import com.riffle.feature.library.tabIndexForAnnotations
 import kotlin.test.Test
@@ -24,7 +25,7 @@ class UnboundedBrowseRoutingTest {
 
     @Test
     fun rendersTheBrowseScreenForEveryUnboundedCatalogue() {
-        listOf(SourceType.CHITANKA, SourceType.GUTENBERG, SourceType.RADIO_ES).forEach { type ->
+        listOf(SourceType.CHITANKA, SourceType.GUTENBERG, SourceType.RADIO_ES, SourceType.OREILLY).forEach { type ->
             assertTrue(
                 shouldRenderUnboundedBrowse(type),
                 "$type is an unbounded catalogue with no library_items mirror — " +
@@ -52,11 +53,12 @@ class UnboundedBrowseRoutingTest {
     }
 
     @Test
-    fun doesNotRouteOReillyWhichHasNoIosLogin() {
-        // O'Reilly is `isUnboundedCatalog` but authenticates through a WebView login iOS does not
-        // implement, so `unboundedBrowseViewModel` has no branch for it and would error. Keeping
-        // it out of the routing set is what makes that unreachable rather than a latent crash.
-        assertFalse(shouldRenderUnboundedBrowse(SourceType.OREILLY))
+    fun routesOReillyToUnboundedBrowse() {
+        // O'Reilly is `isUnboundedCatalog`; both Android and iOS implement the WebView login, so
+        // `unboundedBrowseViewModel` has a branch for OREILLY and the host must render the browse
+        // screen (not the always-empty library_items screen). Reverting this to assertFalse would
+        // silently break the O'Reilly browse surface on both platforms.
+        assertTrue(shouldRenderUnboundedBrowse(SourceType.OREILLY))
     }
 
     @Test
@@ -66,6 +68,8 @@ class UnboundedBrowseRoutingTest {
         assertTrue(isAudioRoot(SourceType.CHITANKA, ChitankaCatalog.ROOT_AUDIOBOOKS))
         assertFalse(isAudioRoot(SourceType.CHITANKA, ChitankaCatalog.ROOT_BOOKS))
         assertFalse(isAudioRoot(SourceType.GUTENBERG, "books"))
+        assertTrue(isAudioRoot(SourceType.OREILLY, OReillyCatalog.ROOT_AUDIOBOOKS))
+        assertFalse(isAudioRoot(SourceType.OREILLY, OReillyCatalog.ROOT_BOOKS))
     }
 
     /**

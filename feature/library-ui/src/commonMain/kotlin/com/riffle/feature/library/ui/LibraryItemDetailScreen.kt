@@ -120,6 +120,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_show_less
 import com.riffle.feature.library.ui.generated.resources.ui_show_more
 import com.riffle.feature.library.ui.generated.resources.ui_summary
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
+import com.riffle.feature.library.ui.generated.resources.ui_upload_completed
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_cannot_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_title
@@ -204,7 +205,16 @@ fun LibraryItemDetailScreen(
         previousDownloadState = downloadState
     }
 
-    // Snackbar events from the VM (metadata save success, upload progress, etc.)
+    val uploadCompletedMessage = stringResource(Res.string.ui_upload_completed)
+    var previousImportState by remember { mutableStateOf<BookImportState>(BookImportState.Idle) }
+    LaunchedEffect(bookImportState) {
+        if (previousImportState is BookImportState.InProgress && bookImportState is BookImportState.Completed) {
+            messages.show(uploadCompletedMessage)
+        }
+        previousImportState = bookImportState
+    }
+
+    // Snackbar events from the VM (metadata save success, etc.)
     LaunchedEffect(vm) {
         vm.snackbarEvents.collect { messages.show(it) }
     }

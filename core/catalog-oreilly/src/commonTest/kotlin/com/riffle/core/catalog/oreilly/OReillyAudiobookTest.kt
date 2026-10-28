@@ -1,5 +1,6 @@
 package com.riffle.core.catalog.oreilly
 
+import com.riffle.core.catalog.oreilly.OReillyApi
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -11,6 +12,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -18,11 +20,16 @@ import kotlin.test.assertTrue
  * O'Reilly audiobooks are Kaltura-hosted: getTracks/openAudiobook assemble one session from
  * videotocs → videoclips (kaltura_entry_id) → kaltura_config/session → a Kaltura HLS URL per chapter.
  * Verified live 2026-09; this pins the assembly against captured fixtures.
+ *
+ * Also covers getItem with AU-suffixed IDs (e.g. "9781663721174AU"): the EPUB metadata endpoint
+ * uses the bare ISBN, and the returned item must be forced to BookFormat.Audiobook so the ABS
+ * upload pre-flight and import path treat it correctly.
  */
 class OReillyAudiobookTest {
 
     private val BASE_URL = "http://test"
     private val itemId = "9781663721174"
+    private val audioItemId = "${itemId}AU"
 
     private var breakSecondClip = false
     private lateinit var client: HttpClient
@@ -34,7 +41,8 @@ class OReillyAudiobookTest {
             val path = request.url.encodedPath
             val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
             when {
-                path.startsWith("/api/v1/videotocs/") -> respond(
+                // Only the bare ISBN (without AU) is a valid videotocs key.
+                path == "/api/v1/videotocs/$itemId/" -> respond(
                     """{"identifier":"$itemId","toc":[
                       {"reference_id":"$itemId-a00001","linkid":"a00001","title":"Introduction","duration":400},
                       {"reference_id":"$itemId-a00002","linkid":"a00002","title":"Chapter 2","duration":600}
@@ -58,6 +66,11 @@ class OReillyAudiobookTest {
                         """{"reference_id":"$itemId-a00002","kaltura_entry_id":"1_bbb"}"""
                     respond(body, HttpStatusCode.OK, jsonHeaders)
                 }
+                // EPUB metadata endpoint — used by getItem for both bare and AU-suffix IDs
+                path.startsWith("/api/v2/epubs/urn:orm:book:$itemId/") -> respond(
+                    """{"identifier":"$itemId","title":"The Manager's Path","language":"en","content_format":"book"}""",
+                    HttpStatusCode.OK, jsonHeaders,
+                )
                 else -> respond("""{"message":"Not Found"}""", HttpStatusCode.NotFound, jsonHeaders)
             }
         }
@@ -76,11 +89,17 @@ class OReillyAudiobookTest {
         val tracks = catalog.getTracks(itemId)
 
         assertEquals(2, tracks.size)
-        assertEquals(tracks[0].ino, "$itemId-a00001")
+        // track.ino must be the Kaltura download URL (not the referenceId) so withTrackStream can
+        // byte-stream it for ABS import — the referenceId is not a URL.
+        assertEquals(
+            "https://cdnapisec.kaltura.com/p/1926081/sp/192608100/playManifest/entryId/1_aaa" +
+                "/format/url/protocol/https?ks=KS123",
+            tracks[0].ino,
+        )
         assertEquals(0, tracks[0].index)
         assertEquals(0.0, tracks[0].startOffsetSec, 0.001)
         assertEquals(400.0, tracks[0].durationSec, 0.001)
-        assertEquals(OReillyApi.HLS_MIME, tracks[0].mimeType)
+        assertEquals(OReillyApi.MP4_MIME, tracks[0].mimeType)
         assertEquals(
             "https://cdnapisec.kaltura.com/p/1926081/sp/192608100/playManifest/entryId/1_aaa" +
                 "/format/applehttp/protocol/https/a.m3u8?ks=KS123",
@@ -132,5 +151,55 @@ class OReillyAudiobookTest {
         val chapters = catalog.getAudiobookChapters(itemId)
         assertEquals(listOf("Introduction", "Chapter 2"), chapters.map { it.title })
         assertEquals(400.0, chapters[1].startSec, 0.001)
+    }
+
+    @Test
+    fun `getItem with AU-suffix queries the EPUB endpoint with the bare ISBN`() = runTest {
+        // The upload pre-flight calls getItem(audioItemId). Before this fix, bookDetailUrl was
+        // called with the AU-suffixed ID, causing a 404 and returning null — "cannot be prepared
+        // for upload". After the fix, the AU suffix is stripped before the EPUB request.
+        val item = catalog.getItem(audioItemId)
+
+        assertNotNull(item)
+        assertEquals(audioItemId, item.id)
+    }
+
+    @Test
+    fun `getItem with AU-suffix forces format to Audiobook regardless of EPUB endpoint response`() = runTest {
+        val item = catalog.getItem(audioItemId)!!
+
+        assertEquals(com.riffle.core.catalog.BookFormat.Audiobook, item.ebookFormat)
+        assertEquals(true, item.hasAudio)
+        assertEquals(OReillyRoots.AUDIOBOOKS, item.rootId)
+    }
+
+    @Test
+    fun `getItem without AU-suffix returns an ebook item unchanged`() = runTest {
+        val item = catalog.getItem(itemId)
+
+        assertNotNull(item)
+        assertEquals(itemId, item.id)
+        assertEquals(com.riffle.core.catalog.BookFormat.Epub, item.ebookFormat)
+        assertEquals(false, item.hasAudio)
+    }
+
+    @Test
+    fun `getTracks with AU-suffix strips the suffix before calling videotocs`() = runTest {
+        // The videotocs mock only responds to the bare ISBN path; it returns 404 for the AU-
+        // suffixed path. If loadAudiobookTracks did NOT strip the suffix, getTracks would return
+        // an empty list here — which would cause the ABS upload to fail with "no files".
+        val tracks = catalog.getTracks(audioItemId)
+
+        assertEquals(2, tracks.size)
+        assertEquals(0, tracks[0].index)
+        assertEquals(400.0, tracks[0].durationSec, 0.001)
+        assertTrue(tracks[0].ino.contains("format/url"))
+    }
+
+    @Test
+    fun `getAudiobookChapters with AU-suffix strips the suffix before calling videotocs`() = runTest {
+        val chapters = catalog.getAudiobookChapters(audioItemId)
+
+        assertEquals(listOf("Introduction", "Chapter 2"), chapters.map { it.title })
     }
 }
