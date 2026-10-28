@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.riffle.feature.reader.ImmersiveModeState
 
 /**
  * Drops the reader into immersive mode whenever readaloud transitions into playing.

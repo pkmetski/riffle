@@ -101,6 +101,7 @@ fun PdfReaderScreen(
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
+    val isImmersive by immersiveState.isImmersive.collectAsState()
 
     // Error state never loads a PDF view, so immersive's auto-hide path is never reached.
     // Force-show system bars + TopAppBar so the Back button is reachable.
@@ -268,7 +269,7 @@ fun PdfReaderScreen(
         }
 
         ReaderTopBar(
-            visible = !immersiveState.isImmersive,
+            visible = !isImmersive,
             title = title,
             isReady = state is PdfReaderState.Ready,
             onBack = onNavigateBack,

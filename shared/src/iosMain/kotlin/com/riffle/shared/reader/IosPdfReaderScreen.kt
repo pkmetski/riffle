@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.riffle.feature.reader.ImmersiveModeState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -74,7 +75,15 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val currentPageBookmarked by vm.currentPageBookmarked.collectAsState()
     val localPath by pdfRepo.localPath.collectAsState()
 
-    var chromeVisible by remember { mutableStateOf(true) }
+    val immersiveClock = remember { kotlin.time.TimeSource.Monotonic.markNow() }
+    val immersiveState = remember {
+        ImmersiveModeState(
+            controller = IosSystemBarsController,
+            clock = { immersiveClock.elapsedNow().inWholeMilliseconds },
+            initialIsImmersive = false,
+        )
+    }
+    val isImmersive by immersiveState.isImmersive.collectAsState()
     var settingsVisible by remember { mutableStateOf(false) }
 
     val bridge = remember { bridgeFactory.create() }
@@ -95,11 +104,11 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                     totalPages = count,
                     progression = if (count > 0) page.toFloat() / count else 0f,
                 )
-                chromeVisible = false
+                immersiveState.dismissOverlay()
             }
         })
         bridge.setTapCallback(handler = object : IosPdfTapCallback {
-            override fun onTap() { chromeVisible = !chromeVisible }
+            override fun onTap() { immersiveState.toggle() }
         })
         bridge.openPdf(path, awaiting.initialPage)
         val outline = bridge.outline()
@@ -137,11 +146,8 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(chromeVisible) {
-        IosStatusBarBridge.setHidden(!chromeVisible)
-    }
-    DisposableEffect(Unit) {
-        onDispose { IosStatusBarBridge.setHidden(false) }
+    DisposableEffect(immersiveState) {
+        onDispose { immersiveState.show() }
     }
 
     val isReady = state is PdfReaderState.Ready
@@ -201,7 +207,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             TocPanel(
                 entries = toc,
                 activeHref = currentPage?.let { pdfActiveHref(it.coerceAtLeast(0)) },
-                onEntryClick = { entry -> vm.navigateToEntry(entry); chromeVisible = false },
+                onEntryClick = { entry -> vm.navigateToEntry(entry); immersiveState.hide() },
                 onDismiss = { vm.closeToc() },
             )
         }
@@ -228,7 +234,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
 
         ReaderTopBar(
-            visible = chromeVisible,
+            visible = !isImmersive,
             title = title,
             isReady = isReady,
             onBack = onBack,
