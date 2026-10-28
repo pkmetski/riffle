@@ -328,9 +328,16 @@ final class ScrollProbeBridgeTests: XCTestCase {
         // Drive the UIScrollView to its physical maximum — exactly what the user's finger does.
         let maxY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.contentInset.bottom
         scrollView.setContentOffset(CGPoint(x: 0, y: max(0, maxY)), animated: false)
-        settle(seconds: 0.5)
-
-        let bounds = boundary(bridge)
+        // Poll until window.scrollY catches up with the UIScrollView offset — on a loaded CI runner
+        // a single 0.5 s RunLoop spin can expire before WebKit propagates the new contentOffset to
+        // its JS layer, causing a spurious atForwardBoundary=false. We retry up to 3 s total.
+        var bounds = boundary(bridge)
+        var retryBudget = 5
+        while !bounds.atForwardBoundary && retryBudget > 0 {
+            settle(seconds: 0.5)
+            bounds = boundary(bridge)
+            retryBudget -= 1
+        }
         XCTAssertTrue(
             bounds.atForwardBoundary,
             "The boundary probe must detect the chapter end when the UIScrollView reaches its "

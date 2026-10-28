@@ -15,6 +15,7 @@ import com.riffle.feature.player.AudiobookPlayerEvent
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ui.AudiobookPlayerBody
 import com.riffle.feature.player.ui.isCompactPlayerHeight
+import com.riffle.feature.player.ui.isCompactPlayerWidth
 import com.riffle.feature.player.ui.playerChromeLabels
 import org.koin.compose.getKoin
 import org.koin.core.parameter.parametersOf
@@ -85,11 +86,14 @@ fun AudiobookPlayerScreen(
         }
     }
 
-    // Android takes this from the activity's WindowSizeClass; iOS has no such API, so the window's
-    // own height goes through the shared breakpoint instead of a second hard-coded threshold.
-    val containerHeightPx = LocalWindowInfo.current.containerSize.height
+    // Android takes this from the activity's WindowSizeClass; iOS has no such API, so the window
+    // dimensions go through the shared breakpoints. Two-column requires compact height AND enough
+    // width (≥ 600dp) — a narrow compact-height screen (e.g. a foldable cover screen) cannot fit
+    // the 300dp cover column alongside the controls and must use the vertical layout instead.
+    val containerSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current.density
-    val twoColumn = isCompactPlayerHeight(containerHeightPx / density)
+    val twoColumn = isCompactPlayerHeight(containerSize.height / density) &&
+        !isCompactPlayerWidth(containerSize.width / density)
 
     AudiobookPlayerBody(
         viewModel = vm,

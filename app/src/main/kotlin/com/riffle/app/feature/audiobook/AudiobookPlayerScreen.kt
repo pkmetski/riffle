@@ -2,6 +2,7 @@ package com.riffle.app.feature.audiobook
 
 import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,9 +46,12 @@ fun AudiobookPlayerScreen(
             }
         }
     }
-    // Any short (Compact-height) window — i.e. a phone in landscape — is too short for the vertical
-    // layout (the square cover pushes the controls off-screen), so split into cover+details / controls.
+    // Two-column suits wide landscape phones (Compact height, non-Compact width). A cover screen
+    // like the Samsung Flip8 external display has Compact width; its ~474dp width cannot fit the
+    // 300dp cover column + controls side-by-side, so fall back to the vertical layout.
+    // Material3 Compact = < 600dp, matching PlayerSurface.COMPACT_PLAYER_WIDTH_DP = 600.
     val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
+        && windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
 
     AudiobookPlayerBody(
         viewModel = viewModel,
