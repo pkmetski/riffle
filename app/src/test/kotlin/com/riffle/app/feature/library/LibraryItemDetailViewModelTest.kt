@@ -10,6 +10,7 @@ import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.CoverImageCopier
 import com.riffle.feature.library.PdfPageCountExtractor
+import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.UploadDestination
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AuthenticateResult
@@ -1775,7 +1776,7 @@ class LibraryItemDetailViewModelTest {
     // ── upload confirmation snackbar ──────────────────────────────────────────────────────────────
 
     @Test
-    fun `importToDestination emits Uploaded snackbar when CatalogImportPhase Uploaded fires not after reconciliation`() = runTest(testDispatcher) {
+    fun `importToDestination sets bookImportState to Completed when CatalogImportPhase Uploaded fires not after reconciliation`() = runTest(testDispatcher) {
         val destinationSourceId = "abs-source-1"
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
 
@@ -1812,9 +1813,6 @@ class LibraryItemDetailViewModelTest {
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val snackbarMessages = mutableListOf<String>()
-        val collector = launch(start = CoroutineStart.UNDISPATCHED) { vm.snackbarEvents.collect { snackbarMessages += it } }
-
         vm.importToDestination(
             destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList()),
             library = com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1"),
@@ -1822,13 +1820,13 @@ class LibraryItemDetailViewModelTest {
         // Advance until the import coroutine reaches gate.await() — reconciliation has not completed yet.
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Regression: snackbar must fire at CatalogImportPhase.Uploaded (files accepted),
-        // not after importBook() returns (which would be post-reconciliation, up to 90 s later).
-        assertEquals(listOf("Uploaded"), snackbarMessages)
+        // Regression: bookImportState must be Completed at CatalogImportPhase.Uploaded (files
+        // accepted by the server), not after importBook() returns (post-reconciliation, up to 90 s
+        // later). The screen observes this state transition to show the upload-complete snackbar.
+        assertEquals(BookImportState.Completed, vm.bookImportState.value)
 
         gate.complete(Unit)
         testDispatcher.scheduler.advanceUntilIdle()
-        collector.cancel()
     }
 
     private object NoopLibraryItemDao : LibraryItemDao {

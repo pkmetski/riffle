@@ -12,7 +12,6 @@ import com.riffle.core.catalog.BookImportCapability
 import com.riffle.core.catalog.CatalogImportChapter
 import com.riffle.core.catalog.CatalogImportFile
 import com.riffle.core.catalog.CatalogImportMetadata
-import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.catalog.CatalogImportProgress
 import com.riffle.core.catalog.CatalogImportRequest
 import com.riffle.core.catalog.CatalogImportResult
@@ -368,14 +367,8 @@ class LibraryItemDetailViewModel constructor(
                     IllegalArgumentException("This library has no upload folder configured"),
                 )
             }
-            val progressWithConfirmation: (CatalogImportProgress) -> Unit = { progress ->
-                onProgress(progress)
-                if (progress.phase == CatalogImportPhase.Uploaded) {
-                    _snackbarEvents.tryEmit("Uploaded")
-                }
-            }
             val request = buildImportRequest(item.sourceId, sourceCatalog, sourceItem, library, item.readingProgress)
-                .copy(onProgress = progressWithConfirmation, claimDestinationItem = claimItem)
+                .copy(onProgress = onProgress, claimDestinationItem = claimItem)
             val result = destinationCatalog.importBook(request)
             if (result is CatalogImportResult.Uploaded) {
                 val upsertId = result.destinationItemId ?: sourceItem.id
