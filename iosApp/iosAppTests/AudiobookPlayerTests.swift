@@ -49,10 +49,10 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         // guards against a race where the CMP accessibility bridge depopulates the node between
         // openReader's internal waitForExistence returning true and this re-read on a loaded runner.
         XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Audiobook player screen should show its back control")
-        // 90 s, raised from 60 s: the CMP iOS accessibility bridge populates the player controls
-        // asynchronously after the screen opens. Observed failures at exactly 60 s (95–113 s total
+        // 150 s, raised from 90 s: the CMP iOS accessibility bridge populates the player controls
+        // asynchronously after the screen opens. Observed failures at exactly 90 s (142 s total
         // test time) on contended CI runners where the controls were still rendering at the limit.
-        XCTAssertTrue(playPause.waitForExistence(timeout: 90), "Player screen must show its play/pause control")
+        XCTAssertTrue(playPause.waitForExistence(timeout: 150), "Player screen must show its play/pause control")
     }
 
     // MARK: - Scenario 04-C: Player controls visible
@@ -67,11 +67,11 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Player screen must open")
-        // 90s, raised from 60s: matches testAudiobookPlayerBackNavigationReturnsToLibrary — under
-        // Clone 2 resource pressure the CMP accessibility bridge populates controls asynchronously;
-        // observed failures at the 60s limit on contended CI runners where controls were still rendering.
+        // 150s, raised from 90s: matches testAudiobookPlayerOpensFromLibrary — under Clone 2
+        // resource pressure the CMP accessibility bridge populates controls asynchronously;
+        // observed failures at the 90s limit on contended CI runners where controls were still rendering.
         XCTAssertTrue(
-            playPause.waitForExistence(timeout: 90),
+            playPause.waitForExistence(timeout: 150),
             "Play/pause button should be visible on the player screen"
         )
     }
