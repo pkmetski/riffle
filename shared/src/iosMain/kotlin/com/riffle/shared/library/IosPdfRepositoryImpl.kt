@@ -6,7 +6,10 @@ import com.riffle.core.common.FileStore
 import com.riffle.core.data.IosItemFiles
 import com.riffle.core.data.NS_PDF_CACHE
 import com.riffle.core.data.NS_PDF_DOWNLOADS
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfDownloadResult
+import com.riffle.core.domain.StoredItemRef
+import kotlinx.coroutines.flow.MutableSharedFlow
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.models.LibraryItem
@@ -28,11 +31,19 @@ internal object IosPdfPaths {
  *
  * [IosItemFiles.writeChannel] calls mkdirsForFile() first, so the $sourceId/ subdirectory is
  * always created before the write.
+ *
+ * [downloadPdf] promotes a cached copy to the downloads store (instead of re-downloading from the
+ * network) when the file was already opened and cached by the reader — mirrors
+ * [PdfRepositoryImpl.downloadPdf] on Android.
  */
 internal class IosPdfRepositoryImpl(
     private val positionStore: ReadingPositionStore,
     private val fileStore: FileStore,
     private val catalogRegistry: CatalogRegistry,
+    private val localAvailabilityEvents: LocalAvailabilityEvents = object : LocalAvailabilityEvents {
+        override val changes = MutableSharedFlow<StoredItemRef>()
+        override fun notifyChanged(sourceId: String, itemId: String) {}
+    },
 ) : PdfRepository {
 
     override suspend fun saveReadingPosition(sourceId: String, itemId: String, locatorJson: String) {
@@ -45,11 +56,22 @@ internal class IosPdfRepositoryImpl(
     override fun isCached(sourceId: String, itemId: String): Boolean =
         NSFileManager.defaultManager.fileExistsAtPath(cachePath(sourceId, itemId))
 
+    @OptIn(ExperimentalForeignApi::class)
     override suspend fun downloadPdf(
         item: LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): PdfDownloadResult {
         if (isDownloaded(item.sourceId, item.id)) return PdfDownloadResult.AlreadyDownloaded
+
+        val cache = cachePath(item.sourceId, item.id)
+        if (NSFileManager.defaultManager.fileExistsAtPath(cache)) {
+            val dest = downloadPath(item.sourceId, item.id)
+            val moved = NSFileManager.defaultManager.moveItemAtPath(cache, toPath = dest, error = null)
+            if (moved) {
+                localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+                return PdfDownloadResult.Success
+            }
+        }
 
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return PdfDownloadResult.NetworkError(IllegalStateException("No catalog for source ${item.sourceId}"))
@@ -58,6 +80,7 @@ internal class IosPdfRepositoryImpl(
         return try {
             catalog.withFileStream(item.id, BookFormat.Pdf, item.ebookFileIno) { stream ->
                 if (IosItemFiles.writeChannel(destPath, stream.channel, stream.contentLength, onProgress)) {
+                    localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
                     PdfDownloadResult.Success
                 } else {
                     PdfDownloadResult.NetworkError(IllegalStateException("Failed to write PDF to $destPath"))

@@ -63,6 +63,7 @@ fun AndroidReaderSlot(
             DisposableEffect(Unit) { onDispose { host.clear() } }
             PdfReaderScreen(
                 onNavigateBack = readerActions.onBack,
+                windowSizeClass = windowSizeClass,
                 viewModel = viewModel,
             )
         }

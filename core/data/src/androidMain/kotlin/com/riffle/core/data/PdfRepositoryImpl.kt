@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
@@ -23,6 +24,7 @@ class PdfRepositoryImpl(
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
+    private val connectivityObserver: ConnectivityObserver? = null,
 ) : JvmPdfRepository {
 
     override suspend fun openPdf(item: LibraryItem): PdfOpenResult {
@@ -50,7 +52,8 @@ class PdfRepositoryImpl(
                     localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
                 }
             } catch (t: Throwable) {
-                return PdfOpenResult.NetworkError(t)
+                return if (connectivityObserver?.isOnline?.value == false) PdfOpenResult.Offline
+                else PdfOpenResult.NetworkError(t)
             }
         }
         val lastPosition = positionStore.load(item.sourceId, item.id)
@@ -76,7 +79,8 @@ class PdfRepositoryImpl(
                     ".pdf",
                 ) to true
             } catch (t: Throwable) {
-                return PdfOpenResult.NetworkError(t)
+                return if (connectivityObserver?.isOnline?.value == false) PdfOpenResult.Offline
+                else PdfOpenResult.NetworkError(t)
             }
         }
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = null, temporary = temporary)

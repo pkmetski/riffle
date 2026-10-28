@@ -759,6 +759,7 @@ private val coreDataRepositoriesModule = module {
             sourceRepository = get(),
             localAvailabilityEvents = get(),
             contentCacheAccessStore = get(),
+            connectivityObserver = get(),
         )
     }
     single<PdfRepository> { get<JvmPdfRepository>() }

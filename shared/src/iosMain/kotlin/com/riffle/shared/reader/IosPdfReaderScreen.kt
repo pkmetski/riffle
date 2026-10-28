@@ -7,7 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -18,11 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitViewController
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ScreenDimensionBucket
+import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.PdfReaderState
@@ -44,7 +49,6 @@ import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_could_not_download_pdf
 import com.riffle.shared.generated.resources.ui_could_not_sync_reading_progress
-import com.riffle.shared.generated.resources.ui_opening_pdf
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -52,11 +56,21 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 
+private const val MARGIN_STEP_PTS = 16.0
+
 @Suppress("ktlint:standard:function-naming")
 @Composable
 fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     KeepReaderScreenOn()
+    val containerSize = LocalWindowInfo.current.containerSize
+    val screenDimensionBucket = remember(containerSize) {
+        ScreenDimensionBucket.of(
+            a = containerSize.width.dpToSizeClass(),
+            b = containerSize.height.dpToSizeClass(),
+        )
+    }
     val vm = koinInject<PdfReaderViewModel> { parametersOf(item.id, item.sourceId) }
+    vm.setScreenDimensionBucket(screenDimensionBucket)
     val pdfRepo = koinInject<IosPdfSharedRepository>()
     val bridgeFactory = koinInject<IosPdfNavigatorBridgeFactory>()
     val appActiveEvents = koinInject<IosAppActiveEvents>()
@@ -89,7 +103,6 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val bridge = remember { bridgeFactory.create() }
     val messages = rememberTransientMessages()
 
-    val openingPdfText = stringResource(Res.string.ui_opening_pdf)
     val couldNotDownloadPdf = stringResource(Res.string.ui_could_not_download_pdf)
     val syncErrorText = stringResource(Res.string.ui_could_not_sync_reading_progress)
 
@@ -124,6 +137,15 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         vm.syncErrorEvents.collect { messages.show(syncErrorText) }
+    }
+
+    LaunchedEffect(formattingPrefs.margins) {
+        val spacing = if (formattingPrefs.margins > FormattingPreferences.DEFAULT_MARGINS) {
+            (formattingPrefs.margins - FormattingPreferences.DEFAULT_MARGINS).toDouble() * MARGIN_STEP_PTS
+        } else {
+            0.0
+        }
+        bridge.setPageSpacing(spacing)
     }
 
     LaunchedEffect(appActiveEvents) {
@@ -161,19 +183,19 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 Modifier.fillMaxSize().testTag(TestTags.PDF_READER_ERROR),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText(s.message)
+                Text(s.message)
             }
             PdfReaderState.BookNotFound -> Box(
                 Modifier.fillMaxSize().testTag(TestTags.PDF_READER_ERROR),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText(couldNotDownloadPdf)
+                Text(couldNotDownloadPdf)
             }
             PdfReaderState.Loading -> Box(
                 Modifier.fillMaxSize().testTag(TestTags.PDF_READER_LOADING),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText(openingPdfText)
+                CircularProgressIndicator()
             }
             is PdfReaderState.AwaitingNavigator, is PdfReaderState.Ready -> {
                 if (localPath != null) {
@@ -197,7 +219,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                         Modifier.fillMaxSize().testTag(TestTags.PDF_READER_LOADING),
                         contentAlignment = Alignment.Center,
                     ) {
-                        BasicText(openingPdfText)
+                        CircularProgressIndicator()
                     }
                 }
             }
@@ -267,4 +289,10 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             )
         }
     }
+}
+
+private fun Int.dpToSizeClass(): SizeClass = when {
+    this < 600 -> SizeClass.Compact
+    this < 840 -> SizeClass.Medium
+    else -> SizeClass.Expanded
 }

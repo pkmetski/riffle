@@ -169,6 +169,7 @@ class PdfReaderViewModelTest {
         bookFormattingStore: FakePdfBookFormattingStore = FakePdfBookFormattingStore(),
         annotationStore: AnnotationStore = FakePdfAnnotationStore(),
         navSourceId: String? = null,
+        bucket: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait,
     ): PdfReaderViewModel {
         val appScope = FakePdfApplicationScope(testDispatcher)
         return PdfReaderViewModel(
@@ -191,7 +192,36 @@ class PdfReaderViewModelTest {
             readingSpeedStore = FakePdfReadingSpeedStore(),
             dispatchers = PdfFakeDispatcherProvider(testDispatcher),
             catalogRegistry = FakePdfCatalogRegistry(),
+        ).also { it.setScreenDimensionBucket(bucket) }
+    }
+
+    @Test
+    fun setScreenDimensionBucketUnblocksItemLoad() = runTest(testDispatcher) {
+        val vm = buildVm()
+        runCurrent()
+        assertIs<PdfReaderState.AwaitingNavigator>(vm.state.value,
+            "loadItem must complete after setScreenDimensionBucket is called")
+        vm.onReaderClosed()
+    }
+
+    @Test
+    fun updateFormattingUsesCurrentBucket() = runTest(testDispatcher) {
+        val bookStore = FakePdfBookFormattingStore()
+        val tablet = ScreenDimensionBucket(
+            narrower = ScreenDimensionBucket.SizeClass.Medium,
+            wider = ScreenDimensionBucket.SizeClass.Expanded,
         )
+        val vm = buildVm(bookFormattingStore = bookStore, navSourceId = "src1", bucket = tablet)
+        runCurrent()
+        vm.onNavigatorReady(totalPages = 5, outline = emptyList())
+        runCurrent()
+
+        vm.updateFormatting(FormattingPreferences(margins = 2.0f))
+        runCurrent()
+
+        assertEquals(2.0f, bookStore.captured("src1", "item1", tablet)?.margins,
+            "updateFormatting must save with the bucket supplied by setScreenDimensionBucket")
+        vm.onReaderClosed()
     }
 }
 
