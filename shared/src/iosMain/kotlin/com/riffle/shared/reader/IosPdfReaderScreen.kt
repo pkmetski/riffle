@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.riffle.feature.reader.ImmersiveModeState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -25,6 +24,7 @@ import androidx.compose.ui.viewinterop.UIKitViewController
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.PdfReaderState
 import com.riffle.feature.reader.PdfReaderViewModel
 import com.riffle.feature.reader.pdfActiveHref

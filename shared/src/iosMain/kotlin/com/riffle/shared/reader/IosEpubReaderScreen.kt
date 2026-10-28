@@ -15,10 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -94,7 +94,6 @@ import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import com.riffle.feature.player.ui.ReadaloudPeek
 import com.riffle.feature.reader.AnnotationSession
-import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -104,6 +103,7 @@ import com.riffle.feature.reader.FigureTapMessageParser
 import com.riffle.feature.reader.FigureZoomState
 import com.riffle.feature.reader.FootnoteContent
 import com.riffle.feature.reader.FootnotePopupState
+import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.NavigatorDecoration
