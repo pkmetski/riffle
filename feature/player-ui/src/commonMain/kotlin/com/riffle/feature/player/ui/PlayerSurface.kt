@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,7 +43,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalWindowInfo
+import kotlin.math.min
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -133,6 +134,16 @@ const val COMPACT_PLAYER_HEIGHT_DP = 480
 fun isCompactPlayerHeight(heightDp: Float): Boolean = heightDp < COMPACT_PLAYER_HEIGHT_DP
 
 /**
+ * Width below which the two-column layout cannot fit: the 300dp cover column plus the controls
+ * would overflow the screen. A compact-height + compact-width screen (e.g. a foldable cover
+ * screen) falls back to the vertical layout instead. Mirrors Material's Compact width boundary.
+ */
+const val COMPACT_PLAYER_WIDTH_DP = 600
+
+/** Whether a window this wide (in dp) is too narrow for the side-by-side cover+controls layout. */
+fun isCompactPlayerWidth(widthDp: Float): Boolean = widthDp < COMPACT_PLAYER_WIDTH_DP
+
+/**
  * The full-screen player body (ADR 0035): square cover, title/author, current-chapter label, a
  * seekable chapter-map scrubber (vertical playhead + chapter ticks) with dual chapter/book time, and
  * a centered transport cluster — rewind 15s · prev chapter · play/pause · next chapter · forward 30s
@@ -163,27 +174,62 @@ private fun PlayerSurfaceVertical(
     labels: PlayerChromeLabels,
     modifier: Modifier,
 ) {
-    // Portrait gets a larger, more immersive cover; a (tall) landscape window stays smaller so the
-    // square cover doesn't overflow the shorter vertical space. `LocalConfiguration.orientation` is
-    // Android-only, so the aspect of the window itself is the shared equivalent.
-    val windowSize = LocalWindowInfo.current.containerSize
-    val isPortrait = windowSize.height >= windowSize.width
-    val coverWidthFraction = if (isPortrait) 0.90f else 0.72f
-    Column(
-        modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.weight(1f))
-        PlayerCover(
-            state = state,
-            modifier = Modifier.fillMaxWidth(coverWidthFraction),
-        )
-        Spacer(Modifier.height(20.dp))
-        PlayerTitleBlock(state, horizontalAlignment = Alignment.CenterHorizontally)
+    // BoxWithConstraints gives the ACTUAL measured height of this composable (after the body's top
+    // spacer, nav-bar padding, and PlayerListPills have all been subtracted). LocalWindowInfo would
+    // report the full window size (e.g. 524dp on the Samsung Flip8 cover screen) while the real
+    // available height is only ~376dp — causing the cover-size cap to be far too generous and
+    // letting the cover push the controls off-screen even after being "capped".
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val heightDp = maxHeight.value
+        val widthDp = maxWidth.value
+        // Portrait gets a larger cover; a (tall) landscape window stays smaller so the square
+        // cover doesn't overflow the shorter vertical space.
+        val isPortrait = heightDp >= widthDp
+        val coverWidthFraction = if (isPortrait) 0.90f else 0.72f
 
-        Spacer(Modifier.height(18.dp))
-        PlayerControls(state, actions, labels)
-        Spacer(Modifier.weight(1f))
+        // Cap the cover so controls always have room. Reserve ~320dp for the title block
+        // (~96dp), fixed spacers (38dp), and the controls row (~186dp). Anything beyond that
+        // (up to 80%) becomes cover height.
+        val widthBasedCoverDp = widthDp * coverWidthFraction
+        val nonCoverHeightDp = 320f
+        val heightBasedCoverDp = (heightDp - nonCoverHeightDp).coerceAtLeast(0f) * 0.80f
+        val coverSizeDp = min(widthBasedCoverDp, heightBasedCoverDp)
+        // When the cover would be too small to show above the title (e.g. foldable cover screen),
+        // put a compact thumbnail beside the title in a row — same height as the title block,
+        // saves ~80dp of vertical space so the transport fits comfortably.
+        val showFullCover = coverSizeDp >= 80f
+        val showCompactRow = !showFullCover
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.weight(1f))
+            if (showCompactRow) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    PlayerCover(
+                        state = state,
+                        modifier = Modifier.size(72.dp),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    PlayerTitleBlock(state, horizontalAlignment = Alignment.Start)
+                }
+            } else {
+                PlayerCover(
+                    state = state,
+                    modifier = Modifier.size(coverSizeDp.dp),
+                )
+                Spacer(Modifier.height(20.dp))
+                PlayerTitleBlock(state, horizontalAlignment = Alignment.CenterHorizontally)
+            }
+
+            Spacer(Modifier.height(18.dp))
+            PlayerControls(state, actions, labels)
+            Spacer(Modifier.weight(1f))
+        }
     }
 }
 

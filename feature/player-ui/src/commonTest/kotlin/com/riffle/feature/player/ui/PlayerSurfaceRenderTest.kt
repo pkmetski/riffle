@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -245,6 +246,29 @@ class PlayerSurfaceRenderTest {
         onNodeWithTag("player_facts").assertIsDisplayed()
         onNodeWithText("Audiobook · 10h 53m · Science Fiction").assertIsDisplayed()
         onNodeWithTag("player_scrubber").assertIsDisplayed()
+    }
+
+    /**
+     * A constrained window (e.g. foldable cover screen) where the cover would be too small to
+     * show above the title. Instead it moves beside the title in a compact row so the transport
+     * controls always fit. The cover still exists (at 72dp), just repositioned.
+     *
+     * 360×374dp: heightBasedCoverDp = (374 - 320) * 0.80 = 43dp → compact row mode.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun onACompactCoverScreenTransportIsVisibleAndCoverIsInCompactRow() = runComposeUiTest {
+        setContent {
+            Player(
+                state(),
+                twoColumn = false,
+                width = 360.dp,
+                height = 374.dp,
+            )
+        }
+        onNodeWithTag("player_cover").assertIsDisplayed()
+        onNodeWithTag("player_scrubber").assertIsDisplayed()
+        onNodeWithContentDescription(labels.play).assertIsDisplayed()
     }
 
     /**
