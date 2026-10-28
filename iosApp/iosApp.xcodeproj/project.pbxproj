@@ -166,7 +166,6 @@
 		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
 		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
 		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
-		B100E020 /* LibraryTabVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTabVisibilityTests.swift; sourceTree = "<group>"; };
 		B100F020 /* OnboardingNavIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNavIconTests.swift; sourceTree = "<group>"; };
 		B1010030 /* OReillyLazyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyLazyContainer.swift; sourceTree = "<group>"; };
 		B1011030 /* OReillyPublicationBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyPublicationBuilder.swift; sourceTree = "<group>"; };
@@ -300,7 +299,6 @@
 				B1061031 /* ReadaloudBridgeTests.swift */,
 				A1EL1D020001 /* ElidedAnnotationsViewTests.swift */,
 				A1EL2D020001 /* ElidedPdfBridgeTests.swift */,
-				B100E020 /* LibraryTabVisibilityTests.swift */,
 				B100F020 /* OnboardingNavIconTests.swift */,
 				B1058020 /* LibraryNavStackTests.swift */,
 				B1008020 /* AnnotationTests.swift */,
