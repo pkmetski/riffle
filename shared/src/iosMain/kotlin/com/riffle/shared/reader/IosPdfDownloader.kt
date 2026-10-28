@@ -10,9 +10,9 @@ import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.LocalAvailabilityEvents
+import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.LibraryItem
 import com.riffle.shared.library.IosPdfPaths
-import com.riffle.core.domain.StoredItemRef
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
