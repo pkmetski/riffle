@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -19,6 +18,7 @@ import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.player.SleepTimerMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -266,8 +266,8 @@ class PlayerSurfaceRenderTest {
                 height = 374.dp,
             )
         }
-        onNodeWithTag("player_cover").assertIsDisplayed()
-        onNodeWithTag("player_scrubber").assertIsDisplayed()
+        onNodeWithTag(TestTags.PLAYER_COVER).assertIsDisplayed()
+        onNodeWithTag(TestTags.PLAYER_SCRUBBER).assertIsDisplayed()
         onNodeWithContentDescription(labels.play).assertIsDisplayed()
     }
 

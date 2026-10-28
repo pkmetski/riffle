@@ -49,6 +49,7 @@ fun AudiobookPlayerScreen(
     // Two-column suits wide landscape phones (Compact height, non-Compact width). A cover screen
     // like the Samsung Flip8 external display has Compact width; its ~474dp width cannot fit the
     // 300dp cover column + controls side-by-side, so fall back to the vertical layout.
+    // Material3 Compact = < 600dp, matching PlayerSurface.COMPACT_PLAYER_WIDTH_DP = 600.
     val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
         && windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
 
