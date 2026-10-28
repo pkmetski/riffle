@@ -714,11 +714,17 @@ class LibraryItemDetailViewModel constructor(
                 .onEach { states ->
                     val item = loadedItem ?: return@onEach
                     val prefix = importKeyPrefix(item)
-                    states.entries
+                    val incoming = states.entries
                         .firstOrNull { it.key.startsWith(prefix) }
                         ?.value
-                        ?.let { _bookImportState.value = it }
-                        ?: run { _bookImportState.value = BookImportState.Idle }
+                    if (incoming != null) {
+                        if (incoming is BookImportState.Failed && _bookImportState.value !is BookImportState.Failed) {
+                            _snackbarEvents.tryEmit(incoming.message)
+                        }
+                        _bookImportState.value = incoming
+                    } else {
+                        _bookImportState.value = BookImportState.Idle
+                    }
                 }
                 .launchIn(viewModelScope)
         }
