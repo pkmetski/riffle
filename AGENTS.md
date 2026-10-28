@@ -1,5 +1,11 @@
 # Riffle — Agent Instructions
 
+## Agent memory location
+
+Write all memory files to `.claude/memory/` at the repo root. Do not write to the default machine-local memory path (`~/.claude/projects/*/memory/`). The format (frontmatter + body, `MEMORY.md` index) is unchanged — only the target directory moves. Create `.claude/memory/` if it does not exist in a fresh clone.
+
+Skills listed in `.claude/skills/` are repo-specific and override global `~/.claude/skills/` for this project. Do not duplicate them globally.
+
 ## No multiline comments — self-documenting code only
 
 **Do not add long multiline comments.** Code must be self-documenting: well-named functions, variables, and types communicate intent without prose. If you encounter pre-existing code with multiline redundant comments, remove them.
