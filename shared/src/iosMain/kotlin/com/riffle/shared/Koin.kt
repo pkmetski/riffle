@@ -246,6 +246,7 @@ import com.riffle.feature.source.ui.WebDavTargetConnectionTester
 import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.shared.audiobook.IosAbsAudiobookRepository
@@ -1256,6 +1257,20 @@ private fun iosLibraryModule(
     }
     factory { params ->
         RadioEsBrowseViewModel(
+            savedStateHandle = browseSavedStateHandle(params.get()),
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
+            webSourceItemGate = get(),
+            coverGridDensityStore = get(),
+            libraryFilterPreferencesStore = get(),
+            libraryObserver = get(),
+            connectivityObserver = get(),
+            dispatchers = get(),
+        )
+    }
+    factory { params ->
+        OReillyBrowseViewModel(
             savedStateHandle = browseSavedStateHandle(params.get()),
             sourceRepository = get(),
             catalogRegistry = get(),

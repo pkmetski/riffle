@@ -51,13 +51,13 @@ class IosSupportedSourceTypesTest {
     }
 
     @Test
-    fun browsesEveryUnboundedCatalogueExceptOReilly() {
+    fun browsesEveryUnboundedCatalogue() {
         // The browse screen resolves its ViewModel by SourceType and errors on an unknown one, so
         // a new `isUnboundedCatalog` type added to SourceType must either get a ViewModel or be
-        // excluded here deliberately. O'Reilly is the deliberate exclusion (see below).
+        // explicitly excluded from unboundedBrowseSourceTypes().
         val expected = WebSourceDescriptors.all
             .map { it.type }
-            .filter { it.isUnboundedCatalog && it != SourceType.OREILLY }
+            .filter { it.isUnboundedCatalog }
             .toSet()
         assertEquals(expected, unboundedBrowseSourceTypes())
     }
@@ -77,13 +77,11 @@ class IosSupportedSourceTypesTest {
     @Test
     fun everyBrowsableTypeIsAlsoOfferedByThePicker() {
         // Offering a type the browse screen cannot drive would crash; browsing a type the picker
-        // never installs would be dead code. Pin them equal, excluding O'Reilly which is an
-        // unbounded catalogue that uses a dedicated WebView login flow rather than the generic
-        // UnboundedBrowseScreen installation path.
+        // never installs would be dead code. Pin them equal.
         val browsable = unboundedBrowseSourceTypes()
         assertEquals(
             browsable,
-            iosSupportedSourceTypes().filter { it.isUnboundedCatalog && it != SourceType.OREILLY }.toSet(),
+            iosSupportedSourceTypes().filter { it.isUnboundedCatalog }.toSet(),
         )
     }
 }
