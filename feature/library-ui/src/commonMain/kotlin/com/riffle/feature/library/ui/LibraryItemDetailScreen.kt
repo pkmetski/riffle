@@ -602,64 +602,116 @@ private fun DetailContentPhone(
         }, onDismiss = { showChaptersSheet = false })
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        CoverBox(item = state.item, token = token)
-        AudiobookDurationLine(item = state.item)
-        PublicationFactsLine(item = state.item, estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec, pdfPageCount = pdfPageCount)
-        ReadingProgressIndicator(item = state.item)
-        ActionRow(
-            item = state.item,
-            isInToRead = state.isInToRead,
-            capabilities = state.capabilities,
-            downloadState = downloadState,
-            isCachedOrDownloaded = state.isCachedOrDownloaded,
-            isOffline = state.isOffline,
-            audiobookDownloadState = audiobookDownloadState,
-            readaloudDownloadState = readaloudDownloadState,
-            onRead = onRead,
-            onListen = onListen,
-            onMarkAsRead = onMarkAsRead,
-            onMarkAsUnread = onMarkAsUnread,
-            onToggleToRead = onToggleToRead,
-            onAddToPlaylist = onAddToPlaylist,
-            onDownload = onDownload,
-            onRemove = onRemove,
-            onDownloadAudiobook = onDownloadAudiobook,
-            onRemoveAudiobook = onRemoveAudiobook,
-            onDownloadReadaloud = onDownloadReadaloud,
-            onRemoveReadaloud = onRemoveReadaloud,
-        )
-        TitleWithReadaloudBadge(
-            title = state.item.title,
-            hasReadaloud = state.capabilities.hasReadaloud,
-            onReadaloudClick = { onFacet(FacetType.READALOUD, state.item.id) },
-        )
-        AuthorByline(author = state.item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
-        state.item.seriesName?.takeIf { it.isNotBlank() }?.let { seriesName ->
-            SeriesLine(seriesName = seriesName, seriesId = state.seriesId, onSeriesClick = onSeries)
-        }
-        TocRow(tocState = tocState, onOpen = { showTocSheet = true })
-        ChaptersRow(chaptersState = chaptersState, onOpen = { showChaptersSheet = true })
-        state.item.description?.takeIf { it.isNotBlank() }?.let { desc ->
-            CollapsibleDescription(html = desc)
-        }
-        MetadataLines(item = state.item, epubVersion = epubVersion, onFacet = onFacet)
-        if (state.isOffline && !state.isCachedOrDownloaded) {
-            Text(
-                text = stringResource(SourceRes.string.ui_you_are_offline),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompactHeight = maxHeight < 540.dp
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (isCompactHeight) {
+                // On small screens (e.g. foldable cover screen) the full-width cover pushes the
+                // action buttons below the fold. Show a compact thumbnail beside the title and
+                // metadata so the Read/Listen button is immediately visible without scrolling.
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    val thumbWidth = if (state.item.isAudiobookOnly) 100.dp else 67.dp
+                    Box(
+                        modifier = Modifier
+                            .width(thumbWidth)
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .testTag(TestTags.BOOK_DETAIL_COVER),
+                    ) {
+                        CoverImage(
+                            url = state.item.coverUrl,
+                            token = token,
+                            contentDescription = null,
+                            isAudiobook = state.item.isAudiobookOnly,
+                            instrumentationKind = "detail",
+                            instrumentationKey = state.item.id,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        TitleWithReadaloudBadge(
+                            title = state.item.title,
+                            hasReadaloud = state.capabilities.hasReadaloud,
+                            onReadaloudClick = { onFacet(FacetType.READALOUD, state.item.id) },
+                        )
+                        AuthorByline(author = state.item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
+                        state.item.seriesName?.takeIf { it.isNotBlank() }?.let { seriesName ->
+                            SeriesLine(seriesName = seriesName, seriesId = state.seriesId, onSeriesClick = onSeries)
+                        }
+                        AudiobookDurationLine(item = state.item)
+                        PublicationFactsLine(item = state.item, estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec, pdfPageCount = pdfPageCount)
+                        ReadingProgressIndicator(item = state.item)
+                    }
+                }
+            } else {
+                CoverBox(item = state.item, token = token)
+                AudiobookDurationLine(item = state.item)
+                PublicationFactsLine(item = state.item, estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec, pdfPageCount = pdfPageCount)
+                ReadingProgressIndicator(item = state.item)
+            }
+            ActionRow(
+                item = state.item,
+                isInToRead = state.isInToRead,
+                capabilities = state.capabilities,
+                downloadState = downloadState,
+                isCachedOrDownloaded = state.isCachedOrDownloaded,
+                isOffline = state.isOffline,
+                audiobookDownloadState = audiobookDownloadState,
+                readaloudDownloadState = readaloudDownloadState,
+                onRead = onRead,
+                onListen = onListen,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+                onToggleToRead = onToggleToRead,
+                onAddToPlaylist = onAddToPlaylist,
+                onDownload = onDownload,
+                onRemove = onRemove,
+                onDownloadAudiobook = onDownloadAudiobook,
+                onRemoveAudiobook = onRemoveAudiobook,
+                onDownloadReadaloud = onDownloadReadaloud,
+                onRemoveReadaloud = onRemoveReadaloud,
             )
-        }
-        if (showKoFiNudge) {
-            KoFiNudge(onDismiss = onDismissKoFi)
+            if (!isCompactHeight) {
+                TitleWithReadaloudBadge(
+                    title = state.item.title,
+                    hasReadaloud = state.capabilities.hasReadaloud,
+                    onReadaloudClick = { onFacet(FacetType.READALOUD, state.item.id) },
+                )
+                AuthorByline(author = state.item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
+                state.item.seriesName?.takeIf { it.isNotBlank() }?.let { seriesName ->
+                    SeriesLine(seriesName = seriesName, seriesId = state.seriesId, onSeriesClick = onSeries)
+                }
+            }
+            TocRow(tocState = tocState, onOpen = { showTocSheet = true })
+            ChaptersRow(chaptersState = chaptersState, onOpen = { showChaptersSheet = true })
+            state.item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                CollapsibleDescription(html = desc)
+            }
+            MetadataLines(item = state.item, epubVersion = epubVersion, onFacet = onFacet)
+            if (state.isOffline && !state.isCachedOrDownloaded) {
+                Text(
+                    text = stringResource(SourceRes.string.ui_you_are_offline),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
+            }
+            if (showKoFiNudge) {
+                KoFiNudge(onDismiss = onDismissKoFi)
+            }
         }
     }
 }
