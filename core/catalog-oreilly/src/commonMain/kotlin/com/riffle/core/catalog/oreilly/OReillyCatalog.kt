@@ -132,18 +132,12 @@ class OReillyCatalog internal constructor(
     }
 
     override suspend fun getItem(itemId: String): CatalogItem? {
-        // Audiobook items carry an "AU" suffix (e.g. "9781491973899AU"). The EPUB metadata endpoint
-        // uses the bare ISBN; strip the suffix before querying, then force the format back to
-        // Audiobook so the upload pre-flight and import path treat it correctly.
+        // Audiobook items carry an "AU" suffix; strip it before querying the EPUB endpoint.
         val isAudioItem = itemId.endsWith("AU")
         val epubId = if (isAudioItem) itemId.dropLast(2) else itemId
         val body = runCatching { api.getJson(api.bookDetailUrl(epubId)) }
             .getOrNull() ?: return null
-        // NOTE: O'Reilly's book-detail metadata (`/epubs/{urn}/`) carries NO author — authors only
-        // appear in the search listing — so this returns a blank author. The web-source gate fills it
-        // back in from the browse listing it already holds (WebSourceItemGate.openItem), which is free;
-        // recovering it here would cost an extra search request per detail open (see the bot-detection
-        // hardening doc). The ABS-upload path is covered by [withFallbackAuthor].
+        // The EPUB endpoint returns no author — only the search listing does. withFallbackAuthor() fills it in for ABS uploads.
         val item = OReillyParser.bookDetailToCatalogItem(
             id = itemId,
             detail = OReillyParser.parseBookDetail(body),
@@ -682,9 +676,7 @@ class OReillyCatalog internal constructor(
             val entryId = entryIdByRef[entry.referenceId].orEmpty()
             if (entryId.isBlank()) return null
             val duration = entry.duration.toDouble()
-            // The download URL (HTTP 302 → signed MP4, audio-only) is byte-streamable and is used
-            // both as the track ino (for withTrackStream during ABS import) and as the download
-            // target for offline playback. HLS manifests cannot be byte-downloaded.
+            // MP4 download URL used as ino (ABS import byte-stream) and offline download; HLS cannot be byte-downloaded.
             val downloadUrl = OReillyApi.kalturaDownloadUrl(partnerId, entryId, ks)
             tracks += CatalogAudioTrack(
                 ino = downloadUrl,
@@ -692,7 +684,7 @@ class OReillyCatalog internal constructor(
                 startOffsetSec = offset,
                 durationSec = duration,
                 contentUrl = OReillyApi.kalturaHlsUrl(partnerId, entryId, ks),
-                mimeType = "audio/mp4",
+                mimeType = OReillyApi.MP4_MIME,
             )
             downloadUrls += downloadUrl
             chapters += CatalogAudiobookChapter(

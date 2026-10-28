@@ -1829,6 +1829,64 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
     }
 
+    @Test
+    fun `importToDestination uses loadedItem directly for audiobook items without calling getItem`() = runTest(testDispatcher) {
+        val destinationSourceId = "abs-source-1"
+        val audiobookItem = knownItem.copy(
+            id = "9781491973899AU",
+            ebookFormat = EbookFormat.Unsupported,
+            hasAudio = true,
+            audioDurationSec = 3600.0,
+        )
+        var getItemCalled = false
+        var capturedDurationSec = -1.0
+
+        val sourceCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.AudiobookMediaCapability {
+            override suspend fun getItem(itemId: String): com.riffle.core.catalog.CatalogItem? {
+                getItemCalled = true
+                return null
+            }
+            override suspend fun getTracks(itemId: String) = emptyList<com.riffle.core.catalog.CatalogAudioTrack>()
+            override suspend fun getAudiobookChapters(itemId: String) = emptyList<com.riffle.core.catalog.CatalogAudiobookChapter>()
+            override suspend fun getFingerprint(itemId: String): com.riffle.core.catalog.CatalogAudioFingerprint? = null
+            override fun buildStreamUrl(itemId: String, trackIno: String): String = ""
+            override suspend fun openAudiobook(itemId: String, deviceLabel: String): com.riffle.core.catalog.CatalogAudiobookStream? = null
+        }
+        val importCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.BookImportCapability {
+            override suspend fun importBook(request: com.riffle.core.catalog.CatalogImportRequest): com.riffle.core.catalog.CatalogImportResult {
+                capturedDurationSec = request.audioDurationSec
+                return com.riffle.core.catalog.CatalogImportResult.Uploaded()
+            }
+            override suspend fun listRoots() = listOf(
+                com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1")
+            )
+        }
+        val registry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive() = sourceCatalog
+            override suspend fun forSource(source: com.riffle.core.models.Source) = sourceCatalog
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? =
+                if (sourceId == destinationSourceId) importCatalog else sourceCatalog
+        }
+
+        val audiobookPositionStore = io.mockk.mockk<com.riffle.core.domain.AudiobookPositionStore>().also {
+            io.mockk.coEvery { it.load(any(), any()) } returns null
+        }
+        val vm = makeVm(repo = fakeRepo(audiobookItem), catalogRegistryOverride = registry, audiobookPositionStore = audiobookPositionStore)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.importToDestination(
+            destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList()),
+            library = com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1"),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse("getItem() must not be called for hasAudio=true items — the EPUB endpoint returns stale format", getItemCalled)
+        assertEquals(BookImportState.Completed, vm.bookImportState.value)
+    }
+
     private object NoopLibraryItemDao : LibraryItemDao {
         override fun observeByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
         override suspend fun listByLibraryId(sourceId: String, libraryId: String) = emptyList<LibraryItemEntity>()

@@ -306,8 +306,6 @@ class LibraryItemDetailViewModel constructor(
                 _uploadPreflight.value = UploadPreflight.Blocked("The item is not loaded yet")
                 return@launch
             }
-            // Use loadedItem directly — re-fetching via getItem() fails for audiobook ISBNs whose
-            // EPUB endpoint returns 404. All metadata needed for the preflight is already in loadedItem.
             val sourceItem = item.toUploadCatalogItem()
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId)
             if (destinationCatalog !is BookImportCapability) {
@@ -348,9 +346,7 @@ class LibraryItemDetailViewModel constructor(
         val key = importKey(item, destination, library)
         bookImportManager.start(key) { onProgress, claimItem ->
             val sourceCatalog = catalogRegistry.forSourceId(item.sourceId)
-            // For audiobook items, getItem() returns a stale ebook-format result because the EPUB
-            // endpoint doesn't carry audio metadata — trust loadedItem (which was populated from the
-            // browse listing) for hasAudio and ebookFormat instead of overwriting with a wrong value.
+            // For audiobooks, getItem() returns ebook-format metadata — trust loadedItem's hasAudio/ebookFormat.
             val sourceItem = if (item.hasAudio) {
                 item.toUploadCatalogItem()
             } else {

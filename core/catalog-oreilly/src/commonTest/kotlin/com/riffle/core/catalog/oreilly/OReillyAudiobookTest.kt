@@ -1,5 +1,6 @@
 package com.riffle.core.catalog.oreilly
 
+import com.riffle.core.catalog.oreilly.OReillyApi
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -98,8 +99,7 @@ class OReillyAudiobookTest {
         assertEquals(0, tracks[0].index)
         assertEquals(0.0, tracks[0].startOffsetSec, 0.001)
         assertEquals(400.0, tracks[0].durationSec, 0.001)
-        // mimeType reflects the actual bytes served by the download URL (MP4), not the HLS manifest.
-        assertEquals("audio/mp4", tracks[0].mimeType)
+        assertEquals(OReillyApi.MP4_MIME, tracks[0].mimeType)
         assertEquals(
             "https://cdnapisec.kaltura.com/p/1926081/sp/192608100/playManifest/entryId/1_aaa" +
                 "/format/applehttp/protocol/https/a.m3u8?ks=KS123",
