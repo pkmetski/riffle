@@ -57,7 +57,8 @@ class IosPdfDownloaderTest {
             NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
     }
 
-    private val pdfBytes = byteArrayOf(0x25, 0x50, 0x44, 0x46, 1, 2, 3, 4) // %PDF magic
+    // Minimal syntactically valid PDF bytes: %PDF header + %%EOF trailer (required by isValidPdf).
+    private val pdfBytes = "%PDF-1.4\n%%EOF".encodeToByteArray()
 
     private val catalogItem = LibraryItem(
         id = "item-1",

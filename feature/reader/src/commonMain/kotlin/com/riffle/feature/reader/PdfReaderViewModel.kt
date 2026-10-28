@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -209,7 +210,7 @@ class PdfReaderViewModel constructor(
         },
     )
 
-    private var screenDimensionBucket: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait
+    private val _screenDimensionBucket = MutableStateFlow<ScreenDimensionBucket?>(null)
 
     // ---- Init -------------------------------------------------------------
 
@@ -236,13 +237,19 @@ class PdfReaderViewModel constructor(
         }
     }
 
+    /** Must be called from the UI before or shortly after the reader opens. */
+    fun setScreenDimensionBucket(bucket: ScreenDimensionBucket) {
+        _screenDimensionBucket.value = bucket
+    }
+
     private suspend fun loadItemAndSetupState() {
+        val bucket = _screenDimensionBucket.filterNotNull().first()
         val formattingSourceId = navSourceId ?: sourceRepository.getActive()?.id
         if (formattingSourceId != null) {
             val overrides = bookFormattingPreferencesStore.load(
                 sourceId = formattingSourceId,
                 itemId = itemId,
-                dimension = screenDimensionBucket,
+                dimension = bucket,
             )
             if (overrides != null) _bookOverrides.value = overrides
         }
@@ -390,10 +397,11 @@ class PdfReaderViewModel constructor(
         val updatedOverrides = _bookOverrides.value.withChanges(previous, prefs)
         _bookOverrides.value = updatedOverrides
         val sid = navSourceId
+        val bucket = _screenDimensionBucket.value
         viewModelScope.launch {
             formattingPreferencesStore.update(prefs)
-            if (sid != null) {
-                bookFormattingPreferencesStore.save(sid, itemId, screenDimensionBucket, updatedOverrides)
+            if (sid != null && bucket != null) {
+                bookFormattingPreferencesStore.save(sid, itemId, bucket, updatedOverrides)
             }
         }
     }
@@ -401,9 +409,10 @@ class PdfReaderViewModel constructor(
     fun resetToGlobalDefaults() {
         _bookOverrides.value = BookFormattingOverrides()
         val sid = navSourceId
+        val bucket = _screenDimensionBucket.value
         viewModelScope.launch {
-            if (sid != null) {
-                bookFormattingPreferencesStore.clear(sid, itemId, screenDimensionBucket)
+            if (sid != null && bucket != null) {
+                bookFormattingPreferencesStore.clear(sid, itemId, bucket)
             }
         }
     }

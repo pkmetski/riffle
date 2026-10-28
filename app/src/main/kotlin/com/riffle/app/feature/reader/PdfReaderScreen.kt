@@ -69,6 +69,9 @@ import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.publication.Locator
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.runtime.SideEffect
+import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 
 // TODO(figure-zoom): PDF figure-zoom follow-up. The EPUB reader supports single-tap-on-figure
@@ -82,8 +85,10 @@ import com.riffle.feature.source.ui.CornerBookmarkIndicator
 @Composable
 fun PdfReaderScreen(
     onNavigateBack: () -> Unit,
+    windowSizeClass: WindowSizeClass,
     viewModel: PdfReaderViewModel = koinViewModel(),
 ) {
+    SideEffect { viewModel.setScreenDimensionBucket(windowSizeClass.toScreenDimensionBucket()) }
     val state by viewModel.state.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     // Raw user-picked prefs — feeds the FormattingPanel chip selection (so Auto stays
@@ -259,7 +264,7 @@ fun PdfReaderScreen(
                 }
                 PdfReaderState.BookNotFound -> {
                     Text(
-                        "Book not found",
+                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.reader_book_not_found),
                         modifier = Modifier
                             .align(Alignment.Center)
                             .testTag(TestTags.READER_ERROR_STATE),

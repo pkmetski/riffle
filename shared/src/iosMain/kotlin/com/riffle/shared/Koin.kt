@@ -536,7 +536,7 @@ private fun iosLibraryModule(
 
     // PDF reader
     single<IosPdfNavigatorBridgeFactory> { pdfNavigatorBridgeFactory }
-    single { IosPdfDownloader(catalogRegistry = get(), fileStore = get()) }
+    single { IosPdfDownloader(catalogRegistry = get(), fileStore = get(), contentCacheAccessStore = get(), localAvailabilityEvents = get()) }
 
     // CBZ reader
     single { IosCbzDownloader(get(), get(), get()) }
@@ -1071,7 +1071,7 @@ private fun iosLibraryModule(
         IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
-    single { IosPdfRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get()) }
+    single { IosPdfRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get(), localAvailabilityEvents = get()) }
     single<PdfRepository> { get<IosPdfRepositoryImpl>() }
     single { IosPdfSharedRepository(libraryObserver = get(), downloader = get(), positionStore = get()) }
     single<SharedPdfRepository> { get<IosPdfSharedRepository>() }
@@ -1190,8 +1190,7 @@ private fun iosLibraryModule(
     single<DownloadManager> { IosDownloadManagerImpl(get()) }
     single<BookImportManager> { BookImportManagerImpl(scope = get<ApplicationScope>().coroutineScope, logger = get()) }
     single<PdfPageCountExtractor> {
-        val pdfRepository = get<IosPdfRepositoryImpl>()
-        IosPdfPageCountExtractor({ sourceId, itemId -> pdfRepository.localPath(sourceId, itemId) }, get())
+        IosPdfPageCountExtractor(downloader = get(), publicationMetricsRepository = get())
     }
     single<LocalFileMetadataOverrideSaver> {
         val uc = SaveLocalFileMetadataOverrideUseCase(get())

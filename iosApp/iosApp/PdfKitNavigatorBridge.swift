@@ -40,6 +40,10 @@ import Riffle
         pdfViewController.goToPage(index: Int(pageIndex))
     }
 
+    func setPageSpacing(spacingPts: Double) {
+        pdfViewController.setPageSpacing(CGFloat(spacingPts))
+    }
+
     func setPageChangeCallback(callback: (any IosPdfPageChangeCallback)?) {
         pageChangeCallback = callback
     }
@@ -100,6 +104,11 @@ extension PdfKitNavigatorBridgeImpl {
     /// Simulate a single tap as if the user tapped the PDFView. Used in unit tests only.
     @objc func simulateTap() {
         tapCallback?.onTap()
+    }
+
+    /// Returns the top page-break margin currently set on the PDF view. Used in unit tests only.
+    @objc func currentPageSpacingTop() -> CGFloat {
+        pdfViewController.currentPageBreakMarginTop
     }
 }
 
@@ -179,6 +188,10 @@ final class PdfKitViewController: UIViewController {
         pdfView.go(to: page)
     }
 
+    func setPageSpacing(_ spacingPts: CGFloat) {
+        pdfView.pageBreakMargins = UIEdgeInsets(top: spacingPts, left: 0, bottom: spacingPts, right: 0)
+    }
+
     func documentOutline() -> PDFOutline? {
         pdfView.document?.outlineRoot
     }
@@ -203,5 +216,9 @@ final class PdfKitViewController: UIViewController {
 
     @objc func simulateTap() {
         onTap?()
+    }
+
+    @objc var currentPageBreakMarginTop: CGFloat {
+        pdfView.pageBreakMargins.top
     }
 }

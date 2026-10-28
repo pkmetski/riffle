@@ -8,6 +8,7 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
+import com.riffle.shared.reader.IosPdfDownloader
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -84,6 +85,9 @@ class IosPdfAndCoverTest {
     private fun pdfRepo(fileStore: FileStore) =
         IosPdfRepositoryImpl(NoopPositionStore, fileStore, NoopCatalogRegistry)
 
+    private fun downloader(fileStore: FileStore) =
+        IosPdfDownloader(NoopCatalogRegistry, fileStore)
+
     private fun writeFile(path: String, bytes: ByteArray): Boolean {
         val data = bytes.usePinned { pinned ->
             NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
@@ -147,11 +151,10 @@ class IosPdfAndCoverTest {
     @Test
     fun `page count extractor reads the real page count through PDFKit`() = runTest {
         val fileStore = TempFileStore()
-        val repo = pdfRepo(fileStore)
         writePdf(fileStore.resolve("pdf-downloads", IosPdfPaths.downloadRelativePath("s1", "i1")), pages = 3)
         val metrics = RecordingMetricsRepository()
 
-        val count = IosPdfPageCountExtractor(repo::localPath, metrics).extract(item())
+        val count = IosPdfPageCountExtractor(downloader(fileStore), metrics).extract(item())
 
         assertEquals(3, count)
         assertEquals(1, metrics.saves, "a freshly computed count must be cached")
@@ -160,11 +163,10 @@ class IosPdfAndCoverTest {
     @Test
     fun `page count extractor reuses a cached count for the same file inode`() = runTest {
         val fileStore = TempFileStore()
-        val repo = pdfRepo(fileStore)
         // No file on disk at all: only the cache can answer.
         val metrics = RecordingMetricsRepository(PublicationMetrics(ebookFileIno = "ino-1", pageCount = 11))
 
-        val count = IosPdfPageCountExtractor(repo::localPath, metrics).extract(item(inode = "ino-1"))
+        val count = IosPdfPageCountExtractor(downloader(fileStore), metrics).extract(item(inode = "ino-1"))
 
         assertEquals(11, count)
         assertEquals(0, metrics.saves, "a cache hit must not re-save")
@@ -173,11 +175,10 @@ class IosPdfAndCoverTest {
     @Test
     fun `page count extractor ignores a cached count from a different file inode`() = runTest {
         val fileStore = TempFileStore()
-        val repo = pdfRepo(fileStore)
         writePdf(fileStore.resolve("pdf-downloads", IosPdfPaths.downloadRelativePath("s1", "i1")), pages = 2)
         val metrics = RecordingMetricsRepository(PublicationMetrics(ebookFileIno = "stale-ino", pageCount = 99))
 
-        val count = IosPdfPageCountExtractor(repo::localPath, metrics).extract(item(inode = "ino-1"))
+        val count = IosPdfPageCountExtractor(downloader(fileStore), metrics).extract(item(inode = "ino-1"))
 
         assertEquals(2, count, "a re-uploaded file must be re-counted, not served from the stale entry")
     }
@@ -185,9 +186,8 @@ class IosPdfAndCoverTest {
     @Test
     fun `page count extractor returns null when the pdf is not stored locally`() = runTest {
         val fileStore = TempFileStore()
-        val repo = pdfRepo(fileStore)
 
-        assertNull(IosPdfPageCountExtractor(repo::localPath, RecordingMetricsRepository()).extract(item()))
+        assertNull(IosPdfPageCountExtractor(downloader(fileStore), RecordingMetricsRepository()).extract(item()))
     }
 
     @Test

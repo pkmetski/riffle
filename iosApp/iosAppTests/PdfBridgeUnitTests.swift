@@ -74,6 +74,21 @@ final class PdfBridgeUnitTests: XCTestCase {
                        "disposePdf must clear the tap callback")
     }
 
+    func testSetPageSpacingUpdatesPageBreakMargins() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        bridge.setPageSpacing(spacingPts: 24.0)
+        XCTAssertEqual(bridge.currentPageSpacingTop(), 24.0,
+                       "setPageSpacing must propagate spacing to PDFView.pageBreakMargins.top")
+    }
+
+    func testSetPageSpacingZeroClearsMargins() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        bridge.setPageSpacing(spacingPts: 32.0)
+        bridge.setPageSpacing(spacingPts: 0.0)
+        XCTAssertEqual(bridge.currentPageSpacingTop(), 0.0,
+                       "setPageSpacing(0) must clear the top page-break margin")
+    }
+
     func testOutlineReturnsEmptyForDocumentWithoutOutline() {
         let bridge = PdfKitNavigatorBridgeImpl()
         // No document opened — bridge should return an empty outline, not crash.

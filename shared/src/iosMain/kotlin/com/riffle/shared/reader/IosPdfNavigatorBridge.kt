@@ -34,6 +34,9 @@ interface IosPdfNavigatorBridge {
     /** Navigate to the given 0-based [pageIndex]. No-op if out of range. */
     fun goToPage(pageIndex: Int)
 
+    /** Set the vertical gap in points between pages in continuous scroll mode. 0 = no gap. */
+    fun setPageSpacing(spacingPts: Double)
+
     /** Register a callback invoked on every page change. Pass null to clear. */
     fun setPageChangeCallback(callback: IosPdfPageChangeCallback?)
 
