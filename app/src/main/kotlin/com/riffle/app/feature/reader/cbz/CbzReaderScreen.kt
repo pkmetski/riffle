@@ -48,6 +48,8 @@ import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.feature.reader.ui.CbzPanelViewer
 import com.riffle.feature.reader.ui.ChapterMapOverlay
+import com.riffle.feature.reader.ui.PanelReportSheet
+import com.riffle.feature.reader.ui.PanelReportViewModel
 import com.riffle.feature.reader.ui.chapterMapProgressLabelTemplates
 import com.riffle.feature.reader.ui.readerThemeLabelColor
 import org.koin.androidx.compose.koinViewModel
@@ -209,12 +211,14 @@ fun CbzReaderScreen(
                 repository = viewModel.panelReportRepository,
                 selectFailureTypeMessage = selectFailureTypeMessage,
                 markFalsePanelMessage = markFalsePanelMessage,
+                scope = coroutineScope,
             )
         }
         PanelReportSheet(
             viewModel = panelReportVm,
-            mask = mask,
             maskBitmap = maskBitmap,
+            maskWidth = mask.width,
+            maskHeight = mask.height,
             onSubmit = { panelReportVm.submit(maskPng) },
             onDismiss = { reportSheetOpen = false },
         )

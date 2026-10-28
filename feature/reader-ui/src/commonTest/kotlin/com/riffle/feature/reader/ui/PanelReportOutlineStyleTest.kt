@@ -1,17 +1,17 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader.ui
 
 import androidx.compose.ui.graphics.Color
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class PanelReportOutlineStyleTest {
 
     @Test
-    fun `default detected panel outline uses readable layered strokes`() {
+    fun default_detected_panel_outline_uses_readable_layered_strokes() {
         val style = panelReportOutlineStyle(selected = false, ordered = false)
 
         assertNotEquals(Color.Blue, style.foregroundColor)
@@ -24,21 +24,20 @@ class PanelReportOutlineStyleTest {
     }
 
     @Test
-    fun `selected and ordered outlines keep their semantic colors`() {
+    fun selected_and_ordered_outlines_keep_their_semantic_colors() {
         assertEquals(Color.Red, panelReportOutlineStyle(selected = true, ordered = false).foregroundColor)
         assertEquals(Color(0xFFFF9800), panelReportOutlineStyle(selected = false, ordered = true).foregroundColor)
     }
 
     @Test
-    fun `drawsRectangle returns true for MergedPanels MissedPanel and SplitPanel`() {
-        // Regression: MergedPanels was excluded, causing the drag to draw a line instead of a rect.
+    fun drawsRectangle_returns_true_for_MergedPanels_MissedPanel_SplitPanel() {
         assertTrue(drawsRectangle(PanelDetectionFailureType.MergedPanels))
         assertTrue(drawsRectangle(PanelDetectionFailureType.MissedPanel))
         assertTrue(drawsRectangle(PanelDetectionFailureType.SplitPanel))
     }
 
     @Test
-    fun `drawsRectangle returns false for non-rect failure types`() {
+    fun drawsRectangle_returns_false_for_non_rect_failure_types() {
         assertFalse(drawsRectangle(null))
         assertFalse(drawsRectangle(PanelDetectionFailureType.WrongPanelOrder))
         assertFalse(drawsRectangle(PanelDetectionFailureType.FalsePanel))

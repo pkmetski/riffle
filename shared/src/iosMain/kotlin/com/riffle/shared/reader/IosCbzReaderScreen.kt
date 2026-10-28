@@ -1,16 +1,8 @@
 package com.riffle.shared.reader
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -18,10 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,9 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
-import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
-import com.riffle.core.domain.comic.panel.PanelDetectionReport
+import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.models.LibraryItem
@@ -47,14 +34,16 @@ import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.ui.CbzReaderScreen
+import com.riffle.feature.reader.ui.PanelReportSheet
+import com.riffle.feature.reader.ui.PanelReportViewModel
+import com.riffle.feature.reader.ui.generated.resources.error_mark_false_panel
+import com.riffle.feature.reader.ui.generated.resources.error_select_failure_type
 import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.error_comic_page_load_failed
-import com.riffle.shared.generated.resources.ui_cancel
 import com.riffle.shared.generated.resources.ui_more_options
 import com.riffle.shared.generated.resources.ui_report_panel_detection_issue
-import com.riffle.shared.generated.resources.ui_submit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.delay
@@ -67,6 +56,7 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIAccessibilityIsReduceMotionEnabled
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import com.riffle.feature.reader.ui.generated.resources.Res as ReaderRes
 import org.jetbrains.skia.Image as SkiaImage
 
 @Suppress("ktlint:standard:function-naming")
@@ -138,7 +128,8 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
 
     val coroutineScope = rememberCoroutineScope()
     var reportSheetOpen by remember { mutableStateOf(false) }
-    var reportMaskPng by remember { mutableStateOf<ByteArray?>(null) }
+    var reportData by remember { mutableStateOf<Pair<PanelBinaryMask, ByteArray>?>(null) }
+    val currentPagePanels by vm.currentPagePanels.collectAsState()
 
     val pageContent: @Composable (Modifier, Int) -> Unit = { modifier, page ->
         val source = readyState?.imageSource
@@ -168,7 +159,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                             coroutineScope.launch(Dispatchers.IO) {
                                 val result = vm.generateMaskPng(currentPage)
                                 if (result != null) {
-                                    reportMaskPng = result.second
+                                    reportData = result
                                     reportSheetOpen = true
                                 }
                             }
@@ -189,14 +180,35 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         },
     )
 
-    val maskPng = reportMaskPng
-    if (reportSheetOpen && maskPng != null) {
-        IosPanelReportSheet(
-            bookId = vm.bookId,
-            pageIndex = currentPage,
-            maskPng = maskPng,
-            repository = panelReportRepository,
-            onDismiss = { reportSheetOpen = false; reportMaskPng = null },
+    val data = reportData
+    if (reportSheetOpen && data != null) {
+        val (mask, maskPng) = data
+        val selectFailureTypeMessage = stringResource(ReaderRes.string.error_select_failure_type)
+        val markFalsePanelMessage = stringResource(ReaderRes.string.error_mark_false_panel)
+        val maskBitmap = remember(mask) {
+            SkiaImage.makeFromEncoded(maskPng).toComposeImageBitmap()
+        }
+        val panelReportVm = remember(currentPage, selectFailureTypeMessage) {
+            PanelReportViewModel(
+                bookId = vm.bookId,
+                pageIndex = currentPage,
+                imageWidth = currentPagePanels?.imageWidth ?: mask.width,
+                imageHeight = currentPagePanels?.imageHeight ?: mask.height,
+                detectedPanels = currentPagePanels?.panels ?: emptyList(),
+                detectedSource = currentPagePanels?.source ?: PanelSource.Fallback,
+                repository = panelReportRepository,
+                selectFailureTypeMessage = selectFailureTypeMessage,
+                markFalsePanelMessage = markFalsePanelMessage,
+                scope = coroutineScope,
+            )
+        }
+        PanelReportSheet(
+            viewModel = panelReportVm,
+            maskBitmap = maskBitmap,
+            maskWidth = mask.width,
+            maskHeight = mask.height,
+            onSubmit = { panelReportVm.submit(maskPng) },
+            onDismiss = { reportSheetOpen = false; reportData = null },
         )
     }
 }
@@ -270,75 +282,4 @@ internal suspend fun <T : Any> iosDecodeWithRetry(
         delay(retryDelayMs)
     }
     return decode()
-}
-
-@Suppress("ktlint:standard:function-naming")
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun IosPanelReportSheet(
-    bookId: String,
-    pageIndex: Int,
-    maskPng: ByteArray,
-    repository: PanelReportRepository,
-    onDismiss: () -> Unit,
-) {
-    var selectedFailureType by remember { mutableStateOf(PanelDetectionFailureType.MissedPanel) }
-    var failureTypeMenuOpen by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.large) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = stringResource(Res.string.ui_report_panel_detection_issue),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Spacer(Modifier.height(16.dp))
-                Box {
-                    OutlinedButton(onClick = { failureTypeMenuOpen = true }) {
-                        Text(selectedFailureType.label)
-                    }
-                    DropdownMenu(
-                        expanded = failureTypeMenuOpen,
-                        onDismissRequest = { failureTypeMenuOpen = false },
-                    ) {
-                        PanelDetectionFailureType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.label) },
-                                onClick = { selectedFailureType = type; failureTypeMenuOpen = false },
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    horizontalArrangement = Arrangement.End,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) }
-                    TextButton(onClick = {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            repository.submit(
-                                report = PanelDetectionReport(
-                                    bookId = bookId,
-                                    pageIndex = pageIndex,
-                                    imageWidth = 0,
-                                    imageHeight = 0,
-                                    detectedPanels = emptyList(),
-                                    detectedSource = PanelSource.Fallback,
-                                    failureType = selectedFailureType,
-                                    notes = "",
-                                    tappedX = null,
-                                    tappedY = null,
-                                    tappedPanelIndex = null,
-                                ),
-                                maskPng = maskPng,
-                            )
-                        }
-                        onDismiss()
-                    }) { Text(stringResource(Res.string.ui_submit)) }
-                }
-            }
-        }
-    }
 }

@@ -1,18 +1,20 @@
 package com.riffle.app.feature.reader.cbz
 
+import com.riffle.core.domain.comic.panel.PanelBoundaryLine
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelSource
+import com.riffle.feature.reader.ui.PanelReportViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
-import com.riffle.core.domain.comic.panel.PanelBoundaryLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -24,6 +26,7 @@ import org.junit.Test
 class PanelReportViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
 
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
@@ -134,37 +137,11 @@ class PanelReportViewModelTest {
     }
 
     @Test
-    fun `tapping panel in WrongPanelOrder mode appends its index to orderedPanelIndices`() = runTest {
-        val panels = listOf(
-            PanelRegion(x = 0, y = 0, width = 100, height = 100),
-            PanelRegion(x = 100, y = 0, width = 100, height = 100),
-        )
-        val vm = makeVm(panels = panels)
-        vm.setFailureType(PanelDetectionFailureType.WrongPanelOrder)
-        vm.addOrRemoveOrderedPanel(1)
-        vm.addOrRemoveOrderedPanel(0)
-        assertEquals(listOf(1, 0), vm.state.value.orderedPanelIndices)
-    }
-
-    @Test
-    fun `re-tapping an already-ordered panel truncates sequence from that point`() = runTest {
-        val panels = List(3) { i -> PanelRegion(x = i * 100, y = 0, width = 100, height = 100) }
-        val vm = makeVm(panels = panels)
-        vm.setFailureType(PanelDetectionFailureType.WrongPanelOrder)
-        vm.addOrRemoveOrderedPanel(2)
-        vm.addOrRemoveOrderedPanel(0)
-        vm.addOrRemoveOrderedPanel(1)
-        // re-tap panel 0 (at position 1 in the sequence) → truncate to [2]
-        vm.addOrRemoveOrderedPanel(0)
-        assertEquals(listOf(2), vm.state.value.orderedPanelIndices)
-    }
-
-    @Test
     fun `setFailureType clears orderedPanelIndices`() = runTest {
         val panels = List(2) { i -> PanelRegion(x = i * 100, y = 0, width = 100, height = 100) }
         val vm = makeVm(panels = panels)
         vm.setFailureType(PanelDetectionFailureType.WrongPanelOrder)
-        vm.addOrRemoveOrderedPanel(0)
+        vm.tapForOrder(ix = 50, iy = 50)
         vm.setFailureType(PanelDetectionFailureType.FalsePanel)
         assertTrue(vm.state.value.orderedPanelIndices.isEmpty())
     }
@@ -181,8 +158,8 @@ class PanelReportViewModelTest {
         val panels = List(2) { i -> PanelRegion(x = i * 100, y = 0, width = 100, height = 100) }
         val vm = makeVm(panels = panels, repository = repo)
         vm.setFailureType(PanelDetectionFailureType.WrongPanelOrder)
-        vm.addOrRemoveOrderedPanel(1)
-        vm.addOrRemoveOrderedPanel(0)
+        vm.tapForOrder(ix = 100, iy = 50)
+        vm.tapForOrder(ix = 50, iy = 50)
         vm.submit(maskPng = ByteArray(0))
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(1, 0), capturedReport?.expectedPanelOrder)
@@ -362,5 +339,6 @@ class PanelReportViewModelTest {
         repository = repository,
         selectFailureTypeMessage = "Select a failure type before submitting",
         markFalsePanelMessage = "Mark at least one panel as false before submitting",
+        scope = testScope,
     )
 }

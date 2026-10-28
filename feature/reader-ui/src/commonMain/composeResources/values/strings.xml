@@ -107,4 +107,28 @@
     <string name="ui_progress_bar_at_the_bottom_of_the_page">Progress bar at the bottom of the page</string>
     <string name="ui_page_numbers">Page numbers</string>
     <string name="ui_current_page_and_remaining_pages">Current page and remaining pages</string>
+
+    <!-- Panel report sheet -->
+    <string name="ui_report_panel_detection_issue">Report panel detection issue</string>
+    <string name="ui_panel_report_select_issue_type">Select issue type</string>
+    <string name="ui_panel_report_draw_correct_boundaries">Draw the correct panel boundaries</string>
+    <string name="ui_panel_report_tap_cut_off_panel">Tap the cut-off panel to identify it; drag to draw its correct boundary</string>
+    <string name="ui_panel_report_draw_boundary_lines">Draw panel boundary lines</string>
+    <string name="ui_panel_report_mark_false_detections">Tap to mark or unmark panels as false detections</string>
+    <string name="ui_panel_report_tap_in_reading_order">Tap panels in the correct reading order. Tap a numbered panel to reset from that point.</string>
+    <string name="ui_panel_report_created">Created: %1$s</string>
+    <string name="ui_submit_to_github">Submit to GitHub</string>
+    <string name="ui_notes_optional">Notes (optional)</string>
+    <string name="ui_clear_last">Clear last</string>
+    <string name="error_select_failure_type">Select a failure type before submitting</string>
+    <string name="error_mark_false_panel">Mark at least one panel as false before submitting</string>
+
+    <!-- PanelDetectionFailureType localized labels -->
+    <string name="ui_panel_failure_missed_panel">Missed panel</string>
+    <string name="ui_panel_failure_merged_panels">Merged panels</string>
+    <string name="ui_panel_failure_split_panel">Split panel</string>
+    <string name="ui_panel_failure_false_panel">False panel</string>
+    <string name="ui_panel_failure_fell_back_to_full_page">Fell back to full page</string>
+    <string name="ui_panel_failure_cut_panel_cut_off">Panel cut off</string>
+    <string name="ui_panel_failure_wrong_panel_order">Wrong panel order</string>
 </resources>

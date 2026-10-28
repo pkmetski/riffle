@@ -1,13 +1,12 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader.ui
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.comic.panel.PanelBoundaryLine
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +29,11 @@ data class PanelReportUiState(
     val error: String? = null,
 )
 
+/**
+ * Shared view-model for the panel-detection report sheet. Identical logic to the former
+ * Android-only `PanelReportViewModel` but bound to a caller-supplied [CoroutineScope] so it
+ * works in both Android (pass `rememberCoroutineScope()`) and iOS (same).
+ */
 class PanelReportViewModel(
     val bookId: String,
     val pageIndex: Int,
@@ -40,30 +44,24 @@ class PanelReportViewModel(
     private val repository: PanelReportRepository,
     private val selectFailureTypeMessage: String,
     private val markFalsePanelMessage: String,
-) : ViewModel() {
-
+    private val scope: CoroutineScope,
+) {
     private val _state = MutableStateFlow(PanelReportUiState())
     val state: StateFlow<PanelReportUiState> = _state.asStateFlow()
 
     fun setFailureType(type: PanelDetectionFailureType) {
-        _state.update { it.copy(
-            failureType = type,
-            error = null,
-            tappedX = null,
-            tappedY = null,
-            tappedPanelIndex = null,
-            drawnPanels = emptyList(),
-            drawnBoundaries = emptyList(),
-            orderedPanelIndices = emptyList(),
-            falsePanelIndices = emptySet(),
-        ) }
-    }
-
-    fun addOrRemoveOrderedPanel(panelIndex: Int) {
-        _state.update { s ->
-            val existing = s.orderedPanelIndices.indexOf(panelIndex)
-            val updated = if (existing >= 0) s.orderedPanelIndices.take(existing) else s.orderedPanelIndices + panelIndex
-            s.copy(orderedPanelIndices = updated)
+        _state.update {
+            it.copy(
+                failureType = type,
+                error = null,
+                tappedX = null,
+                tappedY = null,
+                tappedPanelIndex = null,
+                drawnPanels = emptyList(),
+                drawnBoundaries = emptyList(),
+                orderedPanelIndices = emptyList(),
+                falsePanelIndices = emptySet(),
+            )
         }
     }
 
@@ -85,11 +83,20 @@ class PanelReportViewModel(
         val panelIndex = panelIndexAt(ix, iy)
         if (panelIndex < 0) return
         _state.update { s ->
-            val updated = if (panelIndex in s.falsePanelIndices)
+            val updated = if (panelIndex in s.falsePanelIndices) {
                 s.falsePanelIndices - panelIndex
-            else
+            } else {
                 s.falsePanelIndices + panelIndex
+            }
             s.copy(falsePanelIndices = updated)
+        }
+    }
+
+    private fun addOrRemoveOrderedPanel(panelIndex: Int) {
+        _state.update { s ->
+            val existing = s.orderedPanelIndices.indexOf(panelIndex)
+            val updated = if (existing >= 0) s.orderedPanelIndices.take(existing) else s.orderedPanelIndices + panelIndex
+            s.copy(orderedPanelIndices = updated)
         }
     }
 
@@ -97,10 +104,10 @@ class PanelReportViewModel(
         detectedPanels.indexOfFirst { p -> x in p.x until p.right && y in p.y until p.bottom }
 
     fun addDrawnPanel(x1: Int, y1: Int, x2: Int, y2: Int) {
-        val left = minOf(x1, x2).coerceIn(0, imageWidth - 1)
-        val top = minOf(y1, y2).coerceIn(0, imageHeight - 1)
-        val right = maxOf(x1, x2).coerceIn(0, imageWidth - 1)
-        val bottom = maxOf(y1, y2).coerceIn(0, imageHeight - 1)
+        val left = minOf(x1, x2).coerceIn(0, (imageWidth - 1).coerceAtLeast(0))
+        val top = minOf(y1, y2).coerceIn(0, (imageHeight - 1).coerceAtLeast(0))
+        val right = maxOf(x1, x2).coerceIn(0, (imageWidth - 1).coerceAtLeast(0))
+        val bottom = maxOf(y1, y2).coerceIn(0, (imageHeight - 1).coerceAtLeast(0))
         if (right <= left || bottom <= top) return
         val panel = PanelRegion(x = left, y = top, width = right - left, height = bottom - top)
         _state.update { it.copy(drawnPanels = it.drawnPanels + panel) }
@@ -111,11 +118,13 @@ class PanelReportViewModel(
     }
 
     fun addDrawnBoundary(x1: Int, y1: Int, x2: Int, y2: Int) {
+        val w = (imageWidth - 1).coerceAtLeast(0)
+        val h = (imageHeight - 1).coerceAtLeast(0)
         val line = PanelBoundaryLine(
-            x1 = x1.coerceIn(0, imageWidth - 1),
-            y1 = y1.coerceIn(0, imageHeight - 1),
-            x2 = x2.coerceIn(0, imageWidth - 1),
-            y2 = y2.coerceIn(0, imageHeight - 1),
+            x1 = x1.coerceIn(0, w),
+            y1 = y1.coerceIn(0, h),
+            x2 = x2.coerceIn(0, w),
+            y2 = y2.coerceIn(0, h),
         )
         _state.update { it.copy(drawnBoundaries = it.drawnBoundaries + line) }
     }
@@ -134,7 +143,7 @@ class PanelReportViewModel(
             _state.update { it.copy(error = markFalsePanelMessage) }
             return
         }
-        viewModelScope.launch {
+        scope.launch {
             _state.update { it.copy(submitting = true, error = null) }
             val s = _state.value
             val report = PanelDetectionReport(
@@ -155,8 +164,12 @@ class PanelReportViewModel(
                 falsePanelIndices = s.falsePanelIndices.sorted().takeIf { it.isNotEmpty() },
             )
             repository.submit(report, maskPng).fold(
-                onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url, submittedForFailureType = ft) } },
-                onFailure = { e -> _state.update { it.copy(submitting = false, error = e.message ?: "Unknown error") } },
+                onSuccess = { url ->
+                    _state.update { it.copy(submitting = false, submittedIssueUrl = url, submittedForFailureType = ft) }
+                },
+                onFailure = { e ->
+                    _state.update { it.copy(submitting = false, error = e.message ?: "Unknown error") }
+                },
             )
         }
     }

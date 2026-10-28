@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader.cbz
+package com.riffle.feature.reader.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -43,26 +43,63 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.riffle.core.domain.comic.panel.PanelBinaryMask
+import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
+import com.riffle.feature.reader.ui.generated.resources.Res
+import com.riffle.feature.reader.ui.generated.resources.ui_clear_last
+import com.riffle.feature.reader.ui.generated.resources.ui_notes_optional
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_cut_panel_cut_off
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_false_panel
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_fell_back_to_full_page
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_merged_panels
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_missed_panel
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_split_panel
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_failure_wrong_panel_order
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_created
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_draw_boundary_lines
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_draw_correct_boundaries
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_mark_false_detections
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_select_issue_type
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_tap_cut_off_panel
+import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_tap_in_reading_order
+import com.riffle.feature.reader.ui.generated.resources.ui_report_panel_detection_issue
+import com.riffle.feature.reader.ui.generated.resources.ui_submit_to_github
+import org.jetbrains.compose.resources.stringResource
+
+@Composable
+fun PanelDetectionFailureType.localizedLabel(): String = stringResource(
+    when (this) {
+        PanelDetectionFailureType.MissedPanel -> Res.string.ui_panel_failure_missed_panel
+        PanelDetectionFailureType.MergedPanels -> Res.string.ui_panel_failure_merged_panels
+        PanelDetectionFailureType.SplitPanel -> Res.string.ui_panel_failure_split_panel
+        PanelDetectionFailureType.FalsePanel -> Res.string.ui_panel_failure_false_panel
+        PanelDetectionFailureType.FellBackToFullPage -> Res.string.ui_panel_failure_fell_back_to_full_page
+        PanelDetectionFailureType.CutPanelCutOff -> Res.string.ui_panel_failure_cut_panel_cut_off
+        PanelDetectionFailureType.WrongPanelOrder -> Res.string.ui_panel_failure_wrong_panel_order
+    },
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun PanelReportSheet(
+fun PanelReportSheet(
     viewModel: PanelReportViewModel,
-    mask: PanelBinaryMask,
     maskBitmap: ImageBitmap,
+    maskWidth: Int,
+    maskHeight: Int,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val textMeasurer = rememberTextMeasurer()
 
     val cutOffMode = state.failureType == PanelDetectionFailureType.CutPanelCutOff
     val drawMode = state.failureType == PanelDetectionFailureType.MissedPanel ||
@@ -80,7 +117,8 @@ internal fun PanelReportSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_report_panel_detection_issue),
+            Text(
+                stringResource(Res.string.ui_report_panel_detection_issue),
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             )
 
@@ -91,7 +129,8 @@ internal fun PanelReportSheet(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(
-                    value = state.failureType?.label ?: androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_select_issue_type),
+                    value = state.failureType?.localizedLabel()
+                        ?: stringResource(Res.string.ui_panel_report_select_issue_type),
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -105,37 +144,26 @@ internal fun PanelReportSheet(
                 ) {
                     PanelDetectionFailureType.entries.forEach { ft ->
                         DropdownMenuItem(
-                            text = { Text(ft.label) },
-                            onClick = { viewModel.setFailureType(ft); expanded = false },
+                            text = { Text(ft.localizedLabel()) },
+                            onClick = {
+                                viewModel.setFailureType(ft)
+                                expanded = false
+                            },
                         )
                     }
                 }
             }
 
-            val labelPaint = remember {
-                android.graphics.Paint().apply {
-                    color = android.graphics.Color.WHITE
-                    textSize = 36f
-                    isFakeBoldText = true
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    setShadowLayer(3f, 1f, 1f, android.graphics.Color.BLACK)
-                }
-            }
             val orderedIndexMap = remember(state.orderedPanelIndices) {
                 state.orderedPanelIndices.withIndex().associate { (pos, idx) -> idx to pos }
             }
 
             var canvasSize by remember { mutableStateOf(IntSize.Zero) }
-            // Panel coordinates are in the original image space (pagePanels.imageWidth × imageHeight).
-            // Use imageWidth/imageHeight (not mask.width/height) as the reference so rectangles
-            // stay correctly positioned even when the mask bitmap was decoded at a different
-            // resolution (e.g. DPI-scaled by BitmapFactory inScaled=true).
-            val imageW = viewModel.imageWidth.takeIf { it > 0 } ?: mask.width
-            val imageH = viewModel.imageHeight.takeIf { it > 0 } ?: mask.height
+            val imageW = viewModel.imageWidth.takeIf { it > 0 } ?: maskWidth
+            val imageH = viewModel.imageHeight.takeIf { it > 0 } ?: maskHeight
             val scaleX = if (canvasSize.width > 0 && imageW > 0) canvasSize.width.toFloat() / imageW else 1f
             val scaleY = if (canvasSize.height > 0 && imageH > 0) canvasSize.height.toFloat() / imageH else 1f
 
-            // In-progress draw state (canvas coords, local only)
             var dragStart by remember { mutableStateOf<Offset?>(null) }
             var dragCurrent by remember { mutableStateOf<Offset?>(null) }
 
@@ -143,20 +171,23 @@ internal fun PanelReportSheet(
                 val hint = when (state.failureType) {
                     PanelDetectionFailureType.MissedPanel,
                     PanelDetectionFailureType.SplitPanel,
-                    PanelDetectionFailureType.MergedPanels -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_draw_correct_boundaries)
+                    PanelDetectionFailureType.MergedPanels ->
+                        stringResource(Res.string.ui_panel_report_draw_correct_boundaries)
                     PanelDetectionFailureType.CutPanelCutOff ->
-                        androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_tap_cut_off_panel)
-                    else -> androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_draw_boundary_lines)
+                        stringResource(Res.string.ui_panel_report_tap_cut_off_panel)
+                    else -> stringResource(Res.string.ui_panel_report_draw_boundary_lines)
                 }
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
             if (orderMode) {
-                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_tap_panels_in_the_correct_reading_order_tap_a_numbered_panel_to_reset_from_that),
+                Text(
+                    stringResource(Res.string.ui_panel_report_tap_in_reading_order),
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
             }
             if (falsePanelMode) {
-                Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_mark_false_detections),
+                Text(
+                    stringResource(Res.string.ui_panel_report_mark_false_detections),
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
             }
@@ -164,7 +195,7 @@ internal fun PanelReportSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(mask.width.toFloat() / mask.height.toFloat())
+                    .aspectRatio(maskWidth.toFloat() / maskHeight.toFloat().coerceAtLeast(1f))
                     .border(1.dp, Color.Gray)
                     .onSizeChanged { canvasSize = it }
                     .pointerInput(cutOffMode, drawMode, orderMode, falsePanelMode, state.failureType, canvasSize) {
@@ -182,9 +213,11 @@ internal fun PanelReportSheet(
                                     if (!change.pressed) break
                                     currentPos = change.position
                                     if (!crossedSlop) {
-                                        val dist = kotlin.math.hypot(
-                                            (currentPos.x - startPos.x).toDouble(),
-                                            (currentPos.y - startPos.y).toDouble(),
+                                        val dist = kotlin.math.sqrt(
+                                            (
+                                                (currentPos.x - startPos.x) * (currentPos.x - startPos.x) +
+                                                    (currentPos.y - startPos.y) * (currentPos.y - startPos.y)
+                                                ).toDouble(),
                                         )
                                         if (dist > viewConfiguration.touchSlop) {
                                             crossedSlop = true
@@ -195,43 +228,52 @@ internal fun PanelReportSheet(
                                 }
                                 if (scaleX > 0f && scaleY > 0f) {
                                     if (!crossedSlop) {
-                                        val ix = (startPos.x / scaleX).toInt().coerceIn(0, mask.width - 1)
-                                        val iy = (startPos.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                        val ix = (startPos.x / scaleX).toInt().coerceIn(0, maskWidth - 1)
+                                        val iy = (startPos.y / scaleY).toInt().coerceIn(0, maskHeight - 1)
                                         viewModel.onTap(tappedImageX = ix, tappedImageY = iy)
                                     } else {
-                                        val ix1 = (startPos.x / scaleX).toInt().coerceIn(0, mask.width - 1)
-                                        val iy1 = (startPos.y / scaleY).toInt().coerceIn(0, mask.height - 1)
-                                        val ix2 = (currentPos.x / scaleX).toInt().coerceIn(0, mask.width - 1)
-                                        val iy2 = (currentPos.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                        val ix1 = (startPos.x / scaleX).toInt().coerceIn(0, maskWidth - 1)
+                                        val iy1 = (startPos.y / scaleY).toInt().coerceIn(0, maskHeight - 1)
+                                        val ix2 = (currentPos.x / scaleX).toInt().coerceIn(0, maskWidth - 1)
+                                        val iy2 = (currentPos.y / scaleY).toInt().coerceIn(0, maskHeight - 1)
                                         viewModel.addDrawnPanel(ix1, iy1, ix2, iy2)
                                     }
                                 }
-                                dragStart = null; dragCurrent = null
+                                dragStart = null
+                                dragCurrent = null
                             }
                             drawMode -> detectDragGestures(
-                                onDragStart = { offset -> dragStart = offset; dragCurrent = offset },
+                                onDragStart = { offset ->
+                                    dragStart = offset
+                                    dragCurrent = offset
+                                },
                                 onDrag = { _, drag -> dragCurrent = dragCurrent?.plus(drag) },
                                 onDragEnd = {
-                                    val s = dragStart; val e = dragCurrent
+                                    val s = dragStart
+                                    val e = dragCurrent
                                     if (s != null && e != null && scaleX > 0f && scaleY > 0f) {
-                                        val ix1 = (s.x / scaleX).toInt().coerceIn(0, mask.width - 1)
-                                        val iy1 = (s.y / scaleY).toInt().coerceIn(0, mask.height - 1)
-                                        val ix2 = (e.x / scaleX).toInt().coerceIn(0, mask.width - 1)
-                                        val iy2 = (e.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                        val ix1 = (s.x / scaleX).toInt().coerceIn(0, maskWidth - 1)
+                                        val iy1 = (s.y / scaleY).toInt().coerceIn(0, maskHeight - 1)
+                                        val ix2 = (e.x / scaleX).toInt().coerceIn(0, maskWidth - 1)
+                                        val iy2 = (e.y / scaleY).toInt().coerceIn(0, maskHeight - 1)
                                         if (drawsRectangle) {
                                             viewModel.addDrawnPanel(ix1, iy1, ix2, iy2)
                                         } else {
                                             viewModel.addDrawnBoundary(ix1, iy1, ix2, iy2)
                                         }
                                     }
-                                    dragStart = null; dragCurrent = null
+                                    dragStart = null
+                                    dragCurrent = null
                                 },
-                                onDragCancel = { dragStart = null; dragCurrent = null },
+                                onDragCancel = {
+                                    dragStart = null
+                                    dragCurrent = null
+                                },
                             )
                             else -> detectTapGestures { offset ->
                                 if (scaleX > 0f && scaleY > 0f) {
-                                    val ix = (offset.x / scaleX).toInt().coerceIn(0, mask.width - 1)
-                                    val iy = (offset.y / scaleY).toInt().coerceIn(0, mask.height - 1)
+                                    val ix = (offset.x / scaleX).toInt().coerceIn(0, maskWidth - 1)
+                                    val iy = (offset.y / scaleY).toInt().coerceIn(0, maskHeight - 1)
                                     when {
                                         orderMode -> viewModel.tapForOrder(ix, iy)
                                         falsePanelMode -> viewModel.toggleFalsePanel(ix, iy)
@@ -248,35 +290,37 @@ internal fun PanelReportSheet(
                         dstSize = IntSize(size.width.toInt(), size.height.toInt()),
                     )
 
-                    // Detected panels
                     viewModel.detectedPanels.forEachIndexed { i, p ->
                         val orderPos = orderedIndexMap[i]
-                        val isOrdered = orderPos != null
                         val selected = if (falsePanelMode) i in state.falsePanelIndices else state.tappedPanelIndex == i
                         drawPanelReportOutline(
                             topLeft = Offset(p.x * scaleX, p.y * scaleY),
                             size = Size(p.width * scaleX, p.height * scaleY),
-                            style = panelReportOutlineStyle(selected = selected, ordered = isOrdered),
+                            style = panelReportOutlineStyle(selected = selected, ordered = orderPos != null),
                         )
                         if (orderPos != null) {
-                            drawIntoCanvas { canvas ->
-                                canvas.nativeCanvas.drawText(
-                                    "${orderPos + 1}",
-                                    (p.x + p.width / 2f) * scaleX,
-                                    (p.y + p.height / 2f) * scaleY + labelPaint.textSize / 2f - labelPaint.descent(),
-                                    labelPaint,
-                                )
-                            }
+                            val label = "${orderPos + 1}"
+                            val cx = (p.x + p.width / 2f) * scaleX
+                            val cy = (p.y + p.height / 2f) * scaleY
+                            val measured = textMeasurer.measure(
+                                label,
+                                style = TextStyle(color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                            )
+                            drawText(
+                                textMeasurer = textMeasurer,
+                                text = label,
+                                topLeft = Offset(cx - measured.size.width / 2f, cy - measured.size.height / 2f),
+                                style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                            )
                         }
                     }
 
-                    // Tap marker (non-draw mode)
-                    val tx = state.tappedX; val ty = state.tappedY
+                    val tx = state.tappedX
+                    val ty = state.tappedY
                     if (tx != null && ty != null && state.tappedPanelIndex == null) {
                         drawCircle(color = Color.Magenta, radius = 10f, center = Offset(tx * scaleX, ty * scaleY))
                     }
 
-                    // Committed drawn panels (green)
                     state.drawnPanels.forEach { p ->
                         drawRect(
                             color = Color(0xFF4CAF50),
@@ -286,7 +330,6 @@ internal fun PanelReportSheet(
                         )
                     }
 
-                    // Committed boundary lines (green)
                     state.drawnBoundaries.forEach { b ->
                         drawLine(
                             color = Color(0xFF4CAF50),
@@ -296,8 +339,8 @@ internal fun PanelReportSheet(
                         )
                     }
 
-                    // In-progress draw preview (yellow)
-                    val s = dragStart; val e = dragCurrent
+                    val s = dragStart
+                    val e = dragCurrent
                     if (s != null && e != null) {
                         if (drawsRectangle || cutOffMode) {
                             drawRect(
@@ -313,18 +356,18 @@ internal fun PanelReportSheet(
                 }
             }
 
-            // Clear last button in draw mode
             if (drawMode) {
                 val hasDrawn = state.drawnPanels.isNotEmpty() || state.drawnBoundaries.isNotEmpty()
                 if (hasDrawn) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         OutlinedButton(onClick = {
-                            if (drawsRectangle || cutOffMode)
+                            if (drawsRectangle || cutOffMode) {
                                 viewModel.clearLastDrawnPanel()
-                            else
+                            } else {
                                 viewModel.clearLastDrawnBoundary()
+                            }
                         }) {
-                            Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_clear_last))
+                            Text(stringResource(Res.string.ui_clear_last))
                         }
                     }
                 }
@@ -333,7 +376,7 @@ internal fun PanelReportSheet(
             OutlinedTextField(
                 value = state.notes,
                 onValueChange = viewModel::setNotes,
-                label = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_notes_optional)) },
+                label = { Text(stringResource(Res.string.ui_notes_optional)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
@@ -345,7 +388,7 @@ internal fun PanelReportSheet(
             val submittedIssueUrl = state.submittedIssueUrl
             if (submittedIssueUrl != null) {
                 Text(
-                    androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_report_created, submittedIssueUrl),
+                    stringResource(Res.string.ui_panel_report_created, submittedIssueUrl),
                     color = Color(0xFF388E3C),
                 )
             }
@@ -355,8 +398,11 @@ internal fun PanelReportSheet(
                 enabled = !state.submitting && (state.submittedIssueUrl == null || state.failureType != state.submittedForFailureType),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                if (state.submitting) CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                else Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_submit_to_github))
+                if (state.submitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                } else {
+                    Text(stringResource(Res.string.ui_submit_to_github))
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -373,10 +419,7 @@ internal data class PanelReportOutlineStyle(
     val foregroundWidth: Float,
 )
 
-internal fun panelReportOutlineStyle(
-    selected: Boolean,
-    ordered: Boolean,
-): PanelReportOutlineStyle {
+internal fun panelReportOutlineStyle(selected: Boolean, ordered: Boolean): PanelReportOutlineStyle {
     val foreground = when {
         ordered -> Color(0xFFFF9800)
         selected -> Color.Red
@@ -398,27 +441,8 @@ internal fun drawsRectangle(failureType: PanelDetectionFailureType?): Boolean =
         failureType == PanelDetectionFailureType.SplitPanel ||
         failureType == PanelDetectionFailureType.MergedPanels
 
-private fun DrawScope.drawPanelReportOutline(
-    topLeft: Offset,
-    size: Size,
-    style: PanelReportOutlineStyle,
-) {
-    drawRect(
-        color = style.haloColor,
-        topLeft = topLeft,
-        size = size,
-        style = Stroke(width = style.haloWidth),
-    )
-    drawRect(
-        color = style.contrastColor,
-        topLeft = topLeft,
-        size = size,
-        style = Stroke(width = style.contrastWidth),
-    )
-    drawRect(
-        color = style.foregroundColor,
-        topLeft = topLeft,
-        size = size,
-        style = Stroke(width = style.foregroundWidth),
-    )
+private fun DrawScope.drawPanelReportOutline(topLeft: Offset, size: Size, style: PanelReportOutlineStyle) {
+    drawRect(color = style.haloColor, topLeft = topLeft, size = size, style = Stroke(width = style.haloWidth))
+    drawRect(color = style.contrastColor, topLeft = topLeft, size = size, style = Stroke(width = style.contrastWidth))
+    drawRect(color = style.foregroundColor, topLeft = topLeft, size = size, style = Stroke(width = style.foregroundWidth))
 }

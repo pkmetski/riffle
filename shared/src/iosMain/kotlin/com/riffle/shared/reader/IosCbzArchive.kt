@@ -1,5 +1,6 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.domain.comic.ComicBookmark
 import com.riffle.core.domain.comic.ComicImageSource
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -36,9 +37,15 @@ class IosCbzArchive(private val archiveBytes: ByteArray) : ComicImageSource {
     )
 
     private val entries: List<Entry>
+    private val comicInfoEntry: Entry?
 
     init {
-        entries = parseCentralDirectory()
+        val all = parseCentralDirectory()
+        comicInfoEntry = all.firstOrNull { e ->
+            e.name.equals("ComicInfo.xml", ignoreCase = true) ||
+                e.name.endsWith("/ComicInfo.xml", ignoreCase = true)
+        }
+        entries = all
             .filter { !it.name.contains("__MACOSX", ignoreCase = false) }
             .filter { !it.name.substringAfterLast('/').startsWith(".") }
             .mapNotNull { e ->
@@ -47,6 +54,35 @@ class IosCbzArchive(private val archiveBytes: ByteArray) : ComicImageSource {
                 e.copy(mediaType = media)
             }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+    }
+
+    fun readComicInfo(): List<ComicBookmark>? {
+        val entry = comicInfoEntry ?: return null
+        return try {
+            val dataOffset = localFileDataOffset(entry.localHeaderOffset)
+            val xmlBytes = if (entry.compressionMethod == COMPRESSION_STORED) {
+                archiveBytes.copyOfRange(dataOffset, dataOffset + entry.compressedSize)
+            } else {
+                inflate(archiveBytes, dataOffset, entry.compressedSize, entry.uncompressedSize)
+            }
+            parseComicInfoXml(xmlBytes.decodeToString())
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    internal fun parseComicInfoXml(xml: String): List<ComicBookmark>? {
+        val bookmarks = mutableListOf<ComicBookmark>()
+        val pagePattern = Regex("""<Page\b([^/]*?)(?:/>|>)""")
+        val attrPattern = Regex("""(\w+)\s*=\s*"([^"]*)"""")
+        for (pageMatch in pagePattern.findAll(xml)) {
+            val attrs = attrPattern.findAll(pageMatch.groupValues[1])
+                .associate { it.groupValues[1] to it.groupValues[2] }
+            val bookmark = attrs["Bookmark"]?.takeIf { it.isNotBlank() } ?: continue
+            val pageIndex = attrs["Image"]?.toIntOrNull() ?: continue
+            bookmarks += ComicBookmark(pageIndex = pageIndex, title = bookmark)
+        }
+        return bookmarks.takeIf { it.isNotEmpty() }
     }
 
     override val pageCount: Int get() = entries.size
