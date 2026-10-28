@@ -14,6 +14,7 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
@@ -22,14 +23,17 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.launch
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -125,6 +129,7 @@ class LibraryItemDetailViewModelTest {
         itemId: String = "item1",
         sourceId: String? = "source1",
         inToRead: Boolean = false,
+        bookImportManager: com.riffle.feature.library.BookImportManager = FakeBookImportManager(),
     ) = LibraryItemDetailViewModel(
         itemId = itemId,
         sourceId = sourceId,
@@ -149,7 +154,7 @@ class LibraryItemDetailViewModelTest {
         readaloudOfflineDownloader = FakeReadaloudOfflineDownloader,
         connectivityObserver = makeConnectivityObserver(),
         downloadManager = FakeDownloadManager(),
-        bookImportManager = FakeBookImportManager(),
+        bookImportManager = bookImportManager,
         crossEpubIndexBuildTrigger = FakeCrossEpubIndexBuildTrigger,
         sidecarPrefetcher = FakeReadaloudSidecarPrefetcher,
         epubTocExtractor = FakeEpubTocExtractor(),
@@ -196,5 +201,22 @@ class LibraryItemDetailViewModelTest {
 
         val toggled = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(toggled.isInToRead, "Expected isInToRead=true after toggle")
+    }
+
+    @Test
+    fun bookImportFailureEmitsSnackbar() = runTest(mainDispatcher) {
+        val importManager = FakeBookImportManager()
+        val vm = makeViewModel(bookImportManager = importManager)
+        testScheduler.advanceUntilIdle()
+
+        val snackbars = mutableListOf<String>()
+        val job = launch { vm.snackbarEvents.collect { snackbars.add(it) } }
+
+        // key must start with "import:source1:item1:" — the prefix importKeyPrefix(fakeItem) uses
+        importManager.emit("import:source1:item1:dest:lib", BookImportState.Failed("Upload failed"))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf("Upload failed"), snackbars)
+        job.cancel()
     }
 }
