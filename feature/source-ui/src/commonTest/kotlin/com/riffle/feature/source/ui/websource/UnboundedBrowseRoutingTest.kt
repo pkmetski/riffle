@@ -24,7 +24,7 @@ class UnboundedBrowseRoutingTest {
 
     @Test
     fun rendersTheBrowseScreenForEveryUnboundedCatalogue() {
-        listOf(SourceType.CHITANKA, SourceType.GUTENBERG, SourceType.RADIO_ES).forEach { type ->
+        listOf(SourceType.CHITANKA, SourceType.GUTENBERG, SourceType.RADIO_ES, SourceType.OREILLY).forEach { type ->
             assertTrue(
                 shouldRenderUnboundedBrowse(type),
                 "$type is an unbounded catalogue with no library_items mirror — " +
@@ -52,11 +52,12 @@ class UnboundedBrowseRoutingTest {
     }
 
     @Test
-    fun doesNotRouteOReillyWhichHasNoIosLogin() {
-        // O'Reilly is `isUnboundedCatalog` but authenticates through a WebView login iOS does not
-        // implement, so `unboundedBrowseViewModel` has no branch for it and would error. Keeping
-        // it out of the routing set is what makes that unreachable rather than a latent crash.
-        assertFalse(shouldRenderUnboundedBrowse(SourceType.OREILLY))
+    fun routesOReillyToUnboundedBrowse() {
+        // O'Reilly is `isUnboundedCatalog`; both Android and iOS implement the WebView login, so
+        // `unboundedBrowseViewModel` has a branch for OREILLY and the host must render the browse
+        // screen (not the always-empty library_items screen). Reverting this to assertFalse would
+        // silently break the O'Reilly browse surface on both platforms.
+        assertTrue(shouldRenderUnboundedBrowse(SourceType.OREILLY))
     }
 
     @Test

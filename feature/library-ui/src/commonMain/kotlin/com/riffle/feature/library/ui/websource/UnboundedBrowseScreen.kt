@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -97,8 +98,9 @@ fun UnboundedBrowseScreen(
     // The VM upserts the tapped CatalogItem into `library_items` through WebSourceItemGate and
     // only then emits, so the detail screen's LibraryObserver.getItem can resolve it. Same
     // contract Android's browse screens collect.
+    val currentOnOpenDetail by rememberUpdatedState(onOpenDetail)
     LaunchedEffect(viewModel) {
-        viewModel.openDetailEvents.collect { event -> onOpenDetail(event.itemId) }
+        viewModel.openDetailEvents.collect { event -> currentOnOpenDetail(event.itemId) }
     }
 
     val query by viewModel.query.collectAsState()
