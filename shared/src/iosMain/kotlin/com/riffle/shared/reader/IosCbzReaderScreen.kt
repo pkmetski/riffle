@@ -45,6 +45,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
+import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.ui.CbzReaderScreen
 import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import com.riffle.shared.IosAppActiveEvents
@@ -81,7 +82,15 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val developerModeEnabled by vm.developerModeEnabled.collectAsState()
     val currentPage by vm.currentPage.collectAsState()
 
-    var isImmersive by remember { mutableStateOf(false) }
+    val immersiveClock = remember { kotlin.time.TimeSource.Monotonic.markNow() }
+    val immersiveState = remember {
+        ImmersiveModeState(
+            controller = IosSystemBarsController,
+            clock = { immersiveClock.elapsedNow().inWholeMilliseconds },
+            initialIsImmersive = false,
+        )
+    }
+    val isImmersive by immersiveState.isImmersive.collectAsState()
     val ready by vm.state.collectAsState()
     val readyState = ready as? CbzReaderState.Ready
     val pageCache = remember(readyState?.imageSource) { mutableMapOf<Int, ImageBitmap>() }
@@ -121,11 +130,8 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         appActiveEvents.becameActive.collect { vm.onReaderResumed() }
     }
 
-    LaunchedEffect(isImmersive) {
-        IosStatusBarBridge.setHidden(isImmersive)
-    }
-    DisposableEffect(Unit) {
-        onDispose { IosStatusBarBridge.setHidden(false) }
+    DisposableEffect(immersiveState) {
+        onDispose { immersiveState.show() }
     }
 
     val isReduceMotion = remember { UIAccessibilityIsReduceMotionEnabled() }
@@ -145,7 +151,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         viewModel = vm,
         onNavigateBack = onBack,
         isImmersive = isImmersive,
-        onToggleImmersive = { isImmersive = !isImmersive },
+        onToggleImmersive = immersiveState::toggle,
         pageContent = pageContent,
         thumbnailContent = pageContent,
         extraTopBarActions = {
