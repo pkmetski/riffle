@@ -165,4 +165,13 @@
     <string name="ui_in_to_read">В списъка за четене</string>
     <string name="ui_add_to_to_read">Добави в списъка за четене</string>
     <string name="ui_you_are_offline">Офлайн сте</string>
+    <string name="ui_add_local_folder">Добавяне на локална папка</string>
+    <string name="ui_opening_folder_picker">Отваряне на избор на папка…</string>
+    <string name="ui_scanning_your_folder">Сканиране на вашата папка…</string>
+    <string name="ui_no_folder_picked">Не е избрана папка.</string>
+    <string name="ui_pick_a_folder">Изберете папка</string>
+    <string name="ui_added_books_count">Добавени %1$d книга(и).</string>
+    <string name="ui_items_could_not_be_read_count">%1$d елемент(и) не можаха да бъдат прочетени.</string>
+    <string name="ui_no_supported_books_found_in_folder">В папката не са намерени поддържани книги.</string>
+    <string name="ui_couldn_t_add_that_folder">Папката не можа да бъде добавена.</string>
 </resources>

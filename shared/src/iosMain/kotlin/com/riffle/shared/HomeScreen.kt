@@ -1,19 +1,21 @@
 package com.riffle.shared
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
-import com.riffle.core.logging.LogChannel
-import com.riffle.core.logging.Logger
 import com.riffle.feature.shellui.AppShell
 import com.riffle.feature.shellui.AppShellSlots
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import platform.Foundation.NSBundle
 
@@ -28,8 +30,19 @@ fun HomeScreen() {
 
     val folderPicker = koinInject<FolderPickerInterface>()
     val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
-    val localFilesLogger = koinInject<Logger>()
     val scope = rememberCoroutineScope()
+    var showAddLocalFiles by remember { mutableStateOf(false) }
+
+    if (showAddLocalFiles) {
+        val viewModel = remember { AddLocalFilesCommonViewModel(localFilesInstaller, scope) }
+        AddLocalFilesScreen(
+            onDone = { showAddLocalFiles = false },
+            onNavigateBack = { showAddLocalFiles = false },
+            onPickFolder = { folderPicker.pickFolder { uri -> viewModel.onFolderPicked(uri) } },
+            viewModel = viewModel,
+        )
+        return
+    }
 
     AppShell(
         slots = AppShellSlots(
@@ -63,16 +76,7 @@ fun HomeScreen() {
             },
             appVersion = iosAppVersion,
             appSha = iosAppSha,
-            localFilePicker = {
-                folderPicker.pickFolder { uri ->
-                    if (uri != null) {
-                        scope.launch {
-                            runCatching { localFilesInstaller.installFolder(uri) }
-                                .onFailure { localFilesLogger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
-                        }
-                    }
-                }
-            },
+            localFilePicker = { showAddLocalFiles = true },
         ),
     )
 }

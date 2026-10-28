@@ -36,7 +36,7 @@ final class LibraryNavStackTests: XCTestCase {
             "App must open on the source-type picker when no sources are configured"
         )
         // nav_back maps from TestTags.NAV_BACK via the Compose → accessibilityIdentifier bridge.
-        let backButton = app.buttons.matching(identifier: "nav_back").firstMatch
+        let backButton = app.buttons.matching(identifier: RiffleTestTags.navBack).firstMatch
         XCTAssertFalse(backButton.exists, "Stack root (source-type picker) must not have a back button")
     }
 

@@ -165,4 +165,13 @@
     <string name="ui_in_to_read">En por leer</string>
     <string name="ui_add_to_to_read">Añadir a por leer</string>
     <string name="ui_you_are_offline">No tienes conexión</string>
+    <string name="ui_add_local_folder">Añadir carpeta local</string>
+    <string name="ui_opening_folder_picker">Abriendo el selector de carpetas…</string>
+    <string name="ui_scanning_your_folder">Escaneando tu carpeta…</string>
+    <string name="ui_no_folder_picked">No se seleccionó ninguna carpeta.</string>
+    <string name="ui_pick_a_folder">Seleccionar una carpeta</string>
+    <string name="ui_added_books_count">%1$d libro(s) añadido(s).</string>
+    <string name="ui_items_could_not_be_read_count">%1$d elemento(s) no se pudieron leer.</string>
+    <string name="ui_no_supported_books_found_in_folder">No se encontraron libros compatibles en esa carpeta.</string>
+    <string name="ui_couldn_t_add_that_folder">No se pudo añadir esa carpeta.</string>
 </resources>

@@ -30,7 +30,7 @@ final class OnboardingNavIconTests: XCTestCase {
                       "App must start on the source picker in first-run mode")
 
         // nav_back is the accessibilityIdentifier mapped from TestTags.NAV_BACK.
-        let backButton = app.buttons.matching(identifier: "nav_back").firstMatch
+        let backButton = app.buttons.matching(identifier: RiffleTestTags.navBack).firstMatch
         XCTAssertFalse(backButton.exists,
                        "Back button must not be present on the picker during first-run onboarding")
     }
@@ -49,7 +49,7 @@ final class OnboardingNavIconTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Add Audiobookshelf"].waitForExistence(timeout: 10),
                       "Add Audiobookshelf screen must appear after tapping the card")
 
-        let backButton = app.buttons.matching(identifier: "nav_back").firstMatch
+        let backButton = app.buttons.matching(identifier: RiffleTestTags.navBack).firstMatch
         XCTAssertFalse(backButton.exists,
                        "Back button must not be present on AddSource screen during first-run onboarding")
     }

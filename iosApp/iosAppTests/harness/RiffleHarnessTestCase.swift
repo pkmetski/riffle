@@ -71,7 +71,7 @@ func seedSourceArgument(type: String, url: String, username: String, password: S
 func waitForSeededLibraryHome(in app: XCUIApplication, sourceName: String) {
     // Match by accessibilityIdentifier (testTag) so this works in any locale — "Open menu" becomes
     // "Отворете менюто" in Bulgarian and would never match app.buttons["Open menu"].
-    let burger = app.descendants(matching: .any).matching(identifier: "nav_drawer_toggle").firstMatch
+    let burger = app.descendants(matching: .any).matching(identifier: RiffleTestTags.navDrawerToggle).firstMatch
     // Cold launch + seeded-source install + first library load on a 3-core CI runner shared between
     // two simulator clones. 60s was marginal before #1066 grew the harness to 39 tests; 150s proved
     // too tight once two heavy suites (ProgressPipelineTests + AudiobookPlayerTests) landed on both
@@ -250,7 +250,7 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
 func waitForLibraryHome(in app: XCUIApplication, timeout: TimeInterval = 120) -> Bool {
     // Fast path: nav-drawer toggle (stable testTag, locale-independent) = library tab visible.
     // Matching by accessibilityIdentifier avoids "Open menu" → "Отворете менюто" locale drift.
-    let burger = app.descendants(matching: .any).matching(identifier: "nav_drawer_toggle").firstMatch
+    let burger = app.descendants(matching: .any).matching(identifier: RiffleTestTags.navDrawerToggle).firstMatch
     let fastTimeout = min(timeout, 15)
     if burger.waitForExistence(timeout: fastTimeout) { return true }
 

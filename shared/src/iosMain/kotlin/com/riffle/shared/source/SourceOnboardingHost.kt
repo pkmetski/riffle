@@ -13,8 +13,6 @@ import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.WebSourceDescriptors
-import com.riffle.core.logging.LogChannel
-import com.riffle.core.logging.Logger
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.isExpandedWidth
@@ -26,8 +24,9 @@ import com.riffle.feature.source.ui.SelectLibrariesScreen
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
 import com.riffle.feature.source.ui.SingletonSourceConfirmScreen
 import com.riffle.feature.source.ui.SourceTypePickerScreen
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
@@ -60,7 +59,6 @@ fun SourceOnboardingHost(
     val folderPicker = koinInject<FolderPickerInterface>()
     val localFilesInstaller = koinInject<LocalFilesInstallerInterface>()
     val singletonInstaller = koinInject<SingletonWebSourceInstaller>()
-    val logger = koinInject<Logger>()
     val scope = rememberCoroutineScope()
 
     // When an initialBackend is provided (edit-source routing), skip the picker and go directly
@@ -76,18 +74,14 @@ fun SourceOnboardingHost(
     // backing out within the flow returns to the appropriate previous step rather than dismissing
     // the host view controller. At the picker level with canNavigateBack=false (first-run
     // onboarding) there is intentionally no BackHandler — the user must complete the flow.
-    // SelectLibraries goes back to Credentials (mirroring Android's nav-graph popBackStack), not
-    // all the way to Picker.
+    // SelectLibraries goes back to Picker (matching Android's AndroidOnboardingSlot behaviour).
     val isSubStep = step != OnboardingStep.Picker
     val isEditRouting = initialBackend != null
     BackHandler(enabled = isSubStep) {
         if (isEditRouting && step is OnboardingStep.Credentials) {
             onCancelled()
         } else {
-            step = when (val s = step) {
-                is OnboardingStep.SelectLibraries -> OnboardingStep.Credentials(s.sourceType, s.serverType)
-                else -> OnboardingStep.Picker
-            }
+            step = OnboardingStep.Picker
         }
     }
 
@@ -104,14 +98,7 @@ fun SourceOnboardingHost(
             onNavigateBack = onCancelled,
             onPick = { type ->
                 when {
-                    type == SourceType.LOCAL_FILES -> folderPicker.pickFolder { uri ->
-                        if (uri == null) return@pickFolder
-                        scope.launch {
-                            runCatching { localFilesInstaller.installFolder(uri) }
-                                .onSuccess { onFinished() }
-                                .onFailure { logger.e(LogChannel.LocalFiles, it) { "installFolder failed" } }
-                        }
-                    }
+                    type == SourceType.LOCAL_FILES -> step = OnboardingStep.LocalFiles
                     type == SourceType.OREILLY -> step = OnboardingStep.OReillyLogin
                     // Zero-config public catalogues (Chitanka, Gutenberg, radio.es): show a
                     // confirmation screen (mirroring Android's AddChitankaScreen etc.) before
@@ -123,7 +110,6 @@ fun SourceOnboardingHost(
             },
             installedTypes = installedTypes,
             developerModeEnabled = developerModeEnabled,
-            enabledTypes = iosSupportedSourceTypes(),
         )
 
         is OnboardingStep.Credentials -> {
@@ -153,7 +139,7 @@ fun SourceOnboardingHost(
             SelectLibrariesScreen(
                 isExpandedWidth = expandedWidth,
                 pending = current.pending,
-                onNavigateBack = { step = OnboardingStep.Credentials(current.sourceType, current.serverType) },
+                onNavigateBack = { step = OnboardingStep.Picker },
                 onContinueComplete = onFinished,
                 viewModel = viewModel,
             )
@@ -163,12 +149,23 @@ fun SourceOnboardingHost(
             onDone = onFinished,
             onNavigateBack = { step = OnboardingStep.Picker },
         )
+
+        OnboardingStep.LocalFiles -> {
+            val viewModel = remember { AddLocalFilesCommonViewModel(localFilesInstaller, scope) }
+            AddLocalFilesScreen(
+                onDone = onFinished,
+                onNavigateBack = { step = OnboardingStep.Picker },
+                onPickFolder = { folderPicker.pickFolder { uri -> viewModel.onFolderPicked(uri) } },
+                viewModel = viewModel,
+            )
+        }
     }
 }
 
 private sealed interface OnboardingStep {
     data object Picker : OnboardingStep
     data object OReillyLogin : OnboardingStep
+    data object LocalFiles : OnboardingStep
     data class Confirm(val type: SourceType) : OnboardingStep
     data class Credentials(val type: SourceType, val serverType: ServerType = ServerType.AUDIOBOOKSHELF) : OnboardingStep
     data class SelectLibraries(val pending: PendingSource, val sourceType: SourceType, val serverType: ServerType = ServerType.AUDIOBOOKSHELF) : OnboardingStep

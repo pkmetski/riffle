@@ -1,11 +1,7 @@
 package com.riffle.core.network
 
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.darwin.Darwin
 import io.ktor.client.engine.darwin.DarwinHttpRequestException
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.*
 import platform.Security.*
@@ -24,19 +20,15 @@ internal actual fun newSSLHandshakeException(msg: String): Throwable = Exception
 
 internal actual fun newIOException(msg: String): Throwable = Exception(msg)
 
-// Mirrors the standard Darwin client (KtorClientFactory) but adds a ChallengeHandler that accepts
-// self-signed certificates. Ktor's HttpClient.config {} types the engine block as the base
-// HttpClientEngineConfig, which doesn't expose DarwinClientEngineConfig.handleChallenge, so we
-// construct a fresh Darwin client rather than patching the existing one.
+// Adds a ChallengeHandler that accepts self-signed certificates while preserving all plugins
+// (ContentNegotiation, HttpTimeout, auth, etc.) from the base client via config {}.
+// The engine block receiver is typed as HttpClientEngineConfig in the common API, but at runtime
+// it is always DarwinClientEngineConfig when the client was created with the Darwin engine.
 @OptIn(ExperimentalForeignApi::class)
-actual fun HttpClient.withInsecureTls(): HttpClient = HttpClient(Darwin) {
-    install(ContentNegotiation) { json(RIFFLE_JSON) }
-    install(HttpTimeout) {
-        connectTimeoutMillis = 15_000L
-        requestTimeoutMillis = 30_000L
-    }
+actual fun HttpClient.withInsecureTls(): HttpClient = config {
     engine {
-        handleChallenge { _, _, challenge, completionHandler ->
+        @Suppress("UNCHECKED_CAST")
+        (this as io.ktor.client.engine.darwin.DarwinClientEngineConfig).handleChallenge { _, _, challenge, completionHandler ->
             if (challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust) {
                 val serverTrust = challenge.protectionSpace.serverTrust
                 @Suppress("ARGUMENT_TYPE_MISMATCH")
