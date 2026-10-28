@@ -1045,6 +1045,15 @@ class LibraryItemDetailViewModel constructor(
             com.riffle.core.models.EbookFormat.Unsupported -> if (hasAudio) BookFormat.Audiobook else BookFormat.Unsupported
         },
         hasAudio = hasAudio,
+        audioDurationSec = audioDurationSec,
+        description = description,
+        seriesName = seriesName,
+        publishedYear = publishedYear,
+        genres = genres,
+        publisher = publisher,
+        language = language,
+        isbn = isbn,
+        asin = asin,
     )
 }
 
