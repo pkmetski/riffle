@@ -8,6 +8,7 @@ import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheKey
+import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadingPositionStore
@@ -205,6 +206,7 @@ class IosCbzRepositoryTest {
         catalogRegistry = noCatalogs,
         contentCacheAccessStore = access,
         localAvailabilityEvents = events,
+        dispatchers = IosDispatcherProvider,
     )
 
     @Test

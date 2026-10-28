@@ -551,6 +551,7 @@ private fun iosLibraryModule(
             catalogRegistry = get(),
             contentCacheAccessStore = get(),
             localAvailabilityEvents = get(),
+            dispatchers = get(),
         )
     }
     single<ReadingSessionRepository> {

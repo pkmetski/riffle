@@ -106,10 +106,10 @@ import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.data.comic.panel.IosJsonPanelStore
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.ColorPageDecoder
-import com.riffle.core.domain.comic.panel.InMemoryPanelStore
 import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PanelDetectionConfig
 import com.riffle.core.domain.comic.panel.PanelEngine
@@ -160,7 +160,7 @@ val iosDataModule = module {
     single<PackDownloaderInterface> { IosPackDownloaderImpl(get(), get(), get(), get()) }
     single<ColorPageDecoder> { IosColorPageDecoder() }
     single<PageImageDecoder> { IosPageImageDecoder() }
-    single<PanelStore> { InMemoryPanelStore() }
+    single<PanelStore> { IosJsonPanelStore(get<FileStore>().resolve("comic-panels", "")) }
     single<PanelEngine> { PanelOrchestrator(PanelDetectionConfig(), get(), get<PageImageDecoder>()) }
     single<PanelMaskService> { IosPanelMaskServiceImpl(PanelDetectionConfig(), get<PageImageDecoder>(), get()) }
 

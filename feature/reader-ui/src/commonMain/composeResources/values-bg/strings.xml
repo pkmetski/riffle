@@ -105,4 +105,28 @@
     <string name="ui_progress_bar_at_the_bottom_of_the_page">Лента за напредък в долната част на страницата</string>
     <string name="ui_page_numbers">Номерата на страниците</string>
     <string name="ui_current_page_and_remaining_pages">Текуща страница и оставащи страници</string>
+
+    <!-- Panel report sheet -->
+    <string name="ui_report_panel_detection_issue">Докладвай проблем с панел</string>
+    <string name="ui_panel_report_select_issue_type">Избери тип проблем</string>
+    <string name="ui_panel_report_draw_correct_boundaries">Нарисувай правилните граници на панела</string>
+    <string name="ui_panel_report_tap_cut_off_panel">Докосни отрязания панел за идентификация; плъзни за да нарисуваш правилните му граници</string>
+    <string name="ui_panel_report_draw_boundary_lines">Нарисувай граничните линии на панела</string>
+    <string name="ui_panel_report_mark_false_detections">Докосни за да маркираш или размаркираш панели като фалшиви детекции</string>
+    <string name="ui_panel_report_tap_in_reading_order">Докосни панелите в правилния ред на четене. Докосни номериран панел за нулиране от тази точка.</string>
+    <string name="ui_panel_report_created">Създаден: %1$s</string>
+    <string name="ui_submit_to_github">Изпрати в GitHub</string>
+    <string name="ui_notes_optional">Бележки (незадължително)</string>
+    <string name="ui_clear_last">Изчисти последния</string>
+    <string name="error_select_failure_type">Избери тип грешка преди изпращане</string>
+    <string name="error_mark_false_panel">Маркирай поне един панел като фалшив преди изпращане</string>
+
+    <!-- PanelDetectionFailureType localized labels -->
+    <string name="ui_panel_failure_missed_panel">Пропуснат панел</string>
+    <string name="ui_panel_failure_merged_panels">Слети панели</string>
+    <string name="ui_panel_failure_split_panel">Разделен панел</string>
+    <string name="ui_panel_failure_false_panel">Фалшив панел</string>
+    <string name="ui_panel_failure_fell_back_to_full_page">Върнато към цяла страница</string>
+    <string name="ui_panel_failure_cut_panel_cut_off">Панелът е отрязан</string>
+    <string name="ui_panel_failure_wrong_panel_order">Грешен ред на панелите</string>
 </resources>

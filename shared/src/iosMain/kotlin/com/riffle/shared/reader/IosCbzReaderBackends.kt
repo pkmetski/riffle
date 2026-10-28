@@ -2,6 +2,7 @@ package com.riffle.shared.reader
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.common.FileStore
 import com.riffle.core.data.IosItemFiles
 import com.riffle.core.domain.CbzDownloadResult
@@ -11,6 +12,7 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheArtifactKind
 import com.riffle.core.domain.ContentCacheKey
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
@@ -55,6 +57,7 @@ internal class IosCbzRepository(
     private val catalogRegistry: CatalogRegistry,
     private val contentCacheAccessStore: ContentCacheAccessStore,
     private val localAvailabilityEvents: LocalAvailabilityEvents,
+    private val dispatchers: DispatcherProvider,
 ) : CbzRepository {
 
     private val files = IosCbzFiles(fileStore)
@@ -67,7 +70,7 @@ internal class IosCbzRepository(
                 imageSource = comicPageSourceOf(archive),
                 pageCount = archive.pageCount,
                 lastPosition = lastPosition,
-                bookmarks = emptyList(),
+                bookmarks = archive.readComicInfo() ?: emptyList(),
             )
         }
 
@@ -87,27 +90,41 @@ internal class IosCbzRepository(
                 imageSource = comicPageSourceOf(archive),
                 pageCount = archive.pageCount,
                 lastPosition = lastPosition,
-                bookmarks = emptyList(),
+                bookmarks = archive.readComicInfo() ?: emptyList(),
             )
         } else {
-            val count = cbzApi.fetchCbzPageCount(
-                baseUrl = source.url.value,
-                bookId = item.id,
-                token = token,
-                insecureAllowed = source.insecureConnectionAllowed,
-            )
+            val count = try {
+                cbzApi.fetchCbzPageCount(
+                    baseUrl = source.url.value,
+                    bookId = item.id,
+                    token = token,
+                    insecureAllowed = source.insecureConnectionAllowed,
+                )
+            } catch (t: Throwable) {
+                return CbzOpenResult.NetworkError(t)
+            }
+            if (count <= 0) {
+                return CbzOpenResult.NetworkError(
+                    IllegalStateException("Server returned zero page count for ${item.id}")
+                )
+            }
             CbzOpenResult.Streaming(
-                imageSource = comicPageSourceOf(
-                    IosKomgaCbzImageSource(
-                        api = cbzApi,
-                        baseUrl = source.url.value,
-                        bookId = item.id,
-                        token = token,
-                        insecureAllowed = source.insecureConnectionAllowed,
-                        pageCount = count,
-                    ),
+                imageSource = IosNetworkComicPageSource(
+                    sourceId = item.sourceId,
+                    itemId = item.id,
+                    count = count,
+                    repository = this,
+                    readAheadCount = 2,
+                    ioDispatcher = dispatchers.io,
                 ),
-                thumbnailSource = null,
+                thumbnailSource = IosNetworkComicPageSource(
+                    sourceId = item.sourceId,
+                    itemId = item.id,
+                    count = count,
+                    repository = this,
+                    thumbnailWidth = 300,
+                    ioDispatcher = dispatchers.io,
+                ),
                 pageCount = count,
                 lastPosition = lastPosition,
             )
@@ -153,7 +170,8 @@ internal class IosCbzRepository(
         positionStore.save(sourceId, itemId, locatorJson)
     }
 
-    override suspend fun supportsStreaming(sourceId: String): Boolean = true
+    override suspend fun supportsStreaming(sourceId: String): Boolean =
+        catalogRegistry.forSourceId(sourceId) is CbzPageStreamCapability
 
     override suspend fun fetchStreamingPageImage(
         sourceId: String,
@@ -180,7 +198,7 @@ internal class IosCbzRepository(
         return CbzLocalSource(
             imageSource = comicPageSourceOf(archive),
             pageCount = archive.pageCount,
-            bookmarks = emptyList(),
+            bookmarks = archive.readComicInfo() ?: emptyList(),
         )
     }
 
