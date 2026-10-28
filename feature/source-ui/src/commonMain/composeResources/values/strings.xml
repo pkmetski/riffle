@@ -189,4 +189,14 @@
     <string name="ui_add_to_to_read">Add to To-Read</string>
     <!-- Item detail screen: offline status note. -->
     <string name="ui_you_are_offline">You are offline</string>
+    <!-- Add Local Files screen. -->
+    <string name="ui_add_local_folder">Add local folder</string>
+    <string name="ui_opening_folder_picker">Opening folder picker…</string>
+    <string name="ui_scanning_your_folder">Scanning your folder…</string>
+    <string name="ui_no_folder_picked">No folder picked.</string>
+    <string name="ui_pick_a_folder">Pick a folder</string>
+    <string name="ui_added_books_count">Added %1$d book(s).</string>
+    <string name="ui_items_could_not_be_read_count">%1$d item(s) could not be read.</string>
+    <string name="ui_no_supported_books_found_in_folder">No supported books were found in that folder.</string>
+    <string name="ui_couldn_t_add_that_folder">Couldn\'t add that folder.</string>
 </resources>

@@ -4,8 +4,6 @@ import Riffle
 
 @main
 struct RiffleApp: App {
-    @Environment(\.scenePhase) private var scenePhase
-
     init() {
         if CommandLine.arguments.contains("--RIFFLE_RESET_FOR_TESTS") {
             wipeAppState()
@@ -29,16 +27,6 @@ struct RiffleApp: App {
         WindowGroup {
             ContentView()
                 .onOpenURL { url in openIncomingDocument(url) }
-        }
-        // When the app returns to the foreground from a genuine background state (e.g. a lock-screen
-        // media-notification tap), open the active player. Guarded to background→active only so that
-        // Control Centre pulls, phone calls, and notification banners (.inactive→.active) do not
-        // trigger a spurious nav push. A second Kotlin-side guard in LibraryHost de-duplicates
-        // against the stack top so a player already on screen is never pushed a second time.
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            if shouldRequestNowPlayingOpen(from: oldPhase, to: newPhase) {
-                KoinKt.getNowPlayingNavigator().requestOpen()
-            }
         }
     }
 }

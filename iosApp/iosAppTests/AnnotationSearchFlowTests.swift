@@ -39,7 +39,7 @@ final class AnnotationSearchFlowTests: XCTestCase {
         annotationsTab.tap()
 
         let searchField = app.descendants(matching: .any)
-            .matching(identifier: "annotation-search-field")
+            .matching(identifier: RiffleTestTags.annotationsSearchField)
             .firstMatch
         XCTAssertTrue(searchField.waitForExistence(timeout: 10),
                       "Annotation search field must appear on the Annotations tab")
@@ -48,14 +48,14 @@ final class AnnotationSearchFlowTests: XCTestCase {
         searchField.typeText("section text")
 
         let submitButton = app.descendants(matching: .any)
-            .matching(identifier: "annotation-search-submit")
+            .matching(identifier: RiffleTestTags.annotationSearchSubmit)
             .firstMatch
         XCTAssertTrue(submitButton.waitForExistence(timeout: 5),
                       "Annotation search submit button must be present")
         submitButton.tap()
 
         let resultsScreen = app.descendants(matching: .any)
-            .matching(identifier: "annotation-search-results")
+            .matching(identifier: RiffleTestTags.annotationSearchResults)
             .firstMatch
         XCTAssertTrue(resultsScreen.waitForExistence(timeout: 15),
                       "Annotation search results screen must appear after submitting a query")

@@ -102,6 +102,7 @@
 		B1066010 /* NowPlayingSceneGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1066020 /* NowPlayingSceneGateTests.swift */; };
 		B1070010 /* AppShellSmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1070020 /* AppShellSmokeTest.swift */; };
 		B1072010 /* AnnotationSearchFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1072020 /* AnnotationSearchFlowTests.swift */; };
+		B1080010 /* RiffleTestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1080020 /* RiffleTestTags.swift */; };
 		B1099010 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
 		B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1099030 /* Sqlite3LoadExtensionStub.swift */; };
 		C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */; };
@@ -197,6 +198,7 @@
 		B1066020 /* NowPlayingSceneGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGateTests.swift; sourceTree = "<group>"; };
 		B1070020 /* AppShellSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellSmokeTest.swift; sourceTree = "<group>"; };
 		B1072020 /* AnnotationSearchFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationSearchFlowTests.swift; sourceTree = "<group>"; };
+		B1080020 /* RiffleTestTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleTestTags.swift; sourceTree = "<group>"; };
 		B1099030 /* Sqlite3LoadExtensionStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sqlite3LoadExtensionStub.swift; sourceTree = "<group>"; };
 		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
 		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
@@ -333,6 +335,7 @@
 				B1070020 /* AppShellSmokeTest.swift */,
 				B1072020 /* AnnotationSearchFlowTests.swift */,
 				B1VP0020 /* IosVerticalReaderPullGestureTests.swift */,
+				B1080020 /* RiffleTestTags.swift */,
 			);
 			path = iosAppTests;
 			sourceTree = "<group>";
@@ -586,6 +589,7 @@
 				B1058010 /* LibraryNavStackTests.swift in Sources */,
 				B1070010 /* AppShellSmokeTest.swift in Sources */,
 				B1072010 /* AnnotationSearchFlowTests.swift in Sources */,
+				B1080010 /* RiffleTestTags.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
