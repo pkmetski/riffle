@@ -40,7 +40,8 @@ class OReillyAudiobookTest {
             val path = request.url.encodedPath
             val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
             when {
-                path.startsWith("/api/v1/videotocs/") -> respond(
+                // Only the bare ISBN (without AU) is a valid videotocs key.
+                path == "/api/v1/videotocs/$itemId/" -> respond(
                     """{"identifier":"$itemId","toc":[
                       {"reference_id":"$itemId-a00001","linkid":"a00001","title":"Introduction","duration":400},
                       {"reference_id":"$itemId-a00002","linkid":"a00002","title":"Chapter 2","duration":600}
@@ -180,5 +181,25 @@ class OReillyAudiobookTest {
         assertEquals(itemId, item.id)
         assertEquals(com.riffle.core.catalog.BookFormat.Epub, item.ebookFormat)
         assertEquals(false, item.hasAudio)
+    }
+
+    @Test
+    fun `getTracks with AU-suffix strips the suffix before calling videotocs`() = runTest {
+        // The videotocs mock only responds to the bare ISBN path; it returns 404 for the AU-
+        // suffixed path. If loadAudiobookTracks did NOT strip the suffix, getTracks would return
+        // an empty list here — which would cause the ABS upload to fail with "no files".
+        val tracks = catalog.getTracks(audioItemId)
+
+        assertEquals(2, tracks.size)
+        assertEquals(0, tracks[0].index)
+        assertEquals(400.0, tracks[0].durationSec, 0.001)
+        assertTrue(tracks[0].ino.contains("format/url"))
+    }
+
+    @Test
+    fun `getAudiobookChapters with AU-suffix strips the suffix before calling videotocs`() = runTest {
+        val chapters = catalog.getAudiobookChapters(audioItemId)
+
+        assertEquals(listOf("Introduction", "Chapter 2"), chapters.map { it.title })
     }
 }

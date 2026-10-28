@@ -1,6 +1,7 @@
 package com.riffle.feature.source.ui.websource
 
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.models.SourceType
 import com.riffle.feature.library.tabIndexForAnnotations
 import kotlin.test.Test
@@ -67,6 +68,8 @@ class UnboundedBrowseRoutingTest {
         assertTrue(isAudioRoot(SourceType.CHITANKA, ChitankaCatalog.ROOT_AUDIOBOOKS))
         assertFalse(isAudioRoot(SourceType.CHITANKA, ChitankaCatalog.ROOT_BOOKS))
         assertFalse(isAudioRoot(SourceType.GUTENBERG, "books"))
+        assertTrue(isAudioRoot(SourceType.OREILLY, OReillyCatalog.ROOT_AUDIOBOOKS))
+        assertFalse(isAudioRoot(SourceType.OREILLY, OReillyCatalog.ROOT_BOOKS))
     }
 
     /**

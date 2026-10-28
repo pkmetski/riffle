@@ -1,6 +1,7 @@
 package com.riffle.feature.source.ui.websource
 
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.catalog.oreilly.OReillyCatalog
 import com.riffle.core.models.SourceType
 import com.riffle.feature.library.tabIndexForAnnotations
 
@@ -29,6 +30,7 @@ fun unboundedLocalTabToLibraryTabIndex(localTab: Int): Int = when (localTab) {
 fun isAudioRoot(sourceType: SourceType, rootId: String): Boolean = when (sourceType) {
     SourceType.RADIO_ES -> true
     SourceType.CHITANKA -> rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
+    SourceType.OREILLY -> rootId == OReillyCatalog.ROOT_AUDIOBOOKS
     else -> false
 }
 

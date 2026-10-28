@@ -307,13 +307,11 @@ class LibraryItemDetailViewModel constructor(
                 _uploadPreflight.value = UploadPreflight.Blocked("The item is not loaded yet")
                 return@launch
             }
-            val sourceItem = try {
-                catalogRegistry.forSourceId(item.sourceId)?.getItem(item.id)
-            } catch (_: Throwable) {
-                null
-            }
+            // Use loadedItem directly — re-fetching via getItem() fails for audiobook ISBNs whose
+            // EPUB endpoint returns 404. All metadata needed for the preflight is already in loadedItem.
+            val sourceItem = item.toUploadCatalogItem()
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId)
-            if (sourceItem == null || destinationCatalog !is BookImportCapability) {
+            if (destinationCatalog !is BookImportCapability) {
                 _uploadPreflight.value = UploadPreflight.Blocked("This item cannot be prepared for upload")
                 return@launch
             }
@@ -351,9 +349,18 @@ class LibraryItemDetailViewModel constructor(
         val key = importKey(item, destination, library)
         bookImportManager.start(key) { onProgress, claimItem ->
             val sourceCatalog = catalogRegistry.forSourceId(item.sourceId)
-            val sourceItem = sourceCatalog?.getItem(item.id)?.let { fetched -> withFallbackAuthor(fetched, item.author) }
+            // For audiobook items, getItem() returns a stale ebook-format result because the EPUB
+            // endpoint doesn't carry audio metadata — trust loadedItem (which was populated from the
+            // browse listing) for hasAudio and ebookFormat instead of overwriting with a wrong value.
+            val sourceItem = if (item.hasAudio) {
+                item.toUploadCatalogItem()
+            } else {
+                sourceCatalog?.getItem(item.id)
+                    ?.let { fetched -> withFallbackAuthor(fetched, item.author) }
+                    ?: item.toUploadCatalogItem()
+            }
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId) as? BookImportCapability
-            if (sourceCatalog == null || sourceItem == null || destinationCatalog == null) {
+            if (sourceCatalog == null || destinationCatalog == null) {
                 return@start CatalogImportResult.Failed(IllegalStateException("This item cannot be uploaded"))
             }
             if (library.importFolderId == null) {
@@ -1024,6 +1031,21 @@ class LibraryItemDetailViewModel constructor(
 
     private fun isCachedOrDownloadedForFormat(item: LibraryItem): Boolean =
         isCachedForFormat(item) || isDownloadedForFormat(item)
+
+    private fun LibraryItem.toUploadCatalogItem(): CatalogItem = CatalogItem(
+        id = id,
+        rootId = libraryId,
+        title = title,
+        author = author,
+        coverUrl = coverUrl,
+        ebookFormat = when (ebookFormat) {
+            com.riffle.core.models.EbookFormat.Epub -> BookFormat.Epub
+            com.riffle.core.models.EbookFormat.Pdf -> BookFormat.Pdf
+            com.riffle.core.models.EbookFormat.Cbz -> BookFormat.Cbz
+            com.riffle.core.models.EbookFormat.Unsupported -> if (hasAudio) BookFormat.Audiobook else BookFormat.Unsupported
+        },
+        hasAudio = hasAudio,
+    )
 }
 
 /**
