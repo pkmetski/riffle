@@ -101,7 +101,7 @@ open class AudiobookController constructor(
     private var timeline: AudiobookTimeline = AudiobookTimeline(durationSec = 0.0)
     private var durationSec: Double = 0.0
     private var prepared = false
-    private var wantsToPlay = false
+    internal var wantsToPlay = false
     // True when this controller's current session pointed SharedBundle at a bundle file. Guards stop()
     // so it only releases the bundle it set — never one a live Readaloud session owns (e.g. when this
     // player opened a streaming session, or failed to prepare at all, while Readaloud is still playing).
@@ -115,10 +115,19 @@ open class AudiobookController constructor(
     private val pendingSeek = PendingSeekGate()
     private var skipIntervals: SkipIntervals = SkipIntervals.DEFAULT
 
+    // Exposed only for unit tests; not part of the public API.
+    internal val playerListenerForTest: Player.Listener get() = listener
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
-                logger.d(LogChannel.Handoff) { "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}" }
+                logger.d(LogChannel.Handoff) { "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying} wantsToPlay=$wantsToPlay" }
+            }
+            // External pause (notification, headphone removal, audio-focus loss). Clear the pending
+            // play intent so a subsequent STATE_READY event cannot restart playback without a fresh
+            // play() call from the UI. Same invariant the sleepDriver already enforces explicitly.
+            if (events.contains(Player.EVENT_IS_PLAYING_CHANGED) && !player.isPlaying) {
+                wantsToPlay = false
             }
             if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
                 && player.playbackState == Player.STATE_ENDED) {
@@ -198,6 +207,7 @@ open class AudiobookController constructor(
     override fun play() {
         // Latch the intent; [maybeStart] / the STATE_READY gate starts playback once the player is
         // buffered at the resume position (see [ResumePlaybackGate]).
+        logger.d(LogChannel.Audiobook) { "AB.play() called wantsToPlay=$wantsToPlay prepared=$prepared" }
         wantsToPlay = true
         controller?.let { if (prepared) maybeStart(it) }
     }
@@ -205,6 +215,7 @@ open class AudiobookController constructor(
     /** Starts playback iff a play intent is latched and the player has buffered to its position. */
     private fun maybeStart(player: Player) {
         if (ResumePlaybackGate.shouldStart(wantsToPlay, player.playbackState == Player.STATE_READY)) {
+            logger.d(LogChannel.Audiobook) { "AB.maybeStart: starting player" }
             wantsToPlay = false
             player.play()
             startPolling()
@@ -212,6 +223,7 @@ open class AudiobookController constructor(
     }
 
     override fun pause() {
+        logger.d(LogChannel.Audiobook) { "AB.pause() called" }
         sleepDriver.cancel()
         wantsToPlay = false
         controller?.pause()
@@ -351,6 +363,9 @@ open class AudiobookController constructor(
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
+        // Clear wantsToPlay before pause() so the Player.Listener EVENT_IS_PLAYING_CHANGED
+        // callback cannot restart playback via maybeStart() — same invariant as sleepDriver.
+        wantsToPlay = false
         controller?.run {
             setVolume(1f)
             pause()
@@ -359,7 +374,6 @@ open class AudiobookController constructor(
         spans = emptyList()
         timeline = AudiobookTimeline(durationSec = 0.0)
         prepared = false
-        wantsToPlay = false
         ownsSharedBundle = false
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L

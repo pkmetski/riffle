@@ -41,6 +41,10 @@ import UIKit
     private var endOfBookCallback: (any IosEndOfBookCallback)?
     // Tracks the most recently requested cover URL so stale fetch completions are discarded.
     private var currentArtworkUrl: String?
+    // True only when an AVAudioSession interruption paused us mid-play; false if the user had
+    // already paused before the interruption began.  Guards the shouldResume auto-resume path so
+    // returning from a phone call or Siri never restarts audio the user had explicitly stopped.
+    private var wasPlayingBeforeInterruption = false
 
     // MARK: - IosAudioPlayerBridge
 
@@ -491,16 +495,22 @@ private extension IosAudioPlayerBridgeImpl {
 
         switch type {
         case .began:
-            // Phone call, Siri, or alarm started — pause immediately.
+            // Phone call, Siri, or alarm started — pause immediately, but remember whether we
+            // were actually playing so the .ended branch can distinguish a system-interrupted
+            // session from one the user had already paused before the interruption.
+            wasPlayingBeforeInterruption = (player?.rate ?? 0) > 0
             player?.pause()
         case .ended:
-            // Resume only when the system says it is safe (e.g. not after a Siri invocation that
-            // the user deliberately ended by saying "stop").
+            // Resume only when the system says it is safe AND the session was interrupted
+            // mid-play (not user-paused before the interruption began).
             let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-            if options.contains(.shouldResume) {
+            if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
+                wasPlayingBeforeInterruption = false
                 player?.play()
                 if pendingRate != 1.0 { player?.rate = pendingRate }
+            } else {
+                wasPlayingBeforeInterruption = false
             }
         @unknown default:
             break
