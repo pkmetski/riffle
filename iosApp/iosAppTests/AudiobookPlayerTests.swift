@@ -80,6 +80,11 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
     /// a sleep-timer pill and the Chapters / bookmarks entry points (#1072 §3). Before the move to
     /// `:feature:player-ui` iOS had none of these.
     func testAudiobookPlayerShowsSpeedSleepAndListControls() throws {
+        // 900 s: the combined playPause wait (300 s) + pills wait (400 s) can reach 700 s under
+        // extreme CI load; the default XCTest execution allowance (420 s / 7 min) truncates the
+        // pills wait before it can settle, producing "exceeded execution time allowance" failures
+        // on main even when the app is working correctly.
+        executionTimeAllowance = 900
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
         // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
         // starts counting from app launch otherwise and trips under CI clone contention.
