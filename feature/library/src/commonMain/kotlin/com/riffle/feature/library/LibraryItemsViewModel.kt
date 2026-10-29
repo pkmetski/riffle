@@ -428,6 +428,24 @@ class LibraryItemsViewModel constructor(
                     ?: LibrarySortMode.ADDED_DESC
             }
         }
+        // Clear the search query when the active source changes. The ViewModel is keyed on
+        // libraryId, so if two sources share a library ID the same instance is reused. Without
+        // this observer, a stale search from Source A would persist when the user switches to
+        // Source B and both map to the same libraryId.
+        viewModelScope.launch {
+            var initialSourceId: String? = null
+            activeSource
+                .map { it?.id }
+                .distinctUntilChanged()
+                .filterNotNull()
+                .collect { sourceId ->
+                    if (initialSourceId == null) {
+                        initialSourceId = sourceId
+                    } else {
+                        _searchQuery.value = ""
+                    }
+                }
+        }
         // Auto-refresh whenever the device returns to online so cached data is refreshed
         // and the offline banner clears without requiring a manual lifecycle resume.
         viewModelScope.launch {

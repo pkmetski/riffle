@@ -509,6 +509,90 @@ class LibraryItemsViewModelTest {
         assertEquals("hello", vm.searchQuery.value)
     }
 
+    @Test
+    fun `searchQuery is cleared when the active source changes while the same libraryId is reused`() = runTest {
+        val sharedLibraryId = "lib-shared"
+        val sourceA = Source(
+            id = "src-a",
+            url = SourceUrl.parse("https://server-a.example.com")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "",
+            type = com.riffle.core.models.SourceType.ABS,
+        )
+        val sourceB = Source(
+            id = "src-b",
+            url = SourceUrl.parse("https://server-b.example.com")!!,
+            isActive = false,
+            insecureConnectionAllowed = false,
+            username = "",
+            type = com.riffle.core.models.SourceType.ABS,
+        )
+        val sourcesFlow = MutableStateFlow(listOf(sourceA, sourceB))
+        val libraryBySource = MutableStateFlow<Map<String, List<Library>>>(
+            mapOf(
+                "src-a" to listOf(Library(sharedLibraryId, "Books", "ebook", false)),
+                "src-b" to listOf(),
+            ),
+        )
+        val sourceRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = sourcesFlow
+            override suspend fun getActive(): Source? = sourcesFlow.value.firstOrNull { it.isActive }
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
+                throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val libraryObserver = object : LibraryObserver {
+            override fun observeLibraries(): Flow<List<Library>> = libraryBySource.map { it.values.flatten() }
+            override fun observeLibraries(sourceId: String): Flow<List<Library>> =
+                libraryBySource.map { it[sourceId] ?: emptyList() }
+            override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
+            override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
+            override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override suspend fun getItem(itemId: String): LibraryItem? = null
+            override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(null)
+            override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
+            override suspend fun getLibrary(libraryId: String): Library? = null
+            override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
+        }
+        val vm = makeViewModel(
+            libraryId = sharedLibraryId,
+            sourceRepository = sourceRepo,
+            libraryRepository = libraryObserver,
+        )
+        backgroundScope.launch { vm.activeSource.collect {} }
+        backgroundScope.launch { vm.searchQuery.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.onSearchQueryChange("tolkien")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("tolkien", vm.searchQuery.value)
+
+        // Source B now also has the shared library — simulates the ViewModel being reused
+        // across a source switch because both sources resolve to the same libraryId.
+        libraryBySource.value = mapOf(
+            "src-a" to listOf(),
+            "src-b" to listOf(Library(sharedLibraryId, "Books", "ebook", false)),
+        )
+        sourcesFlow.value = listOf(
+            sourceA.copy(isActive = false),
+            sourceB.copy(isActive = true),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("", vm.searchQuery.value)
+    }
+
     // --- C1: filteredInProgress flow ---
 
     @Test
