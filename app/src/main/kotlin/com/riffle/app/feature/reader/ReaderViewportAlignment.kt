@@ -1,68 +1,76 @@
 package com.riffle.app.feature.reader
 
 import kotlin.math.floor
-import kotlin.math.min
+import kotlin.math.roundToInt
 
 // How much width (dp) the viewport alignment is allowed to give up. See [alignedReaderWidthDp].
-internal const val GUTTER_BUDGET_DP = 8
+internal const val GUTTER_BUDGET_DP = 20
 
-// Reader width (dp) <= availDp for single-page paginated reflowable. The ideal is a width whose
-// physical pixel count (width * density) is a whole number: then Readium's column-snap pitch
-// b = physicalWidth/dpr equals CSS innerWidth and the column grid stops drifting (the
-// right-margin-vanishes bug; see reference_reader_right_margin_is_column_snap_bug).
+// Reader width (dp) <= availDp for single-page paginated reflowable EPUB. The goal is to pick a
+// width whose Readium column-snap pitch `b` is as close as possible to the CSS column pitch
+// (bodyWidth), so that turning pages accumulates the minimum left-margin bleed.
 //
-// The catch — why this misbehaved on physical hardware but never on the emulator: density is
-// densityDpi/160, so in lowest terms its denominator divides 160. Standard phone density BUCKETS
-// (2.625 = 21/8, 2.75 = 11/4, integers) have small denominators, so a whole-pixel width sits within
-// a few dp of availDp. But a densityDpi coprime to 160 — common on real devices, and especially
-// after the user changes "Display size" in system settings — makes whole-pixel widths up to 160dp
-// apart. Insisting on an exact one then shaved 100+dp off the page, i.e. large, asymmetric margins
-// in paginated mode only (the symptom this revision fixes).
+// HOW THE BUG WORKS
+// -----------------
+// Readium snaps scrollLeft to multiples of `b = Android.getViewportWidth() / devicePixelRatio`,
+// where `getViewportWidth()` returns the WebView's physical pixel width. The CSS column pitch is
+// `bodyWidth = ceil(physPx / webViewDpr)`. Because CSS lays out at float precision but bodyWidth
+// is truncated to an integer, `b < bodyWidth` whenever physPx/webViewDpr is not exactly an
+// integer. Each page turn therefore undershoots the column boundary by `bodyWidth - b` CSS px,
+// and the previous page bleeds in from the left. After N pages the bleed is `N*(1 - frac(b))`
+// CSS pixels — imperceptible at frac ≈ 1, very visible at frac ≈ 0.
 //
-// Fix: never give up more than [GUTTER_BUDGET_DP]. Within that budget pick the width with the
-// smallest snap error frac(width * density) — an exact whole-pixel width when one exists in range
-// (zero drift; identical to the old behaviour on every real density bucket and integer density),
-// otherwise the closest partial alignment. The residual error is sub-pixel per page and stays
-// imperceptible across a whole chapter.
+// THE FIX
+// -------
+// Choose the integer dp value c ∈ [availDp - GUTTER_BUDGET_DP, availDp] that MAXIMISES
+// frac(physPx / webViewDpr), where physPx = round(c * composeDensity). A frac of 1 (impossible
+// in practice) would mean no drift; a frac near 1 means b is just below the next integer and the
+// per-page bleed is sub-pixel across an entire chapter. If a perfect integer b is found (frac=0)
+// it is returned immediately — no gutter, no drift.
 //
-// Direction matters: when frac(c * density) < 0.5, Compose rounds W_px DOWN, so
-// b = W_px/dpr < window.innerWidth. Readium's column snap then undershoots the column boundary
-// and the previous page bleeds in from the left (the Flip8 cover-screen regression). When
-// frac >= 0.5, Compose rounds W_px UP → b >= innerWidth → snap lands at or past the column
-// boundary (any overflow is imperceptible next-page bleed on the right, not the previous page
-// on the left). So among candidates with no perfect whole-pixel solution, prefer frac >= 0.5
-// (round-up); fall back to the globally smallest error only when no round-up exists in budget.
-// Larger widths still win ties, keeping the gutter minimal.
-internal fun alignedReaderWidthDp(availDp: Float, density: Float): Float {
-    if (!availDp.isFinite() || availDp <= 0f || density <= 0f) return availDp
+// DUAL-DENSITY DEVICES (Samsung foldables)
+// -----------------------------------------
+// On Samsung Z Flip/Fold devices the Compose LocalDensity (composeDensity) is sourced from the
+// Activity context, which may carry the primary-display's override density even when the window
+// renders on the cover/secondary display. The WebView, however, uses the actual display's
+// physical density (webViewDpr) for its devicePixelRatio. Passing both lets the algorithm
+// optimise physPx / webViewDpr correctly without a priori knowledge of which display is active.
+//
+// Pass webViewDpr from `view.display?.getMetrics(dm)` → `dm.density`; it equals composeDensity
+// on normal single-display phones, so the call is safe to make unconditionally.
+//
+// GUTTER BUDGET
+// -------------
+// [GUTTER_BUDGET_DP] (20 dp) is the maximum width we sacrifice to find a better-aligned value.
+// Standard density buckets (2.625 = 21/8, 2.75 = 11/4, integers) always have a perfect
+// whole-pixel width within 3–4 dp of availDp. Dual-density foldable cover screens (e.g. Samsung
+// Z Flip, composeDensity=2.625 vs webViewDpr=2.375=19/8) need c to be a multiple of 19 for b to
+// be an exact integer; the nearest such multiple can be up to ~18 dp below availDp. A larger
+// budget finds that perfect c and eliminates the post-swipe settle animation that occurs when
+// Readium snaps to a fractional CSS-pixel position. For pathological densities (coprime to 160)
+// where no perfect c exists in budget, the algorithm falls back to the highest-frac candidate.
+internal fun alignedReaderWidthDp(
+    availDp: Float,
+    composeDensity: Float,
+    webViewDpr: Float = composeDensity,
+): Float {
+    if (!availDp.isFinite() || availDp <= 0f || composeDensity <= 0f || webViewDpr <= 0f) return availDp
     val top = floor(availDp).toInt()
     if (top <= 0) return availDp
     val low = maxOf(1, top - GUTTER_BUDGET_DP)
     var best = top
-    var bestErr = Float.MAX_VALUE
-    var bestRoundUp = -1        // best c where frac >= 0.5 (W_px rounds up, b >= innerWidth)
-    var bestRoundUpErr = Float.MAX_VALUE
+    var bestFrac = -1f
     var c = top
     while (c >= low) {
-        val px = c * density
-        val frac = px - floor(px)
-        val err = min(frac, 1f - frac)
-        if (err < bestErr - 1e-6f) {
-            bestErr = err
+        val physPx = (c * composeDensity).roundToInt().toFloat()
+        val b = physPx / webViewDpr
+        val frac = b - floor(b)
+        if (frac < 1e-6f) return c.toFloat()   // perfect: b is integer, zero drift
+        if (frac > bestFrac + 1e-6f) {
+            bestFrac = frac
             best = c
-        }
-        if (frac >= 0.5f - 1e-6f) {
-            val roundUpErr = 1f - frac
-            if (roundUpErr < bestRoundUpErr - 1e-6f) {
-                bestRoundUpErr = roundUpErr
-                bestRoundUp = c
-            }
         }
         c--
     }
-    return when {
-        bestErr < 1e-6f -> best.toFloat()   // perfect whole-pixel width: b == innerWidth, no drift
-        bestRoundUp >= 0 -> bestRoundUp.toFloat() // round-up: b > innerWidth, no left-margin bleed
-        else -> best.toFloat()              // fallback: no round-up in budget
-    }
+    return best.toFloat()
 }

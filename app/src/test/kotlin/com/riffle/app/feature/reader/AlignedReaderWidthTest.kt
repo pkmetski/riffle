@@ -19,13 +19,13 @@ class AlignedReaderWidthTest {
     @Test
     fun `picks largest whole-pixel width on density 2_625`() {
         // 408 * 2.625 = 1071.0 (whole); 409..411 * 2.625 are fractional.
-        assertEquals(408f, alignedReaderWidthDp(availDp = 1080f / 2.625f, density = 2.625f))
+        assertEquals(408f, alignedReaderWidthDp(availDp = 1080f / 2.625f, composeDensity = 2.625f))
     }
 
     @Test
     fun `chosen width maps to a whole number of physical pixels`() {
         val density = 2.625f
-        val px = alignedReaderWidthDp(availDp = 1080f / density, density = density) * density
+        val px = alignedReaderWidthDp(availDp = 1080f / density, composeDensity = density) * density
         assertTrue("expected whole px, got $px", abs(px - px.roundToInt()) < 0.001f)
     }
 
@@ -38,15 +38,15 @@ class AlignedReaderWidthTest {
     @Test
     fun `costs nothing on integer densities`() {
         // density 3.0: every integer dp is already a whole pixel, so the full floor(avail) is kept.
-        assertEquals(411f, alignedReaderWidthDp(availDp = 411.4f, density = 3f))
-        assertEquals(411f, alignedReaderWidthDp(availDp = 411.4f, density = 2f))
-        assertEquals(411f, alignedReaderWidthDp(availDp = 411.4f, density = 1f))
+        assertEquals(411f, alignedReaderWidthDp(availDp = 411.4f, composeDensity = 3f))
+        assertEquals(411f, alignedReaderWidthDp(availDp = 411.4f, composeDensity = 2f))
+        assertEquals(411f, alignedReaderWidthDp(availDp = 411.4f, composeDensity = 1f))
     }
 
     @Test
     fun `aligns to the density denominator on quarter densities`() {
         // density 2.75 = 11/4 -> only multiples of 4 dp are whole pixels; 408 is the largest <= 411.
-        assertEquals(408f, alignedReaderWidthDp(availDp = 411.4f, density = 2.75f))
+        assertEquals(408f, alignedReaderWidthDp(availDp = 411.4f, composeDensity = 2.75f))
     }
 
     // Regression for the physical-device bug: a densityDpi coprime to 160 (here 411dpi -> 2.56875,
@@ -77,7 +77,7 @@ class AlignedReaderWidthTest {
 
     @Test
     fun `returns input unchanged for non-positive arguments`() {
-        assertEquals(0f, alignedReaderWidthDp(availDp = 0f, density = 2.625f))
-        assertEquals(411.4f, alignedReaderWidthDp(availDp = 411.4f, density = 0f))
+        assertEquals(0f, alignedReaderWidthDp(availDp = 0f, composeDensity = 2.625f))
+        assertEquals(411.4f, alignedReaderWidthDp(availDp = 411.4f, composeDensity = 0f))
     }
 }

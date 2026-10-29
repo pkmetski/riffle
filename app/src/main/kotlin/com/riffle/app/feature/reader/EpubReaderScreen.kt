@@ -56,6 +56,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -2647,7 +2648,22 @@ private fun EpubNavigatorView(
     // the only one exposed to the column-grid drift bug — and the only one we narrow (and paint a
     // page-coloured gutter behind). Scroll / fixed-layout / double-page keep fillMaxSize and the
     // bare modifier, untouched. See reference_reader_right_margin_is_column_snap_bug.
-    val density = LocalDensity.current.density
+    val composeDensity = LocalDensity.current.density
+    val view = LocalView.current
+    // Samsung foldables have two density mismatches to resolve:
+    // (a) The Activity context carries the primary display's override density (composeDensity),
+    //     while the cover screen WebView renders at the cover screen's physical density. We get the
+    //     real display density from view.display.getMetrics().
+    // (b) On the main display, getMetrics() returns the physical density (e.g. 480dpi→3.0), but
+    //     the WebView follows the Activity's override density (e.g. 420dpi→2.625). Clamping to
+    //     composeDensity handles this: a display denser than the override cannot drive a higher DPR.
+    // Using configuration as an additional remember key ensures we recompute on display switches.
+    val configuration = LocalConfiguration.current
+    val webViewDpr = remember(view, configuration) {
+        val dm = android.util.DisplayMetrics()
+        view.display?.getMetrics(dm)
+        minOf(composeDensity, dm.density.takeIf { it > 0f } ?: composeDensity)
+    }
     val isPaginated = !isFixedLayout && effectiveOrientation == ReaderOrientation.Horizontal
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
     // Both single-page and double-page paginated modes align the viewport to a whole-pixel width
@@ -2667,7 +2683,9 @@ private fun EpubNavigatorView(
         modifier
     }
     BoxWithConstraints(modifier = containerModifier) {
-        val alignedWidth = remember(maxWidth, density) { alignedReaderWidthDp(maxWidth.value, density) }
+        val alignedWidth = remember(maxWidth, composeDensity, webViewDpr) {
+            alignedReaderWidthDp(maxWidth.value, composeDensity, webViewDpr)
+        }
         val readerModifier = if (alignViewport) {
             Modifier
                 .width(alignedWidth.dp)
