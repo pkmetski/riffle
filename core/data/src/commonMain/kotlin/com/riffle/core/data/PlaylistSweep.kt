@@ -40,12 +40,14 @@ class PlaylistSweep(
     private val logger: Logger = NoopLogger,
 ) {
     /**
-     * In-memory cache of the last-known remote timestamp per library, keyed by libraryId.
-     * Populated after every successful sync (push or pull) so subsequent sweeps can skip the GET
-     * when local and remote are already in agreement. Survives across [run] calls (singleton), but
-     * resets on process restart — causing at most one extra GET per library at cold start.
+     * In-memory cache of the last local timestamp successfully pushed to remote, keyed by
+     * libraryId. Prevents redundant pushes when the same local state is unchanged between sweeps.
+     * Resets on process restart — causing at most one extra GET per library at cold start.
+     *
+     * Note: the GET is NOT skipped based on this cache. Every sweep pulls the remote to detect
+     * changes made by other devices since the last sync.
      */
-    private val lastKnownRemoteTs: MutableMap<String, Long> = mutableMapOf()
+    private val lastPushedLocalTs: MutableMap<String, Long> = mutableMapOf()
     private val sweepMutex = Mutex()
 
     suspend fun run() = sweepMutex.withLock {
@@ -77,24 +79,18 @@ class PlaylistSweep(
     ) {
         val playlistId = WebDavPlaylistSyncer.toReadPlaylistId(libraryId)
         val localTs = localToReadStore.lastUpdateMs(libraryId)
-        // Fast path: if local timestamp equals the last-known remote timestamp from a prior run,
-        // both sides are already in agreement — skip the GET entirely. This is the common steady-
-        // state case (nothing changed on either side) and avoids redundant HTTP traffic on every
-        // periodic tick.
-        val cachedRemoteTs = lastKnownRemoteTs[libraryId]
-        if (cachedRemoteTs != null && localTs == cachedRemoteTs) {
-            logger.d(LogChannel.Playlists) { "syncLibrary: $libraryId skipping — in sync (ts=$localTs)" }
-            return
-        }
+        // Always GET the remote so changes from other devices are detected. The only thing skipped
+        // is a redundant PUSH when we already pushed this exact localTs in a prior sweep.
         val remote = syncer.pull(namespace, playlistId)
         logger.d(LogChannel.Playlists) { "syncLibrary: $libraryId remote=${remote?.lastUpdate} localTs=$localTs" }
         when {
             remote == null || localTs > remote.lastUpdate -> {
-                // Local is authoritative — push to remote. Do NOT update local timestamp after the
-                // push: the file body was written with localTs, but the server returns its own
-                // Last-Modified which may be newer. Storing serverTs would make localTs > localTs on
-                // the next sync and trigger another redundant push. We DO update the cache to reflect
-                // that remote now holds our localTs so the next sweep can skip the GET.
+                // Local is authoritative. Skip the push if we already pushed this exact version —
+                // avoids a redundant write on every periodic sweep when nothing has changed locally.
+                if (lastPushedLocalTs[libraryId] == localTs) {
+                    logger.d(LogChannel.Playlists) { "syncLibrary: $libraryId skip push — already pushed ts=$localTs" }
+                    return
+                }
                 val localItems = localToReadStore.observeItemIds(libraryId).first().toList()
                 logger.d(LogChannel.Playlists) { "syncLibrary: pushing $libraryId items=$localItems ts=$localTs" }
                 val playlist = WebDavPlaylist(
@@ -105,18 +101,16 @@ class PlaylistSweep(
                     lastUpdate = localTs,
                 )
                 syncer.push(namespace, playlist)
-                lastKnownRemoteTs[libraryId] = localTs
+                lastPushedLocalTs[libraryId] = localTs
             }
             remote.lastUpdate > localTs -> {
                 // Remote is authoritative — adopt remote items.
                 logger.d(LogChannel.Playlists) { "syncLibrary: adopting remote $libraryId items=${remote.itemIds}" }
                 localToReadStore.setAll(libraryId, remote.itemIds.toSet(), remote.lastUpdate)
-                lastKnownRemoteTs[libraryId] = remote.lastUpdate
             }
             else -> {
-                // Equal timestamps → no-op. Cache the timestamp so future sweeps skip the GET.
+                // Equal timestamps → no-op.
                 logger.d(LogChannel.Playlists) { "syncLibrary: $libraryId no-op equal ts=$localTs" }
-                lastKnownRemoteTs[libraryId] = localTs
             }
         }
     }
