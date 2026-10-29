@@ -527,7 +527,7 @@ class ReaderSessionLifecycleTest {
             mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
             locations = Locator.Locations(progression = 0.7),
         )
-        val annotation = AnnotationSessionTest.makeAnnotation(id = "ann-99", cfi = cfi)
+        val annotation = makeAnnotation(id = "ann-99", cfi = cfi)
         val (lifecycle, _) = makeLifecycle(
             annotationStore = FakeAnnotationStore(
                 byCfi = mapOf(Triple("srv-abs", "item-1", cfi) to annotation),
@@ -555,7 +555,7 @@ class ReaderSessionLifecycleTest {
             mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
             locations = Locator.Locations(progression = 0.7),
         )
-        val bookmark = AnnotationSessionTest.makeAnnotation(
+        val bookmark = makeAnnotation(
             id = "bookmark-99",
             type = AnnotationEntity.TYPE_BOOKMARK,
             cfi = cfi,
@@ -587,7 +587,7 @@ class ReaderSessionLifecycleTest {
             mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
             locations = Locator.Locations(progression = 0.43),
         )
-        val bookmark = AnnotationSessionTest.makeAnnotation(
+        val bookmark = makeAnnotation(
             id = "bm-new",
             type = AnnotationEntity.TYPE_BOOKMARK,
             cfi = cfi,

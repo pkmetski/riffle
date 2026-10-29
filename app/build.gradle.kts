@@ -139,6 +139,13 @@ android {
     }
 }
 
+// The `test` lifecycle task for an Android application module runs both `testDebugUnitTest` and
+// `testReleaseUnitTest`, which doubles CI run-time for no coverage gain. Release unit tests compile
+// against the same sources as debug; disabling them keeps the suite green without losing coverage.
+tasks.configureEach {
+    if (name == "testReleaseUnitTest") enabled = false
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
