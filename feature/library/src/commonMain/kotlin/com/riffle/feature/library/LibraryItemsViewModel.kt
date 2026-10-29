@@ -428,16 +428,14 @@ class LibraryItemsViewModel constructor(
                     ?: LibrarySortMode.ADDED_DESC
             }
         }
-        // Clear the search query when the active source changes. The ViewModel is keyed on
-        // libraryId, so if two sources share a library ID the same instance is reused. Without
-        // this observer, a stale search from Source A would persist when the user switches to
-        // Source B and both map to the same libraryId.
+        // Two sources can share a libraryId; if so, the same ViewModel instance is reused across
+        // a source switch and the stale search query would remain visible.
         viewModelScope.launch {
             var initialSourceId: String? = null
             activeSource
                 .map { it?.id }
-                .distinctUntilChanged()
                 .filterNotNull()
+                .distinctUntilChanged()
                 .collect { sourceId ->
                     if (initialSourceId == null) {
                         initialSourceId = sourceId
