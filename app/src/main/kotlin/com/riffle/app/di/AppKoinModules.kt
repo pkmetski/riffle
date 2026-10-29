@@ -2,6 +2,7 @@
 
 package com.riffle.app.di
 
+import com.riffle.feature.navigation.LibraryNavStateHolder
 import com.riffle.feature.navigation.NowPlayingNavigator
 import com.riffle.app.feature.audio.AudiobookHttpItemRestorer
 import com.riffle.app.feature.audio.BundleAudioSourceFactory
@@ -247,6 +248,7 @@ val appKoinModule: Module = module {
 
     single { NowPlayingNavigator() }
     single { NowPlayingStore() }
+    single { LibraryNavStateHolder() }
     single { com.riffle.feature.player.AudiobookPlayIntentRegistry() }
 
     // ---- Audio session connectors (factory — one instance per consumer) ---------------------

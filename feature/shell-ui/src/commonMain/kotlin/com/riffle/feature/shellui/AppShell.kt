@@ -67,6 +67,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
 import com.riffle.feature.navigation.LibraryNav
+import com.riffle.feature.navigation.LibraryNavStateHolder
 import com.riffle.feature.navigation.NavigationDrawerViewModel
 import com.riffle.feature.navigation.NavigationIntent
 import com.riffle.feature.navigation.isAlreadyAtPlayerDestination
@@ -124,6 +125,7 @@ fun AppShell(
     slots: AppShellSlots,
     viewModel: NavigationDrawerViewModel = koinInject(),
     homeViewModel: HomeViewModel = koinInject(),
+    navStateHolder: LibraryNavStateHolder = koinInject(),
 ) {
     val scope = rememberCoroutineScope()
     var appSection by rememberSaveable { mutableStateOf(AppSection.Library) }
@@ -135,7 +137,18 @@ fun AppShell(
     // PermanentNavigationDrawer switch that RiffleNavigationDrawer performs on rotation. When the
     // drawer type changes, the content lambda is remounted, losing any remember state inside it.
     // Keeping navStack in AppShell (which is never remounted during a drawer switch) preserves it.
-    var libraryNavStack by remember(activeLibraryId) { mutableStateOf(listOf<LibraryNav>(LibraryNav.Items)) }
+    // navStateHolder also preserves it across Activity recreations (e.g. Samsung foldable
+    // cover↔main screen switches, which move the window between displays and recreate the Activity
+    // even when configChanges lists density/screenSize/screenLayout).
+    var libraryNavStack by remember(activeLibraryId) {
+        mutableStateOf(
+            if (activeLibraryId != null && navStateHolder.libraryId == activeLibraryId) {
+                navStateHolder.stack
+            } else {
+                listOf(LibraryNav.Items)
+            },
+        )
+    }
     var isInReaderDestination by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var pendingLibraryNav by remember { mutableStateOf<LibraryNav?>(null) }
@@ -612,7 +625,11 @@ fun AppShell(
                             pendingNav = pendingLibraryNav,
                             onPendingNavHandled = { pendingLibraryNav = null },
                             navStack = libraryNavStack,
-                            onNavStackChange = { libraryNavStack = it },
+                            onNavStackChange = {
+                                libraryNavStack = it
+                                navStateHolder.libraryId = activeLibraryId
+                                navStateHolder.stack = it
+                            },
                             slots = slots,
                         )
                     }

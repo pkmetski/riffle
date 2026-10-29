@@ -40,8 +40,8 @@ class ReaderViewportAlignmentTest {
     }
 
     @Test
-    fun `result is whole pixels and never exceeds the available width for standard densities`() {
-        // Standard density buckets always have a whole-pixel width within the 8dp budget.
+    fun `result is whole pixels and never exceeds the available width`() {
+        // Standard density buckets always have a whole-pixel width within the gutter budget.
         for (density in listOf(1.0f, 1.5f, 2.0f, 2.625f, 2.75f, 3.0f, 3.5f)) {
             for (availDp in listOf(200f, 360f, 411f, 412.7f, 600f, 731f)) {
                 val w = alignedReaderWidthDp(availDp, density)

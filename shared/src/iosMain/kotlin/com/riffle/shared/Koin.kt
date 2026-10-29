@@ -342,6 +342,7 @@ private fun iosLibraryModule(
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { com.riffle.feature.navigation.NowPlayingNavigator() }
+    single { com.riffle.feature.navigation.LibraryNavStateHolder() }
     single {
         com.riffle.feature.navigation.NavigationDrawerViewModel(
             sourceRepository = get(),
