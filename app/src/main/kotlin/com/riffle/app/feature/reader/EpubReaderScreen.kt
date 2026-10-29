@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,8 +66,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
@@ -3222,16 +3221,17 @@ private fun EpubNavigatorView(
         if (noteTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == noteTarget.id }
             val sheetLabels = annotationSheetLabels()
-            Popup(
-                alignment = Alignment.BottomCenter,
-                onDismissRequest = onCancelNoteEdit,
-                properties = PopupProperties(focusable = true),
+            BackHandler(enabled = true, onBack = onCancelNoteEdit)
+            Box(
+                modifier = Modifier.fillMaxSize().imePadding(),
+                contentAlignment = Alignment.BottomCenter,
             ) {
                 NoteEditorSheet(
                     initialNote = current?.note ?: "",
                     labels = sheetLabels,
                     onConfirm = { text -> onCommitNoteEdit(noteTarget.id, text.takeIf { it.isNotBlank() }) },
                     onDismiss = onCancelNoteEdit,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
