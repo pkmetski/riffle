@@ -79,6 +79,14 @@ class EpubHarnessTest : KoinTest {
     fun opensEpubViaSeriesNavigationAndShowsReaderWithoutError() {
         addServerAndBrowseLibrary()
 
+        // Wait for All Books items to appear before switching to Series. The initial-sync DB
+        // write and the series fetch both use Room's single-writer; waiting here ensures the
+        // write lock is free before the series request lands, eliminating the contention that
+        // caused 60s–90s timeouts on loaded CI runners.
+        composeTestRule.waitUntil(timeoutMillis = 30_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+
         // Navigate to the Series tab. The library keeps recomposing as items stream in, which
         // can detach the tab's semantics node between resolution and injection ("Failed to
         // inject touch input" on slow emulators) — wait for it and retry once after settling.
@@ -95,8 +103,7 @@ class EpubHarnessTest : KoinTest {
         // Library items screen shows the series — tap into it.
         // SeriesGridTile sets contentDescription on the tile and clears text semantics to avoid
         // iOS double-labeling (see comment in LibraryItemsScreen.kt). Use contentDescription.
-        // 90s: raised from 60s after observing a 60s timeout on a slow Ubuntu runner under CI load.
-        composeTestRule.waitUntil(timeoutMillis = 90_000) {
+        composeTestRule.waitUntil(timeoutMillis = 30_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_SERIES_NAME).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_SERIES_NAME).performClick()
