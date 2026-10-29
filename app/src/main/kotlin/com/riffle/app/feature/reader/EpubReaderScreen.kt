@@ -2663,7 +2663,7 @@ private fun EpubNavigatorView(
     //     composeDensity handles this: a display denser than the override cannot drive a higher DPR.
     // Using configuration as an additional remember key ensures we recompute on display switches.
     val configuration = LocalConfiguration.current
-    val webViewDpr = remember(view, configuration) {
+    val webViewDpr = remember(view, configuration, composeDensity) {
         val dm = android.util.DisplayMetrics()
         view.display?.getMetrics(dm)
         minOf(composeDensity, dm.density.takeIf { it > 0f } ?: composeDensity)
