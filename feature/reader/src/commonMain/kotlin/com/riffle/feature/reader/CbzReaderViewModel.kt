@@ -699,13 +699,16 @@ class CbzReaderViewModel constructor(
         // marked-read comic read past the cover stays pinned at 100% (the offline sweep then
         // re-pushes 1.0). Mirror the fraction here on the durable scope so it always lands.
         val sid = resolvedSourceId
-        if (sid != null) {
-            applicationScope.launchSurvivable {
+        val closePayload = SessionPayload(ebookLocation = locatorJson, ebookProgress = closeFraction)
+        applicationScope.launchSurvivable {
+            if (sid != null) {
                 cbzRepository.saveReadingPosition(sid, itemId, locatorJson)
                 updateReadingProgressUseCase(sid, itemId, closeFraction)
             }
+            // Run the server sync on the survivable scope so it isn't cancelled by viewModelScope
+            // being torn down immediately after ON_STOP on back-navigation.
+            readingSessionRepository.runSyncCycle(itemId, closePayload, sid)
         }
-        syncCurrentPosition(sid)
     }
 
     private fun currentLocatorAndFraction(): Pair<String, Float>? {

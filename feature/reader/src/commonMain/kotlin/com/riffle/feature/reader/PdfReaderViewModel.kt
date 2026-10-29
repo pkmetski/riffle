@@ -333,13 +333,11 @@ class PdfReaderViewModel constructor(
             val locatorJson = PdfLocatorCodec.encode(capturedPage, capturedTotal)
             sharedPdfRepository.saveReadingPosition(sid, itemId, locatorJson)
             positionSaveCoordinator.onClose(capturedProgression)
-        }
-        viewModelScope.launch {
             val payload = SessionPayload(
-                ebookLocation = PdfLocatorCodec.encode(capturedPage, capturedTotal),
+                ebookLocation = locatorJson,
                 ebookProgress = capturedProgression,
             )
-            syncSession.sync(payload, navSourceId)
+            readingSessionRepository.runSyncCycle(itemId, payload, capturedSourceId)
         }
     }
 
