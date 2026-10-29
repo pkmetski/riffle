@@ -1,6 +1,9 @@
 package com.riffle.app.feature.library
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -110,6 +113,39 @@ class BookSectionGridTest {
             "SeeMore should share its row with ≥ 1 cover tile (was alone), " +
                 "seeMoreTop=$seeMoreTop, coverTops=${coverNodes.map { it.boundsInRoot.top }}",
             coversSameRow >= 1,
+        )
+    }
+
+    @Test
+    fun seeMoreAbsentAndExtraItemShownWhenExactlyOneItemOverflows() {
+        var itemCount by mutableIntStateOf(20)
+        rule.setContent {
+            CompositionLocalProvider(LocalCoverGridScale provides 1f) {
+                BookSectionGrid(
+                    items = fakeItems(itemCount),
+                    token = "",
+                    onItemSelected = {},
+                    onSeeMore = {},
+                )
+            }
+        }
+
+        val previewCount = rule
+            .onAllNodesWithContentDescription("Book", substring = true)
+            .fetchSemanticsNodes().size
+        itemCount = previewCount + 1
+        rule.waitForIdle()
+
+        assertTrue(
+            "SeeMore should not appear when overflow is exactly 1",
+            rule.onAllNodes(hasText("more", substring = true)).fetchSemanticsNodes().isEmpty(),
+        )
+        val coverNodes = rule
+            .onAllNodesWithContentDescription("Book", substring = true)
+            .fetchSemanticsNodes()
+        assertTrue(
+            "All ${previewCount + 1} items should be shown when overflow is exactly 1, got ${coverNodes.size}",
+            coverNodes.size == previewCount + 1,
         )
     }
 
