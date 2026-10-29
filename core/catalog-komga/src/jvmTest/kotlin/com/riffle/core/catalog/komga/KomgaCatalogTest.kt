@@ -279,6 +279,30 @@ class KomgaCatalogTest {
         assertEquals("/api/v1/books/B1/read-progress", recorded.path)
     }
 
+    @Test fun `pushEbookProgress with isFinished=false PATCHes completed=false when a page is available`() = runTest {
+        // When reading back into a finished book, runSyncCycle passes isFinished=false with a
+        // live reading position. Without a page the DELETE is needed (mark-as-unread wipe), but
+        // WITH a page we must PATCH {page, completed:false} instead — DELETE would erase the
+        // position the reader just synced, causing the sweep to restore it and the next sync to
+        // delete it again in an infinite loop.
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = """{"href":"publication.pdf","locations":{"position":42,"fragments":["page=42"]}}""",
+            progress = 0.42f,
+            isFinished = false,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val recorded = server.takeRequest()
+        assertEquals("PATCH", recorded.method)
+        assertEquals("/api/v1/books/B1/read-progress", recorded.path)
+        val body = recorded.body.readUtf8()
+        assertTrue("body should contain page=42, got: $body", body.contains("\"page\":42"))
+        assertTrue("body should contain completed=false, got: $body", body.contains("\"completed\":false"))
+    }
+
     @Test fun `pushEbookProgress forwards explicit isFinished=true (mark-finished)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(204))
 

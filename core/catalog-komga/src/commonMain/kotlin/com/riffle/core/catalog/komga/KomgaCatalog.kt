@@ -254,14 +254,24 @@ class KomgaCatalog(
         lastUpdateEpochMs: Long,
     ): Long? {
         val page = extractPageFromLocation(location)
-        // Mark-unread (`isFinished == false`) DELETEs Komga's read-progress record entirely.
-        // Prior code PATCHed `{completed:false}` without a page — Komga preserves the last-read
-        // page, so on the next pullProgress readProgress = (page=100, completed=false), and
-        // toCatalogProgress computes progress=100/100=1.0f — silently restoring the book to
-        // 100% "In Progress" on every device. Komga's DELETE endpoint is the correct semantic
-        // for clearing progress (#528).
+        // Mark-unread (`isFinished == false`): when no page is available (location="" from
+        // markFinished or an EPUB with no page mapping), DELETE is the correct semantic — PATCH
+        // {completed:false} without a page preserves the last-read page (e.g. page=100), so the
+        // next pullProgress computes progress=100/100=1.0f and silently restores the book to
+        // "In Progress" on every device (#528). When a page IS available (reading back into a
+        // finished book mid-session), PATCH {page, completed:false} instead of DELETE — the DELETE
+        // would erase the position the reader just synced, causing a "progress not saved" loop
+        // where runSyncCycle deletes what the previous sweep had just written.
         if (isFinished == false) {
-            http.delete(apiUrl("books/$itemId/read-progress"))
+            if (page == null) {
+                http.delete(apiUrl("books/$itemId/read-progress"))
+            } else {
+                val body = KomgaJson.encodeToString(
+                    KomgaReadProgressPatch.serializer(),
+                    KomgaReadProgressPatch(page = page, completed = false),
+                )
+                http.patchJson(apiUrl("books/$itemId/read-progress"), body)
+            }
             return null
         }
         // Honour the tri-state contract of [ProgressPeerCapability.pushEbookProgress]: `null`

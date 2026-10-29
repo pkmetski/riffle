@@ -128,7 +128,7 @@ class ReadingSessionRepositoryImpl constructor(
                 // cover pushes normally and un-finishes the book (see keepsFinishedState).
                 val localDbProgress = libraryItemDao.getById(sid, itemId)?.readingProgress ?: 0f
                 if (keepsFinishedState(localDbProgress, payload.ebookProgress)) return ProgressSyncCycleResult.InSync
-                val stamp = runCatching {
+                val pushResult = runCatching {
                     peer.pushEbookProgress(
                         itemId = itemId,
                         location = payload.ebookLocation,
@@ -136,8 +136,8 @@ class ReadingSessionRepositoryImpl constructor(
                         isFinished = isFinishedReadingProgress(payload.ebookProgress),
                         lastUpdateEpochMs = clock.nowMs(),
                     )
-                }.getOrNull()
-                if (stamp != null) {
+                }
+                if (pushResult.isSuccess) {
                     // Adopt the source-derived stamp; a zero/absent stamp falls back to clock so the
                     // row still marks clean (matches the old sessionApi.syncEbookProgress path).
                     // Use markSyncedAt to set BOTH stamps — prior code called updateLocalTimestamp
@@ -151,7 +151,13 @@ class ReadingSessionRepositoryImpl constructor(
                     // stores the position with its own clock which may be ahead of the device clock.
                     // A follow-up pull fetches the actual server-stored stamp so lastSyncedAt matches
                     // what the next cycle's pull returns, preventing a spurious ServerWins jump (#1154).
-                    val serverStamp = stamp.takeIf { it > 0L }
+                    //
+                    // Use isSuccess (not getOrNull() != null) because peers like Komga return null
+                    // on success (204 No Content) — getOrNull() is null for both success-with-null
+                    // and exceptions, so the old `if (stamp != null)` guard never fired for Komga
+                    // and the row stayed dirty forever.
+                    val returnedStamp = pushResult.getOrNull()
+                    val serverStamp = returnedStamp?.takeIf { it > 0L }
                         ?: runCatching { peer.pullProgress(itemId) }.getOrNull()?.lastUpdate?.takeIf { it > 0L }
                     val ts = serverStamp ?: clock.nowMs()
                     positionStore.markSyncedAt(sid, itemId, ts)
