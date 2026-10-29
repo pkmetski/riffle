@@ -56,6 +56,8 @@ import com.riffle.core.logging.Logger
 import com.riffle.feature.designsystem.LocalCoverLoadReporter
 import com.riffle.feature.designsystem.LoggingCoverLoadReporter
 import com.riffle.feature.designsystem.RiffleTheme
+import com.riffle.feature.navigation.LibraryNav
+import com.riffle.feature.navigation.LibraryNavStateHolder
 import com.riffle.feature.navigation.NowPlayingNavigator
 import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.VolumeNavEvent
@@ -79,6 +81,7 @@ class MainActivity : FragmentActivity() {
     private val autoScrollController: AutoScrollController by inject()
     private val openInImporter: OpenInImporter by inject()
     private val openInImportFeed: OpenInImportFeed by inject()
+    private val libraryNavStateHolder: LibraryNavStateHolder by inject()
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
@@ -169,6 +172,17 @@ class MainActivity : FragmentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Clear saved nav-stack on normal finish so the singleton does not leak state into the
+        // next Activity (or the next test). On config-change recreation (Z Flip display-move)
+        // isChangingConfigurations=true, so we keep the stack for AppShell to restore.
+        if (!isChangingConfigurations) {
+            libraryNavStateHolder.libraryId = null
+            libraryNavStateHolder.stack = listOf(LibraryNav.Items)
         }
     }
 
