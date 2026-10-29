@@ -231,6 +231,7 @@ fun AppShell(
             scope.launch { drawerState.close() }
             appSection = AppSection.Library
             activeLibraryId = null
+            destination = null
             viewModel.setActiveServer(source.id)
             scope.launch {
                 withTimeoutOrNull(5_000) {
