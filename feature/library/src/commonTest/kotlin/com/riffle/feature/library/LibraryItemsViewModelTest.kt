@@ -509,6 +509,14 @@ class LibraryItemsViewModelTest {
         assertEquals("hello", vm.searchQuery.value)
     }
 
+    @Test
+    fun `searchQuery is empty on a freshly constructed ViewModel`() = runTest {
+        val vm = makeViewModel(libraryId = "lib-fresh")
+        backgroundScope.launch { vm.searchQuery.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("", vm.searchQuery.value)
+    }
+
     // --- C1: filteredInProgress flow ---
 
     @Test
