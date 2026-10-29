@@ -16,6 +16,7 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.SourceType
 import com.riffle.feature.source.websource.NORM_KEY_SEP
 import com.riffle.feature.source.websource.OwnedItemIndex
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -102,13 +104,49 @@ abstract class UnboundedBrowseViewModel(
         .map { !it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** Global per-device cover density for the browse/catalog tab. */
-    val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
+    // The unbounded browse route uses the Riffle `libraryId` as the Catalog `rootId` — each of
+    // the source's Riffle "libraries" (e.g. Chitanka's Books + Audiobooks) maps 1:1 to a Catalog
+    // root. Reading the route arg as `libraryId` keeps this SavedStateHandle compatible with
+    // AnnotationsListViewModel (which looks for a `libraryId` key) when we embed it in the
+    // source screen's Annotations tab.
+    val rootId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: defaultRootId
+
+    private val screenDimensionBucketState = MutableStateFlow<ScreenDimensionBucket?>(null)
+
+    private val activeSourceId: StateFlow<String?> = sourceRepository.observeAll()
+        .map { sources -> sources.firstOrNull { it.type == sourceType }?.id }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Synthetic key for the Home tab's independent zoom — mirrors LibraryItemsViewModel's ":home" suffix.
+    private val homeRootKey = "$rootId:home"
+
+    /** Per-source per-device cover density for the browse/catalog tab. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val coverGridScale: StateFlow<Float> = combine(activeSourceId, screenDimensionBucketState) { sourceId, bucket ->
+        if (sourceId != null && bucket != null) {
+            coverGridDensityStore.scale(sourceId, rootId, bucket)
+        } else {
+            coverGridDensityStore.scale
+        }
+    }
+        .flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 
-    /** Global per-device cover density for the Home tab — independent of [coverGridScale]. */
-    val homeCoverGridScale: StateFlow<Float> = coverGridDensityStore.homeScale
+    /** Per-source per-device cover density for the Home tab — independent of [coverGridScale]. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val homeCoverGridScale: StateFlow<Float> = combine(activeSourceId, screenDimensionBucketState) { sourceId, bucket ->
+        if (sourceId != null && bucket != null) {
+            coverGridDensityStore.scale(sourceId, homeRootKey, bucket)
+        } else {
+            coverGridDensityStore.homeScale
+        }
+    }
+        .flatMapLatest { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    fun setScreenDimensionBucket(bucket: ScreenDimensionBucket) {
+        screenDimensionBucketState.value = bucket
+    }
 
     private var coverScalePersistJob: Job? = null
 
@@ -116,7 +154,13 @@ abstract class UnboundedBrowseViewModel(
         coverScalePersistJob?.cancel()
         coverScalePersistJob = viewModelScope.launch {
             delay(200)
-            coverGridDensityStore.setScale(value)
+            val sourceId = activeSourceId.filterNotNull().first()
+            val bucket = screenDimensionBucketState.value
+            if (bucket != null) {
+                coverGridDensityStore.setScale(sourceId, rootId, bucket, value)
+            } else {
+                coverGridDensityStore.setScale(value)
+            }
         }
     }
 
@@ -126,16 +170,15 @@ abstract class UnboundedBrowseViewModel(
         homeCoverScalePersistJob?.cancel()
         homeCoverScalePersistJob = viewModelScope.launch {
             delay(200)
-            coverGridDensityStore.setHomeScale(value)
+            val sourceId = activeSourceId.filterNotNull().first()
+            val bucket = screenDimensionBucketState.value
+            if (bucket != null) {
+                coverGridDensityStore.setScale(sourceId, homeRootKey, bucket, value)
+            } else {
+                coverGridDensityStore.setHomeScale(value)
+            }
         }
     }
-
-    // The unbounded browse route uses the Riffle `libraryId` as the Catalog `rootId` — each of
-    // the source's Riffle "libraries" (e.g. Chitanka's Books + Audiobooks) maps 1:1 to a Catalog
-    // root. Reading the route arg as `libraryId` keeps this SavedStateHandle compatible with
-    // AnnotationsListViewModel (which looks for a `libraryId` key) when we embed it in the
-    // source screen's Annotations tab.
-    val rootId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: defaultRootId
 
     /**
      * Emitted once the tapped [CatalogItem] has been upserted into `library_items` and the
