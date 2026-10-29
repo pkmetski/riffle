@@ -61,6 +61,7 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
+import com.riffle.core.domain.ReadingSpeedSession
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.TocRepository
@@ -375,12 +376,15 @@ fun EpubReaderScreen(
     var lazyFetcher by remember { mutableStateOf<IosLazyChapterFetcher?>(null) }
     // Cached publication shape for prefetch index lookups — avoids re-fetching on every position.
     var lazyShape by remember { mutableStateOf<LazyPublicationShape?>(null) }
-    // ReadingSessionCoordinator drives the 30-s sync heartbeat and reading-speed flush on close.
-    // Uses an independent scope (not rememberCoroutineScope) so onClosed() can still launch the
-    // speed-flush coroutine after Composition teardown has begun to cancel the composition scope.
+    // ReadingSessionCoordinator drives the 30-s sync heartbeat; ReadingSpeedSession tracks speed.
+    // Both use an independent scope (not rememberCoroutineScope) so their onClosed() launches
+    // survive Composition teardown cancelling the composition scope.
     val sessionCoordinatorScope = remember(item.id) { CoroutineScope(SupervisorJob()) }
     val sessionCoordinator = remember(item.id) {
-        ReadingSessionCoordinator(clock, readingSpeedStore, sessionCoordinatorScope)
+        ReadingSessionCoordinator(scope = sessionCoordinatorScope)
+    }
+    val speedSession = remember(item.id) {
+        ReadingSpeedSession(clock = clock, readingSpeedStore = readingSpeedStore, scope = sessionCoordinatorScope)
     }
     // Populated in Highlights mode so "Open in Book" can resolve the tapped annotation's locator.
     var highlightsAnnotations by remember { mutableStateOf<List<Annotation>>(emptyList()) }
@@ -965,22 +969,20 @@ fun EpubReaderScreen(
     LaunchedEffect(localPath) {
         if (localPath == null || source == ReaderSource.Highlights) return@LaunchedEffect
         val initialPosition = navigator.snapshotPosition()
-        sessionCoordinator.onResumed(
-            initialTotalProgression = initialPosition?.totalProgression,
-            onTick = {
-                val pos = navigator.snapshotPosition() ?: return@onResumed
-                val progress = com.riffle.core.domain.finishAwareEbookProgress(
-                    totalProgression = pos.totalProgression,
-                    progression = pos.progression,
-                    positionCounts = spineRef.value.positionCounts,
-                )
-                sessionRepository.runSyncCycle(
-                    item.id,
-                    SessionPayload(ebookLocation = pos.locatorJson, ebookProgress = progress),
-                    item.sourceId,
-                )
-            },
-        )
+        speedSession.onResumed(initialTotalProgression = initialPosition?.totalProgression)
+        sessionCoordinator.onResumed(onTick = {
+            val pos = navigator.snapshotPosition() ?: return@onResumed
+            val progress = com.riffle.core.domain.finishAwareEbookProgress(
+                totalProgression = pos.totalProgression,
+                progression = pos.progression,
+                positionCounts = spineRef.value.positionCounts,
+            )
+            sessionRepository.runSyncCycle(
+                item.id,
+                SessionPayload(ebookLocation = pos.locatorJson, ebookProgress = progress),
+                item.sourceId,
+            )
+        })
     }
 
     // Annotation decorations: apply highlights, bookmarks, note glyphs, emphasis and figure borders
@@ -1397,9 +1399,12 @@ fun EpubReaderScreen(
             val position = navigator.snapshotPosition()
             if (position != null && source != ReaderSource.Highlights) {
                 val totalPositions = spineRef.value.positionCounts.sum().toFloat()
-                // Flush the reading-speed session via the coordinator (runs on sessionCoordinatorScope
-                // which outlives Composition teardown — see ReadingSessionCoordinator.onClosed).
-                sessionCoordinator.onClosed(position.totalProgression, totalPositions)
+                // Cancel the heartbeat and flush reading-speed data on the survivable scope.
+                sessionCoordinator.onClosed()
+                speedSession.onClosed(
+                    currentTotalProgression = position.totalProgression,
+                    totalPositions = totalPositions,
+                )
                 // rememberCoroutineScope is cancelled during composition teardown; use an
                 // independent scope so the position write and sync survive past onDispose.
                 CoroutineScope(SupervisorJob()).launch {

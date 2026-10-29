@@ -5,13 +5,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.riffle.core.common.Clock
 
-/**
- * Tracks a single reading-speed session (issue #339).
- *
- * Captures the reader's progression at resume time and flushes to [ReadingSpeedStore] on close.
- * Separated from [ReadingSessionCoordinator] because reading-speed tracking is ABS-specific
- * (requires [ReadingSessionsCapability]) while the sync heartbeat is format-agnostic.
- */
 class ReadingSpeedSession(
     private val clock: Clock,
     private val readingSpeedStore: ReadingSpeedStore,
