@@ -170,13 +170,14 @@ class PdfReaderViewModelTest {
         annotationStore: AnnotationStore = FakePdfAnnotationStore(),
         navSourceId: String? = null,
         bucket: ScreenDimensionBucket = ScreenDimensionBucket.PhonePortrait,
+        readingSessionRepository: PdfFakeReadingSessionRepository = PdfFakeReadingSessionRepository(),
     ): PdfReaderViewModel {
         val appScope = FakePdfApplicationScope(testDispatcher)
         return PdfReaderViewModel(
             itemId = "item1",
             navSourceId = navSourceId,
             sharedPdfRepository = pdfRepo,
-            readingSessionRepository = PdfFakeReadingSessionRepository(),
+            readingSessionRepository = readingSessionRepository,
             updateReadingProgressUseCase = PdfNoopUpdateReadingProgress(),
             wakeLockPreferencesStore = PdfFakeWakeLockStore(),
             volumeNavigationController = VolumeNavigationController(),
@@ -202,6 +203,23 @@ class PdfReaderViewModelTest {
         assertIs<PdfReaderState.AwaitingNavigator>(vm.state.value,
             "loadItem must complete after setScreenDimensionBucket is called")
         vm.onReaderClosed()
+    }
+
+    @Test
+    fun onReaderClosedSyncsProgressViaSurvivableScope() = runTest(testDispatcher) {
+        val sessionRepo = PdfFakeReadingSessionRepository()
+        val vm = buildVm(navSourceId = "src1", readingSessionRepository = sessionRepo)
+        runCurrent()
+        vm.onNavigatorReady(totalPages = 10, outline = emptyList())
+        runCurrent()
+        vm.onPageChanged(page0Based = 3, totalPages = 10, progression = 0.3f)
+        runCurrent()
+
+        vm.onReaderClosed()
+        runCurrent()
+
+        assertTrue(sessionRepo.syncedPayloads.isNotEmpty(),
+            "onReaderClosed must trigger a server sync via the survivable progressFlushScope")
     }
 
     @Test
@@ -239,9 +257,12 @@ private class FakePdfRepository : SharedPdfRepository {
 }
 
 private class PdfFakeReadingSessionRepository : ReadingSessionRepository {
+    val syncedPayloads = mutableListOf<SessionPayload>()
     override suspend fun syncProgress(itemId: String, payload: SessionPayload) = SyncSessionResult.Success
-    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult =
-        ProgressSyncCycleResult.InSync
+    override suspend fun runSyncCycle(itemId: String, payload: SessionPayload, sourceId: String?): ProgressSyncCycleResult {
+        syncedPayloads += payload
+        return ProgressSyncCycleResult.InSync
+    }
     override suspend fun markFinished(sourceId: String, itemId: String, finished: Boolean) {}
     override suspend fun touchOpenTimestamp(itemId: String) {}
 }

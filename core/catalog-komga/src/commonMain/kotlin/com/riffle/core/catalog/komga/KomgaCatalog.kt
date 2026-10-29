@@ -254,24 +254,29 @@ class KomgaCatalog(
         lastUpdateEpochMs: Long,
     ): Long? {
         val page = extractPageFromLocation(location)
-        // Mark-unread (`isFinished == false`): when no page is available (location="" from
-        // markFinished or an EPUB with no page mapping), DELETE is the correct semantic — PATCH
-        // {completed:false} without a page preserves the last-read page (e.g. page=100), so the
-        // next pullProgress computes progress=100/100=1.0f and silently restores the book to
-        // "In Progress" on every device (#528). When a page IS available (reading back into a
-        // finished book mid-session), PATCH {page, completed:false} instead of DELETE — the DELETE
-        // would erase the position the reader just synced, causing a "progress not saved" loop
-        // where runSyncCycle deletes what the previous sweep had just written.
+        // Mark-unread (`isFinished == false`): three sub-cases:
+        // 1. Page available (CBZ/PDF in-progress or finished→re-reading): PATCH {page, completed:false}.
+        //    DELETE would erase the position the reader just synced, causing a "progress not saved"
+        //    loop where runSyncCycle deletes what the previous sweep had just written.
+        // 2. No page, empty location (location="" from markFinished): DELETE is correct — it wipes the
+        //    server's completed flag. PATCH {completed:false} without a page preserves the last-read
+        //    page (e.g. page=100), so the next pullProgress computes progress=100/100=1.0f and
+        //    silently restores the book to "In Progress" on every device (#528).
+        // 3. No page, non-empty location (EPUB CFI — Komga has no page-number concept for these):
+        //    no-op. We cannot send a meaningful position to Komga, so we leave the server state alone.
+        //    DELETEing here would wipe the server's record on every sync cycle for every in-progress
+        //    EPUB book — this is exactly the bug that the original commit (#1339) failed to fix.
         if (isFinished == false) {
-            if (page == null) {
-                http.delete(apiUrl("books/$itemId/read-progress"))
-            } else {
+            if (page != null) {
                 val body = KomgaJson.encodeToString(
                     KomgaReadProgressPatch.serializer(),
                     KomgaReadProgressPatch(page = page, completed = false),
                 )
                 http.patchJson(apiUrl("books/$itemId/read-progress"), body)
+            } else if (location.isEmpty()) {
+                http.delete(apiUrl("books/$itemId/read-progress"))
             }
+            // else: non-empty location with no parseable page (EPUB CFI) — no-op.
             return null
         }
         // Honour the tri-state contract of [ProgressPeerCapability.pushEbookProgress]: `null`

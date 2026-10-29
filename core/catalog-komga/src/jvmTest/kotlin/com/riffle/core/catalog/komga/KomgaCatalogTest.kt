@@ -279,6 +279,49 @@ class KomgaCatalogTest {
         assertEquals("/api/v1/books/B1/read-progress", recorded.path)
     }
 
+    @Test fun `pushEbookProgress with isFinished=false is a no-op for EPUB CFI locations (no page to send)`() = runTest {
+        // EPUB locators are Readium CFIs — extractPageFromLocation returns null for them. The
+        // prior code fell through to the DELETE branch, wiping Komga's read-progress record on
+        // every sync cycle for every in-progress EPUB book. The fix: non-empty location + no page
+        // = no-op (can't send a meaningful position to Komga; leave the server state alone).
+        val epubLocator = """{"href":"OEBPS/chapter01.xhtml","type":"application/xhtml+xml",""" +
+            """"locations":{"cfi":"/4/2[body01]/10/2[p1]:0","progression":0.42}}"""
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = epubLocator,
+            progress = 0.42f,
+            isFinished = false,
+            lastUpdateEpochMs = 0L,
+        )
+
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun `pushEbookProgress with isFinished=false PATCHes completed=false for CBZ locator format`() = runTest {
+        // CBZ reader's buildLocatorJson produces {"href":"cbz://page","type":"...","locations":
+        // {"position":N,"totalProgression":X}} — no fragments field. extractPageFromLocation reads
+        // locations.position and returns the 1-indexed page. Regression: this PATCH must be sent,
+        // not a DELETE (which was the pre-fix behaviour for all isFinished=false cases).
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = """{"href":"cbz://page","type":"application/vnd.comicbook+zip",""" +
+                """"locations":{"position":42,"totalProgression":0.42}}""",
+            progress = 0.42f,
+            isFinished = false,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val recorded = server.takeRequest()
+        assertEquals("PATCH", recorded.method)
+        assertEquals("/api/v1/books/B1/read-progress", recorded.path)
+        val body = recorded.body.readUtf8()
+        assertTrue("body should contain page=42, got: $body", body.contains("\"page\":42"))
+        assertTrue("body should contain completed=false, got: $body", body.contains("\"completed\":false"))
+    }
+
     @Test fun `pushEbookProgress with isFinished=false PATCHes completed=false when a page is available`() = runTest {
         // When reading back into a finished book, runSyncCycle passes isFinished=false with a
         // live reading position. Without a page the DELETE is needed (mark-as-unread wipe), but

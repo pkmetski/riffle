@@ -14,6 +14,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ReadingSpeedSession
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -125,6 +126,11 @@ class PdfReaderViewModel constructor(
     )
 
     private val readingSessionCoordinator = ReadingSessionCoordinator(
+        scope = viewModelScope,
+        enabled = { readingSessionsEnabled },
+    )
+
+    private val readingSpeedSession = ReadingSpeedSession(
         clock = clock,
         readingSpeedStore = readingSpeedStore,
         scope = viewModelScope,
@@ -282,10 +288,8 @@ class PdfReaderViewModel constructor(
         _state.value = PdfReaderState.Ready(ready.title, totalPages)
         val progression = if (totalPages > 0) lastPage.toFloat() / totalPages else 0f
         syncCurrentPosition(lastPage, progression)
-        readingSessionCoordinator.onResumed(
-            initialTotalProgression = null,
-            onTick = { syncCurrentPosition(lastPage, lastProgression) },
-        )
+        readingSpeedSession.onResumed(initialTotalProgression = null)
+        readingSessionCoordinator.onResumed(onTick = { syncCurrentPosition(lastPage, lastProgression) })
     }
 
     // ---- Public API -------------------------------------------------------
@@ -308,17 +312,16 @@ class PdfReaderViewModel constructor(
         pageChangeGate.reset()
         if (_state.value is PdfReaderState.Ready) {
             syncCurrentPosition(lastPage, lastProgression)
-            readingSessionCoordinator.onResumed(
-                initialTotalProgression = null,
-                onTick = { syncCurrentPosition(lastPage, lastProgression) },
-            )
+            readingSpeedSession.onResumed(initialTotalProgression = null)
+            readingSessionCoordinator.onResumed(onTick = { syncCurrentPosition(lastPage, lastProgression) })
         }
     }
 
     fun onReaderClosed() {
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
-        readingSessionCoordinator.onClosed(currentTotalProgression = null, totalPositions = 0f)
+        readingSessionCoordinator.onClosed()
+        readingSpeedSession.onClosed(currentTotalProgression = null, totalPositions = 0f)
         if (closeSyncDone) return
         closeSyncDone = true
         val capturedPage = lastPage
@@ -330,13 +333,11 @@ class PdfReaderViewModel constructor(
             val locatorJson = PdfLocatorCodec.encode(capturedPage, capturedTotal)
             sharedPdfRepository.saveReadingPosition(sid, itemId, locatorJson)
             positionSaveCoordinator.onClose(capturedProgression)
-        }
-        viewModelScope.launch {
             val payload = SessionPayload(
-                ebookLocation = PdfLocatorCodec.encode(capturedPage, capturedTotal),
+                ebookLocation = locatorJson,
                 ebookProgress = capturedProgression,
             )
-            syncSession.sync(payload, navSourceId)
+            readingSessionRepository.runSyncCycle(itemId, payload, capturedSourceId)
         }
     }
 

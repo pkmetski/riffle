@@ -10,6 +10,7 @@ import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
+import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -117,6 +118,8 @@ class CbzReaderViewModel constructor(
         repository = readingSessionRepository,
         scope = viewModelScope,
     )
+
+    private val syncHeartbeat = ReadingSessionCoordinator(scope = viewModelScope)
 
     private val _state = MutableStateFlow<CbzReaderState>(CbzReaderState.Loading)
     val state: StateFlow<CbzReaderState> = _state
@@ -352,6 +355,7 @@ class CbzReaderViewModel constructor(
             SessionPayload(ebookLocation = it, ebookProgress = 0f)
         } ?: SessionPayload("", 0f)
         syncSession.sync(payload)
+        syncHeartbeat.onResumed(onTick = { syncCurrentPosition() })
         // Prefetch panels for the resume page and the next two.
         onCurrentPageChanged(resumeIndex)
     }
@@ -392,6 +396,7 @@ class CbzReaderViewModel constructor(
             SessionPayload(ebookLocation = it, ebookProgress = 0f)
         } ?: SessionPayload("", 0f)
         syncSession.sync(payload)
+        syncHeartbeat.onResumed(onTick = { syncCurrentPosition() })
         onCurrentPageChanged(resumeIndex)
 
         // Background: download the full file and swap to the local archive once ready.
@@ -672,18 +677,21 @@ class CbzReaderViewModel constructor(
     fun onReaderResumed() {
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
+        if (_state.value is CbzReaderState.Ready) {
+            syncCurrentPosition()
+            syncHeartbeat.onResumed(onTick = { syncCurrentPosition() })
+        }
     }
 
     fun onReaderClosed() {
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
+        syncHeartbeat.onClosed()
         if (closeSyncDone) return
         closeSyncDone = true
         val ready = _state.value as? CbzReaderState.Ready ?: return
         savePosition(_currentPage.value, ready.pageCount)
-        val page = _currentPage.value + 1
-        val progression = if (ready.pageCount > 0) page.toDouble() / ready.pageCount.toDouble() else 0.0
-        val locatorJson = buildLocatorJson(page, progression)
+        val (locatorJson, closeFraction) = currentLocatorAndFraction() ?: return
         // Persist position AND readingProgress on the survivable scope — same race as
         // EpubReaderViewModel: onCleared() calls super.onCleared() first, cancelling viewModelScope
         // before the in-flight savePosition coroutine can execute. savePosition() above runs the
@@ -691,23 +699,32 @@ class CbzReaderViewModel constructor(
         // marked-read comic read past the cover stays pinned at 100% (the offline sweep then
         // re-pushes 1.0). Mirror the fraction here on the durable scope so it always lands.
         val sid = resolvedSourceId
-        val closeFraction = if (ready.pageCount > 1) {
+        val closePayload = SessionPayload(ebookLocation = locatorJson, ebookProgress = closeFraction)
+        applicationScope.launchSurvivable {
+            if (sid != null) {
+                cbzRepository.saveReadingPosition(sid, itemId, locatorJson)
+                updateReadingProgressUseCase(sid, itemId, closeFraction)
+            }
+            // Run the server sync on the survivable scope so it isn't cancelled by viewModelScope
+            // being torn down immediately after ON_STOP on back-navigation.
+            readingSessionRepository.runSyncCycle(itemId, closePayload, sid)
+        }
+    }
+
+    private fun currentLocatorAndFraction(): Pair<String, Float>? {
+        val ready = _state.value as? CbzReaderState.Ready ?: return null
+        val page = _currentPage.value + 1
+        val fraction = if (ready.pageCount > 1) {
             _currentPage.value.toFloat() / (ready.pageCount - 1).toFloat()
         } else {
             1f
         }
-        if (sid != null) {
-            applicationScope.launchSurvivable {
-                cbzRepository.saveReadingPosition(sid, itemId, locatorJson)
-                updateReadingProgressUseCase(sid, itemId, closeFraction)
-            }
-        }
-        // Push the SAME 0-indexed position fraction the local write uses, not the 1-indexed
-        // page/pageCount `progression`. On the cover of a short comic the 1-indexed value is
-        // 1/pageCount (e.g. 0.02 for 50 pages), which exceeds COVER_PROGRESS_EPSILON and defeats
-        // keepsFinishedState — so reopening a finished comic and closing on the cover would push a
-        // ~2% fraction that un-finishes it on the source while the library stays at 100%.
-        syncSession.sync(SessionPayload(ebookLocation = locatorJson, ebookProgress = closeFraction))
+        return buildLocatorJson(page, fraction.toDouble()) to fraction
+    }
+
+    private fun syncCurrentPosition(sourceId: String? = resolvedSourceId) {
+        val (locatorJson, fraction) = currentLocatorAndFraction() ?: return
+        syncSession.sync(SessionPayload(ebookLocation = locatorJson, ebookProgress = fraction), sourceId)
     }
 
     private fun buildLocatorJson(position: Int, progression: Double): String =
@@ -755,6 +772,7 @@ class CbzReaderViewModel constructor(
         val image = colorPageDecoder.decode(bytes, targetLongEdge = 300) ?: return null
         return comicSeamEnergySampler(image, imageWidth, imageHeight)
     }
+
 }
 
 /**
