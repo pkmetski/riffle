@@ -61,8 +61,8 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionCoordinator
-import com.riffle.core.domain.ReadingSpeedSession
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ReadingSpeedSession
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.appearance.AppearanceCoordinator
