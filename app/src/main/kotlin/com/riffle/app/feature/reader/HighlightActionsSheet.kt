@@ -103,7 +103,7 @@ private fun NoteOnlyPopup(
         shape = RoundedCornerShape(12.dp),
         shadowElevation = 4.dp,
         tonalElevation = 0.dp,
-        modifier = Modifier.widthIn(max = 320.dp),
+        modifier = Modifier.widthIn(max = 360.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp).fillMaxWidth()) {
             Text(text = labels.note, style = MaterialTheme.typography.bodyMedium)

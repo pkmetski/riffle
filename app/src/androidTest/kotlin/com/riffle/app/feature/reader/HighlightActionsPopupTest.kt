@@ -2,13 +2,16 @@ package com.riffle.app.feature.reader
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.IntRect
+import com.riffle.feature.designsystem.TestTags
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.models.HighlightColor
 import com.riffle.feature.reader.ui.NoteEditorSheet
@@ -112,6 +115,13 @@ class HighlightActionsPopupTest {
         showPopup(note = null, noteOnly = true)
         composeTestRule.onNodeWithText("Note").assertIsDisplayed()
         composeTestRule.onNodeWithText("Edit").assertDoesNotExist()
+    }
+
+    @Test
+    fun popup_widthIsAtMost360dp() {
+        showPopup(note = "A short note")
+        val bounds = composeTestRule.onNodeWithTag(TestTags.ANNOTATION_NOTE_ROW).getBoundsInRoot()
+        assertTrue("annotation popup note row width must be at most 360dp, was ${bounds.width}", bounds.width.value <= 360f)
     }
 
     @Test
