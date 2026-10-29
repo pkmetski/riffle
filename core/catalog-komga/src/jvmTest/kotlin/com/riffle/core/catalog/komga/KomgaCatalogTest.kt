@@ -279,6 +279,25 @@ class KomgaCatalogTest {
         assertEquals("/api/v1/books/B1/read-progress", recorded.path)
     }
 
+    @Test fun `pushEbookProgress with isFinished=false is a no-op for EPUB CFI locations (no page to send)`() = runTest {
+        // EPUB locators are Readium CFIs — extractPageFromLocation returns null for them. The
+        // prior code fell through to the DELETE branch, wiping Komga's read-progress record on
+        // every sync cycle for every in-progress EPUB book. The fix: non-empty location + no page
+        // = no-op (can't send a meaningful position to Komga; leave the server state alone).
+        val epubLocator = """{"href":"OEBPS/chapter01.xhtml","type":"application/xhtml+xml",""" +
+            """"locations":{"cfi":"/4/2[body01]/10/2[p1]:0","progression":0.42}}"""
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = epubLocator,
+            progress = 0.42f,
+            isFinished = false,
+            lastUpdateEpochMs = 0L,
+        )
+
+        assertEquals(0, server.requestCount)
+    }
+
     @Test fun `pushEbookProgress with isFinished=false PATCHes completed=false when a page is available`() = runTest {
         // When reading back into a finished book, runSyncCycle passes isFinished=false with a
         // live reading position. Without a page the DELETE is needed (mark-as-unread wipe), but
