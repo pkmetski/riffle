@@ -67,8 +67,8 @@ object CoverGridLayout {
      */
     fun sectionPreviewCount(columns: Int): Int = max(1, columns * 2 - 1)
 
-    /** True when a section has more items than its two-row preview can show. */
-    fun shouldShowSeeMore(itemCount: Int, previewCount: Int): Boolean = itemCount > previewCount
+    /** True when a section has more than one item beyond its two-row preview. */
+    fun shouldShowSeeMore(itemCount: Int, previewCount: Int): Boolean = itemCount > previewCount + 1
 
     /**
      * [com.riffle.core.models.LibraryItem.seriesName] carries its sequence as a ` #` suffix when

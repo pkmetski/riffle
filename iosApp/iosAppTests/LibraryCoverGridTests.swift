@@ -129,11 +129,12 @@ final class LibraryCoverGridTests: XCTestCase {
         }
     }
 
-    /// The see-more tile appears only once the section genuinely overflows its preview — an exact
-    /// fit must not render one.
-    func testSeeMoreAppearsOnlyWhenItemsExceedThePreview() {
+    /// The see-more tile appears only when more than one item would be hidden — an exact fit or a
+    /// single overflow must show the item directly instead of a "+1 more" button.
+    func testSeeMoreAppearsOnlyWhenItemsExceedThePreviewByMoreThanOne() {
         let preview = layout.sectionPreviewCount(columns: 3) // 5
-        XCTAssertTrue(layout.shouldShowSeeMore(itemCount: 6, previewCount: preview))
+        XCTAssertTrue(layout.shouldShowSeeMore(itemCount: 7, previewCount: preview), "2+ overflow must show the tile")
+        XCTAssertFalse(layout.shouldShowSeeMore(itemCount: 6, previewCount: preview), "exactly 1 overflow shows the item, not the tile")
         XCTAssertFalse(layout.shouldShowSeeMore(itemCount: 5, previewCount: preview), "an exact fit needs no see-more tile")
         XCTAssertFalse(layout.shouldShowSeeMore(itemCount: 1, previewCount: preview))
     }
