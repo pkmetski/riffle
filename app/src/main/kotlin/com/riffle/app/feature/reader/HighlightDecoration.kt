@@ -4,6 +4,8 @@ import android.graphics.Color
 import android.os.Parcel
 import android.os.Parcelable
 import androidx.annotation.ColorInt
+import com.riffle.feature.reader.decorations.HIGHLIGHT_TINT_CLASS
+import com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs
 import org.readium.r2.navigator.Decoration
 import java.util.Locale
 import org.readium.r2.navigator.html.HtmlDecorationTemplate
@@ -41,8 +43,6 @@ class HighlightTintStyle(
     }
 }
 
-private const val HIGHLIGHT_TINT_CLASS = "riffle-highlight-tint"
-
 // Every Riffle highlight paint — paginated decoration template AND every continuous-mode
 // <mark> the JS emitters inject (annotations, search, readaloud sentence) — must use this
 // exact suffix on its inline `background:` declaration. ReadiumCSS night mode injects
@@ -57,14 +57,6 @@ internal const val HIGHLIGHT_INLINE_STYLE_SUFFIX = " !important;color:inherit;"
 internal fun highlightInlineStyle(cssColor: String): String =
     "background:$cssColor$HIGHLIGHT_INLINE_STYLE_SUFFIX"
 
-/**
- * Installs the two geometry functions used by the Readium-overlay and continuous-`<mark>` paths.
- *
- * Android's native selection paint covers the full CSS line box. DOM range rectangles and inline
- * backgrounds only cover the text box, leaving the line-leading transparent. The missing leading
- * is `computed line-height - painted rect height`; splitting it above and below makes adjacent
- * highlight bands meet exactly without changing text layout.
- */
 internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
     (function() {
       var lineHeightOf = function(element) {
@@ -151,45 +143,6 @@ internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
         });
         return boxes.length;
       };
-    })();
-""".trimIndent()
-
-/**
- * Installs a [MutationObserver] that expands every `.riffle-highlight-tint` element to
- * full line-height the moment it is added to the DOM — as a microtask, before the browser
- * can paint the thin Readium default. Call once per page (the JS-side guard prevents
- * double-installation; on a new page navigation `window` is fresh so the guard is absent).
- *
- * This replaces the old [requestAnimationFrame]-based [readiumHighlightLeadingAdjustmentJs]:
- * the rAF fired AFTER the first paint, so users briefly saw decorations at Readium's default
- * (thin) box height before they snapped to full line-height — each snap visible as a flash.
- * A microtask fires before the browser renders, making the expansion invisible.
- */
-internal fun installHighlightLeadingObserverJs(): String = """
-    $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
-    (function() {
-      if (window.__riffleLeadingObserver) return;
-      window.__riffleLeadingObserver = new MutationObserver(function(mutations) {
-        var hasHighlightAdd = false;
-        for (var mi = 0; mi < mutations.length; mi++) {
-          var added = mutations[mi].addedNodes;
-          for (var ni = 0; ni < added.length; ni++) {
-            var node = added[ni];
-            if (node.nodeType !== 1) continue;
-            if (node.classList.contains('$HIGHLIGHT_TINT_CLASS') ||
-                node.querySelector && node.querySelector('.$HIGHLIGHT_TINT_CLASS')) {
-              hasHighlightAdd = true;
-              break;
-            }
-          }
-          if (hasHighlightAdd) break;
-        }
-        if (hasHighlightAdd) window.__riffleFillReadiumHighlightLeading();
-      });
-      window.__riffleLeadingObserver.observe(
-        document.body || document.documentElement,
-        { childList: true, subtree: true }
-      );
     })();
 """.trimIndent()
 

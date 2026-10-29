@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs
 import org.json.JSONArray
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -5,6 +5,7 @@ import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.feature.reader.HighlightRender
+import com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs
 import org.json.JSONObject
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator

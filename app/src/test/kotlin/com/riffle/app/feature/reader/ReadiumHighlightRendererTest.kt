@@ -139,14 +139,14 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyAnnotations forceRefresh produces one direct apply call without clear`() = runTest {
         val renders = listOf(makeRender("h1", "c1.xhtml", color = "yellow"))
-        renderer.applyAnnotations(renders, forceRefresh = false)
+        renderer.applyAnnotations(renders)
         applied.clear()
 
         // forceRefresh=true — layout changed (page loaded or reflowed). Readium's diff is a no-op
         // when the decoration list is identical (same id/locator/style). When Readium's internal
         // requestLayout fires on column layout changes, it removes and re-creates all elements in
         // a single rAF — no additional clear+apply is needed here to cause repositioning.
-        renderer.applyAnnotations(renders, forceRefresh = true)
+        renderer.applyAnnotations(renders)
         val annotationCalls = applied.filter { it.second == "annotations" }
         assertEquals("forceRefresh must produce exactly one apply call (not clear+apply)", 1, annotationCalls.size)
         assertEquals(1, annotationCalls[0].first.size)
@@ -158,10 +158,10 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyAnnotations same renders without layout change produces one direct apply`() = runTest {
         val renders = listOf(makeRender("h1", "c1.xhtml", color = "yellow"))
-        renderer.applyAnnotations(renders, forceRefresh = false)
+        renderer.applyAnnotations(renders)
         applied.clear()
 
-        renderer.applyAnnotations(renders, forceRefresh = false)
+        renderer.applyAnnotations(renders)
         val annotationCalls = applied.filter { it.second == "annotations" }
         assertEquals("same renders with no layout change must produce one apply call", 1, annotationCalls.size)
     }
@@ -169,7 +169,7 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyAnnotations changed renders on second call uses direct apply to avoid flash`() = runTest {
         val renders1 = listOf(makeRender("h1", "c1.xhtml", color = "yellow"))
-        renderer.applyAnnotations(renders1, forceRefresh = false)
+        renderer.applyAnnotations(renders1)
         applied.clear()
 
         // Different renders with forceRefresh=false (data update: annotation added/recoloured) —
@@ -179,7 +179,7 @@ class ReadiumHighlightRendererTest {
             makeRender("h1", "c1.xhtml", color = "green"),
             makeRender("h2", "c1.xhtml", color = "blue"),
         )
-        renderer.applyAnnotations(renders2, forceRefresh = false)
+        renderer.applyAnnotations(renders2)
         val annotationCalls = applied.filter { it.second == "annotations" }
         assertEquals("data-only change must use direct apply (no clear flash)", 1, annotationCalls.size)
         assertEquals(2, annotationCalls[0].first.size)
@@ -360,12 +360,12 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyNoteGlyphs forceRefresh produces one direct apply call without clear`() = runTest {
         val renders = listOf(makeRender("h1", "c.xhtml", note = "My note"))
-        renderer.applyNoteGlyphs(renders, forceRefresh = false)
+        renderer.applyNoteGlyphs(renders)
         applied.clear()
 
         // forceRefresh=true: Readium's requestLayout handles layout repositioning automatically;
         // no generation marker or clear+apply is needed here.
-        renderer.applyNoteGlyphs(renders, forceRefresh = true)
+        renderer.applyNoteGlyphs(renders)
         val glyphCalls = applied.filter { it.second == NOTE_GLYPH_DECORATION_GROUP }
         assertEquals("forceRefresh must produce one apply call for glyphs", 1, glyphCalls.size)
         assertEquals(1, glyphCalls[0].first.size)
@@ -374,10 +374,10 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyNoteGlyphs same noted renders without layout change uses direct apply`() = runTest {
         val renders = listOf(makeRender("h1", "c.xhtml", note = "My note"))
-        renderer.applyNoteGlyphs(renders, forceRefresh = false)
+        renderer.applyNoteGlyphs(renders)
         applied.clear()
 
-        renderer.applyNoteGlyphs(renders, forceRefresh = false)
+        renderer.applyNoteGlyphs(renders)
         val glyphCalls = applied.filter { it.second == NOTE_GLYPH_DECORATION_GROUP }
         assertEquals("same noted renders with no layout change must use direct apply", 1, glyphCalls.size)
     }
@@ -385,14 +385,14 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyNoteGlyphs changed noted renders on second call uses direct apply`() = runTest {
         val renders1 = listOf(makeRender("h1", "c.xhtml", note = "note"))
-        renderer.applyNoteGlyphs(renders1, forceRefresh = false)
+        renderer.applyNoteGlyphs(renders1)
         applied.clear()
 
         val renders2 = listOf(
             makeRender("h1", "c.xhtml", note = "note"),
             makeRender("h2", "c.xhtml", note = "another note"),
         )
-        renderer.applyNoteGlyphs(renders2, forceRefresh = false)
+        renderer.applyNoteGlyphs(renders2)
         val glyphCalls = applied.filter { it.second == NOTE_GLYPH_DECORATION_GROUP }
         assertEquals("changed noted renders must use direct apply (no clear flash)", 1, glyphCalls.size)
         assertEquals(2, glyphCalls[0].first.size)
