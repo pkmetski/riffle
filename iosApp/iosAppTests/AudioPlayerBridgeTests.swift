@@ -318,6 +318,88 @@ final class AudioPlayerBridgeTests: XCTestCase {
         }
     }
 
+    // MARK: - Interruption handling: user-paused state is not overridden
+
+    /// If audio was actually playing when the interruption started, `shouldResume` must restart it.
+    func testInterruptionResumeWhenPlayingBeforeInterruptionRestartsAudio() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+        bridge.play()
+
+        XCTAssertTrue(waitUntil { bridge.isPlaying() }, "audio must be playing before the interruption")
+
+        postInterruption(type: .began)
+        XCTAssertFalse(bridge.isPlaying(), "interruption must pause the player")
+
+        postInterruption(type: .ended, shouldResume: true)
+        XCTAssertTrue(
+            waitUntil { bridge.isPlaying() },
+            "shouldResume must restart audio that was playing when the interruption began"
+        )
+        bridge.pause()
+    }
+
+    /// If the user had already paused before the interruption, `shouldResume` must NOT restart.
+    func testInterruptionResumeWhenPausedBeforeInterruptionDoesNotRestart() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+        // Do NOT call bridge.play() — the user has paused / never started.
+
+        XCTAssertFalse(bridge.isPlaying(), "audio must be paused before the interruption")
+
+        postInterruption(type: .began)
+        postInterruption(type: .ended, shouldResume: true)
+
+        XCTAssertFalse(
+            bridge.isPlaying(),
+            "shouldResume must not restart audio the user had explicitly paused before the interruption"
+        )
+    }
+
+    /// Repeat call for robustness: a second interrupted-while-playing cycle should still resume.
+    func testInterruptionResumeRemainsCorrectAfterMultipleCycles() throws {
+        let bridge = IosAudioPlayerBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.preparePlayer(trackUrls: trackUrlStrings, startTrackIndex: 0, startOffsetSec: 0)
+        bridge.play()
+        XCTAssertTrue(waitUntil { bridge.isPlaying() })
+
+        // First cycle.
+        postInterruption(type: .began)
+        postInterruption(type: .ended, shouldResume: true)
+        XCTAssertTrue(
+            waitUntil { bridge.isPlaying() },
+            "first interrupted-while-playing cycle must resume"
+        )
+
+        // Second cycle: user explicitly pauses between interruptions.
+        bridge.pause()
+        postInterruption(type: .began)
+        postInterruption(type: .ended, shouldResume: true)
+        XCTAssertFalse(
+            bridge.isPlaying(),
+            "second cycle: user paused before interruption — must not auto-resume"
+        )
+    }
+
+    private func postInterruption(
+        type: AVAudioSession.InterruptionType,
+        shouldResume: Bool = false
+    ) {
+        var info: [AnyHashable: Any] = [AVAudioSessionInterruptionTypeKey: type.rawValue]
+        if type == .ended && shouldResume {
+            info[AVAudioSessionInterruptionOptionKey] =
+                AVAudioSession.InterruptionOptions.shouldResume.rawValue
+        }
+        NotificationCenter.default.post(
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            userInfo: info
+        )
+    }
+
     func testRePrepareDoesNotLeakObservers() {
         // Regression: calling preparePlayer a second time without dispose would accumulate KVO
         // observations and leave a dangling time observer on the first player. After stopActivePlayer
