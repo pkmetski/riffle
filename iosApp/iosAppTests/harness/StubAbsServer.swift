@@ -38,6 +38,12 @@ final class StubAbsServer {
     static let testCbzItemTitle = "Test CBZ"
     static let testCbzFileIno = "ino-cbz-1"
     static let testSessionId = "playback-session-1"
+    static let testPaddingItemId1 = "item-test-5"
+    static let testPaddingItemTitle1 = "Test EPUB 5"
+    static let testPaddingFileIno1 = "ino-test-5"
+    static let testPaddingItemId2 = "item-test-6"
+    static let testPaddingItemTitle2 = "Test EPUB 6"
+    static let testPaddingFileIno2 = "ino-test-6"
 
     // MARK: - State
 
@@ -175,7 +181,9 @@ final class StubAbsServer {
           {"id":"\(Self.testPdfItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testPdfItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"\(Self.testPdfFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
           {"id":"\(Self.testFootnoteItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testFootnoteItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testFootnoteFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
           {"id":"\(Self.testAudioItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testAudioItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":null,"ebookFile":null,"numAudioFiles":1},"userMediaProgress":null},
-          {"id":"\(Self.testCbzItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testCbzItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"cbz","ebookFile":{"ino":"\(Self.testCbzFileIno)"},"numAudioFiles":0},"userMediaProgress":null}
+          {"id":"\(Self.testCbzItemId)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testCbzItemTitle)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"cbz","ebookFile":{"ino":"\(Self.testCbzFileIno)"},"numAudioFiles":0},"userMediaProgress":null},
+          {"id":"\(Self.testPaddingItemId1)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testPaddingItemTitle1)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testPaddingFileIno1)"},"numAudioFiles":0},"userMediaProgress":null},
+          {"id":"\(Self.testPaddingItemId2)","libraryId":"\(lib)","media":{"metadata":{"title":"\(Self.testPaddingItemTitle2)","authorName":"\(Self.testItemAuthor)","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"\(Self.testPaddingFileIno2)"},"numAudioFiles":0},"userMediaProgress":null}
         ]}
         """)
     }

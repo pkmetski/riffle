@@ -9,12 +9,6 @@ import okhttp3.mockwebserver.RecordedRequest
 /**
  * Wraps MockWebServer to serve canned ABS API responses for instrumented tests.
  * All constants are stable identifiers that tests can reference without magic strings.
- *
- * Three items exist:
- *  - TEST_ITEM (item-test-1): belongs to TEST_SERIES and TEST_COLLECTION — used for grouped navigation tests.
- *  - TEST_STANDALONE_ITEM (item-test-2): not in any series or collection — appears in the ungrouped "Books"
- *    section of the library items screen and is used for the direct-open EPUB test.
- *  - TEST_PDF_ITEM (item-test-3): a PDF item used for the PDF reader harness test.
  */
 class StubAbsServer(
     private val epubBytesProvider: (() -> ByteArray)? = null,
@@ -44,6 +38,12 @@ class StubAbsServer(
         const val TEST_FOOTNOTE_ITEM_ID = "item-test-4"
         const val TEST_FOOTNOTE_ITEM_TITLE = "Test Footnotes EPUB"
         const val TEST_FOOTNOTE_FILE_INO = "ino-test-4"
+        const val TEST_PADDING_ITEM_ID_1 = "item-test-5"
+        const val TEST_PADDING_ITEM_TITLE_1 = "Test EPUB 5"
+        const val TEST_PADDING_FILE_INO_1 = "ino-test-5"
+        const val TEST_PADDING_ITEM_ID_2 = "item-test-6"
+        const val TEST_PADDING_ITEM_TITLE_2 = "Test EPUB 6"
+        const val TEST_PADDING_FILE_INO_2 = "ino-test-6"
     }
 
     private val _sessionSyncCount = java.util.concurrent.atomic.AtomicInteger(0)
@@ -107,7 +107,9 @@ class StubAbsServer(
           {"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null},
           {"id":"$TEST_STANDALONE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_STANDALONE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_STANDALONE_FILE_INO"}},"userMediaProgress":null},
           {"id":"$TEST_PDF_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PDF_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"$TEST_PDF_FILE_INO"}},"userMediaProgress":null},
-          {"id":"$TEST_FOOTNOTE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_FOOTNOTE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FOOTNOTE_FILE_INO"}},"userMediaProgress":null}
+          {"id":"$TEST_FOOTNOTE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_FOOTNOTE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FOOTNOTE_FILE_INO"}},"userMediaProgress":null},
+          {"id":"$TEST_PADDING_ITEM_ID_1","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_1","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_1"}},"userMediaProgress":null},
+          {"id":"$TEST_PADDING_ITEM_ID_2","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_2","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_2"}},"userMediaProgress":null}
         ]}"""
     )
 

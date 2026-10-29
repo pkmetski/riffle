@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.library.CoverGridLayout as CoverGridCalc
 
 /**
  * A 2-row preview grid of book cover tiles, used in the Home tab for each library section
@@ -54,10 +55,10 @@ fun BookSectionGrid(
     val spacing = 8.dp
     BoxWithConstraints(modifier = Modifier.padding(horizontal = 12.dp)) {
         val columns = maxOf(1, ((maxWidth + spacing) / (minCell + spacing)).toInt())
-        val previewCount = maxOf(1, columns * 2 - 1)
-        val showSeeMore = onSeeMore != null && items.size > previewCount
-        val preview = if (onSeeMore != null) items.take(previewCount) else items
+        val previewCount = CoverGridCalc.sectionPreviewCount(columns)
         val overflowCount = items.size - previewCount
+        val showSeeMore = onSeeMore != null && CoverGridCalc.shouldShowSeeMore(items.size, previewCount)
+        val preview = if (showSeeMore) items.take(previewCount) else items
         CoverGridLayout(
             count = preview.size + (if (showSeeMore) 1 else 0),
             columns = columns,
