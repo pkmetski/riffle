@@ -127,8 +127,8 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    # 50 min: K/N compilation of 29 modules + XCTest unit target; raised from 35 (too tight on slow runners).
-    timeout-minutes: 50
+    # 65 min: K/N compilation of 29 modules + XCTest unit target; raised from 50 (suite runs ~46 min on fast runners, exceeds limit on slow ones).
+    timeout-minutes: 65
     concurrency:
       group: ios-unit-test-${{ github.ref }}
       cancel-in-progress: true
