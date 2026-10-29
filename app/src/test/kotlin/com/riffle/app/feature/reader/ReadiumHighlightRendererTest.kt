@@ -126,41 +126,95 @@ class ReadiumHighlightRendererTest {
         )
         renderer.applyAnnotations(renders)
         val annotationCalls = applied.filter { it.second == "annotations" }
-        // A single clear followed by a single apply. No settle loop — that lived until we
-        // discovered it was pinning the WebView main thread for 2.6s on cold open and causing
-        // 2-3s of input sluggishness. Post-apply layout shifts are covered by the outer
-        // LaunchedEffect re-keying on pageLoadGeneration / reflowGeneration.
-        assertEquals("expected exactly clear + apply, no settle re-applies", 2, annotationCalls.size)
-        assertEquals(emptyList<Decoration>(), annotationCalls[0].first)
-        assertEquals(2, annotationCalls[1].first.size)
-        assertEquals("h1", annotationCalls[1].first[0].id)
-        assertEquals("h2", annotationCalls[1].first[1].id)
+        // First apply: renders changed (null → list) so Readium diffs directly without clearing.
+        // No settle loop — that lived until we discovered it was pinning the WebView main thread
+        // for 2.6s on cold open. Post-apply layout shifts are covered by the outer LaunchedEffect
+        // re-keying on pageLoadGeneration / reflowGeneration (which trigger clear+apply).
+        assertEquals("expected a single direct apply on first call, no clear", 1, annotationCalls.size)
+        assertEquals(2, annotationCalls[0].first.size)
+        assertEquals("h1", annotationCalls[0].first[0].id)
+        assertEquals("h2", annotationCalls[0].first[1].id)
     }
 
     @Test
-    fun `applyAnnotations expands decoration boxes after Readium applies them`() = runTest {
+    fun `applyAnnotations forceRefresh produces one direct apply call without clear`() = runTest {
+        val renders = listOf(makeRender("h1", "c1.xhtml", color = "yellow"))
+        renderer.applyAnnotations(renders, forceRefresh = false)
+        applied.clear()
+
+        // forceRefresh=true — layout changed (page loaded or reflowed). Readium's diff is a no-op
+        // when the decoration list is identical (same id/locator/style). When Readium's internal
+        // requestLayout fires on column layout changes, it removes and re-creates all elements in
+        // a single rAF — no additional clear+apply is needed here to cause repositioning.
+        renderer.applyAnnotations(renders, forceRefresh = true)
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        assertEquals("forceRefresh must produce exactly one apply call (not clear+apply)", 1, annotationCalls.size)
+        assertEquals(1, annotationCalls[0].first.size)
+    }
+
+    // Regression: sync-on-open re-emits the same annotation list from DB (no layout change).
+    // forceRefresh=false must produce a single apply with unmodified locators so Readium's diff
+    // is a no-op — no unnecessary repositioning, no flash.
+    @Test
+    fun `applyAnnotations same renders without layout change produces one direct apply`() = runTest {
+        val renders = listOf(makeRender("h1", "c1.xhtml", color = "yellow"))
+        renderer.applyAnnotations(renders, forceRefresh = false)
+        applied.clear()
+
+        renderer.applyAnnotations(renders, forceRefresh = false)
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        assertEquals("same renders with no layout change must produce one apply call", 1, annotationCalls.size)
+    }
+
+    @Test
+    fun `applyAnnotations changed renders on second call uses direct apply to avoid flash`() = runTest {
+        val renders1 = listOf(makeRender("h1", "c1.xhtml", color = "yellow"))
+        renderer.applyAnnotations(renders1, forceRefresh = false)
+        applied.clear()
+
+        // Different renders with forceRefresh=false (data update: annotation added/recoloured) —
+        // Readium diffs and repositions the changed decorations in a single JS call without an
+        // intermediate "all cleared" frame, so the user sees no flash.
+        val renders2 = listOf(
+            makeRender("h1", "c1.xhtml", color = "green"),
+            makeRender("h2", "c1.xhtml", color = "blue"),
+        )
+        renderer.applyAnnotations(renders2, forceRefresh = false)
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        assertEquals("data-only change must use direct apply (no clear flash)", 1, annotationCalls.size)
+        assertEquals(2, annotationCalls[0].first.size)
+    }
+
+    // The MutationObserver that expands decoration boxes to full line-height must be installed
+    // BEFORE Readium's applyDecorations call so it is already watching when Readium's JS adds
+    // the decoration elements to the DOM. The expansion then fires as a microtask (before any
+    // paint), not in a later requestAnimationFrame — this is the change that eliminates the
+    // brief "thin highlight" frame that users saw as a flash.
+    @Test
+    fun `applyAnnotations installs line-leading observer before decoration apply`() = runTest {
         val callOrder = mutableListOf<String>()
-        val rendererWithGeometryAdjustment = ReadiumHighlightRenderer(
+        val rendererWithObserver = ReadiumHighlightRenderer(
             applyDecorationsBlock = { _, group -> callOrder.add("decorate:$group") },
             fragmentLocator = { ref, _ ->
                 if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
             },
             evaluateJavascript = { script ->
-                if (script.contains("__riffleFillReadiumHighlightLeading")) {
-                    callOrder.add("fillLineLeading")
+                if (script.contains("__riffleLeadingObserver")) {
+                    callOrder.add("installObserver")
                 }
             },
             locatorFromJson = { _ -> minimalLocator("fake") },
         )
 
-        rendererWithGeometryAdjustment.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
+        rendererWithObserver.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
 
-        val lastDecoration = callOrder.indexOfLast { it == "decorate:annotations" }
-        val lineLeading = callOrder.indexOf("fillLineLeading")
-        assertTrue("decoration apply must occur", lastDecoration >= 0)
+        val observerInstall = callOrder.indexOf("installObserver")
+        val firstDecoration = callOrder.indexOf("decorate:annotations")
+        assertTrue("observer installation must occur", observerInstall >= 0)
+        assertTrue("decoration apply must occur", firstDecoration >= 0)
         assertTrue(
-            "line-leading adjustment must run after Readium creates its boxes; order=$callOrder",
-            lineLeading > lastDecoration,
+            "observer must be installed before decoration apply so it watches when Readium adds elements; order=$callOrder",
+            observerInstall < firstDecoration,
         )
     }
 
@@ -178,7 +232,14 @@ class ReadiumHighlightRendererTest {
             fragmentLocator = { ref, _ ->
                 if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
             },
-            evaluateJavascript = { callOrder.add("domInject") },
+            evaluateJavascript = { script ->
+                // Discriminate: observer install vs. emphasis DOM injection vs. other JS.
+                when {
+                    script.contains("__riffleLeadingObserver") -> callOrder.add("installObserver")
+                    script.contains("data-riffle-em") -> callOrder.add("emphasisDomInject")
+                    else -> callOrder.add("otherJs")
+                }
+            },
             locatorFromJson = { _ -> minimalLocator("fake") },
             emphasisRangeProvider = {
                 listOf(
@@ -201,13 +262,14 @@ class ReadiumHighlightRendererTest {
 
         rendererWithDomInjector.applyAnnotations(listOf(render))
 
-        val domInjectIndex = callOrder.indexOf("domInject")
+        val emphasisInjectIndex = callOrder.indexOf("emphasisDomInject")
         val firstDecorateAnnotationsIndex = callOrder.indexOfFirst { it == "decorate:annotations" }
-        assertTrue("domInject index should exist", domInjectIndex >= 0)
-        assertTrue("decorate:annotations index should exist", firstDecorateAnnotationsIndex >= 0)
+        assertTrue("observer installation must occur", callOrder.contains("installObserver"))
+        assertTrue("emphasis DOM injection must occur; order=$callOrder", emphasisInjectIndex >= 0)
+        assertTrue("decorate:annotations must occur; order=$callOrder", firstDecorateAnnotationsIndex >= 0)
         assertTrue(
-            "DOM injection must be queued before decoration apply (got order: $callOrder)",
-            domInjectIndex < firstDecorateAnnotationsIndex,
+            "emphasis DOM injection must be queued before decoration apply (got order: $callOrder)",
+            emphasisInjectIndex < firstDecorateAnnotationsIndex,
         )
     }
 
@@ -217,7 +279,8 @@ class ReadiumHighlightRendererTest {
     fun `applyAnnotations does not spin a settle loop after the initial apply`() = runTest {
         renderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
         val annotationCalls = applied.filter { it.second == "annotations" }
-        assertEquals(2, annotationCalls.size)
+        // First apply = 1 direct call (no clear). A settle loop would push this above 1.
+        assertEquals(1, annotationCalls.size)
     }
 
     @Test
@@ -292,6 +355,47 @@ class ReadiumHighlightRendererTest {
             "focus completion is queued after the note Range is applied: $callOrder",
             focusCompletion > viewportClamp,
         )
+    }
+
+    @Test
+    fun `applyNoteGlyphs forceRefresh produces one direct apply call without clear`() = runTest {
+        val renders = listOf(makeRender("h1", "c.xhtml", note = "My note"))
+        renderer.applyNoteGlyphs(renders, forceRefresh = false)
+        applied.clear()
+
+        // forceRefresh=true: Readium's requestLayout handles layout repositioning automatically;
+        // no generation marker or clear+apply is needed here.
+        renderer.applyNoteGlyphs(renders, forceRefresh = true)
+        val glyphCalls = applied.filter { it.second == NOTE_GLYPH_DECORATION_GROUP }
+        assertEquals("forceRefresh must produce one apply call for glyphs", 1, glyphCalls.size)
+        assertEquals(1, glyphCalls[0].first.size)
+    }
+
+    @Test
+    fun `applyNoteGlyphs same noted renders without layout change uses direct apply`() = runTest {
+        val renders = listOf(makeRender("h1", "c.xhtml", note = "My note"))
+        renderer.applyNoteGlyphs(renders, forceRefresh = false)
+        applied.clear()
+
+        renderer.applyNoteGlyphs(renders, forceRefresh = false)
+        val glyphCalls = applied.filter { it.second == NOTE_GLYPH_DECORATION_GROUP }
+        assertEquals("same noted renders with no layout change must use direct apply", 1, glyphCalls.size)
+    }
+
+    @Test
+    fun `applyNoteGlyphs changed noted renders on second call uses direct apply`() = runTest {
+        val renders1 = listOf(makeRender("h1", "c.xhtml", note = "note"))
+        renderer.applyNoteGlyphs(renders1, forceRefresh = false)
+        applied.clear()
+
+        val renders2 = listOf(
+            makeRender("h1", "c.xhtml", note = "note"),
+            makeRender("h2", "c.xhtml", note = "another note"),
+        )
+        renderer.applyNoteGlyphs(renders2, forceRefresh = false)
+        val glyphCalls = applied.filter { it.second == NOTE_GLYPH_DECORATION_GROUP }
+        assertEquals("changed noted renders must use direct apply (no clear flash)", 1, glyphCalls.size)
+        assertEquals(2, glyphCalls[0].first.size)
     }
 
     @Test

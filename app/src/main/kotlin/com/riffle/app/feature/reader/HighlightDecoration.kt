@@ -154,17 +154,42 @@ internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
     })();
 """.trimIndent()
 
-/** Runs after Readium's own requestAnimationFrame has materialised the fixed decoration boxes. */
-internal fun readiumHighlightLeadingAdjustmentJs(): String = """
+/**
+ * Installs a [MutationObserver] that expands every `.riffle-highlight-tint` element to
+ * full line-height the moment it is added to the DOM — as a microtask, before the browser
+ * can paint the thin Readium default. Call once per page (the JS-side guard prevents
+ * double-installation; on a new page navigation `window` is fresh so the guard is absent).
+ *
+ * This replaces the old [requestAnimationFrame]-based [readiumHighlightLeadingAdjustmentJs]:
+ * the rAF fired AFTER the first paint, so users briefly saw decorations at Readium's default
+ * (thin) box height before they snapped to full line-height — each snap visible as a flash.
+ * A microtask fires before the browser renders, making the expansion invisible.
+ */
+internal fun installHighlightLeadingObserverJs(): String = """
     $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
     (function() {
-      var attempts = 0;
-      var adjust = function() {
-        var count = window.__riffleFillReadiumHighlightLeading();
-        if (count === 0 && attempts++ < 3) window.setTimeout(adjust, 16);
-      };
-      if (window.requestAnimationFrame) window.requestAnimationFrame(adjust);
-      else window.setTimeout(adjust, 0);
+      if (window.__riffleLeadingObserver) return;
+      window.__riffleLeadingObserver = new MutationObserver(function(mutations) {
+        var hasHighlightAdd = false;
+        for (var mi = 0; mi < mutations.length; mi++) {
+          var added = mutations[mi].addedNodes;
+          for (var ni = 0; ni < added.length; ni++) {
+            var node = added[ni];
+            if (node.nodeType !== 1) continue;
+            if (node.classList.contains('$HIGHLIGHT_TINT_CLASS') ||
+                node.querySelector && node.querySelector('.$HIGHLIGHT_TINT_CLASS')) {
+              hasHighlightAdd = true;
+              break;
+            }
+          }
+          if (hasHighlightAdd) break;
+        }
+        if (hasHighlightAdd) window.__riffleFillReadiumHighlightLeading();
+      });
+      window.__riffleLeadingObserver.observe(
+        document.body || document.documentElement,
+        { childList: true, subtree: true }
+      );
     })();
 """.trimIndent()
 
