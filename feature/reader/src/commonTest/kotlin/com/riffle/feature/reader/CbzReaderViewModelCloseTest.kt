@@ -26,6 +26,7 @@ import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.LibraryMutator
+import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzLocalSource
@@ -50,6 +51,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -255,6 +257,79 @@ class CbzReaderViewModelCloseTest {
             "cover close must push a fraction within the cover epsilon so keepsFinishedState holds, was $pushed",
         )
         assertEquals(0f, pushed, 0.0001f)
+    }
+
+    @Test
+    fun `periodic heartbeat syncs position every 30 seconds`() = runTest(testDispatcher) {
+        val fakeAppScope = object : ApplicationScope {
+            private val inner = CoroutineScope(testDispatcher + SupervisorJob())
+            override val coroutineScope: CoroutineScope = inner
+            override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job = inner.launch { block() }
+            override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T = block(inner)
+        }
+        val fakeRepo = FakeReadingSessionRepository()
+        val fakeCbzRepo = object : FakeNullCbzRepository() {
+            override suspend fun openCbz(item: LibraryItem): CbzOpenResult = CbzOpenResult.Success(
+                imageSource = object : ComicPageSource {
+                    override val pageCount = 10
+                    override fun imageBytes(pageIndex: Int) = ByteArray(0)
+                    override fun mediaType(pageIndex: Int) = "image/jpeg"
+                },
+                pageCount = 10,
+                lastPosition = null,
+            )
+        }
+        val fakeItem = LibraryItem(
+            id = "item1", libraryId = "lib1", title = "Comic", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = true, isDownloaded = true,
+            ebookFormat = EbookFormat.Cbz, sourceId = "src1", pageCount = 10,
+        )
+        val vm = CbzReaderViewModel(
+            itemId = "item1",
+            sourceId = "src1",
+            libraryObserver = FakeLibraryObserver(fakeItem),
+            cbzRepository = fakeCbzRepo,
+            readingSessionRepository = fakeRepo,
+            updateReadingProgressUseCase = object : UpdateReadingProgress(object : LibraryMutator {
+                override suspend fun markItemOpened(itemId: String) {}
+                override suspend fun currentReadingProgress(itemId: String): Float? = null
+                override suspend fun currentReadingProgress(sourceId: String, itemId: String): Float? = null
+                override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+                override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+                override suspend fun deleteItem(sourceId: String, itemId: String) {}
+            }) {},
+            wakeLockPreferencesStore = FakeWakeLockStore(),
+            volumeNavigationController = VolumeNavigationController(),
+            volumeKeyDispatcher = VolumeKeyDispatcher(FakeVolumeKeyPreferencesStore(), VolumeNavigationController()),
+            readerStateHolder = ReaderStateHolder(),
+            panelEngine = FakePanelEngine(),
+            panelMaskService = FakePanelMaskService(),
+            panelViewPreferencesStore = FakePanelViewPreferencesStore(),
+            comicFormattingPreferencesStore = FakeComicFormattingStore(),
+            bookComicFormattingPreferencesStore = FakeBookComicFormattingStore(),
+            developerOptionsRepository = FakeDeveloperOptionsRepository(),
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+            colorPageDecoder = FakeColorPageDecoder(),
+            dispatchers = FakeDispatcherProvider(testDispatcher),
+            panelReportRepository = FakePanelReportRepository(),
+            applicationScope = fakeAppScope,
+        )
+        // Pump init: openBook() puts state into Ready and starts the heartbeat
+        runCurrent()
+        val syncsAfterOpen = fakeRepo.syncedPayloads.size
+
+        // Advance past one heartbeat interval
+        advanceTimeBy(ReadingSessionCoordinator.SYNC_INTERVAL_MS + 1)
+        runCurrent()
+
+        val syncsAfterHeartbeat = fakeRepo.syncedPayloads.size
+        assertTrue(
+            syncsAfterHeartbeat > syncsAfterOpen,
+            "heartbeat must fire a sync after ${ReadingSessionCoordinator.SYNC_INTERVAL_MS}ms"
+        )
+
+        // Cancel the heartbeat so the while(true) loop doesn't keep the test scope alive
+        vm.onReaderClosed()
     }
 }
 

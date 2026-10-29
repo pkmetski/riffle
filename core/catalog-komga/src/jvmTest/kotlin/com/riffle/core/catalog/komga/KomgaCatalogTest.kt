@@ -298,6 +298,30 @@ class KomgaCatalogTest {
         assertEquals(0, server.requestCount)
     }
 
+    @Test fun `pushEbookProgress with isFinished=false PATCHes completed=false for CBZ locator format`() = runTest {
+        // CBZ reader's buildLocatorJson produces {"href":"cbz://page","type":"...","locations":
+        // {"position":N,"totalProgression":X}} — no fragments field. extractPageFromLocation reads
+        // locations.position and returns the 1-indexed page. Regression: this PATCH must be sent,
+        // not a DELETE (which was the pre-fix behaviour for all isFinished=false cases).
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = """{"href":"cbz://page","type":"application/vnd.comicbook+zip",""" +
+                """"locations":{"position":42,"totalProgression":0.42}}""",
+            progress = 0.42f,
+            isFinished = false,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val recorded = server.takeRequest()
+        assertEquals("PATCH", recorded.method)
+        assertEquals("/api/v1/books/B1/read-progress", recorded.path)
+        val body = recorded.body.readUtf8()
+        assertTrue("body should contain page=42, got: $body", body.contains("\"page\":42"))
+        assertTrue("body should contain completed=false, got: $body", body.contains("\"completed\":false"))
+    }
+
     @Test fun `pushEbookProgress with isFinished=false PATCHes completed=false when a page is available`() = runTest {
         // When reading back into a finished book, runSyncCycle passes isFinished=false with a
         // live reading position. Without a page the DELETE is needed (mark-as-unread wipe), but

@@ -66,7 +66,9 @@ class ReadingSessionRepositoryImpl constructor(
         }
         val peer = catalog as? ProgressPeerCapability ?: return ProgressSyncCycleResult.Offline
 
-        val serverProgress = runCatching { peer.pullProgress(itemId) }.getOrElse { return ProgressSyncCycleResult.Offline }
+        val serverProgress = runCatching { peer.pullProgress(itemId) }.getOrElse {
+            return ProgressSyncCycleResult.Offline
+        }
         val serverLastUpdate = serverProgress?.lastUpdate ?: 0L
         val localUpdatedAt = positionStore.loadLocalUpdatedAt(sid, itemId)
         val lastSyncedAt = positionStore.loadLastSyncedAt(sid, itemId)
@@ -127,13 +129,16 @@ class ReadingSessionRepositoryImpl constructor(
                 // would move the book out of Completed without any reading. Reading past the
                 // cover pushes normally and un-finishes the book (see keepsFinishedState).
                 val localDbProgress = libraryItemDao.getById(sid, itemId)?.readingProgress ?: 0f
-                if (keepsFinishedState(localDbProgress, payload.ebookProgress)) return ProgressSyncCycleResult.InSync
+                if (keepsFinishedState(localDbProgress, payload.ebookProgress)) {
+                    return ProgressSyncCycleResult.InSync
+                }
+                val isFinished = isFinishedReadingProgress(payload.ebookProgress)
                 val pushResult = runCatching {
                     peer.pushEbookProgress(
                         itemId = itemId,
                         location = payload.ebookLocation,
                         progress = payload.ebookProgress,
-                        isFinished = isFinishedReadingProgress(payload.ebookProgress),
+                        isFinished = isFinished,
                         lastUpdateEpochMs = clock.nowMs(),
                     )
                 }

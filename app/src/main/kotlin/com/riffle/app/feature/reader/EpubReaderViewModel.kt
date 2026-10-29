@@ -57,6 +57,7 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
+import com.riffle.core.domain.ReadingSpeedSession
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.ServerProgress
 import com.riffle.core.domain.SourceRepository
@@ -558,6 +559,11 @@ class EpubReaderViewModel constructor(
     )
 
     private val readingSessionCoordinator = ReadingSessionCoordinator(
+        scope = viewModelScope,
+        enabled = { readingSessionsEnabled.get() },
+    )
+
+    private val readingSpeedSession = ReadingSpeedSession(
         clock = clock,
         readingSpeedStore = readingSpeedStore,
         scope = viewModelScope,
@@ -1682,10 +1688,8 @@ class EpubReaderViewModel constructor(
 
     private fun startReadingSession(initialTotalProgression: Float?) {
         if (!shouldRunReadingSideEffects(source)) return
-        readingSessionCoordinator.onResumed(
-            initialTotalProgression = initialTotalProgression,
-            onTick = { syncCurrentPosition() },
-        )
+        readingSpeedSession.onResumed(initialTotalProgression = initialTotalProgression)
+        readingSessionCoordinator.onResumed(onTick = { syncCurrentPosition() })
     }
 
     private fun syncCurrentPosition() {
@@ -1880,7 +1884,8 @@ class EpubReaderViewModel constructor(
 
     fun onReaderClosed() {
         if (shouldRunReadingSideEffects(source)) {
-            readingSessionCoordinator.onClosed(
+            readingSessionCoordinator.onClosed()
+            readingSpeedSession.onClosed(
                 currentTotalProgression = currentLocatorTotalProgression.value,
                 totalPositions = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight },
             )
