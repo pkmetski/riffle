@@ -82,7 +82,7 @@ fun HighlightActionsPopup(
                 showOpenInBook = showOpenInBook,
                 onOpenInBook = onOpenInBook,
                 modifier = Modifier
-                    .widthIn(max = 360.dp)
+                    .widthIn(min = 264.dp, max = 300.dp)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(onDragStart = { currentOnDismiss() }) { _, _ -> }
                     },
@@ -103,7 +103,7 @@ private fun NoteOnlyPopup(
         shape = RoundedCornerShape(12.dp),
         shadowElevation = 4.dp,
         tonalElevation = 0.dp,
-        modifier = Modifier.widthIn(max = 360.dp),
+        modifier = Modifier.widthIn(max = 300.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp).fillMaxWidth()) {
             Text(text = labels.note, style = MaterialTheme.typography.bodyMedium)
