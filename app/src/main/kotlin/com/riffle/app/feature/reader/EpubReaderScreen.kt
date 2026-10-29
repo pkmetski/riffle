@@ -1526,6 +1526,10 @@ private fun EpubNavigatorView(
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
     val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
+    // Tracks the viewport (alignedWidthDp, maxHeightDp) the current fragment was created with.
+    // When either changes at runtime (e.g. cover-screen aspect-ratio button) the fragment must be
+    // recreated so Readium re-computes its column layout for the new viewport size.
+    val fragmentViewportHolder = remember { arrayOf<Pair<Float, Float>?>(null) }
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -2686,6 +2690,7 @@ private fun EpubNavigatorView(
         val alignedWidth = remember(maxWidth, composeDensity, webViewDpr) {
             alignedReaderWidthDp(maxWidth.value, composeDensity, webViewDpr)
         }
+        val currentViewport = Pair(alignedWidth, maxHeight.value)
         val readerModifier = if (alignViewport) {
             Modifier
                 .width(alignedWidth.dp)
@@ -2815,13 +2820,17 @@ private fun EpubNavigatorView(
 
                 // RS properties (colCount/colWidth) are baked into the fragment at creation time and
                 // cannot be changed via submitPreferences. Recreate the fragment whenever the
-                // double-page mode changes so the new RS config takes effect.
+                // double-page mode or the viewport size changes so the new RS config and column
+                // layout take effect. Viewport changes happen e.g. when the Samsung Z Flip cover-
+                // screen "aspect ratio" button is pressed, changing the window height.
                 val existingFrag = fragmentRef.value
-                if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
+                val viewportChanged = fragmentViewportHolder[0].let { it != null && it != currentViewport }
+                if (existingFrag != null && (fragmentDoublePageHolder[0] != isDoublePage || viewportChanged)) {
                     fm.beginTransaction().remove(existingFrag).commitNowAllowingStateLoss()
                     readiumPresenter?.detach()
                     fragmentRef.value = null
                     fragmentDoublePageHolder[0] = null
+                    fragmentViewportHolder[0] = null
                 }
 
                 // After Activity recreation, the FragmentManager may have restored an
@@ -2871,6 +2880,7 @@ private fun EpubNavigatorView(
                         ?: return@AndroidView
                     fragmentRef.value = fragment
                     fragmentDoublePageHolder[0] = isDoublePage
+                    fragmentViewportHolder[0] = currentViewport
                     // Attach to the ReaderPresenter seam (#300 step 2). Today only decoration
                     // application flows through it; remaining concerns cut over in later steps.
                     readiumPresenter?.attach(fragment)
