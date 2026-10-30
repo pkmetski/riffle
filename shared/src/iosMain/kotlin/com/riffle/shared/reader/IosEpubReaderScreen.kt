@@ -5,6 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -1897,29 +1899,42 @@ fun EpubReaderScreen(
         // what Android's `commitDraftFromNoteEditor` does.
         noteEditorFor?.let { target ->
             val existing = annotations.firstOrNull { it.id == target }
+            var currentNoteText by remember(target) { mutableStateOf(existing?.note.orEmpty()) }
+            val commitCurrent: () -> Unit = {
+                val text = currentNoteText
+                scope.launch {
+                    if (existing != null) {
+                        annotationStore.updateNote(existing.id, text.takeIf { it.isNotBlank() })
+                    } else {
+                        if (source != ReaderSource.Highlights) {
+                            selection?.let { sel ->
+                                createIosHighlight(
+                                    sel, null, pendingStyles, text,
+                                    navigator, annotationStore, annotationSession,
+                                    item.sourceId, item.id, spineRef,
+                                )?.let { editTargetId = it.id }
+                            }
+                        }
+                        pendingStyles = emptySet()
+                    }
+                }
+                noteEditorFor = null
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = commitCurrent,
+                    ),
+            )
             NoteEditorSheet(
                 initialNote = existing?.note.orEmpty(),
                 labels = annotationSheetLabels(),
-                onConfirm = { text ->
-                    scope.launch {
-                        if (existing != null) {
-                            annotationStore.updateNote(existing.id, text.takeIf { it.isNotBlank() })
-                        } else {
-                            if (source != ReaderSource.Highlights) {
-                                selection?.let { sel ->
-                                    createIosHighlight(
-                                        sel, null, pendingStyles, text,
-                                        navigator, annotationStore, annotationSession,
-                                        item.sourceId, item.id, spineRef,
-                                    )?.let { editTargetId = it.id }
-                                }
-                            }
-                            pendingStyles = emptySet()
-                        }
-                    }
-                    noteEditorFor = null
-                },
+                onConfirm = { text -> currentNoteText = text; commitCurrent() },
                 onDismiss = { noteEditorFor = null },
+                onTextChange = { currentNoteText = it },
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
