@@ -1284,6 +1284,7 @@ private fun iosLibraryModule(
             libraryObserver = get(),
             connectivityObserver = get(),
             dispatchers = get(),
+            toReadRepository = get(),
         )
     }
 
