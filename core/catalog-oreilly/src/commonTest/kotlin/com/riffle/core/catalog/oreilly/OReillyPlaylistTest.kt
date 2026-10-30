@@ -149,6 +149,18 @@ class OReillyPlaylistTest {
         assertEquals("v3", capturedVersion)
     }
 
+    @Test
+    fun getJson_carries_versionV3Header() = runTest {
+        var capturedVersion: String? = null
+        val engine = MockEngine { request ->
+            capturedVersion = request.headers["version"]
+            respond("[]", HttpStatusCode.OK, headersOf("Content-Type" to listOf("application/json")))
+        }
+        val api = OReillyApi(client = HttpClient(engine), cookieHeader = "orm-jwt=test")
+        api.getJson(api.collectionsUrl())
+        assertEquals("v3", capturedVersion)
+    }
+
     private fun fakeCatalog(api: OReillyApi): OReillyCatalog = OReillyCatalog(
         api = api,
         bytesClient = HttpClient(MockEngine { respond("", HttpStatusCode.OK) }),

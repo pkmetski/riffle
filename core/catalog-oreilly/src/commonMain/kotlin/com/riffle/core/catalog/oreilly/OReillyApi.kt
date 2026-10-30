@@ -106,6 +106,9 @@ internal class OReillyApi(
                     header("sec-fetch-dest", "empty")
                     header("sec-fetch-mode", "cors")
                     header("sec-fetch-site", "same-origin")
+                    // The v3 API (collections/playlists) requires this header; sending it on all
+                    // JSON calls matches the web app's shared Ji headers and is harmless for v1/v2.
+                    header("version", "v3")
                 }
                 RequestType.Content -> {
                     header("sec-fetch-dest", "document")
