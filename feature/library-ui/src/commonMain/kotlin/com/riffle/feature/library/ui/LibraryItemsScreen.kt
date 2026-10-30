@@ -385,7 +385,7 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
-            icon = { Icon(RiffleIcons.Home, contentDescription = homeLabel) },
+            icon = { Icon(RiffleIcons.LocalLibrary, contentDescription = homeLabel) },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_HOME),
         )
         if (visibility.toRead) {
@@ -416,7 +416,7 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
-                icon = { Icon(RiffleIcons.Folder, contentDescription = collectionsLabel) },
+                icon = { Icon(RiffleIcons.Sell, contentDescription = collectionsLabel) },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_COLLECTIONS),
             )
         }
@@ -431,7 +431,7 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
-            icon = { Icon(RiffleIcons.GridView, contentDescription = allBooksLabel) },
+            icon = { Icon(RiffleIcons.LibraryBooks, contentDescription = allBooksLabel) },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ALL_BOOKS),
         )
     }

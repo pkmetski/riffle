@@ -43,16 +43,20 @@ object RiffleIcons {
 
     // ── Concepts ──────────────────────────────────────────────────────────────────────────────
     // The reading-queue / "save for later" concept: the details-screen toggle and the library
-    // nav tab. NOT the Bookmark family — that belongs to [Annotations].
+    // nav tab. NOT the Bookmark family — that belongs to [ReaderAnnotations].
 
     /** The reading queue, unselected. */
-    val ToRead: ImageVector get() = PlaylistAdd
+    val ToRead: ImageVector get() = TurnedInNot
 
     /** The reading queue, selected. */
-    val ToReadFilled: ImageVector get() = PlaylistAddCheck
+    val ToReadFilled: ImageVector get() = TurnedIn
 
-    /** Highlights + notes + reader-level bookmarks. This concept owns the `Bookmark*` family. */
-    val Annotations: ImageVector get() = Bookmarks
+    /**
+     * Highlights + notes + reader-level bookmarks — the library nav tab.
+     * The reader top bar uses [Bookmarks] directly to distinguish the panel-open action
+     * from this navigation concept.
+     */
+    val Annotations: ImageVector get() = Highlight
 
     /** Synced-narration (readaloud) badge on a cover. */
     val ReadaloudBadge: ImageVector get() = Headphones
@@ -184,9 +188,38 @@ object RiffleIcons {
         )
     }
 
+    /** `Icons.Filled.Highlight` — artwork for the [Annotations] concept (library tab). */
+    val Highlight: ImageVector = materialIcon("Highlight") {
+        listOf(
+            "M6 14l3 3v5h6v-5l3-3V9H6V14z",
+            "M11 2h2v3h-2V2z",
+            "M3.5 5.88l1.41-1.41 2.12 2.12L5.62 8 3.5 5.88z",
+            "M16.96 6.59l2.12-2.12 1.41 1.41L18.38 8 16.96 6.59z",
+        )
+    }
+
     /** `Icons.Filled.Home` */
     val Home: ImageVector = materialIcon("Home") {
         listOf("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z")
+    }
+
+    /** `Icons.Filled.LibraryBooks` — artwork for the All Books tab. */
+    val LibraryBooks: ImageVector = materialIcon("LibraryBooks") {
+        listOf(
+            "M4 6L2 6v14c0 1.1.9 2 2 2h14v-2L4 20L4 6z",
+            "M20 2L8 2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2L22 4c0-1.1-.9-2-2-2z",
+            "M19 11L9 11L9 9h10v2z",
+            "M15 15L9 15v-2h6v2z",
+            "M19 7L9 7L9 5h10v2z",
+        )
+    }
+
+    /** `Icons.Filled.LocalLibrary` — artwork for the Home/In-Progress tab. */
+    val LocalLibrary: ImageVector = materialIcon("LocalLibrary") {
+        listOf(
+            "M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.19 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55z",
+            "M12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z",
+        )
     }
 
     /** `Icons.Filled.Menu` */
@@ -300,6 +333,14 @@ object RiffleIcons {
         )
     }
 
+    /** `Icons.Filled.Sell` — artwork for the Collections tab. */
+    val Sell: ImageVector = materialIcon("Sell") {
+        listOf(
+            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 12.2 21.41 11.41z",
+            "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
+        )
+    }
+
     /** `Icons.Filled.Share` */
     val Share: ImageVector = materialIcon("Share") {
         listOf(
@@ -308,6 +349,19 @@ object RiffleIcons {
                 "c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3" +
                 "c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92" +
                 "s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z",
+        )
+    }
+
+    /** `Icons.Filled.TurnedIn` — artwork for the [ToReadFilled] concept. */
+    val TurnedIn: ImageVector = materialIcon("TurnedIn") {
+        listOf("M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
+    }
+
+    /** `Icons.Filled.TurnedInNot` — artwork for the [ToRead] concept. */
+    val TurnedInNot: ImageVector = materialIcon("TurnedInNot") {
+        listOf(
+            "M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2z",
+            "M17 18l-5-2.18L7 18L7 5h10v13z",
         )
     }
 }

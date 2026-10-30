@@ -42,6 +42,11 @@ internal object LibraryUiGlyphs {
         listOf("M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z")
     }
 
+    /** `Icons.AutoMirrored.Filled.Toc` — table of contents / sections row. */
+    val Toc: ImageVector = glyph("Toc", autoMirror = true) {
+        listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
+    }
+
     /** `Icons.AutoMirrored.Outlined.FormatListBulleted` */
     val FormatListBulleted: ImageVector = glyph("FormatListBulleted", autoMirror = true) {
         listOf(

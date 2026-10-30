@@ -1212,7 +1212,7 @@ private fun TocRow(tocState: TocState, onOpen: () -> Unit) {
     val sectionCount = countFlatEntries(ready.entries)
     ListItem(
         headlineContent = { Text(stringResource(Res.string.ui_sections_count, sectionCount)) },
-        leadingContent = { Icon(LibraryUiGlyphs.FormatListBulleted, contentDescription = null) },
+        leadingContent = { Icon(LibraryUiGlyphs.Toc, contentDescription = null) },
         trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
     )

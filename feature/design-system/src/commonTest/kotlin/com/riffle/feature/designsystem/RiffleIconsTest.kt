@@ -24,22 +24,24 @@ import kotlin.test.assertTrue
 class RiffleIconsTest {
 
     @Test
-    fun toReadIsPlaylistAddNotTheBookmarkFamily() {
-        assertEquals("PlaylistAdd", RiffleIcons.ToRead.name)
-        assertSameArtwork(RiffleIcons.PlaylistAdd, RiffleIcons.ToRead)
+    fun toReadIsTurnedInNotThePlaylistOrBookmarkFamily() {
+        assertEquals("TurnedInNot", RiffleIcons.ToRead.name)
+        assertSameArtwork(RiffleIcons.TurnedInNot, RiffleIcons.ToRead)
         assertNotEquals(pathNodes(RiffleIcons.Bookmarks), pathNodes(RiffleIcons.ToRead))
+        assertNotEquals(pathNodes(RiffleIcons.PlaylistAdd), pathNodes(RiffleIcons.ToRead))
     }
 
     @Test
-    fun toReadFilledIsPlaylistAddCheck() {
-        assertEquals("PlaylistAddCheck", RiffleIcons.ToReadFilled.name)
-        assertSameArtwork(RiffleIcons.PlaylistAddCheck, RiffleIcons.ToReadFilled)
+    fun toReadFilledIsTurnedIn() {
+        assertEquals("TurnedIn", RiffleIcons.ToReadFilled.name)
+        assertSameArtwork(RiffleIcons.TurnedIn, RiffleIcons.ToReadFilled)
     }
 
     @Test
-    fun annotationsOwnsTheBookmarkFamily() {
-        assertEquals("Bookmarks", RiffleIcons.Annotations.name)
-        assertSameArtwork(RiffleIcons.Bookmarks, RiffleIcons.Annotations)
+    fun annotationsIsHighlightNotTheBookmarkFamily() {
+        assertEquals("Highlight", RiffleIcons.Annotations.name)
+        assertSameArtwork(RiffleIcons.Highlight, RiffleIcons.Annotations)
+        assertNotEquals(pathNodes(RiffleIcons.Bookmarks), pathNodes(RiffleIcons.Annotations))
     }
 
     @Test
@@ -63,8 +65,12 @@ class RiffleIconsTest {
 
     @Test
     fun nonDirectionalGlyphsAreNotMirrored() {
-        listOf(RiffleIcons.Home, RiffleIcons.Bookmarks, RiffleIcons.Search, RiffleIcons.GridView)
-            .forEach { assertTrue(!it.autoMirror, "${it.name} must not be auto-mirrored") }
+        listOf(
+            RiffleIcons.Home, RiffleIcons.Bookmarks, RiffleIcons.Search, RiffleIcons.GridView,
+            RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
+            RiffleIcons.Highlight, RiffleIcons.LocalLibrary,
+            RiffleIcons.LibraryBooks, RiffleIcons.Sell,
+        ).forEach { assertTrue(!it.autoMirror, "${it.name} must not be auto-mirrored") }
     }
 
     @Test
@@ -73,9 +79,11 @@ class RiffleIconsTest {
             RiffleIcons.ArrowBack, RiffleIcons.ArrowDropDown, RiffleIcons.Bookmarks,
             RiffleIcons.Check, RiffleIcons.CheckCircle, RiffleIcons.Close, RiffleIcons.Folder,
             RiffleIcons.FormatListNumbered, RiffleIcons.GridView, RiffleIcons.Headphones,
-            RiffleIcons.Home, RiffleIcons.Menu, RiffleIcons.PlaylistAdd,
+            RiffleIcons.Highlight, RiffleIcons.Home, RiffleIcons.LibraryBooks,
+            RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck, RiffleIcons.QueueMusic, RiffleIcons.Schedule,
-            RiffleIcons.Search, RiffleIcons.Warning,
+            RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
+            RiffleIcons.Warning,
         ).forEach {
             assertEquals(24f, it.viewportWidth, "${it.name} viewportWidth")
             assertEquals(24f, it.viewportHeight, "${it.name} viewportHeight")

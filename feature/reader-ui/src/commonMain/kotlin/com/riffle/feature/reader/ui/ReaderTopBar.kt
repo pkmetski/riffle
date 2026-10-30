@@ -107,7 +107,7 @@ fun ReaderTopBar(
                         modifier = Modifier.testTag(TestTags.READER_ANNOTATIONS),
                     ) {
                         Icon(
-                            RiffleIcons.Annotations,
+                            RiffleIcons.Bookmarks,
                             contentDescription = stringResource(Res.string.ui_annotations),
                         )
                     }
