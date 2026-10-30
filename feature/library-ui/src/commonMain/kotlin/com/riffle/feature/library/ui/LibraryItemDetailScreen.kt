@@ -84,7 +84,6 @@ import com.riffle.feature.library.bookDownloadAffordances
 import com.riffle.feature.library.bookDownloadOutcome
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_add_to_playlist
-import com.riffle.feature.library.ui.generated.resources.ui_in_this_playlist
 import com.riffle.feature.library.ui.generated.resources.ui_audiobook_duration_line
 import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.library.ui.generated.resources.ui_by
@@ -97,6 +96,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_duration_total_remai
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
 import com.riffle.feature.library.ui.generated.resources.ui_enjoying_riffle
 import com.riffle.feature.library.ui.generated.resources.ui_genres
+import com.riffle.feature.library.ui.generated.resources.ui_in_this_playlist
 import com.riffle.feature.library.ui.generated.resources.ui_in_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_language
 import com.riffle.feature.library.ui.generated.resources.ui_listen
