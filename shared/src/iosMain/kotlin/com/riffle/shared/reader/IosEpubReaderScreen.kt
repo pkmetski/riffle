@@ -696,7 +696,7 @@ fun EpubReaderScreen(
     }
     LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
-        if (localPath == null || orientation != ReaderOrientation.Continuous) {
+        if (localPath == null || !elidedAwareIsContinuousMode(source, orientation)) {
             continuousCursorOverride = null
             return@LaunchedEffect
         }

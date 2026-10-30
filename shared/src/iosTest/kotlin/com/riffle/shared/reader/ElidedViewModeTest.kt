@@ -6,20 +6,6 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Regression tests for [elidedAwareIsContinuousMode] and [elidedAwareScrollMode].
- *
- * Root cause: when the user's reading mode is Continuous, [IosContinuousScrollView] was
- * activated for the Highlights-mode synthetic EPUB. [IosContinuousScrollView] has no
- * `decidePolicyFor` navigation delegate and therefore no `riffle://` URL interceptor.
- * Tapping an annotation accent bar set `location.href = 'riffle://annotation-tap/<id>'`
- * in the WebView, which was silently swallowed — [AnnotationActionsSheet] never opened and
- * the "Go to book" / options menu was never shown.
- *
- * Fix: [elidedAwareIsContinuousMode] returns `false` for [ReaderSource.Highlights] regardless
- * of the user's orientation preference, so [EPUBNavigatorViewController] is always used and
- * [presentExternalURL] fires on every accent-bar tap.
- */
 class ElidedViewModeTest {
 
     // ---- isContinuousMode -------------------------------------------------------------------
@@ -50,6 +36,11 @@ class ElidedViewModeTest {
     @Test
     fun isContinuousMode_fullBookVertical_isFalse() {
         assertFalse(elidedAwareIsContinuousMode(ReaderSource.FullBook, ReaderOrientation.Vertical))
+    }
+
+    @Test
+    fun isContinuousMode_fullBookHorizontal_isFalse() {
+        assertFalse(elidedAwareIsContinuousMode(ReaderSource.FullBook, ReaderOrientation.Horizontal))
     }
 
     // ---- scrollMode -------------------------------------------------------------------------
