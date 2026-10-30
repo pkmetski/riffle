@@ -466,6 +466,11 @@ jobs:
             check_swift_overlays "$app/Riffle" || return 1
             xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+            # Post-boot migrations (MCProfile.migrator, LaunchServices) run async after
+            # bootstatus returns; launching the app before they finish causes SpringBoard to
+            # terminate it within 30 s. Observed 47 s of MCProfile.migrator activity on loaded
+            # CI runners — 30 s headroom keeps the check bounded without ballooning boot time.
+            sleep 30
             xcrun simctl install "$SIMULATOR_UDID" "$app"
             xcrun simctl launch --console-pty "$SIMULATOR_UDID" com.riffle.iosApp --RIFFLE_RESET_FOR_TESTS \
               > smoke-launch.log 2>&1 &
@@ -511,7 +516,9 @@ jobs:
           erase_and_wait() {
             xcrun simctl shutdown "$SIMULATOR_UDID" 2>/dev/null || true
             xcrun simctl erase "$SIMULATOR_UDID" 2>/dev/null || true
-            sleep 20 # post-erase migrations (LaunchServices, Keychain) run async; launching before they finish causes SpringBoard force-quit
+            # Raised from 20 s: post-erase migrations (LaunchServices, Keychain, MCProfile.migrator)
+            # run async; 47+ s of migration activity observed on loaded CI runners.
+            sleep 45
           }
           if ! smoke_launch; then
             echo "::warning::Smoke-launch attempt 1 failed — erasing simulator and retrying."
