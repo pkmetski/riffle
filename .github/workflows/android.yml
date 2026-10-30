@@ -315,7 +315,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           script: |
-            adb devices | grep -q 'emulator-' || { echo "::error::No emulator visible to ADB — emulator-runner ran the script without booting an AVD"; exit 1; }
+            for i in $(seq 1 6); do adb devices | grep -q 'emulator-' && break; [ $i -eq 6 ] && { echo "::error::No emulator visible to ADB after 30 s — emulator-runner ran the script without booting an AVD"; exit 1; }; sleep 5; done
             rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-tablet.txt || true; exit $rc
       - name: Upload tablet logcat
         if: always()
