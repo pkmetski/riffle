@@ -28,7 +28,7 @@ import kotlin.test.assertTrue
 class ToReadRepositoryTest {
 
     private fun makeRepo(catalog: Catalog?, localStore: FakeLocalToReadStore = FakeLocalToReadStore()) =
-        ToReadRepositoryImpl(FakeRegistry(catalog), localStore, RecordingLogger())
+        ToReadRepositoryImpl(FakeRegistry(catalog), localStore, null, RecordingLogger())
 
     // ── refresh + observeToReadItemIds ────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 package com.riffle.core.data.websource
 
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.data.ToReadItemUpserter
 import com.riffle.core.data.toEbookFormat
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -26,8 +27,8 @@ import com.riffle.core.database.LibraryItemMetadata
  */
 class WebSourceLibraryItemUpserter constructor(
     private val libraryItemDao: LibraryItemDao,
-) {
-    suspend fun upsert(sourceId: String, item: CatalogItem) {
+) : ToReadItemUpserter {
+    override suspend fun upsert(sourceId: String, item: CatalogItem) {
         val entity = item.toEntity(sourceId)
         libraryItemDao.insertOrIgnore(listOf(entity))
         // Preserve every locally-tracked timestamp on the existing row. A CatalogItem carries

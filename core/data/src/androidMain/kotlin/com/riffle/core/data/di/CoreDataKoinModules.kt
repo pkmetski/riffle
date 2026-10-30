@@ -691,7 +691,9 @@ private val coreDataRepositoriesModule = module {
     single<LibraryMutator> { get<LibraryRepositoryImpl>() }
     single<LibraryRefresher> { get<LibraryRepositoryImpl>() }
 
-    single<ToReadRepository> { ToReadRepositoryImpl(get(), get(), get()) }
+    single<ToReadRepository> {
+        ToReadRepositoryImpl(get(), get(), get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(), get())
+    }
     single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<LocalToReadStore> { LocalToReadStoreImpl(get(named(DS_LOCAL_TO_READ)), get()) }
     single {
