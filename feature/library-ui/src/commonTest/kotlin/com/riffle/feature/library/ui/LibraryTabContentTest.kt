@@ -530,6 +530,143 @@ class LibraryTabContentTest {
      */
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun toReadTabShowsSectionHeaderWithCount() = runComposeUiTest {
+        val item = LibraryItem(
+            id = "i1", libraryId = "lib", title = "A Book", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        setContent {
+            LibraryTabContent(
+                selectedTab = 1,
+                projection = LibraryProjection.Empty.copy(toRead = listOf(item)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
+            )
+        }
+        onNodeWithText("To Read (1)").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun annotationsTabShowsSectionHeaderWithCount() = runComposeUiTest {
+        setContent {
+            LibraryTabContent(
+                selectedTab = tabIndexForAnnotations(),
+                projection = LibraryProjection.Empty,
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = listOf(annotatedBook)),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
+            )
+        }
+        onNodeWithText("Annotations (1)").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun seriesTabShowsSectionHeaderWithCount() = runComposeUiTest {
+        val series = Series(id = "s1", libraryId = "lib", name = "The Expanse", coverUrl = null, bookCount = 9)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 3,
+                projection = LibraryProjection.Empty.copy(series = listOf(series)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
+            )
+        }
+        onNodeWithText("Series (1)").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun collectionsTabShowsSectionHeaderWithCount() = runComposeUiTest {
+        val collection = Collection(id = "c1", libraryId = "lib1", name = "Fantasy Favourites", bookCount = 3)
+        setContent {
+            LibraryTabContent(
+                selectedTab = 4,
+                projection = LibraryProjection.Empty.copy(collections = listOf(collection)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
+            )
+        }
+        onNodeWithText("Collections (1)").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun allBooksTabShowsSectionHeaderWithCount() = runComposeUiTest {
+        val item = LibraryItem(
+            id = "i1", libraryId = "lib", title = "A Book", author = "Author",
+            coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        setContent {
+            LibraryTabContent(
+                selectedTab = 5,
+                projection = LibraryProjection.Empty.copy(allBooks = listOf(item)),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = {},
+                onPlaylistSelected = {},
+                onSearchAnnotations = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
+            )
+        }
+        onNodeWithText("All Books (1)").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun homeTabSectionHeadersShowCountAndHaveNoSeeAllAction() = runComposeUiTest {
         val item = LibraryItem(
             id = "i1", libraryId = "lib", title = "A Book", author = "Author",
