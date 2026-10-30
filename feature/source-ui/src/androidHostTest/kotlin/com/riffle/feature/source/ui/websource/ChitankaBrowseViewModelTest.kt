@@ -288,7 +288,7 @@ class ChitankaBrowseViewModelTest {
     }
 
     @Test
-    fun `cover scale changes persist through the global density store after debounce`() =
+    fun `cover scale changes fall back to global density store when no bucket is set`() =
         runTest(dispatcher) {
             val densityStore = RecordingCoverGridDensityStore()
             val vm = makeVm(coverGridDensityStore = densityStore)
@@ -298,6 +298,24 @@ class ChitankaBrowseViewModelTest {
             advanceUntilIdle()
 
             assertEquals(1.4f, densityStore.persistedScale)
+        }
+
+    @Test
+    fun `cover scale changes persist per-source when bucket is set`() =
+        runTest(dispatcher) {
+            val densityStore = RecordingCoverGridDensityStore()
+            val vm = makeVm(coverGridDensityStore = densityStore)
+            advanceUntilIdle()
+
+            vm.setScreenDimensionBucket(com.riffle.core.models.ScreenDimensionBucket.PhonePortrait)
+            vm.setCoverGridScale(1.4f)
+            advanceUntilIdle()
+
+            val (sourceId, libraryId, scale) = densityStore.persistedPerSourceScale!!
+            assertEquals("chit-1", sourceId)
+            assertEquals(ChitankaCatalog.ROOT_BOOKS, libraryId)
+            assertEquals(1.4f, scale)
+            assertEquals(null, densityStore.persistedScale)
         }
 
     // ─── Pagination ──────────────────────────────────────────────────────────────────────────────
@@ -445,6 +463,7 @@ class ChitankaBrowseViewModelTest {
     private class RecordingCoverGridDensityStore : CoverGridDensityStore {
         override val scale = flowOf(1f)
         var persistedScale: Float? = null
+        var persistedPerSourceScale: Triple<String, String, Float>? = null
 
         override suspend fun setScale(value: Float) {
             persistedScale = value
@@ -459,7 +478,9 @@ class ChitankaBrowseViewModelTest {
             sourceId: String, libraryId: String,
             bucket: com.riffle.core.models.ScreenDimensionBucket,
             value: Float,
-        ) = Unit
+        ) {
+            persistedPerSourceScale = Triple(sourceId, libraryId, value)
+        }
     }
 
     // ─── Not-Started filter ───────────────────────────────────────────────────────────────────────

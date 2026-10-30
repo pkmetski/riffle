@@ -13,6 +13,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -21,8 +22,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.library.AnnotationsListViewModel
@@ -94,6 +98,19 @@ fun UnboundedBrowseScreen(
     val libraryVm: LibraryItemsViewModel = koinInject { parametersOf(libraryId) }
     val annotationsVm: AnnotationsListViewModel = koinInject { parametersOf(libraryId) }
     DisposableEffect(key) { onDispose { host.clear() } }
+
+    val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    SideEffect {
+        viewModel.setScreenDimensionBucket(
+            ScreenDimensionBucket.PhonePortrait.copy(
+                wider = if (containerWidthDp >= 840.dp) {
+                    ScreenDimensionBucket.SizeClass.Expanded
+                } else {
+                    ScreenDimensionBucket.SizeClass.Medium
+                },
+            )
+        )
+    }
 
     // The VM upserts the tapped CatalogItem into `library_items` through WebSourceItemGate and
     // only then emits, so the detail screen's LibraryObserver.getItem can resolve it. Same
