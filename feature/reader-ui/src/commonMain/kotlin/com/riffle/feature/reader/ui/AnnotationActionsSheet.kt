@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 
 /**
@@ -274,16 +276,15 @@ fun AnnotationActionsSheet(
                     onToggle = onToggleEmphasis,
                 )
                 if (onDelete != null) {
-                    Text(
-                        text = "🗑",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error,
+                    Icon(
+                        imageVector = RiffleIcons.Delete,
+                        contentDescription = labels.delete,
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier
                             .testTag(TestTags.ANNOTATION_DELETE)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable(onClick = onDelete)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                            .semantics { contentDescription = labels.delete },
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
             }
@@ -368,6 +369,7 @@ fun NoteEditorSheet(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onTextChange: ((String) -> Unit)? = null,
 ) {
     var text by remember(initialNote) { mutableStateOf(initialNote) }
     val focusRequester = remember { FocusRequester() }
@@ -382,7 +384,7 @@ fun NoteEditorSheet(
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { text = it; onTextChange?.invoke(it) },
                 placeholder = { Text(labels.addNote) },
                 minLines = 3,
                 maxLines = 6,
