@@ -10,7 +10,6 @@ import androidx.compose.ui.test.hasContentDescriptionExactly
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.core.models.CatalogPlaylist
@@ -26,7 +25,6 @@ import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * Regression for the structurally-empty Annotations tab on iOS (#1071 §9).
@@ -69,7 +67,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -98,7 +95,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -126,82 +122,12 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
         }
 
         onNodeWithText("No highlights yet.").assertIsDisplayed()
-    }
-
-    /**
-     * #1072 §1 — `AnnotationSearchViewModel` had no iOS binding *and* no iOS surface could have
-     * opened it: Android reaches the results screen from its library search bar's "Show all"
-     * affordance and iOS has no search bar at all. This field is the whole entry point, so
-     * removing it (the revert) makes the screen unreachable again with nothing else failing.
-     */
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun theAnnotationsTabSearchFieldOpensTheResultsScreen() = runComposeUiTest {
-        var searched: String? = null
-        setContent {
-            LibraryTabContent(
-                selectedTab = tabIndexForAnnotations(),
-                projection = LibraryProjection.Empty,
-                playlists = emptyList(),
-                annotationsState = AnnotationsListUiState(loading = false, books = listOf(annotatedBook)),
-                coversAreSquare = false,
-                linkedItemIds = emptySet(),
-                onItemSelected = {},
-                onAnnotatedBookSelected = { _, _ -> },
-                onSeriesSelected = {},
-                onCollectionSelected = {},
-                onSectionSeeMore = {},
-                onPlaylistSelected = {},
-                onSearchAnnotations = { searched = it },
-                onToggleNotStarted = {},
-                onSetSortMode = {},
-            )
-        }
-
-        onNodeWithTag(TestTags.ANNOTATIONS_SEARCH_FIELD).performTextInput("margin")
-        onNodeWithTag("annotation-search-submit").performClick()
-
-        assertEquals("margin", searched)
-    }
-
-    /**
-     * A blank query is a dead end — the ViewModel short-circuits it and the results screen can
-     * only say "no annotations for """ — so submitting nothing must not navigate.
-     */
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun submittingABlankAnnotationQueryDoesNotNavigate() = runComposeUiTest {
-        var searched: String? = null
-        setContent {
-            LibraryTabContent(
-                selectedTab = tabIndexForAnnotations(),
-                projection = LibraryProjection.Empty,
-                playlists = emptyList(),
-                annotationsState = AnnotationsListUiState(loading = false, books = listOf(annotatedBook)),
-                coversAreSquare = false,
-                linkedItemIds = emptySet(),
-                onItemSelected = {},
-                onAnnotatedBookSelected = { _, _ -> },
-                onSeriesSelected = {},
-                onCollectionSelected = {},
-                onSectionSeeMore = {},
-                onPlaylistSelected = {},
-                onSearchAnnotations = { searched = it },
-                onToggleNotStarted = {},
-                onSetSortMode = {},
-            )
-        }
-
-        onNodeWithTag("annotation-search-submit").performClick()
-
-        assertNull(searched)
     }
 
     /**
@@ -229,7 +155,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -260,7 +185,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -297,7 +221,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -343,7 +266,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -380,7 +302,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -413,7 +334,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -451,7 +371,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -486,7 +405,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = { selected = it },
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -514,7 +432,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -550,7 +467,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -575,7 +491,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -601,7 +516,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -627,7 +541,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -657,7 +570,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -687,7 +599,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )

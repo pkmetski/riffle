@@ -89,7 +89,6 @@ fun UnboundedBrowseScreen(
     libraryName: String,
     onOpenDrawer: () -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
-    onSearchAnnotations: (String) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
 ) {
     val key = "$sourceType/$libraryId"
@@ -211,7 +210,6 @@ fun UnboundedBrowseScreen(
                             onCollectionSelected = {},
                             onSectionSeeMore = {},
                             onPlaylistSelected = {},
-                            onSearchAnnotations = onSearchAnnotations,
                             onToggleNotStarted = {},
                             onSetSortMode = {},
                         )

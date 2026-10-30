@@ -16,7 +16,6 @@ class HostWiringBundleProbeTest {
         onCollectionSelected = { _ -> },
         onSectionSeeMore = { _ -> },
         onPlaylistSelected = { _ -> },
-        onSearchAnnotations = { _ -> },
         onAnnotationSelected = { _ -> },
         onAudiobookBookmarkSelected = { _ -> },
         onShowAllAnnotations = { _ -> },
