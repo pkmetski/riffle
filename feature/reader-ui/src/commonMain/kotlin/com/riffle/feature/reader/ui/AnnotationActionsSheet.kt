@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -35,13 +36,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 
 /**
@@ -274,16 +278,15 @@ fun AnnotationActionsSheet(
                     onToggle = onToggleEmphasis,
                 )
                 if (onDelete != null) {
-                    Text(
-                        text = "🗑",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error,
+                    Icon(
+                        imageVector = RiffleIcons.Delete,
+                        contentDescription = labels.delete,
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier
                             .testTag(TestTags.ANNOTATION_DELETE)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable(onClick = onDelete)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                            .semantics { contentDescription = labels.delete },
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
             }
@@ -368,8 +371,11 @@ fun NoteEditorSheet(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onTextChange: ((String) -> Unit)? = null,
 ) {
-    var text by remember(initialNote) { mutableStateOf(initialNote) }
+    var fieldValue by remember(initialNote) {
+        mutableStateOf(TextFieldValue(text = initialNote, selection = TextRange(initialNote.length)))
+    }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Surface(
@@ -381,8 +387,11 @@ fun NoteEditorSheet(
             Text(text = labels.note, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
+                value = fieldValue,
+                onValueChange = {
+                    fieldValue = it
+                    onTextChange?.invoke(it.text)
+                },
                 placeholder = { Text(labels.addNote) },
                 minLines = 3,
                 maxLines = 6,
@@ -406,7 +415,7 @@ fun NoteEditorSheet(
                     ) { Text(labels.cancel) }
                 }
                 TextButton(
-                    onClick = { onConfirm(text) },
+                    onClick = { onConfirm(fieldValue.text) },
                     modifier = Modifier.testTag(TestTags.NOTE_EDITOR_SAVE),
                 ) { Text(labels.save) }
             }

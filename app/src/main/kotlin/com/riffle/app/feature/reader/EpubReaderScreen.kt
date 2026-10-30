@@ -15,12 +15,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,8 +68,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
@@ -3222,16 +3223,29 @@ private fun EpubNavigatorView(
         if (noteTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == noteTarget.id }
             val sheetLabels = annotationSheetLabels()
-            Popup(
-                alignment = Alignment.BottomCenter,
-                onDismissRequest = onCancelNoteEdit,
-                properties = PopupProperties(focusable = true),
+            var currentNoteText by remember(noteTarget.id) { mutableStateOf(current?.note ?: "") }
+            val commitCurrent = { onCommitNoteEdit(noteTarget.id, currentNoteText.takeIf { it.isNotBlank() }) }
+            BackHandler(enabled = true, onBack = commitCurrent)
+            Box(
+                modifier = Modifier.fillMaxSize().imePadding(),
+                contentAlignment = Alignment.BottomCenter,
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = commitCurrent,
+                        ),
+                )
                 NoteEditorSheet(
                     initialNote = current?.note ?: "",
                     labels = sheetLabels,
                     onConfirm = { text -> onCommitNoteEdit(noteTarget.id, text.takeIf { it.isNotBlank() }) },
                     onDismiss = onCancelNoteEdit,
+                    modifier = Modifier.fillMaxWidth(),
+                    onTextChange = { currentNoteText = it },
                 )
             }
         }

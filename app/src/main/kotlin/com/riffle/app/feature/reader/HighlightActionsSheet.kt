@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,8 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.riffle.core.models.EmphasisStyle
@@ -65,6 +66,9 @@ fun HighlightActionsPopup(
                 readerBackground = readerBackground,
                 onOpenNoteEditor = onOpenNoteEditor,
                 onDismiss = currentOnDismiss,
+                modifier = Modifier.pointerInput(Unit) {
+                    detectVerticalDragGestures(onDragStart = { currentOnDismiss() }) { _, _ -> }
+                },
             )
         } else {
             AnnotationActionsSheet(
@@ -81,6 +85,7 @@ fun HighlightActionsPopup(
                 showOpenInBook = showOpenInBook,
                 onOpenInBook = onOpenInBook,
                 modifier = Modifier
+                    .widthIn(min = 264.dp, max = 300.dp)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(onDragStart = { currentOnDismiss() }) { _, _ -> }
                     },
@@ -96,11 +101,13 @@ private fun NoteOnlyPopup(
     readerBackground: Color,
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         shadowElevation = 4.dp,
         tonalElevation = 0.dp,
+        modifier = modifier.widthIn(max = 300.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp).fillMaxWidth()) {
             Text(text = labels.note, style = MaterialTheme.typography.bodyMedium)
