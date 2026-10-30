@@ -45,7 +45,10 @@ final class AnnotationSearchFlowTests: XCTestCase {
             .firstMatch
         XCTAssertTrue(showAllButton.waitForExistence(timeout: 30),
                       "Show all annotations button must appear in search results")
-        showAllButton.tap()
+        // Compose LazyColumn does not implement kAXScrollToVisibleAction, so a plain .tap()
+        // fails with kAXErrorCannotComplete even when the button is already on screen.
+        // Tapping via element-relative coordinate bypasses the scroll-to-visible step.
+        showAllButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         let resultsScreen = app.descendants(matching: .any)
             .matching(identifier: RiffleTestTags.annotationSearchResults)
