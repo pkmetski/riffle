@@ -226,9 +226,10 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
     let retryBack = app.buttons.matching(
         NSPredicate(format: "label == '← Back' OR label == 'Back'")
     ).firstMatch
-    // 30 s: under CI clone memory pressure the ItemDetail screen can take >20 s to settle after
-    // the reader pops — if the button isn't found the second back never fires.
-    if retryBack.waitForExistence(timeout: 30) { retryBack.tap() }
+    // 60 s: under CI clone memory pressure the ItemDetail screen can take >30 s to settle after
+    // the reader pops — if the button isn't found the second back never fires. Increased from 30 s
+    // after a CI failure where item detail appeared at ~31 s, causing the retry to be skipped.
+    if retryBack.waitForExistence(timeout: 60) { retryBack.tap() }
     // 120 s: two-level navigation (reader → ItemDetail → library) under CI clone contention.
     // waitForLibraryHome now checks the burger button first (fast path, data-independent), so
     // the full budget is rarely consumed; the cap guards against extreme load spikes.
