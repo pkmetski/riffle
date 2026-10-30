@@ -56,7 +56,10 @@ object RiffleIcons {
      * The reader top bar uses [Bookmarks] directly to distinguish the panel-open action
      * from this navigation concept.
      */
-    val Annotations: ImageVector get() = Highlight
+    val Annotations: ImageVector get() = EditNote
+
+    /** Table of contents — reader top bar and item-detail sections row. */
+    val Toc: ImageVector get() = TocIcon
 
     /** Synced-narration (readaloud) badge on a cover. */
     val ReadaloudBadge: ImageVector get() = Headphones
@@ -188,13 +191,14 @@ object RiffleIcons {
         )
     }
 
-    /** `Icons.Filled.Highlight` — artwork for the [Annotations] concept (library tab). */
-    val Highlight: ImageVector = materialIcon("Highlight") {
+    /** `Icons.Filled.EditNote` — artwork for the [Annotations] concept (library tab). */
+    val EditNote: ImageVector = materialIcon("EditNote") {
         listOf(
-            "M6 14l3 3v5h6v-5l3-3V9H6V14z",
-            "M11 2h2v3h-2V2z",
-            "M3.5 5.88l1.41-1.41 2.12 2.12L5.62 8 3.5 5.88z",
-            "M16.96 6.59l2.12-2.12 1.41 1.41L18.38 8 16.96 6.59z",
+            "M3 10h11v2H3V10z",
+            "M3 8h11V6H3V8z",
+            "M3 16h7v-2H3V16z",
+            "M18.01 12.87l0.71-0.71c0.39-0.39 1.02-0.39 1.41 0l0.71 0.71c0.39 0.39 0.39 1.02 0 1.41l-0.71 0.71L18.01 12.87z",
+            "M17.3 13.58l-5.3 5.3V21h2.12l5.3-5.3L17.3 13.58z",
         )
     }
 
@@ -357,13 +361,20 @@ object RiffleIcons {
         listOf("M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
     }
 
-    /** `Icons.Filled.TurnedInNot` — artwork for the [ToRead] concept. */
+    /**
+     * `Icons.Filled.TurnedInNot` — artwork for the [ToRead] concept.
+     * Both sub-paths are in a single path string so the non-zero winding rule creates the
+     * interior cutout (outline bookmark) — splitting into two paths collapses the winding
+     * relationship and produces a solid shape indistinguishable from [TurnedIn].
+     */
     val TurnedInNot: ImageVector = materialIcon("TurnedInNot") {
-        listOf(
-            "M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2z",
-            "M17 18l-5-2.18L7 18L7 5h10v13z",
-        )
+        listOf("M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2zM17 18l-5-2.18L7 18L7 5h10v13z")
     }
+}
+
+/** `Icons.AutoMirrored.Filled.Toc` — artwork for the [RiffleIcons.Toc] concept. */
+private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
+    listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
 }
 
 /**

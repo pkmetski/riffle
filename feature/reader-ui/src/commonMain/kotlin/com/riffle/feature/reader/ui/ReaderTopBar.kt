@@ -98,7 +98,7 @@ fun ReaderTopBar(
                         modifier = Modifier.testTag(TestTags.READER_TOC),
                     ) {
                         Icon(
-                            RiffleIcons.FormatListNumbered,
+                            RiffleIcons.Toc,
                             contentDescription = stringResource(Res.string.ui_table_of_contents),
                         )
                     }

@@ -38,9 +38,9 @@ class RiffleIconsTest {
     }
 
     @Test
-    fun annotationsIsHighlightNotTheBookmarkFamily() {
-        assertEquals("Highlight", RiffleIcons.Annotations.name)
-        assertSameArtwork(RiffleIcons.Highlight, RiffleIcons.Annotations)
+    fun annotationsIsEditNoteNotTheBookmarkFamily() {
+        assertEquals("EditNote", RiffleIcons.Annotations.name)
+        assertSameArtwork(RiffleIcons.EditNote, RiffleIcons.Annotations)
         assertNotEquals(pathNodes(RiffleIcons.Bookmarks), pathNodes(RiffleIcons.Annotations))
     }
 
@@ -60,6 +60,7 @@ class RiffleIconsTest {
             RiffleIcons.FormatListNumbered,
             RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck,
+            RiffleIcons.Toc,
         ).forEach { assertTrue(it.autoMirror, "${it.name} must be auto-mirrored in RTL") }
     }
 
@@ -68,7 +69,7 @@ class RiffleIconsTest {
         listOf(
             RiffleIcons.Home, RiffleIcons.Bookmarks, RiffleIcons.Search, RiffleIcons.GridView,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
-            RiffleIcons.Highlight, RiffleIcons.LocalLibrary,
+            RiffleIcons.EditNote, RiffleIcons.LocalLibrary,
             RiffleIcons.LibraryBooks, RiffleIcons.Sell,
         ).forEach { assertTrue(!it.autoMirror, "${it.name} must not be auto-mirrored") }
     }
@@ -79,11 +80,11 @@ class RiffleIconsTest {
             RiffleIcons.ArrowBack, RiffleIcons.ArrowDropDown, RiffleIcons.Bookmarks,
             RiffleIcons.Check, RiffleIcons.CheckCircle, RiffleIcons.Close, RiffleIcons.Folder,
             RiffleIcons.FormatListNumbered, RiffleIcons.GridView, RiffleIcons.Headphones,
-            RiffleIcons.Highlight, RiffleIcons.Home, RiffleIcons.LibraryBooks,
+            RiffleIcons.EditNote, RiffleIcons.Home, RiffleIcons.LibraryBooks,
             RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck, RiffleIcons.QueueMusic, RiffleIcons.Schedule,
-            RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
-            RiffleIcons.Warning,
+            RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.Toc,
+            RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot, RiffleIcons.Warning,
         ).forEach {
             assertEquals(24f, it.viewportWidth, "${it.name} viewportWidth")
             assertEquals(24f, it.viewportHeight, "${it.name} viewportHeight")
