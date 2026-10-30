@@ -1421,16 +1421,11 @@ private fun iosLibraryModule(
             readaloudLinkRepository = get(),
         )
     }
-    // (libraryId, playlistId, playlistName) — the three route args Android's
-    // `playlist_detail/{libraryId}/{playlistId}/{playlistName}` carries, packed into the handle
-    // the shared ViewModel reads them from.
     factory { params ->
         PlaylistDetailViewModel(
-            savedStateHandle = playlistSavedStateHandle(
-                libraryId = params.get(0),
-                playlistId = params.get(1),
-                playlistName = params.get(2),
-            ),
+            libraryId = params.get(0),
+            playlistId = params.get(1),
+            playlistName = params.get(2),
             playlistsRepository = get(),
             libraryObserver = get(),
             sourceRepository = get(),
@@ -1484,30 +1479,6 @@ private fun filteredBooksSavedStateHandle(
         FilteredBooksViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
         FilteredBooksViewModel.ROUTE_ARG_FACET_TYPE to facetType,
         FilteredBooksViewModel.ROUTE_ARG_FACET_VALUE to facetValue.urlFormEncode(),
-    ),
-)
-
-/**
- * The [SavedStateHandle] [PlaylistDetailViewModel] reads its three route arguments from.
- *
- * Keyed on the constants the ViewModel owns, for the same reason as [browseSavedStateHandle]:
- * Android puts them in the nav route and iOS packs them here, and a change to one host's key
- * would otherwise leave the other loading an empty playlist with no failure anywhere.
- *
- * [playlistName] is form-encoded on the way in because the ViewModel `urlDecode()`s it —
- * Android's nav route arrives percent-encoded. Passing the display name raw would corrupt any
- * name containing `+` or `%`, so the encode/decode pair is kept symmetric rather than relying on
- * the decoder being a no-op for "ordinary" names.
- */
-private fun playlistSavedStateHandle(
-    libraryId: String,
-    playlistId: String,
-    playlistName: String,
-): SavedStateHandle = SavedStateHandle(
-    mapOf(
-        PlaylistDetailViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
-        PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_ID to playlistId,
-        PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_NAME to playlistName.urlFormEncode(),
     ),
 )
 
