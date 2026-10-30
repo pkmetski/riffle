@@ -17,14 +17,17 @@ import kotlin.test.assertTrue
 
 class OReillyPlaylistTest {
 
+    // Real API uses lowercase "to read" — tests must reflect that to catch case-insensitive matching.
+    // Chapter-level ourns (5+ segments) must be stripped from itemIds.
     private val listJson = """
         [
-          {"id":"pl-1","name":"To Read","description":"","content_count":2,
+          {"id":"pl-1","name":"To read","description":"",
            "content":[
-             {"id":"ci-1","ourn":"urn:orm:book:9781492034025","content_type":"book"},
-             {"id":"ci-2","ourn":"urn:orm:book:9781491954249","content_type":"book"}
+             {"id":"ci-1","ourn":"urn:orm:book:9781492034025","content_type":"PLATFORM_CONTENT"},
+             {"id":"ci-2","ourn":"urn:orm:book:9781491954249","content_type":"PLATFORM_CONTENT"},
+             {"id":"ci-3","ourn":"urn:orm:book:9781492034025:chapter:ch01.html","content_type":"PLATFORM_CONTENT"}
            ]},
-          {"id":"pl-2","name":"Favorites","description":"","content_count":0,"content":[]}
+          {"id":"pl-2","name":"Favorites","description":"","content":[]}
         ]
     """.trimIndent()
 
@@ -58,10 +61,11 @@ class OReillyPlaylistTest {
         val playlists = catalog.listPlaylists("books")
         assertEquals(2, playlists.size)
         assertEquals("pl-1", playlists[0].id)
-        assertEquals("To Read", playlists[0].name)
+        assertEquals("To read", playlists[0].name)
+        // 3 content items but chapter-level ourn is stripped → 2 bare ids
         assertEquals(2, playlists[0].bookCount)
         assertEquals(
-            listOf("urn:orm:book:9781492034025", "urn:orm:book:9781491954249"),
+            listOf("9781492034025", "9781491954249"),
             playlists[0].itemIds,
         )
         assertEquals("pl-2", playlists[1].id)
@@ -73,9 +77,21 @@ class OReillyPlaylistTest {
     fun findPlaylist_byName_found() = runTest {
         val api = makeApi(listOf(listJson))
         val catalog = fakeCatalog(api)
+        // Fixture has "To read" (lowercase r); search uses "To Read" (capital R) — must match
         val playlist = catalog.findPlaylist("books", "To Read")
         assertEquals("pl-1", playlist?.id)
-        assertEquals("To Read", playlist?.name)
+        assertEquals("To read", playlist?.name)
+    }
+
+    @Test
+    fun findPlaylist_byName_caseInsensitive() = runTest {
+        // Two sequential calls to listPlaylists need two copies of the response
+        val api = makeApi(listOf(listJson, listJson))
+        val catalog = fakeCatalog(api)
+        val playlist = catalog.findPlaylist("books", "To Read")
+        assertEquals("pl-1", playlist?.id, "Should find 'To read' when searching 'To Read'")
+        val playlistLower = catalog.findPlaylist("books", "to read")
+        assertEquals("pl-1", playlistLower?.id, "Should find case-insensitively with all lowercase")
     }
 
     @Test

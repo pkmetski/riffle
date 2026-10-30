@@ -797,7 +797,7 @@ class OReillyCatalog internal constructor(
     }
 
     override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? =
-        listPlaylists(rootId).firstOrNull { it.name == name }
+        listPlaylists(rootId).firstOrNull { it.name.equals(name, ignoreCase = true) }
 
     override suspend fun createPlaylist(
         rootId: String,
@@ -831,13 +831,27 @@ class OReillyCatalog internal constructor(
         api.postJson(api.removeContentUrl(playlistId), body)
     }
 
-    private fun OReillyCollection.toCatalogPlaylist(): CatalogPlaylist = CatalogPlaylist(
-        id = id,
-        rootId = "",
-        name = name,
-        bookCount = contentCount,
-        itemIds = content.map { it.ourn },
-    )
+    private fun OReillyCollection.toCatalogPlaylist(): CatalogPlaylist {
+        val bareIds = content.mapNotNull { it.ourn.ournBareId() }
+        return CatalogPlaylist(
+            id = id,
+            rootId = "",
+            name = name,
+            bookCount = bareIds.size,
+            itemIds = bareIds,
+        )
+    }
+
+    /**
+     * Extracts the bare item id from a top-level ourn. Top-level ourns have exactly 4
+     * colon-separated segments: `urn:orm:<type>:<id>` (e.g. `urn:orm:book:9780135956977`).
+     * Chapter/clip ourns have more segments (`urn:orm:book:<id>:chapter:<path>`) and are
+     * skipped because they are not addressable as standalone library items.
+     */
+    private fun String.ournBareId(): String? {
+        val parts = split(":")
+        return if (parts.size == 4) parts[3] else null
+    }
 
     // endregion
 
