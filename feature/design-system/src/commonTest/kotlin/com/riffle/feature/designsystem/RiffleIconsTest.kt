@@ -38,9 +38,9 @@ class RiffleIconsTest {
     }
 
     @Test
-    fun annotationsIsEditNoteNotTheBookmarkFamily() {
-        assertEquals("EditNote", RiffleIcons.Annotations.name)
-        assertSameArtwork(RiffleIcons.EditNote, RiffleIcons.Annotations)
+    fun annotationsIsInkHighlighterNotTheBookmarkFamily() {
+        assertEquals("InkHighlighter", RiffleIcons.Annotations.name)
+        assertSameArtwork(RiffleIcons.InkHighlighter, RiffleIcons.Annotations)
         assertNotEquals(pathNodes(RiffleIcons.Bookmarks), pathNodes(RiffleIcons.Annotations))
     }
 
@@ -69,7 +69,7 @@ class RiffleIconsTest {
         listOf(
             RiffleIcons.Home, RiffleIcons.Bookmarks, RiffleIcons.Search, RiffleIcons.GridView,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
-            RiffleIcons.EditNote, RiffleIcons.LocalLibrary,
+            RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.LocalLibrary,
             RiffleIcons.LibraryBooks, RiffleIcons.Sell,
         ).forEach { assertTrue(!it.autoMirror, "${it.name} must not be auto-mirrored") }
     }
@@ -80,7 +80,7 @@ class RiffleIconsTest {
             RiffleIcons.ArrowBack, RiffleIcons.ArrowDropDown, RiffleIcons.Bookmarks,
             RiffleIcons.Check, RiffleIcons.CheckCircle, RiffleIcons.Close, RiffleIcons.Folder,
             RiffleIcons.FormatListNumbered, RiffleIcons.GridView, RiffleIcons.Headphones,
-            RiffleIcons.EditNote, RiffleIcons.Home, RiffleIcons.LibraryBooks,
+            RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.Home, RiffleIcons.LibraryBooks,
             RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck, RiffleIcons.QueueMusic, RiffleIcons.Schedule,
             RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.Toc,

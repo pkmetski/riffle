@@ -99,13 +99,11 @@ fun SharedAnnotationsPanel(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(RiffleIcons.BookmarkSingle, contentDescription = null) },
                     text = { Text(stringResource(Res.string.ui_bookmarks)) },
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(RiffleIcons.EditNote, contentDescription = null) },
                     text = { Text(stringResource(Res.string.ui_annotations)) },
                 )
             }

@@ -56,7 +56,7 @@ object RiffleIcons {
      * The reader top bar uses [Bookmarks] directly to distinguish the panel-open action
      * from this navigation concept.
      */
-    val Annotations: ImageVector get() = EditNote
+    val Annotations: ImageVector get() = InkHighlighter
 
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
@@ -191,7 +191,17 @@ object RiffleIcons {
         )
     }
 
-    /** `Icons.Filled.EditNote` — artwork for the [Annotations] concept (library tab). */
+    /** Material Symbols `ink_highlighter` fill1/rounded; viewBox 0 -960 960 960 → ÷40. */
+    val InkHighlighter: ImageVector = materialIcon("InkHighlighter") {
+        listOf(
+            "M9.6 10L15 15.4L10 20.4Q8.6 21.6 7.2 20.4Q6.5 21.5 5.7 21H2.7Q2 21 2.2 20.2" +
+            "L4.6 17.9Q4 16.4 4.6 15L9.6 10Z" +
+            "M11 8.6L16 3.6Q16.6 3 17.4 3Q18.2 3 18.8 3.6L21.4 6.2Q22 6.8 22 7.6" +
+            "Q22 8.4 21.4 9L16.4 14Z",
+        )
+    }
+
+    /** `Icons.Filled.EditNote` — artwork for the Bookmarks tab in the in-book panel. */
     val EditNote: ImageVector = materialIcon("EditNote") {
         listOf(
             "M3 10h11v2H3V10z",
