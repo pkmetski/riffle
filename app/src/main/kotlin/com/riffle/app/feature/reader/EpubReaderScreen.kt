@@ -3223,7 +3223,9 @@ private fun EpubNavigatorView(
         if (noteTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == noteTarget.id }
             val sheetLabels = annotationSheetLabels()
-            BackHandler(enabled = true, onBack = onCancelNoteEdit)
+            var currentNoteText by remember(noteTarget.id) { mutableStateOf(current?.note ?: "") }
+            val commitCurrent = { onCommitNoteEdit(noteTarget.id, currentNoteText.takeIf { it.isNotBlank() }) }
+            BackHandler(enabled = true, onBack = commitCurrent)
             Box(
                 modifier = Modifier.fillMaxSize().imePadding(),
                 contentAlignment = Alignment.BottomCenter,
@@ -3234,7 +3236,7 @@ private fun EpubNavigatorView(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = onCancelNoteEdit,
+                            onClick = commitCurrent,
                         ),
                 )
                 NoteEditorSheet(
@@ -3243,6 +3245,7 @@ private fun EpubNavigatorView(
                     onConfirm = { text -> onCommitNoteEdit(noteTarget.id, text.takeIf { it.isNotBlank() }) },
                     onDismiss = onCancelNoteEdit,
                     modifier = Modifier.fillMaxWidth(),
+                    onTextChange = { currentNoteText = it },
                 )
             }
         }
