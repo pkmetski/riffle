@@ -816,7 +816,8 @@ class OReillyCatalog internal constructor(
     }
 
     override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {
-        val ourn = api.bookUrn(itemId)
+        val bareId = if (itemId.endsWith("AU")) itemId.dropLast(2) else itemId
+        val ourn = api.bookUrn(bareId)
         val body = OReillyParser.json.encodeToString(
             OReillyCollectionContentRequest(content = listOf(ourn)),
         )
@@ -824,7 +825,8 @@ class OReillyCatalog internal constructor(
     }
 
     override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
-        val ourn = api.bookUrn(itemId)
+        val bareId = if (itemId.endsWith("AU")) itemId.dropLast(2) else itemId
+        val ourn = api.bookUrn(bareId)
         val body = OReillyParser.json.encodeToString(
             OReillyCollectionContentRequest(content = listOf(ourn)),
         )
@@ -833,12 +835,15 @@ class OReillyCatalog internal constructor(
 
     private fun OReillyCollection.toCatalogPlaylist(): CatalogPlaylist {
         val bareIds = content.mapNotNull { it.ourn.ournBareId() }
+        // Include both the bare ISBN and the audiobook variant (bare + "AU") so that
+        // isInToRead() returns true regardless of which catalog root the caller is on.
+        val itemIds = bareIds.flatMap { listOf(it, "${it}AU") }
         return CatalogPlaylist(
             id = id,
             rootId = "",
             name = name,
             bookCount = bareIds.size,
-            itemIds = bareIds,
+            itemIds = itemIds,
         )
     }
 

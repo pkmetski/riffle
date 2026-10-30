@@ -62,10 +62,10 @@ class OReillyPlaylistTest {
         assertEquals(2, playlists.size)
         assertEquals("pl-1", playlists[0].id)
         assertEquals("To read", playlists[0].name)
-        // 3 content items but chapter-level ourn is stripped → 2 bare ids
+        // 3 content items but chapter-level ourn is stripped → 2 bare ids; each expands to ebook+audiobook variant
         assertEquals(2, playlists[0].bookCount)
         assertEquals(
-            listOf("9781492034025", "9781491954249"),
+            listOf("9781492034025", "9781492034025AU", "9781491954249", "9781491954249AU"),
             playlists[0].itemIds,
         )
         assertEquals("pl-2", playlists[1].id)
@@ -148,6 +148,28 @@ class OReillyPlaylistTest {
         catalog.removeItemFromPlaylist("pl-1", "9781492034025")
         assertEquals(1, recorded.size)
         assertTrue(recorded[0].url.contains("/api/v3/collections/pl-1/remove-content-ourns/"))
+        val body = Json.parseToJsonElement(recorded[0].body!!)
+        val content = body.jsonObject["content"]?.jsonArray
+        assertEquals("urn:orm:book:9781492034025", content?.get(0)?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun addItemToPlaylist_stripsAuSuffixForAudiobookItems() = runTest {
+        val recorded = mutableListOf<Recorded>()
+        val api = makeApi(listOf(addContentJson)) { recorded.add(it) }
+        val catalog = fakeCatalog(api)
+        catalog.addItemToPlaylist("pl-1", "9781492034025AU")
+        val body = Json.parseToJsonElement(recorded[0].body!!)
+        val content = body.jsonObject["content"]?.jsonArray
+        assertEquals("urn:orm:book:9781492034025", content?.get(0)?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun removeItemFromPlaylist_stripsAuSuffixForAudiobookItems() = runTest {
+        val recorded = mutableListOf<Recorded>()
+        val api = makeApi(listOf("{}")) { recorded.add(it) }
+        val catalog = fakeCatalog(api)
+        catalog.removeItemFromPlaylist("pl-1", "9781492034025AU")
         val body = Json.parseToJsonElement(recorded[0].body!!)
         val content = body.jsonObject["content"]?.jsonArray
         assertEquals("urn:orm:book:9781492034025", content?.get(0)?.jsonPrimitive?.content)
