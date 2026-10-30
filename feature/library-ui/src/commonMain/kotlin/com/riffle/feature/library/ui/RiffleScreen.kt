@@ -100,7 +100,7 @@ fun RiffleScreen(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = { Icon(RiffleIcons.Home, contentDescription = inProgressLabel) },
+                        icon = { Icon(RiffleIcons.LocalLibrary, contentDescription = inProgressLabel) },
                         modifier = Modifier.testTag(TestTags.NAV_TAB_IN_PROGRESS),
                     )
                     NavigationBarItem(

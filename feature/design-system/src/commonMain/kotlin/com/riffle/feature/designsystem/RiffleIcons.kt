@@ -43,16 +43,23 @@ object RiffleIcons {
 
     // ── Concepts ──────────────────────────────────────────────────────────────────────────────
     // The reading-queue / "save for later" concept: the details-screen toggle and the library
-    // nav tab. NOT the Bookmark family — that belongs to [Annotations].
+    // nav tab. NOT the Bookmark family — that belongs to [ReaderAnnotations].
 
     /** The reading queue, unselected. */
-    val ToRead: ImageVector get() = PlaylistAdd
+    val ToRead: ImageVector get() = TurnedInNot
 
     /** The reading queue, selected. */
-    val ToReadFilled: ImageVector get() = PlaylistAddCheck
+    val ToReadFilled: ImageVector get() = TurnedIn
 
-    /** Highlights + notes + reader-level bookmarks. This concept owns the `Bookmark*` family. */
-    val Annotations: ImageVector get() = Bookmarks
+    /**
+     * Highlights + notes + reader-level bookmarks — the library nav tab.
+     * The reader top bar uses [Bookmarks] directly to distinguish the panel-open action
+     * from this navigation concept.
+     */
+    val Annotations: ImageVector get() = InkHighlighter
+
+    /** Table of contents — reader top bar and item-detail sections row. */
+    val Toc: ImageVector get() = TocIcon
 
     /** Synced-narration (readaloud) badge on a cover. */
     val ReadaloudBadge: ImageVector get() = Headphones
@@ -184,9 +191,49 @@ object RiffleIcons {
         )
     }
 
+    /** Material Symbols `ink_highlighter` fill1/rounded; viewBox 0 -960 960 960 → ÷40. */
+    val InkHighlighter: ImageVector = materialIcon("InkHighlighter") {
+        listOf(
+            "M9.6 10L15 15.4L10 20.4Q8.6 21.6 7.2 20.4Q6.5 21.5 5.7 21H2.7Q2 21 2.2 20.2" +
+                "L4.6 17.9Q4 16.4 4.6 15L9.6 10Z" +
+                "M11 8.6L16 3.6Q16.6 3 17.4 3Q18.2 3 18.8 3.6L21.4 6.2Q22 6.8 22 7.6" +
+                "Q22 8.4 21.4 9L16.4 14Z",
+        )
+    }
+
+    /** `Icons.Filled.EditNote` — artwork for the Bookmarks tab in the in-book panel. */
+    val EditNote: ImageVector = materialIcon("EditNote") {
+        listOf(
+            "M3 10h11v2H3V10z",
+            "M3 8h11V6H3V8z",
+            "M3 16h7v-2H3V16z",
+            "M18.01 12.87l0.71-0.71c0.39-0.39 1.02-0.39 1.41 0l0.71 0.71c0.39 0.39 0.39 1.02 0 1.41l-0.71 0.71L18.01 12.87z",
+            "M17.3 13.58l-5.3 5.3V21h2.12l5.3-5.3L17.3 13.58z",
+        )
+    }
+
     /** `Icons.Filled.Home` */
     val Home: ImageVector = materialIcon("Home") {
         listOf("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z")
+    }
+
+    /** `Icons.Filled.LibraryBooks` — artwork for the All Books tab. */
+    val LibraryBooks: ImageVector = materialIcon("LibraryBooks") {
+        listOf(
+            "M4 6L2 6v14c0 1.1.9 2 2 2h14v-2L4 20L4 6z" +
+                "M20 2L8 2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2L22 4c0-1.1-.9-2-2-2z" +
+                "M19 11L9 11L9 9h10v2z" +
+                "M15 15L9 15v-2h6v2z" +
+                "M19 7L9 7L9 5h10v2z",
+        )
+    }
+
+    /** `Icons.Filled.LocalLibrary` — artwork for the Home/In-Progress tab. */
+    val LocalLibrary: ImageVector = materialIcon("LocalLibrary") {
+        listOf(
+            "M12 11.55C9.64 9.35 6.48 8 3 8v11c3.48 0 6.64 1.35 9 3.55 2.36-2.19 5.52-3.55 9-3.55V8c-3.48 0-6.64 1.35-9 3.55z",
+            "M12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z",
+        )
     }
 
     /** `Icons.Filled.Menu` */
@@ -300,6 +347,14 @@ object RiffleIcons {
         )
     }
 
+    /** `Icons.Filled.Sell` — artwork for the Collections tab. */
+    val Sell: ImageVector = materialIcon("Sell") {
+        listOf(
+            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 12.2 21.41 11.41z",
+            "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
+        )
+    }
+
     /** `Icons.Filled.Share` */
     val Share: ImageVector = materialIcon("Share") {
         listOf(
@@ -310,6 +365,26 @@ object RiffleIcons {
                 "s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z",
         )
     }
+
+    /** `Icons.Filled.TurnedIn` — artwork for the [ToReadFilled] concept. */
+    val TurnedIn: ImageVector = materialIcon("TurnedIn") {
+        listOf("M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
+    }
+
+    /**
+     * `Icons.Filled.TurnedInNot` — artwork for the [ToRead] concept.
+     * Both sub-paths are in a single path string so the non-zero winding rule creates the
+     * interior cutout (outline bookmark) — splitting into two paths collapses the winding
+     * relationship and produces a solid shape indistinguishable from [TurnedIn].
+     */
+    val TurnedInNot: ImageVector = materialIcon("TurnedInNot") {
+        listOf("M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2zM17 18l-5-2.18L7 18L7 5h10v13z")
+    }
+}
+
+/** `Icons.AutoMirrored.Filled.Toc` — artwork for the [RiffleIcons.Toc] concept. */
+private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
+    listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
 }
 
 /**

@@ -1,6 +1,5 @@
 package com.riffle.feature.library
 
-import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PlaylistsRepository
 import com.riffle.core.domain.SourceRepository
@@ -28,16 +27,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * #1072 §1 — `PlaylistDetailViewModel` was `:app`-only and read its three arguments from string
- * literals inside its own body. Both hosts now build the handle: Android from the nav route
- * `playlist_detail/{libraryId}/{playlistId}/{playlistName}`, iOS from
- * `playlistSavedStateHandle(...)` in the Koin graph. Nothing fails when those keys drift — the
- * screen just loads an empty playlist with a blank title — so the constants are pinned here.
- *
- * Renaming `ROUTE_ARG_LIBRARY_ID` away from `"libraryId"` (the revert) fails
- * [theRouteArgumentKeysMatchAndroidsNavRoute]; dropping the `urlDecode()` on the name fails
- * [thePlaylistNameArrivesPercentDecoded]; and reading the ids from the wrong keys fails
- * [theViewModelReadsItsIdsFromTheHandle].
+ * Pins the argument-passing contract: both hosts pass libraryId, playlistId, and the display name
+ * (raw, not encoded) as direct constructor params to [PlaylistDetailViewModel].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaylistDetailRouteArgsTest {
@@ -51,29 +42,18 @@ class PlaylistDetailRouteArgsTest {
     @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     @Test
-    fun theRouteArgumentKeysMatchAndroidsNavRoute() {
-        assertEquals("libraryId", PlaylistDetailViewModel.ROUTE_ARG_LIBRARY_ID)
-        assertEquals("playlistId", PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_ID)
-        assertEquals("playlistName", PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_NAME)
-    }
-
-    @Test
-    fun theViewModelReadsItsIdsFromTheHandle() = runTest {
+    fun theViewModelReadsItsIdsFromTheConstructor() = runTest {
         val vm = makeVm(libraryId = "root-9", playlistId = "pl-7")
 
         assertEquals("root-9", vm.libraryId)
         assertEquals("pl-7", vm.playlistId)
     }
 
-    /**
-     * Both hosts hand the name in form-encoded, so the header must show "Evening Queue", not
-     * "Evening+Queue".
-     */
     @Test
-    fun thePlaylistNameArrivesPercentDecoded() = runTest {
-        val vm = makeVm(playlistName = "Evening+Queue+%26+more")
+    fun thePlaylistNameIsUsedVerbatim() = runTest {
+        val vm = makeVm(playlistName = "AC+DC Essentials")
 
-        assertEquals("Evening Queue & more", vm.uiState.value.name)
+        assertEquals("AC+DC Essentials", vm.uiState.value.name)
     }
 
     /** The screen lists the playlist's items in the Source's order, not the library's. */
@@ -121,13 +101,9 @@ class PlaylistDetailRouteArgsTest {
         playlist: CatalogPlaylist? = null,
         libraryItems: List<LibraryItem> = emptyList(),
     ) = PlaylistDetailViewModel(
-        savedStateHandle = SavedStateHandle(
-            mapOf(
-                PlaylistDetailViewModel.ROUTE_ARG_LIBRARY_ID to libraryId,
-                PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_ID to playlistId,
-                PlaylistDetailViewModel.ROUTE_ARG_PLAYLIST_NAME to playlistName,
-            ),
-        ),
+        libraryId = libraryId,
+        playlistId = playlistId,
+        playlistName = playlistName,
         playlistsRepository = object : PlaylistsRepository {
             override fun observePlaylists(rootId: String): Flow<List<CatalogPlaylist>> = flowOf(emptyList())
             override suspend fun refresh(rootId: String): Boolean = true

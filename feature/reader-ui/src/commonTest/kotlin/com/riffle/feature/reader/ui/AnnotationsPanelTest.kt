@@ -47,7 +47,8 @@ class AnnotationsPanelTest {
                 onDismiss = {},
             )
         }
-        onNodeWithText("No annotations yet.").assertIsDisplayed()
+        // Bookmarks tab is selected by default; no annotations means no bookmarks either.
+        onNodeWithText("No bookmarks yet.").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -62,6 +63,8 @@ class AnnotationsPanelTest {
                 onDismiss = {},
             )
         }
+        // Highlights live on the Annotations tab; navigate there first.
+        onNodeWithText("Annotations").performClick()
         onNodeWithText("The quick brown fox").assertIsDisplayed()
     }
 
@@ -78,6 +81,8 @@ class AnnotationsPanelTest {
                 onDismiss = {},
             )
         }
+        // Highlights live on the Annotations tab; navigate there first.
+        onNodeWithText("Annotations").performClick()
         onNodeWithText("A highlighted sentence").performClick()
         assertEquals(listOf("ann-42"), navigated)
     }

@@ -292,6 +292,18 @@ class LibraryItemDetailViewModelTest {
         override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
     }
 
+    private class FakePlaylistsRepository(
+        initial: List<com.riffle.core.models.CatalogPlaylist> = emptyList(),
+    ) : com.riffle.core.data.PlaylistsRepository {
+        val flow = MutableStateFlow(initial)
+        override fun observePlaylists(rootId: String): Flow<List<com.riffle.core.models.CatalogPlaylist>> = flow
+        override suspend fun refresh(rootId: String) = true
+        override suspend fun getPlaylist(rootId: String, playlistId: String) = null
+        override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = throw UnsupportedOperationException()
+        override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String) = false
+        override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
+    }
+
     private class FakeToReadRepository(
         initial: Set<String> = emptySet(),
         var addResult: Boolean = true,
@@ -368,6 +380,7 @@ class LibraryItemDetailViewModelTest {
         pdfRepository: PdfRepository = FakePdfRepository(),
         cbzRepository: com.riffle.core.domain.CbzRepository = NoopCbzRepository(),
         toReadRepo: ToReadRepository = FakeToReadRepository(),
+        playlistsRepository: com.riffle.core.data.PlaylistsRepository = NoopPlaylistsRepository(),
         sourceRepository: SourceRepository = noOpServerRepo,
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         downloadManager: DownloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
@@ -416,7 +429,7 @@ class LibraryItemDetailViewModelTest {
         pdfRepository = pdfRepository,
         cbzRepository = cbzRepository,
         toReadRepository = toReadRepo,
-        playlistsRepository = NoopPlaylistsRepository(),
+        playlistsRepository = playlistsRepository,
         readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = readaloudAudioRepository,
         audiobookDownloadRepository = audiobookDownloadRepository,
@@ -515,6 +528,55 @@ class LibraryItemDetailViewModelTest {
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
         override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
+
+    // --- isInAnyPlaylist ---
+
+    @Test
+    fun `isInAnyPlaylist is false when no playlist contains the item`() = runTest(testDispatcher) {
+        val playlists = FakePlaylistsRepository(
+            initial = listOf(
+                com.riffle.core.models.CatalogPlaylist(id = "pl-1", rootId = "lib-1", name = "Q", bookCount = 1, itemIds = listOf("other-item")),
+            ),
+        )
+        val vm = makeVm(fakeRepo(knownItem), playlistsRepository = playlists)
+        backgroundScope.launch { vm.uiState.collect {} }
+        backgroundScope.launch { vm.isInAnyPlaylist.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.isInAnyPlaylist.value)
+    }
+
+    @Test
+    fun `isInAnyPlaylist is true when a playlist contains the item`() = runTest(testDispatcher) {
+        val playlists = FakePlaylistsRepository(
+            initial = listOf(
+                com.riffle.core.models.CatalogPlaylist(id = "pl-1", rootId = "lib-1", name = "Q", bookCount = 1, itemIds = listOf("item-1")),
+            ),
+        )
+        val vm = makeVm(fakeRepo(knownItem), playlistsRepository = playlists)
+        backgroundScope.launch { vm.uiState.collect {} }
+        backgroundScope.launch { vm.isInAnyPlaylist.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.isInAnyPlaylist.value)
+    }
+
+    @Test
+    fun `isInAnyPlaylist updates reactively when playlist membership changes`() = runTest(testDispatcher) {
+        val playlists = FakePlaylistsRepository()
+        val vm = makeVm(fakeRepo(knownItem), playlistsRepository = playlists)
+        backgroundScope.launch { vm.uiState.collect {} }
+        backgroundScope.launch { vm.isInAnyPlaylist.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.isInAnyPlaylist.value)
+
+        playlists.flow.value = listOf(
+            com.riffle.core.models.CatalogPlaylist(id = "pl-1", rootId = "lib-1", name = "Q", bookCount = 1, itemIds = listOf("item-1")),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.isInAnyPlaylist.value)
     }
 
     // --- existing uiState tests ---

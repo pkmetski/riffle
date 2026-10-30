@@ -1,6 +1,5 @@
 package com.riffle.feature.library
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.LibraryObserver
@@ -29,17 +28,16 @@ data class PlaylistDetailUiState(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaylistDetailViewModel constructor(
-    savedStateHandle: SavedStateHandle,
+    val libraryId: String,
+    val playlistId: String,
+    playlistName: String,
     private val playlistsRepository: PlaylistsRepository,
     private val libraryObserver: LibraryObserver,
     sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
-    val libraryId: String = savedStateHandle.get<String>(ROUTE_ARG_LIBRARY_ID) ?: ""
-    val playlistId: String = savedStateHandle.get<String>(ROUTE_ARG_PLAYLIST_ID) ?: ""
-    private val initialName: String =
-        (savedStateHandle.get<String>(ROUTE_ARG_PLAYLIST_NAME) ?: "").urlDecode()
+    private val initialName: String = playlistName
 
     private sealed interface PlaylistLoad {
         data object Loading : PlaylistLoad
@@ -109,12 +107,4 @@ class PlaylistDetailViewModel constructor(
         }
     }
 
-    companion object {
-        // The SavedStateHandle keys, owned by the ViewModel so Android's nav route and iOS's
-        // fabricated handle cannot drift — the same arrangement as
-        // UnboundedBrowseViewModel.ROUTE_ARG_LIBRARY_ID.
-        const val ROUTE_ARG_LIBRARY_ID: String = "libraryId"
-        const val ROUTE_ARG_PLAYLIST_ID: String = "playlistId"
-        const val ROUTE_ARG_PLAYLIST_NAME: String = "playlistName"
-    }
 }

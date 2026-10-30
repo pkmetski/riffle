@@ -157,7 +157,7 @@ fun UnboundedBrowseScreen(
                 NavigationBarItem(
                     selected = selectedLocalTab == TAB_HOME,
                     onClick = { selectedLocalTab = TAB_HOME },
-                    icon = { Icon(RiffleIcons.Home, contentDescription = stringResource(Res.string.ui_home)) },
+                    icon = { Icon(RiffleIcons.LocalLibrary, contentDescription = stringResource(Res.string.ui_home)) },
                 )
                 if (tabVisibility?.toRead == true) {
                     NavigationBarItem(
@@ -176,7 +176,7 @@ fun UnboundedBrowseScreen(
                 NavigationBarItem(
                     selected = selectedLocalTab == TAB_LIBRARY,
                     onClick = { selectedLocalTab = TAB_LIBRARY },
-                    icon = { Icon(RiffleIcons.GridView, contentDescription = stringResource(Res.string.ui_library)) },
+                    icon = { Icon(RiffleIcons.LibraryBooks, contentDescription = stringResource(Res.string.ui_library)) },
                 )
             }
         },

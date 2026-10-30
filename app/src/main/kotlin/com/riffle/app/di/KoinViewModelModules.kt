@@ -264,9 +264,11 @@ private val libraryViewModelModule = module {
             tokenStorage = get(),
         )
     }
-    viewModel {
+    viewModel { params ->
         PlaylistDetailViewModel(
-            savedStateHandle = get(),
+            libraryId = params.get(),
+            playlistId = params.get(),
+            playlistName = params.get(),
             playlistsRepository = get(),
             libraryObserver = get(),
             sourceRepository = get(),
