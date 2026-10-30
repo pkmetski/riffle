@@ -184,7 +184,6 @@ object TestTags {
 
     // ── Annotations list ──────────────────────────────────────────────────────
     const val ANNOTATIONS_BACK = "annotations_back"
-    const val ANNOTATIONS_SEARCH_FIELD = "annotation-search-field"
     fun annotationsItem(index: Int) = "annotations_item_$index"
 
     // ── Downloads ─────────────────────────────────────────────────────────────
@@ -236,7 +235,6 @@ object TestTags {
     // ── Library / playlist ────────────────────────────────────────────────────
     const val SEE_MORE_TILE = "see_more_tile"
     fun collectionGridTile(id: String) = "collection_grid_tile_$id"
-    const val ANNOTATION_SEARCH_SUBMIT = "annotation-search-submit"
     const val ANNOTATION_SEARCH_RESULTS = "annotation-search-results"
     const val SHOW_ALL_ANNOTATIONS = "show-all-annotations"
     const val DETAIL_ADD_TO_PLAYLIST = "detail-add-to-playlist"

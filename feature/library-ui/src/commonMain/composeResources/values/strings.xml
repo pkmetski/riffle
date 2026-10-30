@@ -135,9 +135,6 @@
     <!-- Library items — series / collections empty states -->
     <string name="ui_no_series">No series</string>
     <string name="ui_no_collections">No collections</string>
-    <!-- Annotation search field in Annotations tab -->
-    <string name="ui_annotation_search_placeholder">Search annotations</string>
-    <string name="ui_annotation_search_action">Search</string>
     <!-- Item detail — upload preflight dialogs -->
     <string name="ui_upload_conflict_title">Upload conflict</string>
     <string name="ui_upload_conflict_message">An item with the same title already exists in %1$s. Overwrite it?</string>

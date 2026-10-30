@@ -716,7 +716,6 @@ internal fun LibraryHost(
                     libraryName = libraryName,
                     onOpenDrawer = onOpenDrawer,
                     onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
-                    onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                     onAnnotatedBookSelected = { sourceId, itemId ->
                         push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                     },
@@ -772,7 +771,6 @@ internal fun LibraryHost(
                             )
                         },
                         onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
-                        onSearchAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                         onPlaylistSelected = { playlist ->
                             push(
                                 LibraryNav.PlaylistDetail(
