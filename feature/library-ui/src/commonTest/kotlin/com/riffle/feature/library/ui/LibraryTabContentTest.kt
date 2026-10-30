@@ -467,7 +467,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -492,7 +491,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -518,7 +516,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -544,7 +541,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
@@ -574,7 +570,6 @@ class LibraryTabContentTest {
                 onCollectionSelected = {},
                 onSectionSeeMore = {},
                 onPlaylistSelected = {},
-                onSearchAnnotations = {},
                 onToggleNotStarted = {},
                 onSetSortMode = {},
             )
