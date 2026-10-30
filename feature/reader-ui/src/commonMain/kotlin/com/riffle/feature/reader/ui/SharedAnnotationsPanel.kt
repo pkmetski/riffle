@@ -23,12 +23,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,9 +49,11 @@ import com.riffle.feature.reader.maxLinesForAnnotationTitle
 import com.riffle.feature.reader.rowKindFor
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_annotations
+import com.riffle.feature.reader.ui.generated.resources.ui_bookmarks
 import com.riffle.feature.reader.ui.generated.resources.ui_cancel
 import com.riffle.feature.reader.ui.generated.resources.ui_delete
-import com.riffle.feature.reader.ui.generated.resources.ui_no_annotations_yet
+import com.riffle.feature.reader.ui.generated.resources.ui_no_bookmarks_yet
+import com.riffle.feature.reader.ui.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.reader.ui.generated.resources.ui_options
 import com.riffle.feature.reader.ui.generated.resources.ui_rename
 import com.riffle.feature.reader.ui.generated.resources.ui_rename_bookmark
@@ -77,6 +82,11 @@ fun SharedAnnotationsPanel(
     modifier: Modifier = Modifier,
 ) {
     var renamingId by remember { mutableStateOf<String?>(null) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    val bookmarks = remember(annotations) { annotations.filter { rowKindFor(it) == RowKind.Bookmark } }
+    val highlights = remember(annotations) { annotations.filter { rowKindFor(it) != RowKind.Bookmark } }
+    val visibleAnnotations = if (selectedTab == 0) bookmarks else highlights
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -84,14 +94,29 @@ fun SharedAnnotationsPanel(
         modifier = modifier,
     ) {
         Column(modifier = Modifier.fillMaxHeight()) {
-            Text(
-                text = stringResource(Res.string.ui_annotations),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-            )
-            if (annotations.isEmpty()) {
+            @OptIn(ExperimentalMaterial3Api::class)
+            PrimaryTabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(RiffleIcons.BookmarkSingle, contentDescription = null) },
+                    text = { Text(stringResource(Res.string.ui_bookmarks)) },
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(RiffleIcons.EditNote, contentDescription = null) },
+                    text = { Text(stringResource(Res.string.ui_annotations)) },
+                )
+            }
+            val emptyMessage = if (selectedTab == 0) {
+                stringResource(Res.string.ui_no_bookmarks_yet)
+            } else {
+                stringResource(Res.string.ui_no_highlights_yet)
+            }
+            if (visibleAnnotations.isEmpty()) {
                 Text(
-                    text = stringResource(Res.string.ui_no_annotations_yet),
+                    text = emptyMessage,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -102,7 +127,7 @@ fun SharedAnnotationsPanel(
                     state = listState,
                     modifier = Modifier.fillMaxWidth().fadingScrollbar(listState),
                 ) {
-                    items(annotations, key = { it.id }) { annotation ->
+                    items(visibleAnnotations, key = { it.id }) { annotation ->
                         SharedAnnotationRow(
                             annotation = annotation,
                             figureContent = figureContent,

@@ -11,6 +11,9 @@
     <string name="ui_rename_bookmark">Преименуване на отметката</string>
     <string name="ui_dismiss">Затваряне</string>
     <string name="ui_annotations">анотации</string>
+    <string name="ui_bookmarks">Отметки</string>
+    <string name="ui_no_bookmarks_yet">Все още няма отметки.</string>
+    <string name="ui_no_highlights_yet">Все още няма анотации.</string>
     <string name="ui_format">Формат</string>
     <string name="ui_formatting">Форматиране</string>
     <string name="ui_display">Дисплей</string>

@@ -13,6 +13,9 @@
     <string name="ui_rename_bookmark">Rename bookmark</string>
     <string name="ui_dismiss">Dismiss</string>
     <string name="ui_annotations">Annotations</string>
+    <string name="ui_bookmarks">Bookmarks</string>
+    <string name="ui_no_bookmarks_yet">No bookmarks yet.</string>
+    <string name="ui_no_highlights_yet">No highlights yet.</string>
     <string name="ui_format">Format</string>
     <string name="ui_formatting">Formatting</string>
     <string name="ui_display">Display</string>
