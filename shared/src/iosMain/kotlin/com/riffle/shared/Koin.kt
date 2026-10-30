@@ -838,7 +838,9 @@ private fun iosLibraryModule(
     // supplied (see the factory above and #1072).
     single<PlaylistsRepository> { PlaylistsRepositoryImpl(get(), get(), get(), get()) }
     single<LocalToReadStore> { IosLocalToReadStore() }
-    single<ToReadRepository> { ToReadRepositoryImpl(get(), get(), get()) }
+    single<ToReadRepository> {
+        ToReadRepositoryImpl(get(), get(), get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(), get())
+    }
     single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
     // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
     // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles
@@ -1282,6 +1284,7 @@ private fun iosLibraryModule(
             libraryObserver = get(),
             connectivityObserver = get(),
             dispatchers = get(),
+            toReadRepository = get(),
         )
     }
 

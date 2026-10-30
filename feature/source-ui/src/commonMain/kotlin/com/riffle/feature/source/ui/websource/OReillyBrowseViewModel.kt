@@ -1,6 +1,7 @@
 package com.riffle.feature.source.ui.websource
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.oreilly.OReillyRoots
 import com.riffle.core.catalog.oreilly.oReillyFriendlyErrorMessage
@@ -12,7 +13,11 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.models.SourceType
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the O'Reilly browse surface. Delegates to [UnboundedBrowseViewModel] for the
@@ -26,7 +31,7 @@ import com.riffle.core.models.SourceType
  */
 class OReillyBrowseViewModel constructor(
     savedStateHandle: SavedStateHandle,
-    sourceRepository: SourceRepository,
+    private val sourceRepository: SourceRepository,
     catalogRegistry: CatalogRegistry,
     libraryItemUpserter: WebSourceLibraryItemUpserter,
     webSourceItemGate: WebSourceItemGate,
@@ -35,6 +40,7 @@ class OReillyBrowseViewModel constructor(
     libraryObserver: LibraryObserver,
     connectivityObserver: ConnectivityObserver,
     dispatchers: DispatcherProvider,
+    private val toReadRepository: ToReadRepository,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -50,4 +56,13 @@ class OReillyBrowseViewModel constructor(
     pageSize = 20,
     friendlyError = ::oReillyFriendlyErrorMessage,
     dispatchers = dispatchers,
-)
+) {
+    init {
+        viewModelScope.launch {
+            val sourceId = sourceRepository.observeAll()
+                .mapNotNull { sources -> sources.firstOrNull { it.type == SourceType.OREILLY }?.id }
+                .firstOrNull() ?: return@launch
+            toReadRepository.refreshForSource(sourceId, rootId)
+        }
+    }
+}

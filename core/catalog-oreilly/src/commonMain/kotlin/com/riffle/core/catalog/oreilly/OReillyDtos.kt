@@ -153,3 +153,34 @@ internal data class OReillyKalturaSession(
     val session: String = "",
     val expiry: String? = null,
 )
+
+// ---- Playlists (Collections API v3) ----------------------------------------
+// O'Reilly calls user playlists "collections" at /api/v3/collections/. Verified
+// from the learning.oreilly.com web app JS bundle (2026-10).
+
+@Serializable
+internal data class OReillyCollection(
+    val id: String = "",
+    val name: String = "",
+    val description: String = "",
+    @SerialName("content_count") val contentCount: Int = 0,
+    val content: List<OReillyCollectionItem> = emptyList(),
+)
+
+@Serializable
+internal data class OReillyCollectionItem(
+    val id: String = "",
+    val ourn: String = "",
+    @SerialName("content_type") val contentType: String = "",
+)
+
+@Serializable
+internal data class OReillyCreateCollectionRequest(
+    val name: String,
+    val description: String = "",
+)
+
+@Serializable
+internal data class OReillyCollectionContentRequest(
+    val content: List<String>,
+)

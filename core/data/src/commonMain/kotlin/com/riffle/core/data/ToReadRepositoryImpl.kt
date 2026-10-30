@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.abs.CatalogException
@@ -9,6 +10,10 @@ import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+
+fun interface ToReadItemUpserter {
+    suspend fun upsert(sourceId: String, item: CatalogItem)
+}
 
 /**
  * In-memory To Read snapshot for a single library.
@@ -28,6 +33,7 @@ private data class ToReadSnapshot(val playlistId: String?, val itemIds: Set<Stri
 class ToReadRepositoryImpl constructor(
     private val catalogRegistry: CatalogRegistry,
     private val localStore: LocalToReadStore,
+    private val upserter: ToReadItemUpserter?,
     private val logger: Logger,
 ) : ToReadRepository {
 
@@ -99,6 +105,18 @@ class ToReadRepositoryImpl constructor(
                 itemIds = match?.itemIds?.toSet() ?: emptySet(),
             )
             )
+        // Eagerly fetch and upsert each playlist item into Room so the "To Read" tab
+        // appears even before the user has browsed the library.
+        if (upserter != null && match != null) {
+            val catalog = catalogRegistry.forSourceId(sourceId)
+            if (catalog != null) {
+                for (itemId in match.itemIds) {
+                    runCatching { catalog.getItem(itemId) }
+                        .onSuccess { item -> if (item != null) upserter.upsert(sourceId, item) }
+                        .onFailure { logger.d(LogChannel.ToRead) { "refreshForSource($sourceId) getItem($itemId) failed: $it" } }
+                }
+            }
+        }
         return true
     }
 

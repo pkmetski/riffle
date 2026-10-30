@@ -41,7 +41,8 @@ class ToReadRepositoryImplTest {
     private fun makeRepo(
         catalog: Catalog?,
         localStore: FakeLocalToReadStore = FakeLocalToReadStore(),
-    ) = ToReadRepositoryImpl(FakeRegistry(catalog), localStore, RecordingLogger())
+        upserter: ToReadItemUpserter? = null,
+    ) = ToReadRepositoryImpl(FakeRegistry(catalog), localStore, upserter, RecordingLogger())
 
     // ── refreshForSource return-value semantics ───────────────────────────────
 
@@ -105,6 +106,33 @@ class ToReadRepositoryImplTest {
         assertTrue(repo.isInToReadForSource("src-1", "item-42", "lib-1"))
     }
 
+    // ── Eager upsert: playlist items upserted into Room on refresh ───────────
+
+    @Test
+    fun refreshForSource_upsertsPlaylistItemsWhenCapabilityPresent() = runTest {
+        val upserted = mutableListOf<Pair<String, String>>()
+        val upserter = ToReadItemUpserter { sourceId, item -> upserted.add(sourceId to item.id) }
+        val cap = FakeCatalog(
+            playlistsByLibrary = mapOf("books" to listOf(playlist("pl-1", "To Read", listOf("item-1", "item-2")))),
+            getItemResult = { id -> CatalogItem(id = id, rootId = "books", title = "Book $id", author = "", coverUrl = null, ebookFormat = BookFormat.Epub) },
+        )
+        val repo = makeRepo(cap, upserter = upserter)
+        repo.refreshForSource("src-oreilly", "books")
+        assertEquals(listOf("src-oreilly" to "item-1", "src-oreilly" to "item-2"), upserted)
+    }
+
+    @Test
+    fun refreshForSource_doesNotUpsertWhenUpserterIsNull() = runTest {
+        val cap = FakeCatalog(
+            playlistsByLibrary = mapOf("books" to listOf(playlist("pl-1", "To Read", listOf("item-1")))),
+            getItemResult = { id -> CatalogItem(id = id, rootId = "books", title = "Book $id", author = "", coverUrl = null, ebookFormat = BookFormat.Epub) },
+        )
+        // no upserter — must not crash, just silently skip
+        val repo = makeRepo(cap, upserter = null)
+        assertTrue(repo.refreshForSource("src-1", "books"))
+        assertEquals(setOf("item-1"), repo.observeToReadItemIds("books").first())
+    }
+
     // ── observeToReadItemIds unions cache and local store ─────────────────────
 
     @Test
@@ -134,12 +162,13 @@ class ToReadRepositoryImplTest {
     private class FakeCatalog(
         val playlistsByLibrary: Map<String, List<CatalogPlaylist>> = emptyMap(),
         val findError: Throwable? = null,
+        val getItemResult: ((String) -> CatalogItem?)? = null,
     ) : Catalog, PlaylistsCapability {
         override val sourceType = SourceType.ABS
         override suspend fun listRoots() = emptyList<CatalogRoot>()
         override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?) = emptyList<CatalogItem>()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
-        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun getItem(itemId: String): CatalogItem? = getItemResult?.invoke(itemId)
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
         override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)

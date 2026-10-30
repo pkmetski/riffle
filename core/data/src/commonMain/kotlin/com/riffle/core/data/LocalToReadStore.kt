@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Local-only "To Read" backing used by [ToReadRepositoryImpl] when
  * the active Source's Catalog doesn't implement PlaylistsCapability — i.e. every Source without a
- * server-side playlist API (LocalFiles, Chitanka, Gutenberg, RadioEs, OReilly).
+ * server-side playlist API (LocalFiles, Chitanka, Gutenberg, RadioEs).
  *
  * Persisted per-libraryId. On Android this is a Preferences DataStore; on iOS, NSUserDefaults.
  * [lastUpdateMs] / [setAll] support the WebDAV playlist sweep (last-write-wins, ADR-0063 pattern).

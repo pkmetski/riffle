@@ -3,6 +3,8 @@ package com.riffle.core.catalog.oreilly
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
@@ -58,9 +60,32 @@ internal class OReillyApi(
         return response.readRawBytes()
     }
 
+    /** POST a JSON body; returns the response body as text. */
+    suspend fun postJson(url: String, body: String): String {
+        val response = authorizedPost(url, body)
+        if (!response.status.isSuccess()) throw OReillyHttpException(response.status.value, url)
+        return response.bodyAsText()
+    }
+
     suspend fun ping(): Boolean = runCatching {
         authorizedGet("$base/api/v1/user/", ACCEPT_JSON, RequestType.Json).status.value.let { it in 200..499 }
     }.getOrDefault(false)
+
+    private suspend fun authorizedPost(url: String, body: String): HttpResponse =
+        client.post(absolute(url)) {
+            header("Cookie", cookieHeader)
+            header("Accept", ACCEPT_JSON)
+            header("Content-Type", ACCEPT_JSON)
+            header("version", "v3")
+            header("User-Agent", userAgent)
+            header("Origin", base)
+            header("Referer", "$base/")
+            header("Accept-Language", "en-US,en;q=0.9")
+            header("sec-fetch-dest", "empty")
+            header("sec-fetch-mode", "cors")
+            header("sec-fetch-site", "same-origin")
+            setBody(body)
+        }
 
     private suspend fun authorizedGet(url: String, accept: String, type: RequestType): HttpResponse =
         client.get(absolute(url)) {
@@ -81,6 +106,9 @@ internal class OReillyApi(
                     header("sec-fetch-dest", "empty")
                     header("sec-fetch-mode", "cors")
                     header("sec-fetch-site", "same-origin")
+                    // The v3 API (collections/playlists) requires this header; sending it on all
+                    // JSON calls matches the web app's shared Ji headers and is harmless for v1/v2.
+                    header("version", "v3")
                 }
                 RequestType.Content -> {
                     header("sec-fetch-dest", "document")
@@ -159,6 +187,13 @@ internal class OReillyApi(
 
     /** Mints a short-lived (~1h) Kaltura session token. */
     fun kalturaSessionUrl(): String = "$base/api/v1/player/kaltura_session/"
+
+    // ---- Collections (Playlists) v3 API (verified from web app JS 2026-10) ------
+
+    fun collectionsUrl(): String = "$base/api/v3/collections/"
+    fun collectionUrl(id: String): String = "$base/api/v3/collections/$id/"
+    fun addContentUrl(id: String): String = "$base/api/v3/collections/$id/add-content-ourns/"
+    fun removeContentUrl(id: String): String = "$base/api/v3/collections/$id/remove-content-ourns/"
 
     companion object {
         const val DEFAULT_BASE_URL = "https://learning.oreilly.com"

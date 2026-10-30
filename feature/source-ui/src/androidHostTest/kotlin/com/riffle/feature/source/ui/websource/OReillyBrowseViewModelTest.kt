@@ -12,6 +12,7 @@ import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.LibraryFilterPreferences
 import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.ToReadRepository
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
@@ -85,6 +86,7 @@ class OReillyBrowseViewModelTest {
         catalog: Catalog = mockk<Catalog>(relaxed = true).also {
             coEvery { it.browse(any(), any(), any(), any(), any()) } returns emptyList()
         },
+        toReadRepository: ToReadRepository = mockk(relaxed = true),
     ): Pair<OReillyBrowseViewModel, WebSourceItemGate> {
         val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
         val handle = SavedStateHandle(mapOf("libraryId" to OReillyCatalog.ROOT_BOOKS))
@@ -99,8 +101,20 @@ class OReillyBrowseViewModelTest {
             emptyLibraryObserver(),
             FakeConnectivityObserver(),
             TestDispatcherProvider(dispatcher),
+            toReadRepository = toReadRepository,
         )
         return vm to gate
+    }
+
+    @Test
+    fun `init calls refreshForSource for the active source and library`() = runTest(dispatcher) {
+        val toReadRepo = mockk<ToReadRepository>(relaxed = true)
+        makeVm(toReadRepository = toReadRepo)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            toReadRepo.refreshForSource("oreilly-1", OReillyCatalog.ROOT_BOOKS)
+        }
     }
 
     @Test

@@ -504,7 +504,7 @@ object RadioEsWebSourceDescriptor : WebSourceDescriptor {
 object OReillyWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.OREILLY
     override val displayName = "O'Reilly"
-    override val toReadSupport = ToReadSupport.LocalOnly
+    override val toReadSupport = ToReadSupport.Synced
     override val isSingleton = true
     override val hasCredentials = false
     override val hasNetworkHost = false

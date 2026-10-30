@@ -65,6 +65,7 @@ class BrowseViewModelKoinResolutionTest {
                 libraryObserver = mockk(relaxed = true),
                 connectivityObserver = mockk(relaxed = true),
                 dispatchers = testDispatchers,
+                toReadRepository = mockk(relaxed = true),
             )
         }
         factory { params: org.koin.core.parameter.ParametersHolder ->

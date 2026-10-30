@@ -533,6 +533,7 @@ private val sourceViewModelModule = module {
             libraryObserver = get(),
             connectivityObserver = get(),
             dispatchers = get(),
+            toReadRepository = get(),
         )
     }
 }
