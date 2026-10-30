@@ -210,10 +210,10 @@ object RiffleIcons {
     /** `Icons.Filled.LibraryBooks` — artwork for the All Books tab. */
     val LibraryBooks: ImageVector = materialIcon("LibraryBooks") {
         listOf(
-            "M4 6L2 6v14c0 1.1.9 2 2 2h14v-2L4 20L4 6z",
-            "M20 2L8 2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2L22 4c0-1.1-.9-2-2-2z",
-            "M19 11L9 11L9 9h10v2z",
-            "M15 15L9 15v-2h6v2z",
+            "M4 6L2 6v14c0 1.1.9 2 2 2h14v-2L4 20L4 6z" +
+            "M20 2L8 2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2L22 4c0-1.1-.9-2-2-2z" +
+            "M19 11L9 11L9 9h10v2z" +
+            "M15 15L9 15v-2h6v2z" +
             "M19 7L9 7L9 5h10v2z",
         )
     }
