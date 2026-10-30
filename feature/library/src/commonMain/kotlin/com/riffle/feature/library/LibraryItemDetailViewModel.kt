@@ -77,6 +77,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -663,6 +664,9 @@ class LibraryItemDetailViewModel constructor(
                         _chaptersState.value = ChaptersState.Ready(fetchAudiobookChaptersUseCase(item))
                     }
                 }
+                if (initialReady.capabilities.hasAddToPlaylist) {
+                    launch { playlistsRepository.refresh(item.libraryId) }
+                }
             }
 
             val ready = _uiState.value
@@ -819,6 +823,13 @@ class LibraryItemDetailViewModel constructor(
                 .item.libraryId
             emitAll(playlistsRepository.observePlaylists(libraryId))
         }
+
+    val isInAnyPlaylist: StateFlow<Boolean> = playlistsForCurrentItem
+        .combine(_uiState) { playlists, state ->
+            val itemId = (state as? LibraryItemDetailUiState.Ready)?.item?.id ?: return@combine false
+            playlists.any { itemId in it.itemIds }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun refreshPlaylists() {
         val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return

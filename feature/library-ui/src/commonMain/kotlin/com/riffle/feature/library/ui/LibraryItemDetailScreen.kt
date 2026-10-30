@@ -84,6 +84,7 @@ import com.riffle.feature.library.bookDownloadAffordances
 import com.riffle.feature.library.bookDownloadOutcome
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_add_to_playlist
+import com.riffle.feature.library.ui.generated.resources.ui_in_this_playlist
 import com.riffle.feature.library.ui.generated.resources.ui_audiobook_duration_line
 import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.library.ui.generated.resources.ui_by
@@ -178,6 +179,7 @@ fun LibraryItemDetailScreen(
     val uploadPreflight by vm.uploadPreflight.collectAsState()
     val bookImportState by vm.bookImportState.collectAsState()
     val showKoFiNudge by vm.showKoFiNudge.collectAsState()
+    val isInAnyPlaylist by vm.isInAnyPlaylist.collectAsState()
 
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -318,6 +320,7 @@ fun LibraryItemDetailScreen(
                         pdfPageCount = pdfPageCount,
                         epubVersion = epubVersion,
                         showKoFiNudge = showKoFiNudge,
+                        isInAnyPlaylist = isInAnyPlaylist,
                         onRead = { onRead(state.item) },
                         onListen = { onListen(state.item) },
                         onReadAtHref = { href -> onReadItemAtHref(state.item, href) },
@@ -351,6 +354,7 @@ fun LibraryItemDetailScreen(
                         pdfPageCount = pdfPageCount,
                         epubVersion = epubVersion,
                         showKoFiNudge = showKoFiNudge,
+                        isInAnyPlaylist = isInAnyPlaylist,
                         onRead = { onRead(state.item) },
                         onListen = { onListen(state.item) },
                         onReadAtHref = { href -> onReadItemAtHref(state.item, href) },
@@ -576,6 +580,7 @@ private fun DetailContentPhone(
     pdfPageCount: Int?,
     epubVersion: String?,
     showKoFiNudge: Boolean,
+    isInAnyPlaylist: Boolean,
     onRead: () -> Unit,
     onListen: () -> Unit,
     onReadAtHref: (String) -> Unit,
@@ -675,6 +680,7 @@ private fun DetailContentPhone(
             ActionRow(
                 item = state.item,
                 isInToRead = state.isInToRead,
+                isInAnyPlaylist = isInAnyPlaylist,
                 capabilities = state.capabilities,
                 downloadState = downloadState,
                 isCachedOrDownloaded = state.isCachedOrDownloaded,
@@ -745,6 +751,7 @@ private fun DetailContentTablet(
     pdfPageCount: Int?,
     epubVersion: String?,
     showKoFiNudge: Boolean,
+    isInAnyPlaylist: Boolean,
     onRead: () -> Unit,
     onListen: () -> Unit,
     onReadAtHref: (String) -> Unit,
@@ -804,6 +811,7 @@ private fun DetailContentTablet(
             ActionRow(
                 item = state.item,
                 isInToRead = state.isInToRead,
+                isInAnyPlaylist = isInAnyPlaylist,
                 capabilities = state.capabilities,
                 downloadState = downloadState,
                 isCachedOrDownloaded = state.isCachedOrDownloaded,
@@ -980,6 +988,7 @@ internal fun ReadingProgressIndicator(item: LibraryItem) {
 private fun ActionRow(
     item: LibraryItem,
     isInToRead: Boolean,
+    isInAnyPlaylist: Boolean,
     capabilities: DetailCapabilities,
     downloadState: DownloadState,
     isCachedOrDownloaded: Boolean,
@@ -1042,7 +1051,7 @@ private fun ActionRow(
             ToReadToggleButton(isInToRead = isInToRead, onToggle = onToggleToRead)
         }
         if (capabilities.hasAddToPlaylist) {
-            AddToPlaylistButton(onClick = onAddToPlaylist)
+            AddToPlaylistButton(isInAnyPlaylist = isInAnyPlaylist, onClick = onAddToPlaylist)
         }
         val affordances = bookDownloadAffordances(
             item = item,
@@ -1129,19 +1138,25 @@ private fun ToReadToggleButton(isInToRead: Boolean, onToggle: () -> Unit, modifi
 }
 
 @Composable
-private fun AddToPlaylistButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AddToPlaylistButton(isInAnyPlaylist: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
-            .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+            .then(
+                if (isInAnyPlaylist) {
+                    Modifier.background(MaterialTheme.colorScheme.primary)
+                } else {
+                    Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                },
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = LibraryUiGlyphs.QueueMusic,
-            contentDescription = stringResource(Res.string.ui_add_to_playlist),
-            tint = MaterialTheme.colorScheme.outline,
+            imageVector = if (isInAnyPlaylist) RiffleIcons.PlaylistAddCheck else RiffleIcons.PlaylistAdd,
+            contentDescription = if (isInAnyPlaylist) stringResource(Res.string.ui_in_this_playlist) else stringResource(Res.string.ui_add_to_playlist),
+            tint = if (isInAnyPlaylist) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )
     }
@@ -1431,6 +1446,7 @@ fun LibraryItemDetailContent(
     onFacet: (FacetType, String) -> Unit,
     onSeriesClick: (String, String) -> Unit,
     isInToRead: Boolean = false,
+    isInAnyPlaylist: Boolean = false,
     token: String = "",
     downloadState: DownloadState = DownloadState.NotDownloaded,
     isCachedOrDownloaded: Boolean = false,
@@ -1481,6 +1497,7 @@ fun LibraryItemDetailContent(
         pdfPageCount = pdfPageCount,
         epubVersion = epubVersion,
         showKoFiNudge = false,
+        isInAnyPlaylist = isInAnyPlaylist,
         onRead = { onReadItem(item) },
         onListen = { onListenItem(item) },
         onReadAtHref = { href -> onReadItemAtHref(item, href) },
@@ -1509,6 +1526,7 @@ fun LibraryItemDetailContentTablet(
     onFacet: (FacetType, String) -> Unit,
     onSeriesClick: (String, String) -> Unit,
     isInToRead: Boolean = false,
+    isInAnyPlaylist: Boolean = false,
     token: String = "",
     downloadState: DownloadState = DownloadState.NotDownloaded,
     isCachedOrDownloaded: Boolean = false,
@@ -1559,6 +1577,7 @@ fun LibraryItemDetailContentTablet(
         pdfPageCount = pdfPageCount,
         epubVersion = epubVersion,
         showKoFiNudge = false,
+        isInAnyPlaylist = isInAnyPlaylist,
         onRead = { onReadItem(item) },
         onListen = { onListenItem(item) },
         onReadAtHref = { href -> onReadItemAtHref(item, href) },
