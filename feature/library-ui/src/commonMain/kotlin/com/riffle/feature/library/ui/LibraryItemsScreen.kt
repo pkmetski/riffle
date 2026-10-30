@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -101,6 +102,10 @@ import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
 import com.riffle.feature.library.ui.generated.resources.ui_annotation_search_action
 import com.riffle.feature.library.ui.generated.resources.ui_annotation_search_placeholder
+import com.riffle.feature.library.ui.generated.resources.ui_annotations_count
+import com.riffle.feature.library.ui.generated.resources.ui_collections_count
+import com.riffle.feature.library.ui.generated.resources.ui_series_count
+import com.riffle.feature.library.ui.generated.resources.ui_to_read_count
 import com.riffle.feature.library.ui.generated.resources.ui_books
 import com.riffle.feature.library.ui.generated.resources.ui_loading
 import com.riffle.feature.library.ui.generated.resources.ui_no_collections
@@ -623,13 +628,16 @@ private fun ToReadTabContent(
         }
         return
     }
-    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
-        BookGrid(
-            items = items,
-            token = token,
-            onItemSelected = onItemSelected,
-            hasReadaloudLink = { it.id in linkedItemIds },
-        )
+    Column(Modifier.fillMaxSize()) {
+        SectionHeader(title = stringResource(LibRes.string.ui_to_read_count, items.size))
+        CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+            BookGrid(
+                items = items,
+                token = token,
+                onItemSelected = onItemSelected,
+                hasReadaloudLink = { it.id in linkedItemIds },
+            )
+        }
     }
 }
 
@@ -836,6 +844,9 @@ internal fun AnnotationsTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(title = stringResource(LibRes.string.ui_annotations_count, state.books.size))
+        }
         items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
             AnnotatedBookTile(
                 book = book,
@@ -945,6 +956,9 @@ private fun SeriesTabContent(series: List<Series>, token: String, onSeriesSelect
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(title = stringResource(LibRes.string.ui_series_count, series.size))
+        }
         items(series, key = { it.id }) { s ->
             SeriesGridTile(series = s, token = token, onClick = { onSeriesSelected(s) })
         }
@@ -1011,6 +1025,9 @@ private fun CollectionsTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(title = stringResource(LibRes.string.ui_collections_count, collections.size))
+        }
         items(collections, key = { it.id }) { col ->
             CollectionGridTile(
                 collection = col,
@@ -1114,6 +1131,7 @@ private fun AllBooksTabContent(
     val sortLabel = stringResource(LibRes.string.ui_sort, librarySortMode.label())
     var sortMenuExpanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
+        SectionHeader(title = stringResource(LibRes.string.ui_all_books_count, items.size))
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
