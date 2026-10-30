@@ -82,8 +82,7 @@ enum RiffleTestTags {
 
     // Annotations panel
     static let annotationsBack = "annotations_back"
-    static let annotationsSearchField = "annotation-search-field"
-    static let annotationSearchSubmit = "annotation-search-submit"
+    static let showAllAnnotations = "show-all-annotations"
     static let annotationSearchResults = "annotation-search-results"
 
     // Settings

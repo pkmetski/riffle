@@ -30,34 +30,27 @@ final class AnnotationSearchFlowTests: XCTestCase {
 
     // MARK: - Tests
 
-    func testAnnotationSearchFieldOpensResultsScreen() {
-        let annotationsTab = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'Annotations' OR label == 'Annotations'"))
-            .firstMatch
-        XCTAssertTrue(annotationsTab.waitForExistence(timeout: 20),
-                      "Annotations tab must be visible after seeding 6 annotations")
-        annotationsTab.tap()
-
+    func testShowAllAnnotationsOpensResultsScreen() {
         let searchField = app.descendants(matching: .any)
-            .matching(identifier: RiffleTestTags.annotationsSearchField)
+            .matching(identifier: RiffleTestTags.librarySearch)
             .firstMatch
         XCTAssertTrue(searchField.waitForExistence(timeout: 10),
-                      "Annotation search field must appear on the Annotations tab")
+                      "Library search bar must be visible on the library home screen")
 
         searchField.tap()
         searchField.typeText("section text")
 
-        let submitButton = app.descendants(matching: .any)
-            .matching(identifier: RiffleTestTags.annotationSearchSubmit)
+        let showAllButton = app.descendants(matching: .any)
+            .matching(identifier: RiffleTestTags.showAllAnnotations)
             .firstMatch
-        XCTAssertTrue(submitButton.waitForExistence(timeout: 5),
-                      "Annotation search submit button must be present")
-        submitButton.tap()
+        XCTAssertTrue(showAllButton.waitForExistence(timeout: 10),
+                      "Show all annotations button must appear in search results")
+        showAllButton.tap()
 
         let resultsScreen = app.descendants(matching: .any)
             .matching(identifier: RiffleTestTags.annotationSearchResults)
             .firstMatch
         XCTAssertTrue(resultsScreen.waitForExistence(timeout: 15),
-                      "Annotation search results screen must appear after submitting a query")
+                      "Annotation search results screen must appear after tapping Show all annotations")
     }
 }
