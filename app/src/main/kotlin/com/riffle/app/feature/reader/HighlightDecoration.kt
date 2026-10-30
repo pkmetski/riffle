@@ -4,6 +4,8 @@ import android.graphics.Color
 import android.os.Parcel
 import android.os.Parcelable
 import androidx.annotation.ColorInt
+import com.riffle.feature.reader.decorations.HIGHLIGHT_TINT_CLASS
+import com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs
 import org.readium.r2.navigator.Decoration
 import java.util.Locale
 import org.readium.r2.navigator.html.HtmlDecorationTemplate
@@ -41,8 +43,6 @@ class HighlightTintStyle(
     }
 }
 
-private const val HIGHLIGHT_TINT_CLASS = "riffle-highlight-tint"
-
 // Every Riffle highlight paint — paginated decoration template AND every continuous-mode
 // <mark> the JS emitters inject (annotations, search, readaloud sentence) — must use this
 // exact suffix on its inline `background:` declaration. ReadiumCSS night mode injects
@@ -57,14 +57,6 @@ internal const val HIGHLIGHT_INLINE_STYLE_SUFFIX = " !important;color:inherit;"
 internal fun highlightInlineStyle(cssColor: String): String =
     "background:$cssColor$HIGHLIGHT_INLINE_STYLE_SUFFIX"
 
-/**
- * Installs the two geometry functions used by the Readium-overlay and continuous-`<mark>` paths.
- *
- * Android's native selection paint covers the full CSS line box. DOM range rectangles and inline
- * backgrounds only cover the text box, leaving the line-leading transparent. The missing leading
- * is `computed line-height - painted rect height`; splitting it above and below makes adjacent
- * highlight bands meet exactly without changing text layout.
- */
 internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
     (function() {
       var lineHeightOf = function(element) {
@@ -151,20 +143,6 @@ internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
         });
         return boxes.length;
       };
-    })();
-""".trimIndent()
-
-/** Runs after Readium's own requestAnimationFrame has materialised the fixed decoration boxes. */
-internal fun readiumHighlightLeadingAdjustmentJs(): String = """
-    $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
-    (function() {
-      var attempts = 0;
-      var adjust = function() {
-        var count = window.__riffleFillReadiumHighlightLeading();
-        if (count === 0 && attempts++ < 3) window.setTimeout(adjust, 16);
-      };
-      if (window.requestAnimationFrame) window.requestAnimationFrame(adjust);
-      else window.setTimeout(adjust, 0);
     })();
 """.trimIndent()
 

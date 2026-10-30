@@ -5,6 +5,7 @@ import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.feature.reader.HighlightRender
+import com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs
 import org.json.JSONObject
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator
@@ -56,6 +57,7 @@ internal class ReadiumHighlightRenderer(
         quotes: Map<String, SentenceQuote>,
         color: HighlightColor,
     ) {
+        installLeadingObserver()
         if (fragmentRef == null) {
             if (!hasSentenceDecoration) return
             applyDecorationsBlock(emptyList(), "readaloud")
@@ -73,13 +75,17 @@ internal class ReadiumHighlightRenderer(
             style = HighlightTintStyle(tint = color.argb),
         )
         applyDecorationsWithClear(listOf(decoration), "readaloud")
-        adjustHighlightLeading()
         hasSentenceDecoration = true
     }
 
     override suspend fun applyAnnotations(
         renders: List<HighlightRender>,
     ) {
+        // Install the MutationObserver that expands decoration boxes to full line-height
+        // as a microtask (before paint) whenever Readium adds .riffle-highlight-tint elements.
+        // Must happen before any applyDecorationsBlock call. The JS-side guard prevents
+        // double-installation; on a new page load window is fresh so the guard is absent.
+        installLeadingObserver()
         if (renders.isEmpty()) {
             if (!hasAnnotationDecorations) return
             applyDecorationsBlock(emptyList(), "annotations")
@@ -127,12 +133,15 @@ internal class ReadiumHighlightRenderer(
         // Without this ordering, rects are baked from the pre-bold DOM, then the DOM reflows after,
         // leaving tap targets at stale coordinates (the annotation-not-tappable bug).
         injectEmphasisDom()
-        // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
-        // (id, locator, style) list as a no-op, so a re-fire of the same list (theme change bumps
-        // pageLoadGeneration, LaunchedEffect keys the same renders) would keep the stale pre-reflow
-        // rects until the 400ms settle tick fires. Matches [applySentenceHighlight]'s pre-clear semantics.
-        applyDecorationsWithClear(decorations, "annotations")
-        adjustHighlightLeading()
+        // Pass decorations as-is; Readium diffs the new list against its internal state and
+        // emits only Added/Removed/Updated changes in a single requestAnimationFrame — no flash.
+        // Layout repositioning after page load or CSS reflow is handled automatically by Readium's
+        // ResizeObserver-based requestLayout, which removes and re-creates all elements within a
+        // single rAF when the column layout changes. Forcing repositioning by stamping a generation
+        // marker into locator.title caused Readium to emit Updated (remove + add) for all 119+
+        // decorations on each of 4 re-applies, producing visible flashing even though each
+        // individual rAF was atomic.
+        applyDecorationsBlock(decorations, "annotations")
         hasAnnotationDecorations = true
         // ADR 0056: layered emphasis paints via companion decorations. Underline uses Readium's
         // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic
@@ -162,7 +171,7 @@ internal class ReadiumHighlightRenderer(
             val locator = locatorFromJson(h.locatorJson) ?: return@mapNotNull null
             Decoration(id = h.id, locator = locator, style = NoteGlyphStyle())
         }
-        applyDecorationsWithClear(noteDecorations, NOTE_GLYPH_DECORATION_GROUP)
+        applyDecorationsBlock(noteDecorations, NOTE_GLYPH_DECORATION_GROUP)
         evaluateJavascript?.invoke(noteGlyphViewportClampAfterApplyJs())
         evaluateJavascript?.invoke(noteGlyphFocusAfterApplyJs())
         hasNoteGlyphDecorations = true
@@ -202,9 +211,8 @@ internal class ReadiumHighlightRenderer(
         applyDecorationsBlock(decorations, group)
     }
 
-    /** Expand Readium's tight DOM-range boxes to Android-selection-style full line bands. */
-    private suspend fun adjustHighlightLeading() {
-        evaluateJavascript?.invoke(readiumHighlightLeadingAdjustmentJs())
+    private suspend fun installLeadingObserver() {
+        evaluateJavascript?.invoke(installHighlightLeadingObserverJs())
     }
 
     /**
@@ -254,7 +262,7 @@ internal class ReadiumHighlightRenderer(
                 hasEmphasisDecorations = false
             }
         } else {
-            applyDecorationsWithClear(decorations, "emphasis")
+            applyDecorationsBlock(decorations, "emphasis")
             hasEmphasisDecorations = true
         }
         // Bold/italic DOM injection is handled by [injectEmphasisDom] in [applyAnnotations],

@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs
 import org.json.JSONArray
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -61,6 +62,8 @@ class HighlightLineCoverageWebViewTest {
     fun readiumDecorationBoxesCoverFullLineBandsWithoutGaps() {
         withSizedWebViewFixture(fixture, widthPx = 480, heightPx = 800) { webView ->
             webView.awaitInnerHeight()
+            // Install observer before adding boxes so it fires (microtask) when boxes are added.
+            webView.evalSync(installHighlightLeadingObserverJs())
             val stylesheet = highlightTintTemplate().stylesheet.orEmpty()
                 .replace("\\", "\\\\")
                 .replace("`", "\\`")
@@ -90,7 +93,6 @@ class HighlightLineCoverageWebViewTest {
                 })();
                 """.trimIndent(),
             )
-            webView.evalSync(readiumHighlightLeadingAdjustmentJs())
             webView.awaitReadiumLeadingAdjustment()
 
             assertNativeSelectionLineCoverage(
@@ -104,6 +106,7 @@ class HighlightLineCoverageWebViewTest {
     fun readiumDecorationDoesNotExpandThinBoxOverDiagram() {
         withSizedWebViewFixture(diagramFixture, widthPx = 480, heightPx = 800) { webView ->
             webView.awaitInnerHeight()
+            webView.evalSync(installHighlightLeadingObserverJs())
             webView.evalSync(
                 """
                 (function() {
@@ -119,7 +122,6 @@ class HighlightLineCoverageWebViewTest {
                 })();
                 """.trimIndent(),
             )
-            webView.evalSync(readiumHighlightLeadingAdjustmentJs())
             webView.awaitReadiumLeadingAdjustment()
 
             val painted = webView.rects("document.querySelector('.riffle-highlight-tint')").single()

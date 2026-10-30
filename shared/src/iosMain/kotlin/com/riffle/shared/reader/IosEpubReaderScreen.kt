@@ -2489,6 +2489,9 @@ internal suspend fun applyAnnotationDecorations(
     annotations: List<com.riffle.core.models.Annotation>,
     emphasis: List<com.riffle.core.models.Annotation>,
 ) {
+    navigator.evaluateJavaScriptForDecorations(
+        com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs(),
+    )
     val highlights = annotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT }
     val bookmarks = annotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK }
     navigator.applyDecorations(
