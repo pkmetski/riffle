@@ -273,6 +273,12 @@ final class AnnotationBridgeTests: XCTestCase {
             decorationsJson: "[{\"id\":\"b1\",\"type\":\"bookmark\",\"locator\":\(textAnchoredLocator())}]",
             group: ReaderDecorationGroups.shared.bookmarks
         )
+        // 1 s settle: applyDecorations enqueues a Swift Task on @MainActor that calls
+        // nav.apply(decorations:in:), which submits Readium's decoration JS to the WKWebView.
+        // On slow CI runners the WKWebView queue can back up, making the subsequent evalInt
+        // probes each wait the full 20 s timeout — piling up 40 × 20 s = 800 s of wall time.
+        // The settle gives the Task and Readium's JS time to run before the polling loop begins.
+        settle(seconds: 1.0)
         XCTAssertGreaterThan(decorationCount(bridge, group: ReaderDecorationGroups.shared.bookmarks), 0)
         XCTAssertGreaterThan(
             evalInt(bridge, "document.querySelectorAll('.riffle-sidemark').length"), 0,
