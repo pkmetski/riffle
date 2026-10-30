@@ -575,7 +575,7 @@ fun EpubReaderScreen(
                 val styling = effective.toReadiumTextStyling(isLandscape = isLandscape, isDoublePage = isDoublePage)
                 navigator.applyReaderPreferences(
                     fontSizePercent = effective.fontSize,
-                    scrollMode = epubScrollMode(effectiveOrient),
+                    scrollMode = elidedAwareScrollMode(source, effectiveOrient),
                     theme = styling.theme.value,
                     // The bridge takes "" for "leave the publisher's font alone"; the shared
                     // mapping expresses that as null.
@@ -592,7 +592,7 @@ fun EpubReaderScreen(
                     columnCount = styling.columnCount ?: 0,
                     // Signals the bridge to activate IosContinuousScrollView (native multi-WebView
                     // stacking) instead of EPUBNavigatorViewController for this mode.
-                    isContinuousMode = effectiveOrient == ReaderOrientation.Continuous,
+                    isContinuousMode = elidedAwareIsContinuousMode(source, effectiveOrient),
                 )
             }
     }
