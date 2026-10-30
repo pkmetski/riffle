@@ -66,6 +66,9 @@ fun HighlightActionsPopup(
                 readerBackground = readerBackground,
                 onOpenNoteEditor = onOpenNoteEditor,
                 onDismiss = currentOnDismiss,
+                modifier = Modifier.pointerInput(Unit) {
+                    detectVerticalDragGestures(onDragStart = { currentOnDismiss() }) { _, _ -> }
+                },
             )
         } else {
             AnnotationActionsSheet(
@@ -98,12 +101,13 @@ private fun NoteOnlyPopup(
     readerBackground: Color,
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         shadowElevation = 4.dp,
         tonalElevation = 0.dp,
-        modifier = Modifier.widthIn(max = 300.dp),
+        modifier = modifier.widthIn(max = 300.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp).fillMaxWidth()) {
             Text(text = labels.note, style = MaterialTheme.typography.bodyMedium)

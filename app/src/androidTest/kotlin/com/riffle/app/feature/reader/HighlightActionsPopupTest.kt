@@ -118,7 +118,7 @@ class HighlightActionsPopupTest {
     }
 
     @Test
-    fun popup_widthIsAtMost360dp() {
+    fun popup_widthIsAtMost300dp() {
         showPopup(note = "A short note")
         val bounds = composeTestRule.onNodeWithTag(TestTags.ANNOTATION_NOTE_ROW).getBoundsInRoot()
         val widthDp = (bounds.right - bounds.left).value
