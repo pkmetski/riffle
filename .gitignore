@@ -50,6 +50,7 @@ android-harness-test-phone-reports/
 android-harness-test-tablet-reports/
 connected-test-reports/
 harness-test-phone-logcat/
+harness-test-tablet-logcat/
 integration-test-reports/
 unit-test-reports/
 lint-reports/
