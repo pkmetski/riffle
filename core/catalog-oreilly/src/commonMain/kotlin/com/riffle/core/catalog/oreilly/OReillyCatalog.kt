@@ -20,6 +20,8 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.LazyPublicationCapability
 import com.riffle.core.catalog.LazyPublicationShape
 import com.riffle.core.catalog.LazySpineItem
+import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
@@ -50,6 +52,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.serialization.encodeToString
 
 /**
  * O'Reilly (`learning.oreilly.com`) catalog. Browses/searches the Learning API, streams audiobooks
@@ -93,6 +96,7 @@ class OReillyCatalog internal constructor(
     ReadCapability,
     DownloadsCapability,
     ToReadListCapability,
+    PlaylistsCapability,
     EbookDetailsCapability,
     LazyPublicationCapability {
 
@@ -783,6 +787,59 @@ class OReillyCatalog internal constructor(
             error = if (ok) null else "learning.oreilly.com is unreachable or the session expired",
         )
     }
+
+    // region PlaylistsCapability
+
+    override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> {
+        val raw = api.getJson(api.collectionsUrl())
+        return OReillyParser.json.decodeFromString<List<OReillyCollection>>(raw)
+            .map { it.toCatalogPlaylist() }
+    }
+
+    override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? =
+        listPlaylists(rootId).firstOrNull { it.name == name }
+
+    override suspend fun createPlaylist(
+        rootId: String,
+        name: String,
+        initialItemId: String?,
+    ): CatalogPlaylist {
+        val body = OReillyParser.json.encodeToString(
+            OReillyCreateCollectionRequest(name = name),
+        )
+        val raw = api.postJson(api.collectionsUrl(), body)
+        val created = OReillyParser.json.decodeFromString<OReillyCollection>(raw)
+        if (initialItemId != null) {
+            addItemToPlaylist(created.id, initialItemId)
+        }
+        return created.toCatalogPlaylist()
+    }
+
+    override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {
+        val ourn = api.bookUrn(itemId)
+        val body = OReillyParser.json.encodeToString(
+            OReillyCollectionContentRequest(content = listOf(ourn)),
+        )
+        api.postJson(api.addContentUrl(playlistId), body)
+    }
+
+    override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
+        val ourn = api.bookUrn(itemId)
+        val body = OReillyParser.json.encodeToString(
+            OReillyCollectionContentRequest(content = listOf(ourn)),
+        )
+        api.postJson(api.removeContentUrl(playlistId), body)
+    }
+
+    private fun OReillyCollection.toCatalogPlaylist(): CatalogPlaylist = CatalogPlaylist(
+        id = id,
+        rootId = "",
+        name = name,
+        bookCount = contentCount,
+        itemIds = content.map { it.ourn },
+    )
+
+    // endregion
 
     companion object {
         const val ROOT_BOOKS = OReillyRoots.BOOKS
