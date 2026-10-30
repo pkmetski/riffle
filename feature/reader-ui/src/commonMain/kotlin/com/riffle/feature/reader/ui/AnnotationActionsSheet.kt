@@ -388,7 +388,10 @@ fun NoteEditorSheet(
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = fieldValue,
-                onValueChange = { fieldValue = it; onTextChange?.invoke(it.text) },
+                onValueChange = {
+                    fieldValue = it
+                    onTextChange?.invoke(it.text)
+                },
                 placeholder = { Text(labels.addNote) },
                 minLines = 3,
                 maxLines = 6,

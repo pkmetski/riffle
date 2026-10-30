@@ -1932,7 +1932,10 @@ fun EpubReaderScreen(
             NoteEditorSheet(
                 initialNote = existing?.note.orEmpty(),
                 labels = annotationSheetLabels(),
-                onConfirm = { text -> currentNoteText = text; commitCurrent() },
+                onConfirm = { text ->
+                    currentNoteText = text
+                    commitCurrent()
+                },
                 onDismiss = { noteEditorFor = null },
                 onTextChange = { currentNoteText = it },
                 modifier = Modifier
