@@ -739,24 +739,28 @@ internal fun LibraryHost(
                                 result.annotation.cfi,
                                 result.annotation.progression,
                             )
-                            onNavStackChange(reduceNavStack(
-                                NavigationIntent.OpenAnnotationReader(
-                                    itemId = result.annotation.itemId,
-                                    sourceId = result.annotation.sourceId.ifEmpty { null },
-                                    locatorJson = locatorJson,
-                                    rawCfi = result.annotation.cfi,
-                                    annotationId = result.annotation.id,
-                                ),
-                                navStack,
-                            ))
+                            onNavStackChange(
+                                reduceNavStack(
+                                    NavigationIntent.OpenAnnotationReader(
+                                        itemId = result.annotation.itemId,
+                                        sourceId = result.annotation.sourceId.ifEmpty { null },
+                                        locatorJson = locatorJson,
+                                        rawCfi = result.annotation.cfi,
+                                        annotationId = result.annotation.id,
+                                    ),
+                                    navStack,
+                                )
+                            )
                         },
                         onAudiobookBookmarkSelected = { result ->
                             playIntentRegistry.recordIntent(result.bookmark.sourceId, result.bookmark.itemId)
                             val bookmarkSourceId = result.bookmark.sourceId.ifEmpty { null }
-                            onNavStackChange(reduceNavStack(
-                                NavigationIntent.OpenAudiobookBookmark(result.bookmark.itemId, bookmarkSourceId, result.bookmark.positionSec),
-                                navStack,
-                            ))
+                            onNavStackChange(
+                                reduceNavStack(
+                                    NavigationIntent.OpenAudiobookBookmark(result.bookmark.itemId, bookmarkSourceId, result.bookmark.positionSec),
+                                    navStack,
+                                )
+                            )
                         },
                         onSeriesSelected = { series ->
                             push(LibraryNav.SeriesDetail(seriesId = series.id, seriesLibraryId = series.libraryId, seriesName = series.name))
@@ -838,7 +842,9 @@ internal fun LibraryHost(
                     },
                     onEditMetadata = if (slots.editLocalFileMetadataDialog != null) {
                         { showEditMetadataDialog = true }
-                    } else null,
+                    } else {
+                        null
+                    },
                 ),
             )
             if (showEditMetadataDialog) {
@@ -904,10 +910,12 @@ internal fun LibraryHost(
                         onNavStackChange(navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item))
                     },
                     onOpenInBook = { locatorJson ->
-                        onNavStackChange(navStack.dropLast(1) + LibraryNav.Reader(
-                            item = current.item,
-                            initialLocatorJson = locatorJson,
-                        ))
+                        onNavStackChange(
+                            navStack.dropLast(1) + LibraryNav.Reader(
+                                item = current.item,
+                                initialLocatorJson = locatorJson,
+                            )
+                        )
                     },
                 ),
                 PlayerHostActions(
