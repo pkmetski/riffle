@@ -15,6 +15,7 @@ enum RiffleTestTags {
     static let librarySearch = "library_search"
     static let libraryFilter = "library_filter"
     static let librarySort = "library_sort"
+    static let toReadSort = "to_read_sort"
     static let seriesDetailBack = "series_detail_back"
     static let collectionDetailBack = "collection_detail_back"
 

@@ -18,6 +18,8 @@ class LibraryLocalizationResourceTest {
                 LibrarySortMode.TITLE_DESC to R.string.ui_sort_title_za,
                 LibrarySortMode.AUTHOR_ASC to R.string.ui_sort_author_az,
                 LibrarySortMode.RECENTLY_OPENED to R.string.ui_sort_recently_opened,
+                LibrarySortMode.LENGTH_ASC to R.string.ui_sort_length_shortest,
+                LibrarySortMode.LENGTH_DESC to R.string.ui_sort_length_longest,
             ),
             LibrarySortMode.entries.associateWith { it.labelResId },
         )

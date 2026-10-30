@@ -130,6 +130,8 @@
     <string name="ui_sort_title_za">Title Z→A</string>
     <string name="ui_sort_author_az">Author A→Z</string>
     <string name="ui_sort_recently_opened">Recently Opened</string>
+    <string name="ui_sort_length_shortest">Shortest First</string>
+    <string name="ui_sort_length_longest">Longest First</string>
     <!-- Library items — offline banner -->
     <string name="ui_offline_banner">Offline — showing cached data</string>
     <!-- Library items — series / collections empty states -->

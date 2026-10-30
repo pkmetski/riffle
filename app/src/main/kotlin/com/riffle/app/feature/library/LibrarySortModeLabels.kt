@@ -17,4 +17,6 @@ val LibrarySortMode.labelResId: Int get() = when (this) {
     LibrarySortMode.TITLE_DESC -> R.string.ui_sort_title_za
     LibrarySortMode.AUTHOR_ASC -> R.string.ui_sort_author_az
     LibrarySortMode.RECENTLY_OPENED -> R.string.ui_sort_recently_opened
+    LibrarySortMode.LENGTH_ASC -> R.string.ui_sort_length_shortest
+    LibrarySortMode.LENGTH_DESC -> R.string.ui_sort_length_longest
 }

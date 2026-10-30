@@ -445,6 +445,56 @@ class LibraryFilterEngineTest {
         assertEquals(listOf(item("Dune")), p.toRead)
     }
 
+    @Test
+    fun `toRead LENGTH_ASC sorts audiobooks shortest first unknown length to tail`() = runTest {
+        val engine = makeEngine(toReadIds = setOf("id-Long", "id-Short", "id-NoLength"))
+        val long = LibraryItem("id-Long", "lib-1", "Long", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 36000.0)
+        val short = LibraryItem("id-Short", "lib-1", "Short", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 3600.0)
+        val noLength = LibraryItem("id-NoLength", "lib-1", "NoLength", "A", null, 0f, false, false, EbookFormat.Epub)
+        allBooksFlow.value = listOf(long, short, noLength)
+        librarySortModeFlow.value = LibrarySortMode.LENGTH_ASC
+        val p = engine.projection.first { it.toRead.isNotEmpty() && it.toRead.first().id == "id-Short" }
+        assertEquals(listOf(short, long, noLength), p.toRead)
+    }
+
+    @Test
+    fun `toRead LENGTH_DESC sorts audiobooks longest first unknown length to tail`() = runTest {
+        val engine = makeEngine(toReadIds = setOf("id-Long", "id-Short", "id-NoLength"))
+        val long = LibraryItem("id-Long", "lib-1", "Long", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 36000.0)
+        val short = LibraryItem("id-Short", "lib-1", "Short", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 3600.0)
+        val noLength = LibraryItem("id-NoLength", "lib-1", "NoLength", "A", null, 0f, false, false, EbookFormat.Epub)
+        allBooksFlow.value = listOf(short, long, noLength)
+        librarySortModeFlow.value = LibrarySortMode.LENGTH_DESC
+        val p = engine.projection.first { it.toRead.isNotEmpty() && it.toRead.first().id == "id-Long" }
+        assertEquals(listOf(long, short, noLength), p.toRead)
+    }
+
+    // --- allBooks LENGTH sort ---
+
+    @Test
+    fun `allBooks LENGTH_ASC sorts by duration then pageCount unknown to tail`() = runTest {
+        val engine = makeEngine()
+        val audioLong = LibraryItem("id-AL", "lib-1", "AudioLong", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 36000.0)
+        val audioShort = LibraryItem("id-AS", "lib-1", "AudioShort", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 1800.0)
+        val epub = LibraryItem("id-EP", "lib-1", "Epub", "A", null, 0f, false, false, EbookFormat.Epub)
+        allBooksFlow.value = listOf(audioLong, epub, audioShort)
+        librarySortModeFlow.value = LibrarySortMode.LENGTH_ASC
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-AS" }
+        assertEquals(listOf(audioShort, audioLong, epub), p.allBooks)
+    }
+
+    @Test
+    fun `allBooks LENGTH_DESC sorts by duration longest first unknown to tail`() = runTest {
+        val engine = makeEngine()
+        val audioLong = LibraryItem("id-AL", "lib-1", "AudioLong", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 36000.0)
+        val audioShort = LibraryItem("id-AS", "lib-1", "AudioShort", "A", null, 0f, false, false, EbookFormat.Epub, hasAudio = true, audioDurationSec = 1800.0)
+        val comic = LibraryItem("id-CB", "lib-1", "Comic", "A", null, 0f, false, false, EbookFormat.Cbz, pageCount = 200)
+        allBooksFlow.value = listOf(audioShort, comic, audioLong)
+        librarySortModeFlow.value = LibrarySortMode.LENGTH_DESC
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-AL" }
+        assertEquals(listOf(audioLong, audioShort, comic), p.allBooks)
+    }
+
     // --- annotations ---
 
     @Test
