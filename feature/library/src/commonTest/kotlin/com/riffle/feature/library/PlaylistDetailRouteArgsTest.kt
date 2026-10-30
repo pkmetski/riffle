@@ -51,9 +51,9 @@ class PlaylistDetailRouteArgsTest {
 
     @Test
     fun thePlaylistNameIsUsedVerbatim() = runTest {
-        val vm = makeVm(playlistName = "Evening Queue & more")
+        val vm = makeVm(playlistName = "AC+DC Essentials")
 
-        assertEquals("Evening Queue & more", vm.uiState.value.name)
+        assertEquals("AC+DC Essentials", vm.uiState.value.name)
     }
 
     /** The screen lists the playlist's items in the Source's order, not the library's. */
