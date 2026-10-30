@@ -36,8 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -371,7 +373,9 @@ fun NoteEditorSheet(
     modifier: Modifier = Modifier,
     onTextChange: ((String) -> Unit)? = null,
 ) {
-    var text by remember(initialNote) { mutableStateOf(initialNote) }
+    var fieldValue by remember(initialNote) {
+        mutableStateOf(TextFieldValue(text = initialNote, selection = TextRange(initialNote.length)))
+    }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Surface(
@@ -383,8 +387,8 @@ fun NoteEditorSheet(
             Text(text = labels.note, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
-                value = text,
-                onValueChange = { text = it; onTextChange?.invoke(it) },
+                value = fieldValue,
+                onValueChange = { fieldValue = it; onTextChange?.invoke(it.text) },
                 placeholder = { Text(labels.addNote) },
                 minLines = 3,
                 maxLines = 6,
@@ -408,7 +412,7 @@ fun NoteEditorSheet(
                     ) { Text(labels.cancel) }
                 }
                 TextButton(
-                    onClick = { onConfirm(text) },
+                    onClick = { onConfirm(fieldValue.text) },
                     modifier = Modifier.testTag(TestTags.NOTE_EDITOR_SAVE),
                 ) { Text(labels.save) }
             }
