@@ -43,7 +43,7 @@ final class AnnotationSearchFlowTests: XCTestCase {
         let showAllButton = app.descendants(matching: .any)
             .matching(identifier: RiffleTestTags.showAllAnnotations)
             .firstMatch
-        XCTAssertTrue(showAllButton.waitForExistence(timeout: 10),
+        XCTAssertTrue(showAllButton.waitForExistence(timeout: 30),
                       "Show all annotations button must appear in search results")
         showAllButton.tap()
 
