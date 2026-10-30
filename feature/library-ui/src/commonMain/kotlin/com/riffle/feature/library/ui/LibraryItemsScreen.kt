@@ -103,10 +103,8 @@ import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
 import com.riffle.feature.library.ui.generated.resources.ui_annotation_search_action
 import com.riffle.feature.library.ui.generated.resources.ui_annotation_search_placeholder
 import com.riffle.feature.library.ui.generated.resources.ui_annotations_count
-import com.riffle.feature.library.ui.generated.resources.ui_collections_count
-import com.riffle.feature.library.ui.generated.resources.ui_series_count
-import com.riffle.feature.library.ui.generated.resources.ui_to_read_count
 import com.riffle.feature.library.ui.generated.resources.ui_books
+import com.riffle.feature.library.ui.generated.resources.ui_collections_count
 import com.riffle.feature.library.ui.generated.resources.ui_loading
 import com.riffle.feature.library.ui.generated.resources.ui_no_collections
 import com.riffle.feature.library.ui.generated.resources.ui_no_highlights_yet
@@ -117,6 +115,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_to_show_here
 import com.riffle.feature.library.ui.generated.resources.ui_offline_banner
+import com.riffle.feature.library.ui.generated.resources.ui_series_count
 import com.riffle.feature.library.ui.generated.resources.ui_show_all_annotations
 import com.riffle.feature.library.ui.generated.resources.ui_sort
 import com.riffle.feature.library.ui.generated.resources.ui_sort_author_az
@@ -125,6 +124,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_added
 import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_opened
 import com.riffle.feature.library.ui.generated.resources.ui_sort_title_az
 import com.riffle.feature.library.ui.generated.resources.ui_sort_title_za
+import com.riffle.feature.library.ui.generated.resources.ui_to_read_count
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
