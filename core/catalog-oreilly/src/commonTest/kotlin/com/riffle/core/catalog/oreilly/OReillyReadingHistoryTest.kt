@@ -50,18 +50,18 @@ class OReillyReadingHistoryTest {
     """.trimIndent()
 
     @Test
-    fun parseUserProfile() {
-        val json = """{"uuid":"abc-123","email":"user@example.com","first_name":"John"}"""
-        val profile = OReillyParser.parseUserProfile(json)
-        assertEquals("abc-123", profile.uuid)
-        assertEquals("user@example.com", profile.email)
+    fun uuidExtractedFromOrmJwtSub() {
+        // Payload: {"sub":"abc-123","email":"user@example.com","iat":1234567890}
+        // base64url of the payload above (no padding)
+        val payloadB64 = "eyJzdWIiOiJhYmMtMTIzIiwiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxMjM0NTY3ODkwfQ"
+        val cookie = "orm-jwt=header.$payloadB64.sig; groot_sessionid=abc"
+        val uuid = uuidFromCookieHeader(cookie)
+        assertEquals("abc-123", uuid)
     }
 
     @Test
-    fun parseUserProfileIgnoresUnknownKeys() {
-        val json = """{"uuid":"xyz","future_field":42}"""
-        val profile = OReillyParser.parseUserProfile(json)
-        assertEquals("xyz", profile.uuid)
+    fun uuidReturnsNullWhenOrmJwtAbsent() {
+        assertNull(uuidFromCookieHeader("groot_sessionid=abc"))
     }
 
     @Test

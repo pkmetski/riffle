@@ -185,14 +185,7 @@ internal data class OReillyCollectionContentRequest(
     val content: List<String>,
 )
 
-// ---- Reading history (verified from learning.oreilly.com web app 2026-10) ------------------
-
-/** `/api/v1/user/` — authenticated user profile. Contains the uuid needed for history requests. */
-@Serializable
-internal data class OReillyUserProfile(
-    val uuid: String = "",
-    val email: String? = null,
-)
+// ---- Reading history -------------------------------------------------------
 
 /** `/api/v2/user/{uuid}/reading-history/` — paginated list of recently-read items. */
 @Serializable

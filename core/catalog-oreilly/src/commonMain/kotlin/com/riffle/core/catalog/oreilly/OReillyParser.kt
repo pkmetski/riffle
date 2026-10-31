@@ -44,9 +44,6 @@ internal object OReillyParser {
     fun parseKalturaSession(body: String): OReillyKalturaSession =
         json.decodeFromString(OReillyKalturaSession.serializer(), body)
 
-    fun parseUserProfile(body: String): OReillyUserProfile =
-        json.decodeFromString(OReillyUserProfile.serializer(), body)
-
     fun parseReadingHistory(body: String): OReillyReadingHistoryResponse =
         json.decodeFromString(OReillyReadingHistoryResponse.serializer(), body)
 
