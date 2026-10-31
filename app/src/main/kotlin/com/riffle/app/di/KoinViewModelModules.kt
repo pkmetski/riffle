@@ -53,6 +53,7 @@ import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyHomeViewModel
 import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel
 import com.riffle.app.feature.source.websource.WebSourceLibraryViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
@@ -521,6 +522,15 @@ private val sourceViewModelModule = module {
         )
     }
     viewModel { OReillyLoginViewModel(repository = get()) }
+    viewModel {
+        OReillyHomeViewModel(
+            sourceRepository = get(),
+            catalogRegistry = get(),
+            libraryItemUpserter = get(),
+            webSourceItemGate = get(),
+            dispatchers = get(),
+        )
+    }
     factory { params ->
         OReillyBrowseViewModel(
             savedStateHandle = browseSavedStateHandle(params.get()),

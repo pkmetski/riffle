@@ -190,6 +190,15 @@ internal class OReillyApi(
 
     // ---- Collections (Playlists) v3 API (verified from web app JS 2026-10) ------
 
+    // ---- Reading history (verified from learning.oreilly.com web app 2026-10) ----------------
+
+    /** Authenticated user profile — contains the `uuid` required for per-user history calls. */
+    fun userProfileUrl(): String = "$base/api/v1/user/"
+
+    /** Paginated reading-history list for [userUuid], most-recently-read first. */
+    fun readingHistoryUrl(userUuid: String, limit: Int = 48, page: Int = 1): String =
+        "$base/api/v2/user/$userUuid/reading-history/?limit=$limit&page=$page"
+
     fun collectionsUrl(): String = "$base/api/v3/collections/"
     fun collectionUrl(id: String): String = "$base/api/v3/collections/$id/"
     fun addContentUrl(id: String): String = "$base/api/v3/collections/$id/add-content-ourns/"

@@ -184,3 +184,42 @@ internal data class OReillyCreateCollectionRequest(
 internal data class OReillyCollectionContentRequest(
     val content: List<String>,
 )
+
+// ---- Reading history (verified from learning.oreilly.com web app 2026-10) ------------------
+
+/** `/api/v1/user/` — authenticated user profile. Contains the uuid needed for history requests. */
+@Serializable
+internal data class OReillyUserProfile(
+    val uuid: String = "",
+    val email: String? = null,
+)
+
+/** `/api/v2/user/{uuid}/reading-history/` — paginated list of recently-read items. */
+@Serializable
+internal data class OReillyReadingHistoryResponse(
+    val count: Int = 0,
+    val next: String? = null,
+    val results: List<OReillyReadingHistoryItem> = emptyList(),
+)
+
+@Serializable
+internal data class OReillyReadingHistoryItem(
+    @SerialName("archive_id") val archiveId: String? = null,
+    val ourn: String? = null,
+    val title: String = "",
+    val authors: List<String> = emptyList(),
+    // "book" | "audiobook" | "video"
+    @SerialName("content_type") val contentType: String = "",
+    val format: String? = null,
+    // Server-reported fraction 0–100 (percent). May be absent (null) when the user has only
+    // opened the item but the backend hasn't computed progress yet.
+    @SerialName("percent_complete") val percentComplete: Double? = null,
+    @SerialName("last_read_date") val lastReadDate: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+) {
+    fun bestId(): String? = archiveId ?: ourn?.substringAfterLast(":")?.ifBlank { null }
+
+    val isAudiobook: Boolean
+        get() = format?.equals("audiobook", ignoreCase = true) == true ||
+            contentType.equals("audiobook", ignoreCase = true)
+}

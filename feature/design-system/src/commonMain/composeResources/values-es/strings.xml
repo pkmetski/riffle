@@ -13,6 +13,7 @@
     <string name="ui_offline_showing_cached_data">Sin conexión — mostrando datos en caché</string>
     <string name="ui_no_books_in_progress">No hay libros en progreso</string>
     <string name="ui_no_books_in_to_read">No hay libros en tu lista de lectura</string>
+    <string name="ui_no_recent_reading_activity">Sin actividad reciente de lectura en O'Reilly</string>
     <string name="ui_back_with_arrow">← Atrás</string>
     <string name="ui_libraries_with_arrow">← Bibliotecas</string>
     <string name="ui_settings">Ajustes</string>
