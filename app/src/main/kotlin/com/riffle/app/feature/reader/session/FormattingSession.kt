@@ -218,9 +218,10 @@ class FormattingSession constructor(
             } else {
                 // Seed: dense copy of all fields BookFormattingOverrides can store so each
                 // dimension starts from current globals and is independent going forward.
+                // theme is intentionally omitted so books inherit the global (including Auto
+                // schedule) rather than locking in the concrete theme at seed time.
                 BookFormattingOverrides(
                     fontSize = global.fontSize,
-                    theme = global.theme,
                     fontFamily = global.fontFamily,
                     lineSpacing = global.lineSpacing,
                     margins = global.margins,
