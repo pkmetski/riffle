@@ -73,6 +73,9 @@ object RiffleIcons {
     /** Music queue — unselected state for the Playlists nav tab. */
     val QueueMusicOutlined: ImageVector get() = QueueMusicOutlinedIcon
 
+    /** Numbered list — unselected state for the Series nav tab. */
+    val FormatListNumberedOutlined: ImageVector get() = FormatListNumberedOutlinedIcon
+
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
 
@@ -388,7 +391,7 @@ object RiffleIcons {
                     "C22.2 13.46 22.2 12.2 21.41 11.41z",
             ).toNodes(),
             stroke = brush,
-            strokeLineWidth = 1.3f,
+            strokeLineWidth = 1f,
         )
         addPath(
             pathData = PathParser().parsePathString(
@@ -474,6 +477,34 @@ private val QueueMusicOutlinedIcon: ImageVector = ImageVector.Builder(
     )
 }.build()
 
+/**
+ * Numbered list outlined — filled number glyphs, thin stroked list lines.
+ * Artwork for [RiffleIcons.FormatListNumberedOutlined].
+ */
+private val FormatListNumberedOutlinedIcon: ImageVector = ImageVector.Builder(
+    name = "FormatListNumberedOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+    autoMirror = true,
+).apply {
+    val brush = SolidColor(Color.Black)
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1z",
+        ).toNodes(),
+        fill = brush,
+    )
+    listOf("M7 6H21", "M7 12H21", "M7 18H21").forEach { line ->
+        addPath(
+            pathData = PathParser().parsePathString(line).toNodes(),
+            stroke = brush,
+            strokeLineWidth = 1f,
+        )
+    }
+}.build()
+
 /** Stroke-only bookshelf — artwork for [RiffleIcons.AllBooksOutlined]. */
 private val BookStackOutlined: ImageVector = ImageVector.Builder(
     name = "BookStackOutlined",
@@ -483,7 +514,7 @@ private val BookStackOutlined: ImageVector = ImageVector.Builder(
     viewportHeight = 24f,
 ).apply {
     val brush = SolidColor(Color.Black)
-    val sw = 1.3f
+    val sw = 1f
     addPath(
         pathData = PathParser().parsePathString("M2 21.5h20V20H2z").toNodes(),
         fill = brush,
@@ -506,7 +537,7 @@ private val InkHighlighterOutlined: ImageVector = ImageVector.Builder(
     viewportHeight = 24f,
 ).apply {
     val strokeBrush = SolidColor(Color.Black)
-    val sw = 1.3f
+    val sw = 1f
     addPath(
         pathData = PathParser().parsePathString(
             "M9.6 10L15 15.4L10 20.4Q8.6 21.6 7.2 20.4Q6.5 21.5 5.7 21H2.7Q2 21 2.2 20.2" +
