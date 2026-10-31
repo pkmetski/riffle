@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.DERIVED_CACHE_TTL_MS
+import com.riffle.core.data.testing.TestApplicationScope
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.PublicationMetricsCacheDao
 import com.riffle.core.database.PublicationMetricsCacheEntity
@@ -33,7 +34,7 @@ class PublicationMetricsRepositoryImplTest {
     private fun makeRepo(
         dao: FakeDao = FakeDao(),
         libraryItemDao: FakeLibraryItemDao = FakeLibraryItemDao(),
-    ) = PublicationMetricsRepositoryImpl(dao, TestClock(NOW_MS), libraryItemDao)
+    ) = PublicationMetricsRepositoryImpl(dao, TestClock(NOW_MS), libraryItemDao, TestApplicationScope())
 
     @Test
     fun `epub position count round trips with file identity`() = runTest {

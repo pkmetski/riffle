@@ -5,6 +5,7 @@ import com.riffle.core.common.isDerivedCacheStale
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.PublicationMetricsCacheDao
 import com.riffle.core.database.PublicationMetricsCacheEntity
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 
@@ -12,7 +13,12 @@ class PublicationMetricsRepositoryImpl constructor(
     private val dao: PublicationMetricsCacheDao,
     private val clock: Clock,
     private val libraryItemDao: LibraryItemDao,
+    applicationScope: ApplicationScope,
 ) : PublicationMetricsRepository {
+
+    init {
+        applicationScope.launchSurvivable { libraryItemDao.backfillPageCountFromMetricsCache() }
+    }
 
     override suspend fun get(sourceId: String, itemId: String): PublicationMetrics? {
         val entity = dao.get(sourceId, itemId) ?: return null

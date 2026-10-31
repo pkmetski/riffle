@@ -2009,6 +2009,7 @@ class LibraryItemDetailViewModelTest {
         override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) = Unit
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
+        override suspend fun backfillPageCountFromMetricsCache() = Unit
         override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) = Unit
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()

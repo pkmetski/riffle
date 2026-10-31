@@ -201,6 +201,8 @@ internal class FakeLibraryItemDao : LibraryItemDao {
 
     override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
 
+    override suspend fun backfillPageCountFromMetricsCache() = Unit
+
     override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) {
         roomData.forEach { (_, flow) ->
             flow.value = flow.value.map {

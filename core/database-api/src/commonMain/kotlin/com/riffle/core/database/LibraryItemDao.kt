@@ -219,6 +219,25 @@ interface LibraryItemDao {
     @Query("UPDATE library_items SET pageCount = :pageCount WHERE sourceId = :sourceId AND id = :itemId AND pageCount IS NULL")
     suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int)
 
+    /**
+     * One-time backfill: copies the best available length proxy from [publication_metrics_cache]
+     * into every [library_items] row whose [pageCount] is still null. Uses COALESCE so a real
+     * [pageCount] (PDF/CBZ) wins over [totalPositions] (EPUB character-count proxy). Rows that
+     * already have a [pageCount] are untouched by the WHERE clause.
+     */
+    @Query(
+        "UPDATE library_items SET pageCount = (" +
+            "SELECT COALESCE(pmc.pageCount, pmc.totalPositions) " +
+            "FROM publication_metrics_cache pmc " +
+            "WHERE pmc.sourceId = library_items.sourceId AND pmc.itemId = library_items.id" +
+            ") WHERE pageCount IS NULL AND EXISTS (" +
+            "SELECT 1 FROM publication_metrics_cache pmc " +
+            "WHERE pmc.sourceId = library_items.sourceId AND pmc.itemId = library_items.id " +
+            "AND COALESCE(pmc.pageCount, pmc.totalPositions) IS NOT NULL" +
+            ")"
+    )
+    suspend fun backfillPageCountFromMetricsCache()
+
     @Query("SELECT id, lastOpenedAt FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
     suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow>
 
