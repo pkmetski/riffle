@@ -235,10 +235,22 @@ object RiffleIcons {
         listOf("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z")
     }
 
-    /** `Icons.Outlined.Home` */
-    val HomeOutlinedIcon: ImageVector = materialIcon("HomeOutlined") {
-        listOf("M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z")
-    }
+    /** `Icons.Outlined.Home` — stroke-only so the outline is thin, matching other nav outlined icons. */
+    val HomeOutlinedIcon: ImageVector = ImageVector.Builder(
+        name = "HomeOutlined",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z",
+            ).toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1f,
+        )
+    }.build()
 
     /** Three books of varying heights standing on a shelf — artwork for the [AllBooks] concept. */
     val BookStack: ImageVector = materialIcon("BookStack") {
@@ -432,15 +444,22 @@ object RiffleIcons {
         listOf("M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
     }
 
-    /**
-     * `Icons.Filled.TurnedInNot` — artwork for the [ToRead] concept.
-     * Both sub-paths are in a single path string so the non-zero winding rule creates the
-     * interior cutout (outline bookmark) — splitting into two paths collapses the winding
-     * relationship and produces a solid shape indistinguishable from [TurnedIn].
-     */
-    val TurnedInNot: ImageVector = materialIcon("TurnedInNot") {
-        listOf("M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2zM17 18l-5-2.18L7 18L7 5h10v13z")
-    }
+    /** `Icons.Outlined.TurnedInNot` — stroke-only bookmark outline for the [ToRead] concept. */
+    val TurnedInNot: ImageVector = ImageVector.Builder(
+        name = "TurnedInNot",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2z",
+            ).toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1f,
+        )
+    }.build()
 }
 
 /** `Icons.AutoMirrored.Filled.Toc` — artwork for the [RiffleIcons.Toc] concept. */
