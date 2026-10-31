@@ -67,7 +67,6 @@
     <string name="ui_panel_report_mark_false_detections">Tap to mark or unmark panels as false detections</string>
     <string name="ui_comic_page_number">Página de cómic %1$d</string>
     <string name="ui_comic_page_panel">Página de cómic %1$d, panel %2$d</string>
-    <string name="ui_downloading_percent">Descargando… %1$d%%</string>
     <string name="ui_download_readaloud_audio_size">Descargar audio de lectura en voz alta (%1$s)</string>
     <string name="error_comic_page_load_failed">No se pudo cargar esta página</string>
     <string name="error_select_failure_type">Selecciona un tipo de problema antes de enviar</string>

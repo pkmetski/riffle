@@ -92,7 +92,7 @@
     <string name="ui_download_only_audio_doesn_t_match">Descargar solo · el audio no coincide</string>
     <string name="ui_download_only_no_audiobook_linked">Solo descarga · no hay ningún audiolibro enlazado</string>
     <string name="ui_downloading_dictionary_name">Descargando diccionario %1$s</string>
-    <string name="ui_downloading_update_percent">Descargando actualización… %1$d%%</string>
+    <string name="ui_downloading_update_percent">Descargando actualización… %1$s</string>
     <string name="ui_dyslexic">Dislexia</string>
     <string name="ui_ebook_ebook">📖 Libro electrónico</string>
     <string name="ui_edge">Al borde</string>
@@ -122,7 +122,7 @@
     <string name="ui_forgot_device_snack">Se olvidó "%1$s"</string>
     <string name="ui_forgot_user_snack">Se olvidó "%1$s" · %2$d archivo(s) eliminado(s)</string>
     <string name="ui_formatting">Formato</string>
-    <string name="ui_formatting_summary">%1$s · %2$d%% · %3$s</string>
+    <string name="ui_formatting_summary">%1$s · %2$s · %3$s</string>
     <string name="ui_forward_skip">Saltar hacia adelante</string>
     <string name="ui_github_pat">PAT de GitHub</string>
     <string name="ui_github_pat_public_repo_scope">PAT de GitHub (ámbito public_repo)</string>

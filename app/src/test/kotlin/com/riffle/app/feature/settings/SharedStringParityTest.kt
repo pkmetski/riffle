@@ -10,6 +10,7 @@ import com.riffle.feature.settings.label
 import com.riffle.feature.settings.withoutDanglingSeparator
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -81,7 +82,7 @@ class SharedStringParityTest {
             status(AppUpdateUiState.UpdateAvailable("2.6.0", update)),
             "2.6.0",
         )
-        assertResource("ui_downloading_update_percent", status(AppUpdateUiState.Downloading(42)), 42)
+        assertResource("ui_downloading_update_percent", status(AppUpdateUiState.Downloading(42)), "42%")
         assertResource("ui_starting_installer", status(AppUpdateUiState.Installing))
         assertResource("ui_update_check_failed", status(AppUpdateUiState.Failed("no network")), "no network")
     }
@@ -92,6 +93,31 @@ class SharedStringParityTest {
         assertResource("ui_update", AppUpdateStatus.actionLabel(AppUpdateUiState.UpdateAvailable("2.6.0", update))!!)
         assertResource("ui_retry", AppUpdateStatus.actionLabel(AppUpdateUiState.Failed("x"))!!)
         assertResource("ui_check_for_updates", AppUpdateStatus.actionLabel(AppUpdateUiState.Idle)!!)
+    }
+
+    // --- percent-string format correctness ---
+
+    /**
+     * CMP 1.12.2's `replaceWithArgs` uses the regex `%(\d+)\$[ds]` to substitute format args.
+     * It does NOT convert `%%` → `%`, so any string resource that uses `%1$d%%` will render as
+     * "45%%" on iOS. All percent-displaying strings must use `%1$s` and receive a pre-formatted
+     * "N%" string instead.
+     */
+    @Test
+    fun `percent-displaying string templates do not use the double-percent escape`() {
+        for (name in listOf(
+            "ui_progress_read",
+            "ui_progress_listened",
+            "ui_downloading_percent",
+            "ui_downloading_update_percent",
+            "ui_formatting_summary",
+        )) {
+            val template = strings[name] ?: continue
+            assertFalse(
+                "$name must not use %% (CMP replaceWithArgs does not convert it to %)",
+                template.contains("%%"),
+            )
+        }
     }
 
     // --- PanelOverflowBehavior (#1071 §16l) ---

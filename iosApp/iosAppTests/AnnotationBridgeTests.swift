@@ -104,6 +104,17 @@ final class AnnotationBridgeTests: XCTestCase {
         Int(Double(eval(bridge, script) ?? "") ?? -1)
     }
 
+    /// Polls `script` up to 40 times (50 ms apart) until the result is > 0, then returns it.
+    private func evalWithRetry(_ bridge: ReadiumEpubNavigatorBridge, _ script: String) -> Int {
+        var last = 0
+        for _ in 0..<40 {
+            last = evalInt(bridge, script)
+            if last > 0 { return last }
+            settle(seconds: 0.05)
+        }
+        return last
+    }
+
     /// Number of laid-out decoration items in `group`, read from the document Readium built.
     ///
     /// Readium appends one container div per group (`data-group="…"`) to `<body>` and one child
@@ -280,8 +291,12 @@ final class AnnotationBridgeTests: XCTestCase {
         // The settle gives the Task and Readium's JS time to run before the polling loop begins.
         settle(seconds: 1.0)
         XCTAssertGreaterThan(decorationCount(bridge, group: ReaderDecorationGroups.shared.bookmarks), 0)
+        // Retry the sidemark class check: once the decoration container exists (above), Readium
+        // still needs a rAF to paint the class. On slow runners the direct evalInt may race ahead
+        // of that paint — the same reason decorationCount uses a retry loop.
         XCTAssertGreaterThan(
-            evalInt(bridge, "document.querySelectorAll('.riffle-sidemark').length"), 0,
+            evalWithRetry(bridge, "document.querySelectorAll('.riffle-sidemark').length"),
+            0,
             "the bookmark must be a sidemark; the blue background wash it replaced sat on the text"
         )
         bridge.disposeNavigator()

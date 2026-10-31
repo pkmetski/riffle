@@ -54,7 +54,7 @@ internal fun AppVersionSection(
         is AppUpdateUiState.Checking -> stringResource(Res.string.ui_checking_for_updates)
         is AppUpdateUiState.UpToDate -> stringResource(Res.string.ui_installed_version_up_to_date, installedVersionName)
         is AppUpdateUiState.UpdateAvailable -> stringResource(Res.string.ui_update_available_version, state.versionName)
-        is AppUpdateUiState.Downloading -> stringResource(Res.string.ui_downloading_update_percent, state.percent)
+        is AppUpdateUiState.Downloading -> stringResource(Res.string.ui_downloading_update_percent, "${state.percent}%")
         is AppUpdateUiState.Installing -> stringResource(Res.string.ui_starting_installer)
         is AppUpdateUiState.Failed -> stringResource(Res.string.ui_update_check_failed, state.message)
     }

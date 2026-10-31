@@ -95,7 +95,7 @@
     <string name="ui_download_only_audio_doesn_t_match">Download only · audio doesn't match</string>
     <string name="ui_download_only_no_audiobook_linked">Download only · no audiobook linked</string>
     <string name="ui_downloading_dictionary_name">Downloading %1$s dictionary</string>
-    <string name="ui_downloading_update_percent">Downloading update… %1$d%%</string>
+    <string name="ui_downloading_update_percent">Downloading update… %1$s</string>
     <string name="ui_dyslexic">Dyslexic</string>
     <string name="ui_ebook_ebook">📖 Ebook</string>
     <string name="ui_edge">Edge</string>
@@ -126,7 +126,7 @@
     <string name="ui_forgot_device_snack">Forgot "%1$s"</string>
     <string name="ui_forgot_user_snack">Forgot "%1$s" · %2$d file(s) removed</string>
     <string name="ui_formatting">Formatting</string>
-    <string name="ui_formatting_summary">%1$s · %2$d%% · %3$s</string>
+    <string name="ui_formatting_summary">%1$s · %2$s · %3$s</string>
     <string name="ui_forward_skip">Forward skip</string>
     <string name="ui_github_pat">GitHub PAT</string>
     <string name="ui_github_pat_public_repo_scope">GitHub PAT (public_repo scope)</string>

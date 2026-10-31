@@ -69,8 +69,8 @@
     <string name="ui_reading_time_estimated_total_remaining">%1$s estimado total · %2$s restante</string>
     <string name="ui_pages">%1$d páginas</string>
     <string name="ui_pages_read">%1$d de %2$d páginas leídas</string>
-    <string name="ui_progress_read">%1$d%% leído</string>
-    <string name="ui_progress_listened">%1$d%% escuchado</string>
+    <string name="ui_progress_read">%1$s leído</string>
+    <string name="ui_progress_listened">%1$s escuchado</string>
     <string name="ui_nothing_to_read_or_listen">No hay nada para leer o escuchar</string>
     <string name="ui_edit_metadata">Editar metadatos</string>
     <string name="ui_upload_to">Subir a</string>
