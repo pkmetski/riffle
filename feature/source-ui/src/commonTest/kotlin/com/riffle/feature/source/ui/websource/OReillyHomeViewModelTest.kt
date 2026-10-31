@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:filename")
+
 package com.riffle.feature.source.ui.websource
 
 import com.riffle.core.domain.LibraryObserver
@@ -27,8 +29,15 @@ class OReillyHomeViewModelCommonTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @BeforeTest fun setUp() { Dispatchers.setMain(dispatcher) }
-    @AfterTest fun tearDown() { Dispatchers.resetMain() }
+    @BeforeTest
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     private val libraryId = "oreilly-lib-1"
 
