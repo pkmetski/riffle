@@ -57,7 +57,12 @@ private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<
 
 private val LibraryItem.itemLength: Double?
     get() {
-        if (audioDurationSec > 0.0) return audioDurationSec
+        // Audiobook-only items: sort by audio duration (seconds).
+        // Everything else (EPUBs, PDFs, CBZs, combined ebook+audio): sort by pageCount, which is
+        // either a real page count (PDF/CBZ/O'Reilly) or a totalPositions proxy (EPUB). Using
+        // audioDurationSec for combined items would mix units (seconds vs positions) when
+        // both item types appear in the same Books library, corrupting the sort order.
+        if (isAudiobookOnly) return audioDurationSec.takeIf { it > 0.0 }
         val pages = pageCount
         if (pages != null && pages > 0) return pages.toDouble()
         return null
