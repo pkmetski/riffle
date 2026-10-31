@@ -67,10 +67,12 @@ class RiffleIconsTest {
     @Test
     fun nonDirectionalGlyphsAreNotMirrored() {
         listOf(
-            RiffleIcons.Home, RiffleIcons.Bookmarks, RiffleIcons.Search, RiffleIcons.GridView,
+            RiffleIcons.Home, RiffleIcons.HomeOutlinedIcon, RiffleIcons.Bookmarks,
+            RiffleIcons.Search, RiffleIcons.GridView,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
             RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.LocalLibrary,
-            RiffleIcons.LibraryBooks, RiffleIcons.Sell,
+            RiffleIcons.LibraryBooks, RiffleIcons.MenuBook, RiffleIcons.MenuBookOutlined,
+            RiffleIcons.Sell, RiffleIcons.SellOutlined,
         ).forEach { assertTrue(!it.autoMirror, "${it.name} must not be auto-mirrored") }
     }
 
@@ -80,16 +82,35 @@ class RiffleIconsTest {
             RiffleIcons.ArrowBack, RiffleIcons.ArrowDropDown, RiffleIcons.Bookmarks,
             RiffleIcons.Check, RiffleIcons.CheckCircle, RiffleIcons.Close, RiffleIcons.Folder,
             RiffleIcons.FormatListNumbered, RiffleIcons.GridView, RiffleIcons.Headphones,
-            RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.Home, RiffleIcons.LibraryBooks,
-            RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.PlaylistAdd,
+            RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.Home,
+            RiffleIcons.HomeOutlinedIcon, RiffleIcons.LibraryBooks,
+            RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.MenuBook,
+            RiffleIcons.MenuBookOutlined, RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck, RiffleIcons.QueueMusic, RiffleIcons.Schedule,
-            RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.Toc,
+            RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.SellOutlined, RiffleIcons.Toc,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot, RiffleIcons.Warning,
+            RiffleIcons.AnnotationsOutlined,
         ).forEach {
             assertEquals(24f, it.viewportWidth, "${it.name} viewportWidth")
             assertEquals(24f, it.viewportHeight, "${it.name} viewportHeight")
             assertTrue(pathNodes(it).isNotEmpty(), "${it.name} has no path data")
         }
+    }
+
+    @Test
+    fun allBooksIconsAreDistinctFromEachOther() {
+        assertNotEquals(pathNodes(RiffleIcons.AllBooks), pathNodes(RiffleIcons.AllBooksOutlined))
+    }
+
+    @Test
+    fun allBooksConceptsMapsToMenuBookFamily() {
+        assertEquals("MenuBook", RiffleIcons.AllBooks.name)
+        assertEquals("MenuBookOutlined", RiffleIcons.AllBooksOutlined.name)
+    }
+
+    @Test
+    fun annotationsOutlinedIsDistinctFromAnnotations() {
+        assertNotEquals(pathNodes(RiffleIcons.Annotations), pathNodes(RiffleIcons.AnnotationsOutlined))
     }
 
     private fun assertSameArtwork(expected: ImageVector, actual: ImageVector) {

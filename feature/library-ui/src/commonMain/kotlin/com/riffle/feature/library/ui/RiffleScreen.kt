@@ -100,19 +100,34 @@ fun RiffleScreen(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = { Icon(RiffleIcons.LocalLibrary, contentDescription = inProgressLabel) },
+                        icon = {
+                            Icon(
+                                if (selectedTab == 0) RiffleIcons.Home else RiffleIcons.HomeOutlined,
+                                contentDescription = inProgressLabel,
+                            )
+                        },
                         modifier = Modifier.testTag(TestTags.NAV_TAB_IN_PROGRESS),
                     )
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = toReadLabel) },
+                        icon = {
+                            Icon(
+                                if (selectedTab == 1) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
+                                contentDescription = toReadLabel,
+                            )
+                        },
                         modifier = Modifier.testTag(TestTags.NAV_TAB_TO_READ),
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
-                        icon = { Icon(RiffleIcons.Annotations, contentDescription = annotationsLabel) },
+                        icon = {
+                            Icon(
+                                if (selectedTab == 2) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
+                                contentDescription = annotationsLabel,
+                            )
+                        },
                         modifier = Modifier.testTag(TestTags.NAV_TAB_ANNOTATIONS),
                     )
                 }

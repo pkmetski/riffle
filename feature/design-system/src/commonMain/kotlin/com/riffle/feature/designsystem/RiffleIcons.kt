@@ -58,6 +58,18 @@ object RiffleIcons {
      */
     val Annotations: ImageVector get() = InkHighlighter
 
+    /** Highlights + notes — unselected (outlined) state for the Annotations nav tab. */
+    val AnnotationsOutlined: ImageVector get() = InkHighlighterOutlined
+
+    /** The home / in-progress tab, unselected. */
+    val HomeOutlined: ImageVector get() = HomeOutlinedIcon
+
+    /** All library books tab, selected. */
+    val AllBooks: ImageVector get() = MenuBook
+
+    /** All library books tab, unselected. */
+    val AllBooksOutlined: ImageVector get() = MenuBookOutlined
+
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
 
@@ -217,6 +229,33 @@ object RiffleIcons {
         listOf("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z")
     }
 
+    /** `Icons.Outlined.Home` */
+    val HomeOutlinedIcon: ImageVector = materialIcon("HomeOutlined") {
+        listOf("M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z")
+    }
+
+    /** `Icons.Filled.MenuBook` — two-page open book; artwork for the [AllBooks] concept. */
+    val MenuBook: ImageVector = materialIcon("MenuBook") {
+        listOf(
+            "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5" +
+                "S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20" +
+                "c1.95 0 3.75.4 5 1.5 1.35-1.1 3.55-1.5 5.5-1.5 1.85 0 3.75.35 5.25 1.15" +
+                ".1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1z" +
+                "M21 18.5c-1.1-.35-2.3-.5-3.5-.5-1.95 0-3.75.65-5 1.5V8c1.25-.85 3.05-1.5 5-1.5" +
+                "c1.2 0 2.4.15 3.5.5V18.5z",
+        )
+    }
+
+    /** `Icons.Outlined.MenuBook` — open-book shape without the right-page fill; [AllBooksOutlined] artwork. */
+    val MenuBookOutlined: ImageVector = materialIcon("MenuBookOutlined") {
+        listOf(
+            "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5" +
+                "S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20" +
+                "c1.95 0 3.75.4 5 1.5 1.35-1.1 3.55-1.5 5.5-1.5 1.85 0 3.75.35 5.25 1.15" +
+                ".1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1z",
+        )
+    }
+
     /** `Icons.Filled.LibraryBooks` — artwork for the All Books tab. */
     val LibraryBooks: ImageVector = materialIcon("LibraryBooks") {
         listOf(
@@ -347,6 +386,16 @@ object RiffleIcons {
         )
     }
 
+    /** `Icons.Outlined.Sell` — artwork for the Collections tab, unselected. */
+    val SellOutlined: ImageVector = materialIcon("SellOutlined") {
+        listOf(
+            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53" +
+                ".21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 " +
+                "12.2 21.41 11.41zM13 18.01L4 9V4h5l9 9-5 5.01z" +
+                "M6.5 5C7.33 5 8 5.67 8 6.5S7.33 8 6.5 8 5 7.33 5 6.5 5.67 5 6.5 5z",
+        )
+    }
+
     /** `Icons.Filled.Sell` — artwork for the Collections tab. */
     val Sell: ImageVector = materialIcon("Sell") {
         listOf(
@@ -386,6 +435,34 @@ object RiffleIcons {
 private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
     listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
 }
+
+/** Outlined (stroke-only) ink-highlighter — artwork for [RiffleIcons.AnnotationsOutlined]. */
+private val InkHighlighterOutlined: ImageVector = ImageVector.Builder(
+    name = "InkHighlighterOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    val strokeBrush = SolidColor(Color.Black)
+    val sw = 1.3f
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M9.6 10L15 15.4L10 20.4Q8.6 21.6 7.2 20.4Q6.5 21.5 5.7 21H2.7Q2 21 2.2 20.2" +
+                "L4.6 17.9Q4 16.4 4.6 15L9.6 10Z",
+        ).toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+    )
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M11 8.6L16 3.6Q16.6 3 17.4 3Q18.2 3 18.8 3.6L21.4 6.2Q22 6.8 22 7.6" +
+                "Q22 8.4 21.4 9L16.4 14Z",
+        ).toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+    )
+}.build()
 
 /**
  * Open book with two arcing sound waves above it — matches `ic_readaloud.xml` on Android.
