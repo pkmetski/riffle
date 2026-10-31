@@ -600,7 +600,7 @@ class LibraryItemDetailViewModel constructor(
                         hasMarkRead = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) != true,
                         hasDownloads = catalog is DownloadsCapability &&
                             (catalog as? LiveStreamCapability)?.isLiveStream(item.id) != true,
-                        hasReadaloud = catalog is ReadaloudCapability,
+                        hasReadaloud = link != null,
                         hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
                         canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
                         canUploadToConfiguredSource = canUploadToConfiguredSource,

@@ -4,6 +4,7 @@ import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.ToReadRepository
@@ -12,8 +13,10 @@ import com.riffle.core.models.Collection
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
 import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailUiState
@@ -123,12 +126,41 @@ class LibraryItemDetailViewModelTest {
         override suspend fun deleteToken(sourceId: String) {}
     }
 
+    private fun makeActiveSourceRepository(sourceId: String = "source1") = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
+        override suspend fun getActive(): Source? = Source(
+            id = sourceId,
+            url = SourceUrl.parse("http://test-server")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "test",
+        )
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(UnsupportedOperationException())
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+        override suspend fun ensureSyncNamespace(sourceId: String): SyncNamespace = SyncNamespace.LocalOnly("test")
+    }
+
+    private fun makeLinkReturningRepository(link: ReadaloudLink) = object : ReadaloudLinkRepository {
+        override fun observeAll(): kotlinx.coroutines.flow.Flow<List<ReadaloudLink>> = flowOf(emptyList())
+        override fun observeLinkedAbsItemIds(): kotlinx.coroutines.flow.Flow<Set<String>> = flowOf(emptySet())
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink = link
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) {}
+        override suspend fun countForSource(sourceId: String): Int = 0
+        override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: com.riffle.core.models.AudiobookIdentityResult) {}
+    }
+
     private fun makeViewModel(
         item: LibraryItem? = fakeItem,
         itemId: String = "item1",
         sourceId: String? = "source1",
         inToRead: Boolean = false,
         bookImportManager: com.riffle.feature.library.BookImportManager = FakeBookImportManager(),
+        sourceRepository: SourceRepository = makeSourceRepository(),
+        readaloudLinkRepository: ReadaloudLinkRepository = FakeReadaloudLinkRepository,
     ) = LibraryItemDetailViewModel(
         itemId = itemId,
         sourceId = sourceId,
@@ -136,7 +168,7 @@ class LibraryItemDetailViewModelTest {
         recordItemOpened = FakeRecordItemOpened(),
         updateReadingProgressUseCase = FakeUpdateReadingProgress(),
         markReadAcrossDimensions = FakeMarkReadAcrossDimensions(),
-        sourceRepository = makeSourceRepository(),
+        sourceRepository = sourceRepository,
         tokenStorage = makeTokenStorage(),
         epubRepository = FakeEpubRepository(),
         ebookCfiTranslatorFactory = FakeEbookCfiTranslatorFactory,
@@ -145,7 +177,7 @@ class LibraryItemDetailViewModelTest {
         cbzRepository = FakeCbzRepository(),
         toReadRepository = makeToReadRepository(inToRead),
         playlistsRepository = FakePlaylistsRepository(),
-        readaloudLinkRepository = FakeReadaloudLinkRepository,
+        readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = FakeReadaloudAudioRepository(),
         audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
         audiobookCacheRepository = FakeAudiobookCacheRepository(),
@@ -217,5 +249,40 @@ class LibraryItemDetailViewModelTest {
 
         assertEquals(listOf("Upload failed"), snackbars)
         job.cancel()
+    }
+
+    @Test
+    fun capabilitiesHasReadaloudFalseWhenNoLink() = runTest(mainDispatcher) {
+        val vm = makeViewModel(
+            sourceRepository = makeActiveSourceRepository(),
+            readaloudLinkRepository = FakeReadaloudLinkRepository,
+        )
+        testScheduler.advanceUntilIdle()
+        val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
+        assertFalse(
+            ready.capabilities.hasReadaloud,
+            "hasReadaloud must be false when the item has no readaloud link",
+        )
+    }
+
+    @Test
+    fun capabilitiesHasReadaloudTrueWhenLinkExists() = runTest(mainDispatcher) {
+        val link = ReadaloudLink(
+            storytellerSourceId = "st-source",
+            storytellerBookId = "st-book",
+            absSourceId = "source1",
+            absLibraryItemId = "item1",
+            userConfirmed = false,
+        )
+        val vm = makeViewModel(
+            sourceRepository = makeActiveSourceRepository(),
+            readaloudLinkRepository = makeLinkReturningRepository(link),
+        )
+        testScheduler.advanceUntilIdle()
+        val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
+        assertTrue(
+            ready.capabilities.hasReadaloud,
+            "hasReadaloud must be true when the item has a readaloud link",
+        )
     }
 }

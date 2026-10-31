@@ -61,8 +61,8 @@ object RiffleIcons {
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
 
-    /** Synced-narration (readaloud) badge on a cover. */
-    val ReadaloudBadge: ImageVector get() = Headphones
+    /** Synced-narration (readaloud) badge — open book with sound waves. */
+    val ReadaloudBadge: ImageVector get() = ReadaloudIcon
 
     /** Synced-narration (readaloud) reader toolbar button — open book with sound waves. */
     val Readaloud: ImageVector get() = ReadaloudIcon
