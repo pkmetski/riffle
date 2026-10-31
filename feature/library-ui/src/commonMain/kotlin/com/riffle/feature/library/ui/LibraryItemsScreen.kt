@@ -113,6 +113,8 @@ import com.riffle.feature.library.ui.generated.resources.ui_series_count
 import com.riffle.feature.library.ui.generated.resources.ui_show_all_annotations
 import com.riffle.feature.library.ui.generated.resources.ui_sort
 import com.riffle.feature.library.ui.generated.resources.ui_sort_author_az
+import com.riffle.feature.library.ui.generated.resources.ui_sort_length_longest
+import com.riffle.feature.library.ui.generated.resources.ui_sort_length_shortest
 import com.riffle.feature.library.ui.generated.resources.ui_sort_oldest_first
 import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_added
 import com.riffle.feature.library.ui.generated.resources.ui_sort_recently_opened
@@ -325,7 +327,7 @@ fun LibraryTabContent(
             projection, token, coversAreSquare, linkedItemIds, showRecentlyAdded,
             onItemSelected, onSectionSeeMore,
         )
-        1 -> ToReadTabContent(projection.toRead, token, coversAreSquare, linkedItemIds, onItemSelected)
+        1 -> ToReadTabContent(projection.toRead, token, coversAreSquare, linkedItemIds, librarySortMode, onItemSelected, onSetSortMode)
         tabIndexForAnnotations() -> AnnotationsTabContent(annotationsState, { token }, onAnnotatedBookSelected)
         3 -> SeriesTabContent(projection.series, token, onSeriesSelected)
         4 -> CollectionsTabContent(projection.collections, token, collectionCoverUrls, onCollectionSelected)
@@ -638,19 +640,33 @@ private fun ToReadTabContent(
     token: String,
     coversAreSquare: Boolean,
     linkedItemIds: Set<String>,
+    librarySortMode: LibrarySortMode,
     onItemSelected: (LibraryItem) -> Unit,
+    onSetSortMode: (LibrarySortMode) -> Unit,
 ) {
-    if (items.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = stringResource(LibRes.string.ui_nothing_in_to_read),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
-    }
+    val sortLabel = stringResource(LibRes.string.ui_sort, librarySortMode.label())
+    var sortMenuExpanded by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
+        if (items.isEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                ToReadSortChip(librarySortMode, sortLabel, sortMenuExpanded, { sortMenuExpanded = it }, onSetSortMode)
+            }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = stringResource(LibRes.string.ui_nothing_in_to_read),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            return
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            ToReadSortChip(librarySortMode, sortLabel, sortMenuExpanded, { sortMenuExpanded = it }, onSetSortMode)
+        }
         SectionHeader(title = stringResource(LibRes.string.ui_to_read_count, items.size))
         CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
             BookGrid(
@@ -659,6 +675,42 @@ private fun ToReadTabContent(
                 onItemSelected = onItemSelected,
                 hasReadaloudLink = { it.id in linkedItemIds },
             )
+        }
+    }
+}
+
+@Composable
+private fun ToReadSortChip(
+    librarySortMode: LibrarySortMode,
+    sortLabel: String,
+    sortMenuExpanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSetSortMode: (LibrarySortMode) -> Unit,
+) {
+    Box {
+        FilterChip(
+            selected = librarySortMode != LibrarySortMode.ADDED_DESC,
+            onClick = { onExpandedChange(true) },
+            label = { Text(sortLabel) },
+            trailingIcon = { Icon(RiffleIcons.ArrowDropDown, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) },
+            modifier = Modifier.testTag(TestTags.TO_READ_SORT),
+        )
+        DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { onExpandedChange(false) }) {
+            LibrarySortMode.entries.forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(mode.label()) },
+                    onClick = {
+                        onSetSortMode(mode)
+                        onExpandedChange(false)
+                    },
+                    leadingIcon = if (mode == librarySortMode) {
+                        { Icon(RiffleIcons.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.testTag(TestTags.sortModeItem(mode.name)),
+                )
+            }
         }
     }
 }
@@ -1154,6 +1206,7 @@ private fun AllBooksTabContent(
                             } else {
                                 null
                             },
+                            modifier = Modifier.testTag(TestTags.sortModeItem(mode.name)),
                         )
                     }
                 }
@@ -1185,6 +1238,8 @@ private fun LibrarySortMode.label(): String = when (this) {
     LibrarySortMode.TITLE_DESC -> stringResource(LibRes.string.ui_sort_title_za)
     LibrarySortMode.AUTHOR_ASC -> stringResource(LibRes.string.ui_sort_author_az)
     LibrarySortMode.RECENTLY_OPENED -> stringResource(LibRes.string.ui_sort_recently_opened)
+    LibrarySortMode.LENGTH_ASC -> stringResource(LibRes.string.ui_sort_length_shortest)
+    LibrarySortMode.LENGTH_DESC -> stringResource(LibRes.string.ui_sort_length_longest)
 }
 
 @Composable

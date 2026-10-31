@@ -532,7 +532,7 @@ private fun iosLibraryModule(
     single<IosElidedPdfBridge> { elidedPdfBridge }
     single { TocRepositoryImpl(get(), get()) }
     single<TocRepository> { get<TocRepositoryImpl>() }
-    single { PublicationMetricsRepositoryImpl(get(), get()) }
+    single { PublicationMetricsRepositoryImpl(get(), get(), get(), get()) }
     single<PublicationMetricsRepository> { get<PublicationMetricsRepositoryImpl>() }
     single<EpubTocExtractor> { IosEpubTocExtractor(get(), get(), get(), get()) }
 

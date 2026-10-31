@@ -107,12 +107,19 @@ class ToReadRepositoryImpl constructor(
             )
         // Eagerly fetch and upsert each playlist item into Room so the "To Read" tab
         // appears even before the user has browsed the library.
+        // Guard: only upsert items that actually belong to this library. Some sources (e.g.
+        // O'Reilly) store playlists by content ISBN without format distinction and expand each
+        // entry into both a book variant and an audiobook variant in the returned itemIds. Without
+        // the guard, a book added to To Read would be upserted as a ghost audiobook row into the
+        // AUDIOBOOKS library, making it appear on the wrong tab.
         if (upserter != null && match != null) {
             val catalog = catalogRegistry.forSourceId(sourceId)
             if (catalog != null) {
                 for (itemId in match.itemIds) {
                     runCatching { catalog.getItem(itemId) }
-                        .onSuccess { item -> if (item != null) upserter.upsert(sourceId, item) }
+                        .onSuccess { item ->
+                            if (item != null && item.rootId == libraryId) upserter.upsert(sourceId, item)
+                        }
                         .onFailure { logger.d(LogChannel.ToRead) { "refreshForSource($sourceId) getItem($itemId) failed: $it" } }
                 }
             }

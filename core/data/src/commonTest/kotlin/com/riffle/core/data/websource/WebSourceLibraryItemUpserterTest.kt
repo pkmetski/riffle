@@ -244,30 +244,16 @@ class WebSourceLibraryItemUpserterTest {
             items.forEach { if ((it.sourceId to it.id) !in rows) rows[it.sourceId to it.id] = it }
         }
 
-        override suspend fun updateMetadata(metadata: LibraryItemMetadata) {
-            val existing = rows[metadata.sourceId to metadata.id] ?: return
-            rows[metadata.sourceId to metadata.id] = existing.copy(
-                libraryId = metadata.libraryId,
-                title = metadata.title,
-                author = metadata.author,
-                coverUrl = metadata.coverUrl,
-                ebookFileIno = metadata.ebookFileIno,
-                ebookFormat = metadata.ebookFormat,
-                hasAudio = metadata.hasAudio,
-                audioDurationSec = metadata.audioDurationSec,
-                description = metadata.description,
-                seriesName = metadata.seriesName,
-                publishedYear = metadata.publishedYear,
-                genres = metadata.genres,
-                publisher = metadata.publisher,
-                language = metadata.language,
-                lastOpenedAt = metadata.lastOpenedAt,
-                addedAt = metadata.addedAt,
-                isbn = metadata.isbn,
-                asin = metadata.asin,
-                finishedAt = metadata.finishedAt,
-                pageCount = metadata.pageCount,
-                // readingProgress intentionally NOT copied — updateMetadata excludes it (Room @Update).
+        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) {
+            val existing = rows[sourceId to id] ?: return
+            rows[sourceId to id] = existing.copy(
+                libraryId = libraryId, title = title, author = author, coverUrl = coverUrl,
+                ebookFileIno = ebookFileIno, ebookFormat = ebookFormat, hasAudio = hasAudio,
+                audioDurationSec = audioDurationSec, description = description,
+                seriesName = seriesName, publishedYear = publishedYear, genres = genres,
+                publisher = publisher, language = language, lastOpenedAt = lastOpenedAt,
+                addedAt = addedAt, isbn = isbn, asin = asin, finishedAt = finishedAt,
+                pageCount = pageCount ?: existing.pageCount,
             )
         }
 
@@ -312,6 +298,8 @@ class WebSourceLibraryItemUpserterTest {
         }
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) { }
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) { }
+        override suspend fun backfillPageCountFromMetricsCache() = Unit
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) = Unit
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()

@@ -280,6 +280,9 @@ jobs:
           # Purge Riffle module intermediates so a restore-key cache hit from a prior commit
           # can never serve a .swiftmodule that predates newly added Swift source files.
           rm -rf "$HOME"/derived-data/Build/Intermediates.noindex/iosApp.build/Debug-iphonesimulator/Riffle.build
+          # Purge module cache: a restore-key hit from before an Xcode SDK update causes
+          # "mtime changed" compile errors because the cached .pcm files record the old SDK mtime.
+          rm -rf "$HOME/derived-data/ModuleCache.noindex"
           xcodebuild test \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosAppUnitTests \
@@ -437,6 +440,9 @@ jobs:
           build_for_testing() {
             # Static K/N framework has no Xcode dependency edge; force relink so a warm cache doesn't ship stale Kotlin.
             rm -rf "$HOME"/derived-data/Build/Products/Debug-iphonesimulator/{Riffle.app,iosAppTests-Runner.app}
+            # Purge module cache: a restore-key hit from before an Xcode SDK update causes
+            # "mtime changed" compile errors because the cached .pcm files record the old SDK mtime.
+            rm -rf "$HOME/derived-data/ModuleCache.noindex"
             xcodebuild build-for-testing "${XCODEBUILD_COMMON[@]}" 2>&1 | tee xcodebuild-harness.log
           }
           # dyld aborts if the app links a Swift overlay absent in the runtime (e.g. libswiftWebKit.dylib on iOS 18).

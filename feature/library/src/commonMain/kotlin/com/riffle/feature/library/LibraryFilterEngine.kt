@@ -40,8 +40,33 @@ private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<
                 .thenByDescending { it.lastOpenedAt ?: 0L }
                 .then(byTitle),
         )
+        // Audiobooks: audioDurationSec. Comics/PDFs: pageCount. EPUBs (no page count): tail.
+        // Items without a known length sort to the tail with a title tie-break.
+        LibrarySortMode.LENGTH_ASC -> items.sortedWith(
+            compareByDescending<LibraryItem> { it.itemLength != null }
+                .thenBy { it.itemLength ?: Double.MAX_VALUE }
+                .then(byTitle),
+        )
+        LibrarySortMode.LENGTH_DESC -> items.sortedWith(
+            compareByDescending<LibraryItem> { it.itemLength != null }
+                .thenByDescending { it.itemLength ?: 0.0 }
+                .then(byTitle),
+        )
     }
 }
+
+private val LibraryItem.itemLength: Double?
+    get() {
+        // Audiobook-only items: sort by audio duration (seconds).
+        // Everything else (EPUBs, PDFs, CBZs, combined ebook+audio): sort by pageCount, which is
+        // either a real page count (PDF/CBZ/O'Reilly) or a totalPositions proxy (EPUB). Using
+        // audioDurationSec for combined items would mix units (seconds vs positions) when
+        // both item types appear in the same Books library, corrupting the sort order.
+        if (isAudiobookOnly) return audioDurationSec.takeIf { it > 0.0 }
+        val pages = pageCount
+        if (pages != null && pages > 0) return pages.toDouble()
+        return null
+    }
 
 /**
  * Combines a library's source flows + UI filters into a single [LibraryProjection].
@@ -134,10 +159,11 @@ class LibraryFilterEngine(
         }
 
     private val toReadProjection: Flow<List<LibraryItem>> =
-        combine(toReadIdsSource, allBooksSource, isOffline) { ids, all, offline ->
+        combine(toReadIdsSource, allBooksSource, isOffline, librarySortMode) { ids, all, offline, sort ->
             val byId = all.associateBy { it.id }
             val items = ids.mapNotNull { byId[it] }
-            if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+            val filtered = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+            sortAllBooks(filtered, sort)
         }
 
     /**

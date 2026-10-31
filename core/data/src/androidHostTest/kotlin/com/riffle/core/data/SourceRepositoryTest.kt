@@ -226,7 +226,7 @@ class ServerRepositoryTest {
             }
         }
         override suspend fun insertOrIgnore(items: List<com.riffle.core.database.LibraryItemEntity>) = Unit
-        override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
+        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) {
             deletedLibraryIds += libraryId
             rows[libraryId]?.removeAll { it.sourceId == sourceId }
@@ -245,6 +245,8 @@ class ServerRepositoryTest {
         override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
+        override suspend fun backfillPageCountFromMetricsCache() {}
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) {}
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
         override fun observeBySource(sourceId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override fun observeInProgressAllSources() = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())

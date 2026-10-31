@@ -1990,7 +1990,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
         override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
-        override suspend fun updateMetadata(metadata: LibraryItemMetadata) = Unit
+        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
         override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) = Unit
         override suspend fun idsForLibrary(sourceId: String, libraryId: String) = emptyList<String>()
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = null
@@ -2009,6 +2009,8 @@ class LibraryItemDetailViewModelTest {
         override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) = Unit
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
+        override suspend fun backfillPageCountFromMetricsCache() = Unit
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) = Unit
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
