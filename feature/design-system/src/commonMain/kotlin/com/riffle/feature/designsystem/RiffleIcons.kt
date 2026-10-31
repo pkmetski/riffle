@@ -58,6 +58,24 @@ object RiffleIcons {
      */
     val Annotations: ImageVector get() = InkHighlighter
 
+    /** Highlights + notes — unselected (outlined) state for the Annotations nav tab. */
+    val AnnotationsOutlined: ImageVector get() = InkHighlighterOutlined
+
+    /** The home / in-progress tab, unselected. */
+    val HomeOutlined: ImageVector get() = HomeOutlinedIcon
+
+    /** All library books tab, selected. */
+    val AllBooks: ImageVector get() = BookStack
+
+    /** All library books tab, unselected. */
+    val AllBooksOutlined: ImageVector get() = BookStackOutlined
+
+    /** Music queue — unselected state for the Playlists nav tab. */
+    val QueueMusicOutlined: ImageVector get() = QueueMusicOutlinedIcon
+
+    /** Numbered list — unselected state for the Series nav tab. */
+    val FormatListNumberedOutlined: ImageVector get() = FormatListNumberedOutlinedIcon
+
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
 
@@ -217,6 +235,28 @@ object RiffleIcons {
         listOf("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z")
     }
 
+    /** `Icons.Outlined.Home` — stroke-only so the outline is thin, matching other nav outlined icons. */
+    val HomeOutlinedIcon: ImageVector = ImageVector.Builder(
+        name = "HomeOutlined",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z",
+            ).toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1f,
+        )
+    }.build()
+
+    /** Three books of varying heights standing on a shelf — artwork for the [AllBooks] concept. */
+    val BookStack: ImageVector = materialIcon("BookStack") {
+        listOf("M2 21.5h20V20H2zM3 7h4.5v13H3zM9 10h4.5v10.5H9zM15 8h4.5v12.5H15z")
+    }
+
     /** `Icons.Filled.LibraryBooks` — artwork for the All Books tab. */
     val LibraryBooks: ImageVector = materialIcon("LibraryBooks") {
         listOf(
@@ -347,11 +387,43 @@ object RiffleIcons {
         )
     }
 
-    /** `Icons.Filled.Sell` — artwork for the Collections tab. */
+    /** `Icons.Outlined.Sell` — stroke-only tag outline; artwork for the Collections tab, unselected. */
+    val SellOutlined: ImageVector = ImageVector.Builder(
+        name = "SellOutlined",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        val brush = SolidColor(Color.Black)
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17" +
+                    "c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17" +
+                    "C22.2 13.46 22.2 12.2 21.41 11.41z",
+            ).toNodes(),
+            stroke = brush,
+            strokeLineWidth = 1f,
+        )
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
+            ).toNodes(),
+            fill = brush,
+        )
+    }.build()
+
+    /**
+     * `Icons.Filled.Sell` — artwork for the Collections tab.
+     * Both sub-paths are in one path string so the non-zero winding rule cuts the circle out of
+     * the tag body; splitting into two filled paths would cover the hole with a solid dot instead.
+     */
     val Sell: ImageVector = materialIcon("Sell") {
         listOf(
-            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 12.2 21.41 11.41z",
-            "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
+            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53" +
+                ".21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 " +
+                "12.2 21.41 11.41z" +
+                "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
         )
     }
 
@@ -371,21 +443,136 @@ object RiffleIcons {
         listOf("M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
     }
 
-    /**
-     * `Icons.Filled.TurnedInNot` — artwork for the [ToRead] concept.
-     * Both sub-paths are in a single path string so the non-zero winding rule creates the
-     * interior cutout (outline bookmark) — splitting into two paths collapses the winding
-     * relationship and produces a solid shape indistinguishable from [TurnedIn].
-     */
-    val TurnedInNot: ImageVector = materialIcon("TurnedInNot") {
-        listOf("M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2zM17 18l-5-2.18L7 18L7 5h10v13z")
-    }
+    /** `Icons.Outlined.TurnedInNot` — stroke-only bookmark outline for the [ToRead] concept. */
+    val TurnedInNot: ImageVector = ImageVector.Builder(
+        name = "TurnedInNot",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M17 3L7 3c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3L19 5c0-1.1-.9-2-2-2z",
+            ).toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1f,
+        )
+    }.build()
 }
 
 /** `Icons.AutoMirrored.Filled.Toc` — artwork for the [RiffleIcons.Toc] concept. */
 private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
     listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
 }
+
+/**
+ * Music-queue outlined — thin stroked list lines, stroke-only note.
+ * Artwork for [RiffleIcons.QueueMusicOutlined].
+ */
+private val QueueMusicOutlinedIcon: ImageVector = ImageVector.Builder(
+    name = "QueueMusicOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+    autoMirror = true,
+).apply {
+    val brush = SolidColor(Color.Black)
+    listOf("M3 7H15", "M3 11H15", "M3 15H11").forEach { line ->
+        addPath(
+            pathData = PathParser().parsePathString(line).toNodes(),
+            stroke = brush,
+            strokeLineWidth = 1f,
+        )
+    }
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z",
+        ).toNodes(),
+        stroke = brush,
+        strokeLineWidth = 0.8f,
+    )
+}.build()
+
+/**
+ * Numbered list outlined — filled number glyphs, thin stroked list lines.
+ * Artwork for [RiffleIcons.FormatListNumberedOutlined].
+ */
+private val FormatListNumberedOutlinedIcon: ImageVector = ImageVector.Builder(
+    name = "FormatListNumberedOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+    autoMirror = true,
+).apply {
+    val brush = SolidColor(Color.Black)
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1z",
+        ).toNodes(),
+        fill = brush,
+    )
+    listOf("M7 6H21", "M7 12H21", "M7 18H21").forEach { line ->
+        addPath(
+            pathData = PathParser().parsePathString(line).toNodes(),
+            stroke = brush,
+            strokeLineWidth = 1f,
+        )
+    }
+}.build()
+
+/** Stroke-only bookshelf — artwork for [RiffleIcons.AllBooksOutlined]. */
+private val BookStackOutlined: ImageVector = ImageVector.Builder(
+    name = "BookStackOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    val brush = SolidColor(Color.Black)
+    val sw = 1f
+    addPath(
+        pathData = PathParser().parsePathString("M2 21.5h20V20H2z").toNodes(),
+        fill = brush,
+    )
+    listOf("M3 7h4.5v13H3z", "M9 10h4.5v10.5H9z", "M15 8h4.5v12.5H15z").forEach { path ->
+        addPath(
+            pathData = PathParser().parsePathString(path).toNodes(),
+            stroke = brush,
+            strokeLineWidth = sw,
+        )
+    }
+}.build()
+
+/** Outlined (stroke-only) ink-highlighter — artwork for [RiffleIcons.AnnotationsOutlined]. */
+private val InkHighlighterOutlined: ImageVector = ImageVector.Builder(
+    name = "InkHighlighterOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    val strokeBrush = SolidColor(Color.Black)
+    val sw = 1f
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M9.6 10L15 15.4L10 20.4Q8.6 21.6 7.2 20.4Q6.5 21.5 5.7 21H2.7Q2 21 2.2 20.2" +
+                "L4.6 17.9Q4 16.4 4.6 15L9.6 10Z",
+        ).toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+    )
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M11 8.6L16 3.6Q16.6 3 17.4 3Q18.2 3 18.8 3.6L21.4 6.2Q22 6.8 22 7.6" +
+                "Q22 8.4 21.4 9L16.4 14Z",
+        ).toNodes(),
+        stroke = strokeBrush,
+        strokeLineWidth = sw,
+    )
+}.build()
 
 /**
  * Open book with two arcing sound waves above it — matches `ic_readaloud.xml` on Android.

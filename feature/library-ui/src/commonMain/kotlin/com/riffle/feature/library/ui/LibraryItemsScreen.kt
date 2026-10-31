@@ -375,22 +375,38 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
-            icon = { Icon(RiffleIcons.LocalLibrary, contentDescription = homeLabel) },
+            icon = {
+                Icon(
+                    if (selectedTab == 0) RiffleIcons.Home else RiffleIcons.HomeOutlined,
+                    contentDescription = homeLabel,
+                )
+            },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_HOME),
         )
         if (visibility.toRead) {
             NavigationBarItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = toReadLabel) },
+                icon = {
+                    Icon(
+                        if (selectedTab == 1) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
+                        contentDescription = toReadLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_TO_READ),
             )
         }
         if (visibility.annotations) {
+            val annotationsIndex = tabIndexForAnnotations()
             NavigationBarItem(
-                selected = selectedTab == tabIndexForAnnotations(),
-                onClick = { onTabSelected(tabIndexForAnnotations()) },
-                icon = { Icon(RiffleIcons.Annotations, contentDescription = annotationsLabel) },
+                selected = selectedTab == annotationsIndex,
+                onClick = { onTabSelected(annotationsIndex) },
+                icon = {
+                    Icon(
+                        if (selectedTab == annotationsIndex) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
+                        contentDescription = annotationsLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ANNOTATIONS),
             )
         }
@@ -398,7 +414,12 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = seriesLabel) },
+                icon = {
+                    Icon(
+                        if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
+                        contentDescription = seriesLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_SERIES),
             )
         }
@@ -406,22 +427,38 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
-                icon = { Icon(RiffleIcons.Sell, contentDescription = collectionsLabel) },
+                icon = {
+                    Icon(
+                        if (selectedTab == 4) RiffleIcons.Sell else RiffleIcons.SellOutlined,
+                        contentDescription = collectionsLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_COLLECTIONS),
             )
         }
         if (visibility.playlists) {
+            val playlistsIndex = tabIndexForPlaylists()
             NavigationBarItem(
-                selected = selectedTab == tabIndexForPlaylists(),
-                onClick = { onTabSelected(tabIndexForPlaylists()) },
-                icon = { Icon(RiffleIcons.QueueMusic, contentDescription = playlistsLabel) },
+                selected = selectedTab == playlistsIndex,
+                onClick = { onTabSelected(playlistsIndex) },
+                icon = {
+                    Icon(
+                        if (selectedTab == playlistsIndex) RiffleIcons.QueueMusic else RiffleIcons.QueueMusicOutlined,
+                        contentDescription = playlistsLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_PLAYLISTS),
             )
         }
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
-            icon = { Icon(RiffleIcons.LibraryBooks, contentDescription = allBooksLabel) },
+            icon = {
+                Icon(
+                    if (selectedTab == 5) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
+                    contentDescription = allBooksLabel,
+                )
+            },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ALL_BOOKS),
         )
     }

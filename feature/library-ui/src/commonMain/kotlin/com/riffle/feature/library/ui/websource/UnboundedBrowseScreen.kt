@@ -157,26 +157,46 @@ fun UnboundedBrowseScreen(
                 NavigationBarItem(
                     selected = selectedLocalTab == TAB_HOME,
                     onClick = { selectedLocalTab = TAB_HOME },
-                    icon = { Icon(RiffleIcons.LocalLibrary, contentDescription = stringResource(Res.string.ui_home)) },
+                    icon = {
+                        Icon(
+                            if (selectedLocalTab == TAB_HOME) RiffleIcons.Home else RiffleIcons.HomeOutlined,
+                            contentDescription = stringResource(Res.string.ui_home),
+                        )
+                    },
                 )
                 if (tabVisibility?.toRead == true) {
                     NavigationBarItem(
                         selected = selectedLocalTab == TAB_TO_READ,
                         onClick = { selectedLocalTab = TAB_TO_READ },
-                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = stringResource(Res.string.ui_to_read)) },
+                        icon = {
+                            Icon(
+                                if (selectedLocalTab == TAB_TO_READ) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
+                                contentDescription = stringResource(Res.string.ui_to_read),
+                            )
+                        },
                     )
                 }
                 if (tabVisibility?.annotations == true) {
                     NavigationBarItem(
                         selected = selectedLocalTab == TAB_ANNOTATIONS,
                         onClick = { selectedLocalTab = TAB_ANNOTATIONS },
-                        icon = { Icon(RiffleIcons.Annotations, contentDescription = stringResource(Res.string.ui_annotations)) },
+                        icon = {
+                            Icon(
+                                if (selectedLocalTab == TAB_ANNOTATIONS) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
+                                contentDescription = stringResource(Res.string.ui_annotations),
+                            )
+                        },
                     )
                 }
                 NavigationBarItem(
                     selected = selectedLocalTab == TAB_LIBRARY,
                     onClick = { selectedLocalTab = TAB_LIBRARY },
-                    icon = { Icon(RiffleIcons.LibraryBooks, contentDescription = stringResource(Res.string.ui_library)) },
+                    icon = {
+                        Icon(
+                            if (selectedLocalTab == TAB_LIBRARY) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
+                            contentDescription = stringResource(Res.string.ui_library),
+                        )
+                    },
                 )
             }
         },
