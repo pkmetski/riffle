@@ -6,9 +6,12 @@ import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.LocalMinuteTime
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
@@ -706,6 +709,64 @@ class FormattingSessionTest {
                 "store must have been queried with the provided sourceId",
                 fakeBook.loadedSourceIds.contains("riffle-source-id") ||
                     fakeBook.savedSourceIds.contains("riffle-source-id"),
+            )
+        } finally {
+            b.sessionScope.cancel()
+        }
+    }
+
+    // Regression: theme must NOT be captured in the first-open seed. Before the fix the seed
+    // stored `theme = global.theme`, locking a concrete theme into the book's override row. When
+    // the user later switched global to Auto+Schedule the per-book DarkDim override silently won,
+    // bypassing the schedule and showing night theme at noon.
+    @Test
+    fun `bindToBook seed does not capture global theme`() = runTest {
+        val globalPrefs = FormattingPreferences(theme = ReaderTheme.DarkDim, fontSize = 1.2f)
+        val fakeBook = FakeBookFormattingPreferencesStore().also { it.willReturn(null) }
+        val b = makeEager(globalPrefs = globalPrefs, fakeBook = fakeBook)
+        try {
+            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait, "test-src")
+
+            val seeded = fakeBook.saved["book1" to ScreenDimensionBucket.PhonePortrait]
+            assertNotNull(seeded)
+            assertNull("seed must not capture theme so Auto schedule can propagate later", seeded!!.theme)
+        } finally {
+            b.sessionScope.cancel()
+        }
+    }
+
+    // Regression: opening a book for the first time when global is Auto+Schedule must yield
+    // the scheduled theme, not a stale concrete snapshot. Before the fix the seed locked
+    // `theme = Auto` (benign) but this confirms the Auto path reaches the effective prefs.
+    @Test
+    fun `auto schedule applies to first-opened book when global theme is Auto`() = runTest {
+        val schedule = ThemeSchedule(
+            dayStart = LocalMinuteTime.of(7, 0),
+            nightStart = LocalMinuteTime.of(20, 0),
+            dayTheme = ReaderTheme.Sepia,
+            nightTheme = ReaderTheme.DarkDim,
+        )
+        val globalPrefs = FormattingPreferences(
+            theme = ReaderTheme.Auto,
+            autoReaderThemeMode = AutoReaderThemeMode.Schedule,
+            themeSchedule = schedule,
+        )
+        val appearance = FakeAppearanceCoordinator(
+            initial = ResolvedAppearance(
+                appChrome = ChromeTheme.Light,
+                readerTheme = ConcreteReaderTheme.Sepia,
+                isSystemDark = false,
+            ),
+        )
+        val fakeBook = FakeBookFormattingPreferencesStore().also { it.willReturn(null) }
+        val b = makeEager(globalPrefs = globalPrefs, fakeAppearance = appearance, fakeBook = fakeBook)
+        try {
+            b.session.bindToBook("book1", ScreenDimensionBucket.PhonePortrait, "test-src")
+
+            assertEquals(
+                "day-time schedule must apply to a first-opened book",
+                ReaderTheme.Sepia,
+                b.session.effectiveFormattingPreferences.value.theme,
             )
         } finally {
             b.sessionScope.cancel()
