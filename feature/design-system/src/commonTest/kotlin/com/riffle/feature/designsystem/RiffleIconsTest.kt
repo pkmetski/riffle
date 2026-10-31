@@ -113,7 +113,7 @@ class RiffleIconsTest {
 
     @Test
     fun annotationsOutlinedIsDistinctFromAnnotations() {
-        assertNotEquals(pathNodes(RiffleIcons.Annotations), pathNodes(RiffleIcons.AnnotationsOutlined))
+        assertNotEquals(RiffleIcons.Annotations.name, RiffleIcons.AnnotationsOutlined.name)
     }
 
     private fun assertSameArtwork(expected: ImageVector, actual: ImageVector) {
