@@ -1542,18 +1542,28 @@ class LibraryItemDetailViewModelTest {
             ready.capabilities.hasDownloads,
         )
         assertFalse(
-            "Source without ReadaloudCapability must not flag hasReadaloud.",
+            "No readaloud link for the item must not flag hasReadaloud.",
             ready.capabilities.hasReadaloud,
         )
     }
 
-    // Companion: an ABS item's Catalog declares DownloadsCapability + ReadaloudCapability so the
-    // detail screen surfaces the download affordances.
+    // Companion: an ABS item's Catalog declares DownloadsCapability and the item has a readaloud
+    // link, so the detail screen surfaces all download affordances including the readaloud badge.
     @Test
     fun `capabilities hasDownloads is true when the item's Catalog declares DownloadsCapability`() = runTest {
-        val absItem = knownItem.copy(sourceId = "abs-source")
+        val server = activeServer()
+        val absItem = knownItem.copy(sourceId = server.id)
+        val link = com.riffle.core.models.ReadaloudLink(
+            storytellerSourceId = "st-source",
+            storytellerBookId = "st-book",
+            absSourceId = server.id,
+            absLibraryItemId = absItem.id,
+            userConfirmed = false,
+        )
         val vm = makeVm(
             fakeRepo(absItem),
+            sourceRepository = serverRepoReturning(server),
+            readaloudLinkRepository = linkRepoReturning(link),
             catalogRegistryOverride = fakeCatalogRegistry(DownloadsAndReadaloudCatalog),
         )
         backgroundScope.launch { vm.uiState.collect {} }
@@ -1562,6 +1572,30 @@ class LibraryItemDetailViewModelTest {
         val ready = vm.uiState.value as Ready
         assertTrue(ready.capabilities.hasDownloads)
         assertTrue(ready.capabilities.hasReadaloud)
+    }
+
+    // Regression: hasReadaloud must reflect the per-item link, not the source-level capability.
+    // A source that supports readaloud (ReadaloudCapability) must not show the badge on books
+    // that have no readaloud link — that was the bug that caused the badge to appear on every
+    // book and the "No books found" message when users tapped it.
+    @Test
+    fun `capabilities hasReadaloud is false for a ReadaloudCapability source when the item has no link`() = runTest {
+        val server = activeServer()
+        val absItem = knownItem.copy(sourceId = server.id)
+        val vm = makeVm(
+            fakeRepo(absItem),
+            sourceRepository = serverRepoReturning(server),
+            readaloudLinkRepository = NoopReadaloudLinkRepository,
+            catalogRegistryOverride = fakeCatalogRegistry(DownloadsAndReadaloudCatalog),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val ready = vm.uiState.value as Ready
+        assertFalse(
+            "hasReadaloud must be false when the item has no readaloud link, even if the source supports readaloud.",
+            ready.capabilities.hasReadaloud,
+        )
     }
 
     // -------------------------------------------------------------------------
