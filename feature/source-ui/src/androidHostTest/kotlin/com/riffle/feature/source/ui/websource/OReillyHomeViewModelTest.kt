@@ -78,6 +78,7 @@ class OReillyHomeViewModelTest {
             webSourceItemGate = gate,
             dispatchers = object : DispatcherProvider {
                 override val main get() = dispatcher
+                override val mainImmediate get() = dispatcher
                 override val io get() = dispatcher
                 override val default get() = dispatcher
             },
