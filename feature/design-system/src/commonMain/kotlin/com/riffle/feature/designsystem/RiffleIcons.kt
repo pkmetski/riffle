@@ -395,11 +395,18 @@ object RiffleIcons {
         )
     }.build()
 
-    /** `Icons.Filled.Sell` — artwork for the Collections tab. */
+    /**
+     * `Icons.Filled.Sell` — artwork for the Collections tab.
+     * Both sub-paths are in a single string so the non-zero winding rule cuts the circle out of
+     * the tag body (same technique as [TurnedInNot]); splitting into two filled paths would cover
+     * the hole and produce a solid dot instead.
+     */
     val Sell: ImageVector = materialIcon("Sell") {
         listOf(
-            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 12.2 21.41 11.41z",
-            "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
+            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53" +
+                ".21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 " +
+                "12.2 21.41 11.41z" +
+                "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
         )
     }
 
