@@ -92,7 +92,7 @@
     <string name="ui_download_only_audio_doesn_t_match">Само изтегляне · аудиото не съвпада</string>
     <string name="ui_download_only_no_audiobook_linked">Само изтегляне · няма свързана аудиокнига</string>
     <string name="ui_downloading_dictionary_name">Изтегляне на речник %1$s</string>
-    <string name="ui_downloading_update_percent">Изтегляне на обновление… %1$d%%</string>
+    <string name="ui_downloading_update_percent">Изтегляне на обновление… %1$s</string>
     <string name="ui_dyslexic">Дислексик</string>
     <string name="ui_ebook_ebook">📖 Електронна книга</string>
     <string name="ui_edge">До ръба</string>
@@ -122,7 +122,7 @@
     <string name="ui_forgot_device_snack">„%1$s“ е забравено</string>
     <string name="ui_forgot_user_snack">„%1$s“ е забравен · премахнати са %2$d файл(а)</string>
     <string name="ui_formatting">Форматиране</string>
-    <string name="ui_formatting_summary">%1$s · %2$d%% · %3$s</string>
+    <string name="ui_formatting_summary">%1$s · %2$s · %3$s</string>
     <string name="ui_forward_skip">Пропускане напред</string>
     <string name="ui_github_pat">GitHub PAT</string>
     <string name="ui_github_pat_public_repo_scope">GitHub PAT (обхват public_repo)</string>

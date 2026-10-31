@@ -69,8 +69,8 @@
     <string name="ui_reading_time_estimated_total_remaining">%1$s прибл. общо · %2$s остават</string>
     <string name="ui_pages">%1$d стр.</string>
     <string name="ui_pages_read">%1$d от %2$d стр. прочетени</string>
-    <string name="ui_progress_read">%1$d%% прочетено</string>
-    <string name="ui_progress_listened">%1$d%% изслушано</string>
+    <string name="ui_progress_read">%1$s прочетено</string>
+    <string name="ui_progress_listened">%1$s изслушано</string>
     <string name="ui_nothing_to_read_or_listen">Няма какво да се чете или слуша</string>
     <string name="ui_edit_metadata">Редактирай метаданни</string>
     <string name="ui_upload_to">Качи в</string>

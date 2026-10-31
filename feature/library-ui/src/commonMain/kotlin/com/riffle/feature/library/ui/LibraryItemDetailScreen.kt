@@ -976,9 +976,9 @@ internal fun ReadingProgressIndicator(item: LibraryItem) {
             modifier = Modifier.fillMaxWidth().testTag(TestTags.BOOK_DETAIL_PROGRESS),
         )
         Spacer(Modifier.height(4.dp))
-        val pct = (progress * 100).roundToInt().coerceIn(0, 100)
+        val pctStr = "${(progress * 100).roundToInt().coerceIn(0, 100)}%"
         Text(
-            text = if (listened) stringResource(Res.string.ui_progress_listened, pct) else stringResource(Res.string.ui_progress_read, pct),
+            text = if (listened) stringResource(Res.string.ui_progress_listened, pctStr) else stringResource(Res.string.ui_progress_read, pctStr),
             style = MaterialTheme.typography.bodyMedium,
         )
     }

@@ -103,7 +103,7 @@ fun ReadaloudMiniPlayer(
                 )
             } else if (downloadProgress != null) {
                 Text(
-                    text = stringResource(Res.string.ui_downloading_percent, (downloadProgress * 100).toInt()),
+                    text = stringResource(Res.string.ui_downloading_percent, "${(downloadProgress * 100).toInt()}%"),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .weight(1f)

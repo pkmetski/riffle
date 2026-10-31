@@ -99,7 +99,7 @@ fun localizedFormattingSummary(prefs: FormattingPreferences): String =
     stringResource(
         Res.string.ui_formatting_summary,
         prefs.fontFamily.localizedLabel(),
-        (prefs.fontSize * 100).roundToInt(),
+        "${(prefs.fontSize * 100).roundToInt()}%",
         // TODO: migrate to Res.string.ui_margins_summary
         stringResource(Res.string.ui_margins_summary, marginsLabel(prefs.margins)),
     )
