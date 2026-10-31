@@ -123,12 +123,23 @@ class PublicationMetricsRepositoryImplTest {
     @Test
     fun `saving page count writes through to library item when null`() = runTest {
         val libraryItemDao = FakeLibraryItemDao()
+        libraryItemDao.emit("src", listOf(libraryItemEntity(sourceId = "src", itemId = "pdf-1", libraryId = "books", pageCount = null)))
+        val repository = makeRepo(libraryItemDao = libraryItemDao)
+
+        repository.save("src", "pdf-1", PublicationMetrics(ebookFileIno = "ino-1", pageCount = 287))
+
+        assertEquals(287, libraryItemDao.itemsFor("books").first { it.id == "pdf-1" }.pageCount)
+    }
+
+    @Test
+    fun `saving total positions writes through to library item as page count proxy when null`() = runTest {
+        val libraryItemDao = FakeLibraryItemDao()
         libraryItemDao.emit("src", listOf(libraryItemEntity(sourceId = "src", itemId = "epub-1", libraryId = "books", pageCount = null)))
         val repository = makeRepo(libraryItemDao = libraryItemDao)
 
-        repository.save("src", "epub-1", PublicationMetrics(ebookFileIno = "ino-1", pageCount = 287))
+        repository.save("src", "epub-1", PublicationMetrics(ebookFileIno = "ino-1", totalPositions = 8400))
 
-        assertEquals(287, libraryItemDao.itemsFor("books").first { it.id == "epub-1" }.pageCount)
+        assertEquals(8400, libraryItemDao.itemsFor("books").first { it.id == "epub-1" }.pageCount)
     }
 
     @Test

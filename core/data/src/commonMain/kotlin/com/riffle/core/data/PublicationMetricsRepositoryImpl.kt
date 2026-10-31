@@ -41,9 +41,13 @@ class PublicationMetricsRepositoryImpl constructor(
                 cachedAt = clock.nowMs(),
             )
         )
-        val pageCount = metrics.pageCount
-        if (pageCount != null) {
-            libraryItemDao.updatePageCountIfNull(sourceId, itemId, pageCount)
+        // Write a length proxy to library_items.pageCount so the library sort-by-length works
+        // without a DAO JOIN. For PDFs/CBZs, pageCount is the real value. For EPUBs, totalPositions
+        // is used as a proxy (it's proportional to reading time, just in a different unit). The
+        // null guard ensures real page counts already in the row are never overwritten by an estimate.
+        val lengthProxy = metrics.pageCount ?: metrics.totalPositions
+        if (lengthProxy != null) {
+            libraryItemDao.updatePageCountIfNull(sourceId, itemId, lengthProxy)
         }
     }
 }
