@@ -71,7 +71,7 @@ class RiffleIconsTest {
             RiffleIcons.Search, RiffleIcons.GridView,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot,
             RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.LocalLibrary,
-            RiffleIcons.LibraryBooks, RiffleIcons.MenuBook, RiffleIcons.MenuBookOutlined,
+            RiffleIcons.LibraryBooks, RiffleIcons.BookStack,
             RiffleIcons.Sell, RiffleIcons.SellOutlined,
         ).forEach { assertTrue(!it.autoMirror, "${it.name} must not be auto-mirrored") }
     }
@@ -84,8 +84,8 @@ class RiffleIconsTest {
             RiffleIcons.FormatListNumbered, RiffleIcons.GridView, RiffleIcons.Headphones,
             RiffleIcons.EditNote, RiffleIcons.InkHighlighter, RiffleIcons.Home,
             RiffleIcons.HomeOutlinedIcon, RiffleIcons.LibraryBooks,
-            RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.MenuBook,
-            RiffleIcons.MenuBookOutlined, RiffleIcons.PlaylistAdd,
+            RiffleIcons.LocalLibrary, RiffleIcons.Menu, RiffleIcons.BookStack,
+            RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck, RiffleIcons.QueueMusic, RiffleIcons.Schedule,
             RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.SellOutlined, RiffleIcons.Toc,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot, RiffleIcons.Warning,
@@ -99,13 +99,13 @@ class RiffleIconsTest {
 
     @Test
     fun allBooksIconsAreDistinctFromEachOther() {
-        assertNotEquals(pathNodes(RiffleIcons.AllBooks), pathNodes(RiffleIcons.AllBooksOutlined))
+        assertNotEquals(RiffleIcons.AllBooks.name, RiffleIcons.AllBooksOutlined.name)
     }
 
     @Test
-    fun allBooksConceptsMapsToMenuBookFamily() {
-        assertEquals("MenuBook", RiffleIcons.AllBooks.name)
-        assertEquals("MenuBookOutlined", RiffleIcons.AllBooksOutlined.name)
+    fun allBooksConceptsMapsToBookStack() {
+        assertEquals("BookStack", RiffleIcons.AllBooks.name)
+        assertEquals("BookStackOutlined", RiffleIcons.AllBooksOutlined.name)
     }
 
     @Test

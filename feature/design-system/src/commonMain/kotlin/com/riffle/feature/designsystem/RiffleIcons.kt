@@ -65,10 +65,10 @@ object RiffleIcons {
     val HomeOutlined: ImageVector get() = HomeOutlinedIcon
 
     /** All library books tab, selected. */
-    val AllBooks: ImageVector get() = MenuBook
+    val AllBooks: ImageVector get() = BookStack
 
     /** All library books tab, unselected. */
-    val AllBooksOutlined: ImageVector get() = MenuBookOutlined
+    val AllBooksOutlined: ImageVector get() = BookStackOutlined
 
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
@@ -234,26 +234,9 @@ object RiffleIcons {
         listOf("M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z")
     }
 
-    /** `Icons.Filled.MenuBook` — two-page open book; artwork for the [AllBooks] concept. */
-    val MenuBook: ImageVector = materialIcon("MenuBook") {
-        listOf(
-            "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5" +
-                "S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20" +
-                "c1.95 0 3.75.4 5 1.5 1.35-1.1 3.55-1.5 5.5-1.5 1.85 0 3.75.35 5.25 1.15" +
-                ".1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1z" +
-                "M21 18.5c-1.1-.35-2.3-.5-3.5-.5-1.95 0-3.75.65-5 1.5V8c1.25-.85 3.05-1.5 5-1.5" +
-                "c1.2 0 2.4.15 3.5.5V18.5z",
-        )
-    }
-
-    /** `Icons.Outlined.MenuBook` — open-book shape without the right-page fill; [AllBooksOutlined] artwork. */
-    val MenuBookOutlined: ImageVector = materialIcon("MenuBookOutlined") {
-        listOf(
-            "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5" +
-                "S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20" +
-                "c1.95 0 3.75.4 5 1.5 1.35-1.1 3.55-1.5 5.5-1.5 1.85 0 3.75.35 5.25 1.15" +
-                ".1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1z",
-        )
+    /** Three books of varying heights standing on a shelf — artwork for the [AllBooks] concept. */
+    val BookStack: ImageVector = materialIcon("BookStack") {
+        listOf("M2 21.5h20V20H2zM3 7h4.5v13H3zM9 10h4.5v10.5H9zM15 8h4.5v12.5H15z")
     }
 
     /** `Icons.Filled.LibraryBooks` — artwork for the All Books tab. */
@@ -386,15 +369,31 @@ object RiffleIcons {
         )
     }
 
-    /** `Icons.Outlined.Sell` — artwork for the Collections tab, unselected. */
-    val SellOutlined: ImageVector = materialIcon("SellOutlined") {
-        listOf(
-            "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17c0 .53" +
-                ".21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17C22.2 13.46 22.2 " +
-                "12.2 21.41 11.41zM13 18.01L4 9V4h5l9 9-5 5.01z" +
-                "M6.5 5C7.33 5 8 5.67 8 6.5S7.33 8 6.5 8 5 7.33 5 6.5 5.67 5 6.5 5z",
+    /** `Icons.Outlined.Sell` — stroke-only tag outline; artwork for the Collections tab, unselected. */
+    val SellOutlined: ImageVector = ImageVector.Builder(
+        name = "SellOutlined",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        val brush = SolidColor(Color.Black)
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M21.41 11.41l-8.83-8.83C12.21 2.21 11.7 2 11.17 2H4C2.9 2 2 2.9 2 4v7.17" +
+                    "c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17" +
+                    "C22.2 13.46 22.2 12.2 21.41 11.41z",
+            ).toNodes(),
+            stroke = brush,
+            strokeLineWidth = 1.3f,
         )
-    }
+        addPath(
+            pathData = PathParser().parsePathString(
+                "M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z",
+            ).toNodes(),
+            fill = brush,
+        )
+    }.build()
 
     /** `Icons.Filled.Sell` — artwork for the Collections tab. */
     val Sell: ImageVector = materialIcon("Sell") {
@@ -435,6 +434,29 @@ object RiffleIcons {
 private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
     listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
 }
+
+/** Stroke-only bookshelf — artwork for [RiffleIcons.AllBooksOutlined]. */
+private val BookStackOutlined: ImageVector = ImageVector.Builder(
+    name = "BookStackOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    val brush = SolidColor(Color.Black)
+    val sw = 1.3f
+    addPath(
+        pathData = PathParser().parsePathString("M2 21.5h20V20H2z").toNodes(),
+        fill = brush,
+    )
+    listOf("M3 7h4.5v13H3z", "M9 10h4.5v10.5H9z", "M15 8h4.5v12.5H15z").forEach { path ->
+        addPath(
+            pathData = PathParser().parsePathString(path).toNodes(),
+            stroke = brush,
+            strokeLineWidth = sw,
+        )
+    }
+}.build()
 
 /** Outlined (stroke-only) ink-highlighter — artwork for [RiffleIcons.AnnotationsOutlined]. */
 private val InkHighlighterOutlined: ImageVector = ImageVector.Builder(
