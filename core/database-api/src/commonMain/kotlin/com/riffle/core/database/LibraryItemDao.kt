@@ -50,9 +50,60 @@ interface LibraryItemDao {
      * Updates all metadata columns for an existing row, intentionally excluding [readingProgress].
      * Progress is owned by the reader-close path ([updateReadingProgress]) and must not be
      * overwritten by a library refresh carrying a stale server value.
+     *
+     * [pageCount] uses COALESCE so that locally-derived values (backfilled from
+     * [publication_metrics_cache] or written through from [PublicationMetricsRepository]) survive
+     * library refreshes where the server does not supply a page count (e.g. ABS always sends null).
+     * If the server does supply a non-null value (e.g. Komga), it wins as usual.
      */
-    @Update(entity = LibraryItemEntity::class)
-    suspend fun updateMetadata(metadata: LibraryItemMetadata)
+    @Query("""
+        UPDATE library_items SET
+          libraryId = :libraryId,
+          title = :title,
+          author = :author,
+          coverUrl = :coverUrl,
+          ebookFileIno = :ebookFileIno,
+          ebookFormat = :ebookFormat,
+          hasAudio = :hasAudio,
+          audioDurationSec = :audioDurationSec,
+          description = :description,
+          seriesName = :seriesName,
+          publishedYear = :publishedYear,
+          genres = :genres,
+          publisher = :publisher,
+          language = :language,
+          lastOpenedAt = :lastOpenedAt,
+          addedAt = :addedAt,
+          isbn = :isbn,
+          asin = :asin,
+          finishedAt = :finishedAt,
+          pageCount = COALESCE(:pageCount, pageCount)
+        WHERE sourceId = :sourceId AND id = :id
+    """)
+    suspend fun updateMetadata(
+        sourceId: String,
+        id: String,
+        libraryId: String,
+        title: String,
+        author: String,
+        coverUrl: String?,
+        ebookFileIno: String?,
+        ebookFormat: String,
+        hasAudio: Boolean,
+        audioDurationSec: Double,
+        description: String?,
+        seriesName: String?,
+        publishedYear: String?,
+        genres: String,
+        publisher: String?,
+        language: String?,
+        lastOpenedAt: Long?,
+        addedAt: Long,
+        isbn: String?,
+        asin: String?,
+        finishedAt: Long?,
+        pageCount: Int?,
+    )
 
     /** Removes library items whose id is no longer present on the server. Bounded ID list; see
      *  [replaceAllForLibrary] for how the caller chunks the input. */
@@ -104,8 +155,35 @@ interface LibraryItemDao {
         toDelete.chunked(SQLITE_MAX_BIND_ARGS).forEach { chunk -> deleteByIds(sourceId, chunk) }
         // Insert truly new items — they get the server's readingProgress as the initial seed.
         insertOrIgnore(items)
-        // Update metadata for all items, preserving each row's local readingProgress.
-        items.forEach { updateMetadata(LibraryItemMetadata.from(it)) }
+        // Update metadata for all items, preserving each row's local readingProgress and any
+        // locally-derived pageCount (e.g. from publication_metrics_cache backfill).
+        items.forEach { item ->
+            val m = LibraryItemMetadata.from(item)
+            updateMetadata(
+                sourceId = m.sourceId,
+                id = m.id,
+                libraryId = m.libraryId,
+                title = m.title,
+                author = m.author,
+                coverUrl = m.coverUrl,
+                ebookFileIno = m.ebookFileIno,
+                ebookFormat = m.ebookFormat,
+                hasAudio = m.hasAudio,
+                audioDurationSec = m.audioDurationSec,
+                description = m.description,
+                seriesName = m.seriesName,
+                publishedYear = m.publishedYear,
+                genres = m.genres,
+                publisher = m.publisher,
+                language = m.language,
+                lastOpenedAt = m.lastOpenedAt,
+                addedAt = m.addedAt,
+                isbn = m.isbn,
+                asin = m.asin,
+                finishedAt = m.finishedAt,
+                pageCount = m.pageCount,
+            )
+        }
     }
 
     companion object {

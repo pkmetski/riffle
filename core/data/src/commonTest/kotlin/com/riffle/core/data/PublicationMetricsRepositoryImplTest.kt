@@ -153,4 +153,24 @@ class PublicationMetricsRepositoryImplTest {
 
         assertEquals(42, libraryItemDao.itemsFor("books").first { it.id == "cbz-1" }.pageCount)
     }
+
+    @Test
+    fun `library refresh with null server pageCount preserves locally derived pageCount`() = runTest {
+        val libraryItemDao = FakeLibraryItemDao()
+        libraryItemDao.emit("src", listOf(libraryItemEntity(sourceId = "src", itemId = "epub-1", libraryId = "books", pageCount = 8400)))
+
+        libraryItemDao.updateMetadata(
+            sourceId = "src", id = "epub-1", libraryId = "books",
+            title = "Book", author = "Author", coverUrl = null,
+            ebookFileIno = null, ebookFormat = "epub",
+            hasAudio = false, audioDurationSec = 0.0,
+            description = null, seriesName = null, publishedYear = null,
+            genres = "", publisher = null, language = null,
+            lastOpenedAt = null, addedAt = 0L,
+            isbn = null, asin = null, finishedAt = null,
+            pageCount = null,
+        )
+
+        assertEquals(8400, libraryItemDao.itemsFor("books").first { it.id == "epub-1" }.pageCount)
+    }
 }

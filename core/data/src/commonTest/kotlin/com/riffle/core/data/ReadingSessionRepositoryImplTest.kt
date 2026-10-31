@@ -214,7 +214,7 @@ class ReadingSessionRepositoryImplTest {
         override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {}
-        override suspend fun updateMetadata(metadata: LibraryItemMetadata) {}
+        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
         override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {}
         override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> = emptyList()
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = items[itemId]

@@ -122,7 +122,7 @@ class SeriesIntegrationTest {
         override suspend fun findSourceIdForItem(itemId: String): String? = null
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {}
-        override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) {}
+        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) {}
         override suspend fun deleteById(sourceId: String, itemId: String) {}
         override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {}

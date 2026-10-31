@@ -100,7 +100,7 @@ class WebSourceLibraryItemMaterializerTest {
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
             insertedItems += items
         }
-        override suspend fun updateMetadata(metadata: LibraryItemMetadata) = Unit
+        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             progressUpdates += Triple(sourceId, itemId, progress)
         }

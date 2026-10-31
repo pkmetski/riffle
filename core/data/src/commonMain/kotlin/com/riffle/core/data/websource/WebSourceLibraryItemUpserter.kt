@@ -42,14 +42,24 @@ class WebSourceLibraryItemUpserter constructor(
         //   - finishedAt   → null, undoing the "finished" stamp
         // Read the row once and splice the surviving locals back onto the fresh entity.
         val existing = libraryItemDao.getById(sourceId, entity.id)
-        libraryItemDao.updateMetadata(
-            LibraryItemMetadata.from(
-                entity.copy(
-                    addedAt = existing?.addedAt ?: 0L,
-                    lastOpenedAt = existing?.lastOpenedAt,
-                    finishedAt = existing?.finishedAt,
-                ),
+        val m = LibraryItemMetadata.from(
+            entity.copy(
+                addedAt = existing?.addedAt ?: 0L,
+                lastOpenedAt = existing?.lastOpenedAt,
+                finishedAt = existing?.finishedAt,
             ),
+        )
+        libraryItemDao.updateMetadata(
+            sourceId = m.sourceId, id = m.id, libraryId = m.libraryId,
+            title = m.title, author = m.author, coverUrl = m.coverUrl,
+            ebookFileIno = m.ebookFileIno, ebookFormat = m.ebookFormat,
+            hasAudio = m.hasAudio, audioDurationSec = m.audioDurationSec,
+            description = m.description, seriesName = m.seriesName,
+            publishedYear = m.publishedYear, genres = m.genres,
+            publisher = m.publisher, language = m.language,
+            lastOpenedAt = m.lastOpenedAt, addedAt = m.addedAt,
+            isbn = m.isbn, asin = m.asin, finishedAt = m.finishedAt,
+            pageCount = m.pageCount,
         )
     }
 

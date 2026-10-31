@@ -429,7 +429,7 @@ class CatalogProgressRemoteFactoryTest {
             override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(null)
             override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
             override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
-            override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
+            override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
             override suspend fun listByLibraryId(sourceId: String, libraryId: String) = emptyList<LibraryItemEntity>()
             override suspend fun listByIds(sourceId: String, itemIds: List<String>) = emptyList<LibraryItemEntity>()
             override suspend fun findSourceIdForItem(itemId: String): String? = null

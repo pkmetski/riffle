@@ -64,30 +64,53 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    override suspend fun updateMetadata(metadata: LibraryItemMetadata) {
-        val flow = roomData[metadata.libraryId] ?: return
+    override suspend fun updateMetadata(
+        sourceId: String,
+        id: String,
+        libraryId: String,
+        title: String,
+        author: String,
+        coverUrl: String?,
+        ebookFileIno: String?,
+        ebookFormat: String,
+        hasAudio: Boolean,
+        audioDurationSec: Double,
+        description: String?,
+        seriesName: String?,
+        publishedYear: String?,
+        genres: String,
+        publisher: String?,
+        language: String?,
+        lastOpenedAt: Long?,
+        addedAt: Long,
+        isbn: String?,
+        asin: String?,
+        finishedAt: Long?,
+        pageCount: Int?,
+    ) {
+        val flow = roomData[libraryId] ?: return
         flow.value = flow.value.map { existing ->
-            if (existing.sourceId == metadata.sourceId && existing.id == metadata.id) {
+            if (existing.sourceId == sourceId && existing.id == id) {
                 existing.copy(
-                    libraryId = metadata.libraryId,
-                    title = metadata.title,
-                    author = metadata.author,
-                    coverUrl = metadata.coverUrl,
-                    ebookFileIno = metadata.ebookFileIno,
-                    ebookFormat = metadata.ebookFormat,
-                    hasAudio = metadata.hasAudio,
-                    audioDurationSec = metadata.audioDurationSec,
-                    description = metadata.description,
-                    seriesName = metadata.seriesName,
-                    publishedYear = metadata.publishedYear,
-                    genres = metadata.genres,
-                    publisher = metadata.publisher,
-                    language = metadata.language,
-                    lastOpenedAt = metadata.lastOpenedAt,
-                    addedAt = metadata.addedAt,
-                    isbn = metadata.isbn,
-                    asin = metadata.asin,
-                    pageCount = metadata.pageCount,
+                    libraryId = libraryId,
+                    title = title,
+                    author = author,
+                    coverUrl = coverUrl,
+                    ebookFileIno = ebookFileIno,
+                    ebookFormat = ebookFormat,
+                    hasAudio = hasAudio,
+                    audioDurationSec = audioDurationSec,
+                    description = description,
+                    seriesName = seriesName,
+                    publishedYear = publishedYear,
+                    genres = genres,
+                    publisher = publisher,
+                    language = language,
+                    lastOpenedAt = lastOpenedAt,
+                    addedAt = addedAt,
+                    isbn = isbn,
+                    asin = asin,
+                    pageCount = pageCount ?: existing.pageCount,
                 )
             } else {
                 existing
