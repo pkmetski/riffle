@@ -34,6 +34,7 @@ object TestTags {
     const val TO_READ_SORT = "to_read_sort"
     const val LIBRARY_OVERFLOW_MENU = "library_overflow_menu"
     const val LIBRARY_SECTION_BACK = "library_section_back"
+    fun sortModeItem(mode: String) = "sort_mode_item_$mode"
     fun libraryBookItem(index: Int) = "library_book_item_$index"
     fun annotatedBookTile(itemId: String) = "annotated_book_tile_$itemId"
 

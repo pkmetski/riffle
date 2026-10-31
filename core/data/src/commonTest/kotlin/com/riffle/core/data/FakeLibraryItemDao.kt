@@ -110,6 +110,7 @@ internal class FakeLibraryItemDao : LibraryItemDao {
                     addedAt = addedAt,
                     isbn = isbn,
                     asin = asin,
+                    finishedAt = finishedAt,
                     pageCount = pageCount ?: existing.pageCount,
                 )
             } else {

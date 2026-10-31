@@ -671,6 +671,7 @@ private fun ToReadSortChip(
                     } else {
                         null
                     },
+                    modifier = Modifier.testTag(TestTags.sortModeItem(mode.name)),
                 )
             }
         }
@@ -1168,6 +1169,7 @@ private fun AllBooksTabContent(
                             } else {
                                 null
                             },
+                            modifier = Modifier.testTag(TestTags.sortModeItem(mode.name)),
                         )
                     }
                 }
