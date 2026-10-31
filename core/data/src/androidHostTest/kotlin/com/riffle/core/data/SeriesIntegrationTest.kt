@@ -135,6 +135,7 @@ class SeriesIntegrationTest {
         override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) {}
         override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
         override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
         override fun observeInProgressAllSources(): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())

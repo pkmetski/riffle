@@ -216,6 +216,9 @@ interface LibraryItemDao {
     @Query("UPDATE library_items SET finishedAt = :finishedAt WHERE sourceId = :sourceId AND id = :itemId")
     suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?)
 
+    @Query("UPDATE library_items SET pageCount = :pageCount WHERE sourceId = :sourceId AND id = :itemId AND pageCount IS NULL")
+    suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int)
+
     @Query("SELECT id, lastOpenedAt FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
     suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow>
 

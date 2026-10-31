@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.common.Clock
 import com.riffle.core.common.isDerivedCacheStale
+import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.PublicationMetricsCacheDao
 import com.riffle.core.database.PublicationMetricsCacheEntity
 import com.riffle.core.domain.PublicationMetrics
@@ -10,6 +11,7 @@ import com.riffle.core.domain.PublicationMetricsRepository
 class PublicationMetricsRepositoryImpl constructor(
     private val dao: PublicationMetricsCacheDao,
     private val clock: Clock,
+    private val libraryItemDao: LibraryItemDao,
 ) : PublicationMetricsRepository {
 
     override suspend fun get(sourceId: String, itemId: String): PublicationMetrics? {
@@ -39,5 +41,9 @@ class PublicationMetricsRepositoryImpl constructor(
                 cachedAt = clock.nowMs(),
             )
         )
+        val pageCount = metrics.pageCount
+        if (pageCount != null) {
+            libraryItemDao.updatePageCountIfNull(sourceId, itemId, pageCount)
+        }
     }
 }

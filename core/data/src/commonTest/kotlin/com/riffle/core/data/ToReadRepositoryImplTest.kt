@@ -122,6 +122,30 @@ class ToReadRepositoryImplTest {
     }
 
     @Test
+    fun refreshForSourceOnlyUpsertsItemsBelongingToTargetLibrary() = runTest {
+        val upserted = mutableListOf<Pair<String, String>>()
+        val upserter = ToReadItemUpserter { sourceId, item -> upserted.add(sourceId to item.id) }
+        // Simulates O'Reilly: playlist returns both a book variant (rootId="books") and an
+        // audiobook variant (rootId="audiobooks") for the same ISBN entry. When refreshing
+        // for the audiobooks library, only the audiobook item should be upserted.
+        val cap = FakeCatalog(
+            playlistsByLibrary = mapOf(
+                "audiobooks" to listOf(playlist("pl-1", "To Read", listOf("item-AU", "item-book"))),
+            ),
+            getItemResult = { id ->
+                when (id) {
+                    "item-AU" -> CatalogItem(id = id, rootId = "audiobooks", title = "Book (audio)", author = "", coverUrl = null, ebookFormat = BookFormat.Audiobook, hasAudio = true, audioDurationSec = 3600.0)
+                    "item-book" -> CatalogItem(id = id, rootId = "books", title = "Book (ebook)", author = "", coverUrl = null, ebookFormat = BookFormat.Epub)
+                    else -> null
+                }
+            },
+        )
+        val repo = makeRepo(cap, upserter = upserter)
+        repo.refreshForSource("src-oreilly", "audiobooks")
+        assertEquals(listOf("src-oreilly" to "item-AU"), upserted)
+    }
+
+    @Test
     fun refreshForSource_doesNotUpsertWhenUpserterIsNull() = runTest {
         val cap = FakeCatalog(
             playlistsByLibrary = mapOf("books" to listOf(playlist("pl-1", "To Read", listOf("item-1")))),

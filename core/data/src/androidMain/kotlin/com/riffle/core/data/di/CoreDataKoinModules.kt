@@ -731,7 +731,7 @@ private val coreDataRepositoriesModule = module {
     single<ConnectivityObserver> { ConnectivityObserverImpl(androidContext(), get()) }
     single<LocalAvailabilityEvents> { LocalAvailabilityEventsImpl() }
     single<TocRepository> { TocRepositoryImpl(get(), get()) }
-    single<PublicationMetricsRepository> { PublicationMetricsRepositoryImpl(get(), get()) }
+    single<PublicationMetricsRepository> { PublicationMetricsRepositoryImpl(get(), get(), get()) }
     single<AnnotationsLibraryRepository> { AnnotationsLibraryRepositoryImpl(get(), get(), get()) }
 
     single<JvmEpubRepository> {

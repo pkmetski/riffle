@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.DERIVED_CACHE_TTL_MS
+import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.PublicationMetricsCacheDao
 import com.riffle.core.database.PublicationMetricsCacheEntity
 import com.riffle.core.domain.PublicationMetrics
@@ -29,10 +30,15 @@ class PublicationMetricsRepositoryImplTest {
         }
     }
 
+    private fun makeRepo(
+        dao: FakeDao = FakeDao(),
+        libraryItemDao: FakeLibraryItemDao = FakeLibraryItemDao(),
+    ) = PublicationMetricsRepositoryImpl(dao, TestClock(NOW_MS), libraryItemDao)
+
     @Test
     fun `epub position count round trips with file identity`() = runTest {
         val dao = FakeDao()
-        val repository = PublicationMetricsRepositoryImpl(dao, TestClock(NOW_MS))
+        val repository = makeRepo(dao)
 
         repository.save(
             "src",
@@ -49,7 +55,7 @@ class PublicationMetricsRepositoryImplTest {
 
     @Test
     fun `pdf page count round trips`() = runTest {
-        val repository = PublicationMetricsRepositoryImpl(FakeDao(), TestClock(NOW_MS))
+        val repository = makeRepo()
 
         repository.save(
             "src",
@@ -62,7 +68,7 @@ class PublicationMetricsRepositoryImplTest {
 
     @Test
     fun `epub version round trips`() = runTest {
-        val repository = PublicationMetricsRepositoryImpl(FakeDao(), TestClock(NOW_MS))
+        val repository = makeRepo()
 
         repository.save(
             "src",
@@ -75,7 +81,7 @@ class PublicationMetricsRepositoryImplTest {
 
     @Test
     fun `null epub version round trips`() = runTest {
-        val repository = PublicationMetricsRepositoryImpl(FakeDao(), TestClock(NOW_MS))
+        val repository = makeRepo()
 
         repository.save(
             "src",
@@ -97,8 +103,42 @@ class PublicationMetricsRepositoryImplTest {
             pageCount = null,
             cachedAt = NOW_MS - DERIVED_CACHE_TTL_MS,
         )
-        val repository = PublicationMetricsRepositoryImpl(dao, TestClock(NOW_MS))
+        val repository = makeRepo(dao)
 
         assertNull(repository.get("src", "epub"))
+    }
+
+    private fun libraryItemEntity(
+        sourceId: String,
+        itemId: String,
+        libraryId: String,
+        pageCount: Int?,
+    ) = LibraryItemEntity(
+        sourceId = sourceId, id = itemId, libraryId = libraryId,
+        title = "Book", author = "Author", coverUrl = null,
+        readingProgress = 0f, ebookFormat = "epub", hasAudio = false,
+        audioDurationSec = 0.0, addedAt = 0L, pageCount = pageCount,
+    )
+
+    @Test
+    fun `saving page count writes through to library item when null`() = runTest {
+        val libraryItemDao = FakeLibraryItemDao()
+        libraryItemDao.emit("src", listOf(libraryItemEntity(sourceId = "src", itemId = "epub-1", libraryId = "books", pageCount = null)))
+        val repository = makeRepo(libraryItemDao = libraryItemDao)
+
+        repository.save("src", "epub-1", PublicationMetrics(ebookFileIno = "ino-1", pageCount = 287))
+
+        assertEquals(287, libraryItemDao.itemsFor("books").first { it.id == "epub-1" }.pageCount)
+    }
+
+    @Test
+    fun `saving page count does not overwrite existing page count`() = runTest {
+        val libraryItemDao = FakeLibraryItemDao()
+        libraryItemDao.emit("src", listOf(libraryItemEntity(sourceId = "src", itemId = "cbz-1", libraryId = "books", pageCount = 42)))
+        val repository = makeRepo(libraryItemDao = libraryItemDao)
+
+        repository.save("src", "cbz-1", PublicationMetrics(ebookFileIno = "ino-2", pageCount = 99))
+
+        assertEquals(42, libraryItemDao.itemsFor("books").first { it.id == "cbz-1" }.pageCount)
     }
 }

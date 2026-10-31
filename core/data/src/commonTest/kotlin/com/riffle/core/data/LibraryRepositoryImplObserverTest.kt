@@ -108,6 +108,7 @@ class LibraryRepositoryImplObserverTest {
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {
             finishedAtUpdates += Triple(sourceId, itemId, finishedAt)
         }
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) = Unit
 
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()

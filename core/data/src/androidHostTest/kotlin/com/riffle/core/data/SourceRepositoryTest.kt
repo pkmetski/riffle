@@ -245,6 +245,7 @@ class ServerRepositoryTest {
         override suspend fun updateReadingProgressFromServer(sourceId: String, itemId: String, progress: Float, serverUpdatedAt: Long) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) {}
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
         override fun observeBySource(sourceId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override fun observeInProgressAllSources() = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())

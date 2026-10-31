@@ -201,6 +201,18 @@ internal class FakeLibraryItemDao : LibraryItemDao {
 
     override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
 
+    override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                if (it.sourceId == sourceId && it.id == itemId && it.pageCount == null) {
+                    it.copy(pageCount = pageCount)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
     override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()
 
     override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> =

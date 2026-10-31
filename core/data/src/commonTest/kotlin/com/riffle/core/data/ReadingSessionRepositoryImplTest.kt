@@ -194,6 +194,7 @@ class ReadingSessionRepositoryImplTest {
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {
             finishedAtMap[itemId] = finishedAt
         }
+        override suspend fun updatePageCountIfNull(sourceId: String, itemId: String, pageCount: Int) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             readingProgressMap[itemId] = progress
         }
