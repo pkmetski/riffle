@@ -83,8 +83,16 @@ class NoteGlyphRenderHarnessTest : KoinTest {
         // rationale (SlotWriter AIOOBE race). Pattern mirrors NavigationSnapHarnessTest.tearDown().
         Thread.sleep(400)
         composeTestRule.activityRule.scenario.close()
+        // Two GC passes with finalization between them — encourages WebView to release its
+        // native OpenGL surfaces so SurfaceFlinger can reclaim the GPU buffer pool before the
+        // next orientation test starts. On memory-constrained CI runners (e.g. the iOS workflow's
+        // Android emulator) a single GC + 400 ms is not enough; without this, the consecutive
+        // paginated → vertical launch sequence can exhaust the API-25 emulator's surface buffers
+        // and crash SurfaceFlinger mid-test.
         Runtime.getRuntime().gc()
-        Thread.sleep(400)
+        System.runFinalization()
+        Runtime.getRuntime().gc()
+        Thread.sleep(1200)
         database.clearAllTables()
     }
 
