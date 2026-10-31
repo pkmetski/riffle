@@ -70,6 +70,12 @@ object RiffleIcons {
     /** All library books tab, unselected. */
     val AllBooksOutlined: ImageVector get() = BookStackOutlined
 
+    /** Numbered series list — unselected state for the Series nav tab. */
+    val FormatListNumberedOutlined: ImageVector get() = FormatListNumberedOutlinedIcon
+
+    /** Music queue — unselected state for the Playlists nav tab. */
+    val QueueMusicOutlined: ImageVector get() = QueueMusicOutlinedIcon
+
     /** Table of contents — reader top bar and item-detail sections row. */
     val Toc: ImageVector get() = TocIcon
 
@@ -441,6 +447,44 @@ object RiffleIcons {
 private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
     listOf("M3 9h14L17 7L3 7v2zM3 13h14v-2L3 11v2zM3 17h14v-2L3 15v2zM19 17h2v-2h-2v2zM19 7v2h2L21 7h-2zM19 13h2v-2h-2v2z")
 }
+
+/** Stroke-only numbered list — artwork for [RiffleIcons.FormatListNumberedOutlined]. */
+private val FormatListNumberedOutlinedIcon: ImageVector = ImageVector.Builder(
+    name = "FormatListNumberedOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+    autoMirror = true,
+).apply {
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 " +
+                "10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z",
+        ).toNodes(),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 0.8f,
+    )
+}.build()
+
+/** Stroke-only music queue — artwork for [RiffleIcons.QueueMusicOutlined]. */
+private val QueueMusicOutlinedIcon: ImageVector = ImageVector.Builder(
+    name = "QueueMusicOutlined",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+    autoMirror = true,
+).apply {
+    addPath(
+        pathData = PathParser().parsePathString(
+            "M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2z" +
+                "M17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z",
+        ).toNodes(),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 0.8f,
+    )
+}.build()
 
 /** Stroke-only bookshelf — artwork for [RiffleIcons.AllBooksOutlined]. */
 private val BookStackOutlined: ImageVector = ImageVector.Builder(

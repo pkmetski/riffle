@@ -414,7 +414,12 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = seriesLabel) },
+                icon = {
+                    Icon(
+                        if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
+                        contentDescription = seriesLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_SERIES),
             )
         }
@@ -432,10 +437,16 @@ private fun LibraryTabBar(
             )
         }
         if (visibility.playlists) {
+            val playlistsIndex = tabIndexForPlaylists()
             NavigationBarItem(
-                selected = selectedTab == tabIndexForPlaylists(),
-                onClick = { onTabSelected(tabIndexForPlaylists()) },
-                icon = { Icon(RiffleIcons.QueueMusic, contentDescription = playlistsLabel) },
+                selected = selectedTab == playlistsIndex,
+                onClick = { onTabSelected(playlistsIndex) },
+                icon = {
+                    Icon(
+                        if (selectedTab == playlistsIndex) RiffleIcons.QueueMusic else RiffleIcons.QueueMusicOutlined,
+                        contentDescription = playlistsLabel,
+                    )
+                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_PLAYLISTS),
             )
         }
