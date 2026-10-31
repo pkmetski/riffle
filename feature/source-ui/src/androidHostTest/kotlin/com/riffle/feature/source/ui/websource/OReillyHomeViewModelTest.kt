@@ -1,18 +1,9 @@
 package com.riffle.feature.source.ui.websource
 
-import com.riffle.core.catalog.BookFormat
-import com.riffle.core.catalog.CatalogItem
-import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.catalog.ReadingHistoryCapability
-import com.riffle.core.catalog.oreilly.OReillyCatalog
-import com.riffle.core.data.websource.WebSourceItemGate
-import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
-import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.models.Source
-import com.riffle.core.models.SourceType
-import com.riffle.core.models.SourceUrl
-import io.mockk.coEvery
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,64 +27,35 @@ class OReillyHomeViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private val oreillySource = Source(
-        id = "oreilly-1",
-        url = SourceUrl.parse("https://learning.oreilly.com")!!,
-        isActive = true,
-        insecureConnectionAllowed = false,
-        username = "",
-        type = SourceType.OREILLY,
-    )
+    private val libraryId = "oreilly-lib-1"
 
-    private fun inProgressItem(id: String, progress: Float) = CatalogItem(
+    private fun libraryItem(id: String, progress: Float, hasAudio: Boolean = false) = LibraryItem(
         id = id,
-        rootId = OReillyCatalog.ROOT_BOOKS,
+        libraryId = libraryId,
         title = "Book $id",
         author = "Author",
         coverUrl = null,
-        ebookFormat = BookFormat.Epub,
         readingProgress = progress,
+        isCached = false,
+        isDownloaded = false,
+        ebookFormat = if (hasAudio) EbookFormat.Unsupported else EbookFormat.Epub,
+        hasAudio = hasAudio,
     )
 
     private fun makeVm(
-        history: List<CatalogItem> = emptyList(),
-        sourceRepo: SourceRepository = fakeSourceRepo(oreillySource),
-        failWith: Throwable? = null,
+        inProgress: List<LibraryItem> = emptyList(),
+        finished: List<LibraryItem> = emptyList(),
     ): OReillyHomeViewModel {
-        val catalog = mockk<OReillyCatalog>(relaxed = true)
-        if (failWith != null) {
-            coEvery { catalog.fetchReadingHistory(any()) } throws failWith
-        } else {
-            coEvery { catalog.fetchReadingHistory(any()) } returns history
-        }
-        val catalogRegistry = mockk<CatalogRegistry> {
-            coEvery { forSource(any()) } returns catalog
-        }
-        val upserter = mockk<WebSourceLibraryItemUpserter>(relaxed = true)
-        val gate = mockk<WebSourceItemGate>(relaxed = true)
-        return OReillyHomeViewModel(
-            sourceRepository = sourceRepo,
-            catalogRegistry = catalogRegistry,
-            libraryItemUpserter = upserter,
-            webSourceItemGate = gate,
-            dispatchers = object : DispatcherProvider {
-                override val main get() = dispatcher
-                override val mainImmediate get() = dispatcher
-                override val io get() = dispatcher
-                override val default get() = dispatcher
-            },
-        )
+        val observer = mockk<LibraryObserver>(relaxed = true)
+        every { observer.observeInProgressItems(libraryId) } returns flowOf(inProgress)
+        every { observer.observeFinishedItems(libraryId) } returns flowOf(finished)
+        return OReillyHomeViewModel(libraryId = libraryId, libraryObserver = observer)
     }
 
     @Test
-    fun inProgressContainsItemsBelowThreshold() = runTest {
-        val vm = makeVm(
-            history = listOf(
-                inProgressItem("a", 0.45f),
-                inProgressItem("b", 0.80f),
-                inProgressItem("c", 0.95f),
-            ),
-        )
+    fun inProgressExposesObservedInProgressItems() = runTest {
+        val items = listOf(libraryItem("a", 0.45f), libraryItem("b", 0.80f))
+        val vm = makeVm(inProgress = items)
         advanceUntilIdle()
         val ip = vm.inProgress.value
         assertEquals(2, ip.size)
@@ -102,14 +64,9 @@ class OReillyHomeViewModelTest {
     }
 
     @Test
-    fun completedContainsItemsAtOrAboveThreshold() = runTest {
-        val vm = makeVm(
-            history = listOf(
-                inProgressItem("a", 0.45f),
-                inProgressItem("b", 0.90f),
-                inProgressItem("c", 0.99f),
-            ),
-        )
+    fun completedExposesObservedFinishedItems() = runTest {
+        val items = listOf(libraryItem("b", 0.90f), libraryItem("c", 1.0f))
+        val vm = makeVm(finished = items)
         advanceUntilIdle()
         val c = vm.completed.value
         assertEquals(2, c.size)
@@ -118,47 +75,23 @@ class OReillyHomeViewModelTest {
     }
 
     @Test
-    fun isEmptyTrueWhenNoHistory() = runTest {
-        val vm = makeVm(history = emptyList())
+    fun isEmptyTrueWhenBothSectionsEmpty() = runTest {
+        val vm = makeVm()
         advanceUntilIdle()
         assertTrue(vm.isEmpty.value)
     }
 
     @Test
-    fun errorIsSetOnFailure() = runTest {
-        val vm = makeVm(failWith = RuntimeException("Network error"))
+    fun isEmptyFalseWhenInProgressHasItems() = runTest {
+        val vm = makeVm(inProgress = listOf(libraryItem("a", 0.5f)))
         advanceUntilIdle()
-        assertTrue(vm.error.value != null)
-        assertTrue(vm.inProgress.value.isEmpty())
-        assertTrue(vm.completed.value.isEmpty())
+        assertTrue(!vm.isEmpty.value)
     }
 
     @Test
-    fun isLoadingFalseAfterFetch() = runTest {
-        val vm = makeVm(history = emptyList())
+    fun isEmptyFalseWhenCompletedHasItems() = runTest {
+        val vm = makeVm(finished = listOf(libraryItem("b", 1.0f)))
         advanceUntilIdle()
-        assertTrue(!vm.isLoading.value)
-    }
-
-    @Test
-    fun noFetchWhenNoOReillySource() = runTest {
-        val vm = makeVm(
-            history = listOf(inProgressItem("x", 0.5f)),
-            sourceRepo = fakeSourceRepo(null),
-        )
-        advanceUntilIdle()
-        assertTrue(vm.inProgress.value.isEmpty())
-    }
-
-    private fun fakeSourceRepo(active: Source?): SourceRepository = object : SourceRepository {
-        override fun observeAll() = flowOf(listOfNotNull(active))
-        override suspend fun getActive(): Source? = active
-        override suspend fun commit(
-            pending: com.riffle.core.domain.PendingSource,
-            hiddenLibraryIds: Set<String>,
-        ) = throw UnsupportedOperationException()
-        override suspend fun setActive(sourceId: String) {}
-        override suspend fun remove(sourceId: String) {}
-        override suspend fun getSourceVersion(sourceId: String): String? = null
+        assertTrue(!vm.isEmpty.value)
     }
 }

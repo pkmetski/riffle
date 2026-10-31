@@ -1288,13 +1288,10 @@ private fun iosLibraryModule(
             toReadRepository = get(),
         )
     }
-    viewModel {
+    factory { params ->
         OReillyHomeViewModel(
-            sourceRepository = get(),
-            catalogRegistry = get(),
-            libraryItemUpserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(),
-            webSourceItemGate = get(),
-            dispatchers = get(),
+            libraryId = params.get(),
+            libraryObserver = get(),
         )
     }
 

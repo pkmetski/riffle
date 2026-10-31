@@ -522,13 +522,10 @@ private val sourceViewModelModule = module {
         )
     }
     viewModel { OReillyLoginViewModel(repository = get()) }
-    viewModel {
+    factory { params ->
         OReillyHomeViewModel(
-            sourceRepository = get(),
-            catalogRegistry = get(),
-            libraryItemUpserter = get(),
-            webSourceItemGate = get(),
-            dispatchers = get(),
+            libraryId = params.get(),
+            libraryObserver = get(),
         )
     }
     factory { params ->

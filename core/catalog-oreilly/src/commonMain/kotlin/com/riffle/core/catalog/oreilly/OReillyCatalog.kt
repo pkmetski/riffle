@@ -24,7 +24,6 @@ import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SortKey
-import com.riffle.core.catalog.ReadingHistoryCapability
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.models.TocEntry
 import kotlin.math.ceil
@@ -99,8 +98,7 @@ class OReillyCatalog internal constructor(
     ToReadListCapability,
     PlaylistsCapability,
     EbookDetailsCapability,
-    LazyPublicationCapability,
-    ReadingHistoryCapability {
+    LazyPublicationCapability {
 
     override val sourceType: SourceType = SourceType.OREILLY
 
@@ -858,19 +856,6 @@ class OReillyCatalog internal constructor(
     private fun String.ournBareId(): String? {
         val parts = split(":")
         return if (parts.size == 4) parts[3] else null
-    }
-
-    // endregion
-
-    // region ReadingHistoryCapability
-
-    override suspend fun fetchReadingHistory(limit: Int): List<CatalogItem> {
-        val profileBody = api.getJson(api.userProfileUrl())
-        val uuid = OReillyParser.parseUserProfile(profileBody).uuid
-        if (uuid.isBlank()) return emptyList()
-        val historyBody = api.getJson(api.readingHistoryUrl(uuid, limit = limit))
-        val response = OReillyParser.parseReadingHistory(historyBody)
-        return response.results.mapNotNull { OReillyParser.readingHistoryItemToCatalogItem(it) }
     }
 
     // endregion

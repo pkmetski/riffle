@@ -205,7 +205,7 @@ fun UnboundedBrowseScreen(
             when (selectedLocalTab) {
                 TAB_HOME -> {
                     if (sourceType == SourceType.OREILLY) {
-                        OReillyHomeTab(onOpenDetail = onOpenDetail)
+                        OReillyHomeTab(libraryId = libraryId, onOpenDetail = onOpenDetail)
                     } else {
                         CoverGridZoomBox(
                             browseScaleFlow = viewModel.coverGridScale,
