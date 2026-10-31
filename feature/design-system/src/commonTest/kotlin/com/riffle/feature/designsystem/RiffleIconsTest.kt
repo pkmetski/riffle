@@ -59,7 +59,6 @@ class RiffleIconsTest {
             RiffleIcons.QueueMusic,
             RiffleIcons.QueueMusicOutlined,
             RiffleIcons.FormatListNumbered,
-            RiffleIcons.FormatListNumberedOutlined,
             RiffleIcons.PlaylistAdd,
             RiffleIcons.PlaylistAddCheck,
             RiffleIcons.Toc,
@@ -91,8 +90,7 @@ class RiffleIconsTest {
             RiffleIcons.PlaylistAddCheck, RiffleIcons.QueueMusic, RiffleIcons.Schedule,
             RiffleIcons.Search, RiffleIcons.Sell, RiffleIcons.SellOutlined, RiffleIcons.Toc,
             RiffleIcons.TurnedIn, RiffleIcons.TurnedInNot, RiffleIcons.Warning,
-            RiffleIcons.AnnotationsOutlined,
-            RiffleIcons.FormatListNumberedOutlined, RiffleIcons.QueueMusicOutlined,
+            RiffleIcons.AnnotationsOutlined, RiffleIcons.QueueMusicOutlined,
         ).forEach {
             assertEquals(24f, it.viewportWidth, "${it.name} viewportWidth")
             assertEquals(24f, it.viewportHeight, "${it.name} viewportHeight")

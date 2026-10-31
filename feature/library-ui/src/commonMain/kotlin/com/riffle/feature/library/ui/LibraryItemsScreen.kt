@@ -414,12 +414,7 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                icon = {
-                    Icon(
-                        if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
-                        contentDescription = seriesLabel,
-                    )
-                },
+                icon = { Icon(RiffleIcons.FormatListNumbered, contentDescription = seriesLabel) },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_SERIES),
             )
         }
