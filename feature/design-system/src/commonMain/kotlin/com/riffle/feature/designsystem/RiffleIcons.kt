@@ -446,7 +446,7 @@ private val TocIcon: ImageVector = materialIcon("Toc", autoMirror = true) {
 }
 
 /**
- * Music-queue outlined — filled list lines, stroke-only note.
+ * Music-queue outlined — thin stroked list lines, stroke-only note.
  * Artwork for [RiffleIcons.QueueMusicOutlined].
  */
 private val QueueMusicOutlinedIcon: ImageVector = ImageVector.Builder(
@@ -458,12 +458,13 @@ private val QueueMusicOutlinedIcon: ImageVector = ImageVector.Builder(
     autoMirror = true,
 ).apply {
     val brush = SolidColor(Color.Black)
-    addPath(
-        pathData = PathParser().parsePathString(
-            "M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2z",
-        ).toNodes(),
-        fill = brush,
-    )
+    listOf("M3 7H15", "M3 11H15", "M3 15H11").forEach { line ->
+        addPath(
+            pathData = PathParser().parsePathString(line).toNodes(),
+            stroke = brush,
+            strokeLineWidth = 1f,
+        )
+    }
     addPath(
         pathData = PathParser().parsePathString(
             "M17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z",
