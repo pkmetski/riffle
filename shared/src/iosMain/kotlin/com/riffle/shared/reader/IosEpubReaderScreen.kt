@@ -1761,8 +1761,20 @@ fun EpubReaderScreen(
                     navigator.clearSelection()
                 },
                 onAnnotate = {
-                    lastSelectionRect = liveSelection.rect
+                    val capturedSelection = liveSelection
+                    val capturedPendingStyles = pendingStyles
+                    val capturedColor = if (lastUsedColorIsNone) null else lastUsedHighlightColor
+                    lastSelectionRect = capturedSelection.rect
                     annotateSheetOpen = true
+                    scope.launch {
+                        if (source == ReaderSource.Highlights) return@launch
+                        createIosHighlight(
+                            capturedSelection, capturedColor, capturedPendingStyles, null,
+                            navigator, annotationStore, annotationSession,
+                            item.sourceId, item.id, spineRef,
+                        )?.let { editTargetId = it.id }
+                        pendingStyles = emptySet()
+                    }
                 },
                 onPlayFromHere = if (readaloudVisible) {
                     {
