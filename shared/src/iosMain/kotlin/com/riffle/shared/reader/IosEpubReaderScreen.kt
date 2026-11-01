@@ -1785,7 +1785,7 @@ fun EpubReaderScreen(
             val annotationSheetModifier = run {
                 val selRect = liveSelection?.rect
                 val screenWidthDp = LocalWindowInfo.current.containerSize.width.toFloat()
-                if (selRect != null && editTarget == null) {
+                if (selRect != null) {
                     val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
                     val targetY = annotationSheetTargetY(
                         selectionY = selRect.y,
