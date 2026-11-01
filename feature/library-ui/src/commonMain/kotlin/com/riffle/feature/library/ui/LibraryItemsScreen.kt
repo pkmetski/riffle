@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -379,7 +378,6 @@ internal fun RowScope.CircleNavItem(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .weight(1f)
-            .fillMaxHeight()
             .then(modifier)
             .selectable(
                 selected = selected,
