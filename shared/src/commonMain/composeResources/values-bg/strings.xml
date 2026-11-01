@@ -40,4 +40,5 @@
     <string name="ui_action_share">Сподели</string>
     <string name="ui_action_play_from_here">Пусни</string>
     <string name="ui_action_look_up">Търси в речника</string>
+    <string name="ui_action_annotate">Анотирай</string>
 </resources>

@@ -363,6 +363,9 @@ fun EpubReaderScreen(
     // Non-null while the note editor is up; the value is the annotation id, or "" for a note
     // being written on a selection that has not been persisted yet.
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
+    // True after the user taps "Annotate" in the selection strip. Gates the AnnotationActionsSheet
+    // so it only appears on an explicit user intent, matching Android's two-step ActionMode flow.
+    var annotateSheetOpen by remember { mutableStateOf(false) }
     var annotationsPanelOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     val immersiveClock = remember { kotlin.time.TimeSource.Monotonic.markNow() }
@@ -1704,11 +1707,12 @@ fun EpubReaderScreen(
         if (liveSelection == null && editTargetId == null) {
             lastSelectionRect = null
             decorationTapRect = null
+            annotateSheetOpen = false
         }
 
-        // Selection action strip: Copy / Search / Share — mirrors Android's ActionMode items.
-        // Shown while text is selected but before the user taps Annotate or the full sheet opens.
-        if (liveSelection != null && editTarget == null && noteEditorFor == null) {
+        // Selection action strip: Copy / Search / Share / Annotate — mirrors Android's ActionMode.
+        // Hidden once the user taps Annotate; the AnnotationActionsSheet takes over.
+        if (liveSelection != null && editTarget == null && noteEditorFor == null && !annotateSheetOpen) {
             val selText = liveSelection.text
             val selRect = liveSelection.rect
             val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
@@ -1747,6 +1751,7 @@ fun EpubReaderScreen(
                     com.riffle.shared.reader.IosSystemActions.share(selText)
                     navigator.clearSelection()
                 },
+                onAnnotate = { annotateSheetOpen = true },
                 onPlayFromHere = if (readaloudVisible) {
                     {
                         val href = liveSelection.href
@@ -1786,7 +1791,7 @@ fun EpubReaderScreen(
             )
         }
 
-        if (noteEditorFor == null && (editTarget != null || liveSelection != null) && !editTargetWasGlyphTap) {
+        if (noteEditorFor == null && (editTarget != null || (liveSelection != null && annotateSheetOpen)) && !editTargetWasGlyphTap) {
             // The reader's own paper colour, not the app surface: an alpha-0x80 swatch composited
             // over the wrong backdrop previews a colour the book will never show. Same shared
             // derivation Android's popup reads.
