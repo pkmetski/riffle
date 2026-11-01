@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -131,11 +133,16 @@ fun DownloadButton(
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
     when (state) {
         DownloadState.NotDownloaded -> {
+            val ringColor = MaterialTheme.colorScheme.outline
             Box(
                 modifier = tagged
                     .size(ButtonSize)
+                    .drawWithContent {
+                        drawContent()
+                        val strokePx = 1.dp.toPx()
+                        drawCircle(color = ringColor, radius = size.minDimension / 2f - strokePx / 2f, style = Stroke(strokePx))
+                    }
                     .clip(CircleShape)
-                    .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
                     .clickable(enabled = enabled, onClick = onDownload),
                 contentAlignment = Alignment.Center,
             ) {
@@ -156,11 +163,18 @@ fun DownloadButton(
             )
         }
         DownloadState.Cached -> {
+            val fillColor = MaterialTheme.colorScheme.secondaryContainer
+            val ringColor = MaterialTheme.colorScheme.outline
             Box(
                 modifier = tagged
                     .size(ButtonSize)
+                    .drawWithContent {
+                        drawCircle(color = fillColor)
+                        drawContent()
+                        val strokePx = 1.dp.toPx()
+                        drawCircle(color = ringColor, radius = size.minDimension / 2f - strokePx / 2f, style = Stroke(strokePx))
+                    }
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.secondaryContainer)
                     .clickable(enabled = enabled, onClick = onDownload),
                 contentAlignment = Alignment.Center,
             ) {
@@ -173,11 +187,18 @@ fun DownloadButton(
             }
         }
         DownloadState.Downloaded -> {
+            val fillColor = MaterialTheme.colorScheme.primary
+            val ringColor = MaterialTheme.colorScheme.outline
             Box(
                 modifier = tagged
                     .size(ButtonSize)
+                    .drawWithContent {
+                        drawCircle(color = fillColor)
+                        drawContent()
+                        val strokePx = 1.dp.toPx()
+                        drawCircle(color = ringColor, radius = size.minDimension / 2f - strokePx / 2f, style = Stroke(strokePx))
+                    }
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
                     .clickable(onClick = onRemove),
                 contentAlignment = Alignment.Center,
             ) {
