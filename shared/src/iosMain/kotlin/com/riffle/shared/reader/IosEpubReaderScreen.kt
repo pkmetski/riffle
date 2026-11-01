@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -1709,12 +1711,10 @@ fun EpubReaderScreen(
             }
             val stripModifier = if (stripTargetY != null) {
                 Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.TopCenter)
                     .padding(top = stripTargetY.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
             } else {
-                Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                Modifier.align(Alignment.TopCenter).padding(8.dp)
             }
             SelectionActionStrip(
                 onCopy = {
@@ -1767,8 +1767,8 @@ fun EpubReaderScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .widthIn(max = 300.dp),
             )
         }
 
@@ -1784,6 +1784,7 @@ fun EpubReaderScreen(
             val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
             val annotationSheetModifier = run {
                 val selRect = liveSelection?.rect
+                val screenWidthDp = LocalWindowInfo.current.containerSize.width.toFloat()
                 if (selRect != null && editTarget == null) {
                     val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
                     val targetY = annotationSheetTargetY(
@@ -1792,16 +1793,19 @@ fun EpubReaderScreen(
                         minAboveY = statusBarTopDp.value + 8f,
                         maxBelowY = screenHeightDp,
                     )
+                    val maxSheetWidthDp = 300f
+                    val marginDp = 12f
+                    val centerX = selRect.x + selRect.width / 2f
+                    val startX = (centerX - maxSheetWidthDp / 2f).coerceIn(marginDp, screenWidthDp - maxSheetWidthDp - marginDp)
                     Modifier
                         .align(Alignment.TopStart)
-                        .padding(top = targetY.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
+                        .offset(x = startX.dp, y = targetY.dp)
+                        .widthIn(min = 264.dp, max = 300.dp)
                 } else {
                     Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
                         .padding(12.dp)
+                        .widthIn(min = 264.dp, max = 300.dp)
                 }
             }
             AnnotationActionsSheet(
