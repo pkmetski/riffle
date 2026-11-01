@@ -12,15 +12,7 @@ fun parseOrmJwtFromCookieHeader(header: String?): String? {
     return null
 }
 
-/**
- * Extracts the user UUID from the `sub` claim of the `orm-jwt` JWT embedded in [cookieHeader].
- *
- * The JWT payload (second dot-separated segment) is base64url-encoded JSON. The `sub` field is the
- * O'Reilly user UUID needed for per-user API calls like the reading-history endpoint. No network
- * call is required — the value is already present in the cookie Riffle harvests at login.
- *
- * Returns null when the cookie is absent, the JWT is malformed, or the `sub` claim is missing.
- */
+// Extracts the `sub` UUID from the orm-jwt payload segment (base64url JSON) without a network call.
 internal fun uuidFromCookieHeader(cookieHeader: String): String? {
     val jwt = parseOrmJwtFromCookieHeader(cookieHeader) ?: return null
     val payloadSegment = jwt.split('.').getOrNull(1) ?: return null

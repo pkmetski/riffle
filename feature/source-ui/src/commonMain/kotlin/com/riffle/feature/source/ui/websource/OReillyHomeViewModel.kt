@@ -24,7 +24,7 @@ class OReillyHomeViewModel(
 
     val isEmpty: StateFlow<Boolean> = combine(inProgress, completed) { ip, c ->
         ip.isEmpty() && c.isEmpty()
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     companion object {
         internal const val COMPLETED_THRESHOLD = 0.9f
