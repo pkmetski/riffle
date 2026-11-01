@@ -558,24 +558,26 @@ class LibraryItemDetailViewModel constructor(
         private set
 
     init {
+        // Token (keychain on iOS) is only needed for cover image auth, not for showing the
+        // Ready state. Fetch it in a sibling coroutine so it never delays the loading screen.
+        viewModelScope.launch(dispatchers.io) {
+            authToken = try {
+                val server = sourceRepository.getActive()
+                if (server != null) tokenStorage.getToken(server.id) ?: "" else ""
+            } catch (_: Exception) { "" }
+        }
+
         viewModelScope.launch {
-            val (token, newUiState) = withContext(dispatchers.io) {
+            val newUiState = withContext(dispatchers.io) {
                 supervisorScope {
                     val server = sourceRepository.getActive()
-                    // Phase 1: token (keychain) and item fetch run in parallel.
-                    val tokenDeferred = async {
-                        if (server != null) tokenStorage.getToken(server.id) ?: "" else ""
-                    }
-                    val itemDeferred = async {
+                    val item = try {
                         _sourceId
                             ?.let { libraryObserver.getItem(it, _itemId) }
                             ?: libraryObserver.getItem(_itemId)
-                    }
-                    // supervisorScope: individual async failures don't cancel siblings.
-                    val token = try { tokenDeferred.await() } catch (_: Exception) { "" }
-                    val item = try { itemDeferred.await() } catch (_: Exception) { null }
+                    } catch (_: Exception) { null }
 
-                    val uiState = try {
+                    try {
                         if (item != null) {
                             loadedItem = item
                             _downloadState.value = deriveDownloadState(item)
@@ -654,10 +656,8 @@ class LibraryItemDetailViewModel constructor(
                     } catch (_: Exception) {
                         LibraryItemDetailUiState.Error
                     }
-                    Pair(token, uiState)
                 }
             }
-            authToken = token
             _uiState.value = newUiState
 
             val initialReady = _uiState.value
