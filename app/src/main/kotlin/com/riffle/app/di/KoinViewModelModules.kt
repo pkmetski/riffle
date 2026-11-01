@@ -208,6 +208,7 @@ private val libraryViewModelModule = module {
             copyCoverImage = get(),
             readingSpeedStore = get(),
             webSourceLibraryItemUpserter = get(),
+            dispatchers = get(),
         )
     }
     viewModel { params ->

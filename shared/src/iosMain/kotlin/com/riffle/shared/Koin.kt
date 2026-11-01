@@ -1375,6 +1375,7 @@ private fun iosLibraryModule(
             copyCoverImage = get(),
             readingSpeedStore = get(),
             webSourceLibraryItemUpserter = get(),
+            dispatchers = get(),
         )
     }
     factory { params ->
