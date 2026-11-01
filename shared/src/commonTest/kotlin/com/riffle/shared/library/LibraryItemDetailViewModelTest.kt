@@ -303,7 +303,11 @@ class LibraryItemDetailViewModelTest {
 
         assertEquals(1, recordingMarkRead.calls.size, "markAsRead must invoke MarkReadAcrossDimensions exactly once")
         val (usedSourceId, usedItemId, finished) = recordingMarkRead.calls.first()
-        assertEquals(fakeItem.sourceId, usedSourceId, "sourceId passed to MarkReadAcrossDimensions must be the item's sourceId, not the VM constructor's null param")
+        assertEquals(
+            fakeItem.sourceId,
+            usedSourceId,
+            "sourceId passed to MarkReadAcrossDimensions must be the item's sourceId, not the VM constructor's null param",
+        )
         assertEquals(fakeItem.id, usedItemId)
         assertTrue(finished)
     }
