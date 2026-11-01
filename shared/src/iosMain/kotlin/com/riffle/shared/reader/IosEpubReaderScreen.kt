@@ -849,10 +849,13 @@ fun EpubReaderScreen(
                     // calls suppressNextBodyTap() synchronously; by the time this coroutine resumes,
                     // that call has already happened, so the counter is non-zero and we discard.
                     if (navigator.consumeSuppressedBodyTap()) return@collect
+                    val annotationSheetWasOpen = editTargetId != null || selection != null
                     editTargetId = null
                     editTargetWasGlyphTap = false
                     pendingStyles = emptySet()
-                    immersiveState.toggle()
+                    // Tapping away from an open annotation sheet only dismisses it; it must not
+                    // also flip chrome visibility (mirrors Android's highlightPopupDismissedAtNs guard).
+                    if (!annotationSheetWasOpen) immersiveState.toggle()
                 }
                 is NavigatorEvent.Footnote -> {
                     footnotePopupState = FootnotePopupState(FootnoteContent(event.contentHtml))
