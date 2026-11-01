@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -31,6 +30,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
+import com.riffle.feature.library.ui.CircleNavItem
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
 import com.riffle.feature.library.ui.ScreenScopedViewModelHost
@@ -154,50 +154,46 @@ fun UnboundedBrowseScreen(
         },
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(
+                CircleNavItem(
                     selected = selectedLocalTab == TAB_HOME,
                     onClick = { selectedLocalTab = TAB_HOME },
-                    icon = {
-                        Icon(
-                            if (selectedLocalTab == TAB_HOME) RiffleIcons.Home else RiffleIcons.HomeOutlined,
-                            contentDescription = stringResource(Res.string.ui_home),
-                        )
-                    },
-                )
+                ) {
+                    Icon(
+                        if (selectedLocalTab == TAB_HOME) RiffleIcons.Home else RiffleIcons.HomeOutlined,
+                        contentDescription = stringResource(Res.string.ui_home),
+                    )
+                }
                 if (tabVisibility?.toRead == true) {
-                    NavigationBarItem(
+                    CircleNavItem(
                         selected = selectedLocalTab == TAB_TO_READ,
                         onClick = { selectedLocalTab = TAB_TO_READ },
-                        icon = {
-                            Icon(
-                                if (selectedLocalTab == TAB_TO_READ) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
-                                contentDescription = stringResource(Res.string.ui_to_read),
-                            )
-                        },
-                    )
+                    ) {
+                        Icon(
+                            if (selectedLocalTab == TAB_TO_READ) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
+                            contentDescription = stringResource(Res.string.ui_to_read),
+                        )
+                    }
                 }
                 if (tabVisibility?.annotations == true) {
-                    NavigationBarItem(
+                    CircleNavItem(
                         selected = selectedLocalTab == TAB_ANNOTATIONS,
                         onClick = { selectedLocalTab = TAB_ANNOTATIONS },
-                        icon = {
-                            Icon(
-                                if (selectedLocalTab == TAB_ANNOTATIONS) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
-                                contentDescription = stringResource(Res.string.ui_annotations),
-                            )
-                        },
-                    )
+                    ) {
+                        Icon(
+                            if (selectedLocalTab == TAB_ANNOTATIONS) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
+                            contentDescription = stringResource(Res.string.ui_annotations),
+                        )
+                    }
                 }
-                NavigationBarItem(
+                CircleNavItem(
                     selected = selectedLocalTab == TAB_LIBRARY,
                     onClick = { selectedLocalTab = TAB_LIBRARY },
-                    icon = {
-                        Icon(
-                            if (selectedLocalTab == TAB_LIBRARY) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
-                            contentDescription = stringResource(Res.string.ui_library),
-                        )
-                    },
-                )
+                ) {
+                    Icon(
+                        if (selectedLocalTab == TAB_LIBRARY) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
+                        contentDescription = stringResource(Res.string.ui_library),
+                    )
+                }
             }
         },
     ) { innerPadding ->
