@@ -307,7 +307,8 @@ fun EpubReaderScreen(
     val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
     val tocEntriesRef = remember { mutableStateOf<List<TocEntry>>(emptyList()) }
-    val selection by navigator.selectionFlow.collectAsState()
+    // selectionFlow is collected in the overlay Box below (not here) so that only the small
+    // overlay subtree recomposes on every selection drag event, not the entire reader screen.
     val readaloudSession = remember(item.sourceId, item.id) {
         readaloudSessionFactory.create(scope) { null }.also { session ->
             session.bind(
@@ -849,7 +850,7 @@ fun EpubReaderScreen(
                     // calls suppressNextBodyTap() synchronously; by the time this coroutine resumes,
                     // that call has already happened, so the counter is non-zero and we discard.
                     if (navigator.consumeSuppressedBodyTap()) return@collect
-                    val annotationSheetWasOpen = editTargetId != null || selection != null
+                    val annotationSheetWasOpen = editTargetId != null || navigator.selectionFlow.value != null
                     editTargetId = null
                     editTargetWasGlyphTap = false
                     pendingStyles = emptySet()
@@ -1704,7 +1705,7 @@ fun EpubReaderScreen(
         // rect (above when there's room, below otherwise), matching Android's
         // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
-        val liveSelection = selection
+        val liveSelection by navigator.selectionFlow.collectAsState()
         // Preserve the selection rect after createIosHighlight clears the native selection so the
         // annotation sheet stays anchored near the text instead of jumping to the bottom.
         // Cleared when both the sheet and the selection are gone (user dismissed or no active edit).
@@ -1943,7 +1944,7 @@ fun EpubReaderScreen(
                         annotationStore.updateNote(existing.id, text.takeIf { it.isNotBlank() })
                     } else {
                         if (source != ReaderSource.Highlights) {
-                            selection?.let { sel ->
+                            navigator.selectionFlow.value?.let { sel ->
                                 createIosHighlight(
                                     sel, null, pendingStyles, text,
                                     navigator, annotationStore, annotationSession,
