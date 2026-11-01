@@ -291,9 +291,12 @@ final class AnnotationBridgeTests: XCTestCase {
         // The settle gives the Task and Readium's JS time to run before the polling loop begins.
         settle(seconds: 1.0)
         XCTAssertGreaterThan(decorationCount(bridge, group: ReaderDecorationGroups.shared.bookmarks), 0)
-        // Retry the sidemark class check: once the decoration container exists (above), Readium
-        // still needs a rAF to paint the class. On slow runners the direct evalInt may race ahead
-        // of that paint — the same reason decorationCount uses a retry loop.
+        // 0.5 s settle: the decoration div exists (above) but Readium applies the `.riffle-sidemark`
+        // CSS class in a subsequent rAF. On slow CI runners that rAF can be starved during the
+        // evalWithRetry JS-eval loop (each eval holds the WKWebView busy), so without this settle
+        // the class never appears within the 40-retry window. Giving the RunLoop 0.5 s here
+        // guarantees the rAF fires before polling starts.
+        settle(seconds: 0.5)
         XCTAssertGreaterThan(
             evalWithRetry(bridge, "document.querySelectorAll('.riffle-sidemark').length"),
             0,
