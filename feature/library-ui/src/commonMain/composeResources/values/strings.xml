@@ -143,6 +143,10 @@
     <string name="ui_upload_conflict_cannot_overwrite">Overwrite is blocked until the destination can safely replace files without invalidating annotations.</string>
     <string name="ui_overwrite">Overwrite</string>
     <string name="ui_upload_completed">Uploaded</string>
+    <string name="ui_upload_phase_preparing">Preparing…</string>
+    <string name="ui_upload_phase_uploading">Uploading…</string>
+    <string name="ui_upload_phase_uploading_n_of_m">Uploading %1$d of %2$d files</string>
+    <string name="ui_upload_phase_processing">Processing…</string>
     <string name="ui_cannot_upload_title">Cannot upload</string>
     <string name="ui_ok">OK</string>
     <!-- Item detail — Ko-fi nudge -->

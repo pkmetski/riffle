@@ -63,6 +63,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
@@ -125,6 +126,10 @@ import com.riffle.feature.library.ui.generated.resources.ui_upload_completed
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_cannot_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_title
+import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_preparing
+import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_processing
+import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_uploading
+import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_uploading_n_of_m
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
@@ -499,9 +504,8 @@ private fun DetailReadyScaffold(
                         }
                     },
                 )
-                // Import progress bar below the TopAppBar when a book is being imported
                 if (bookImportState is BookImportState.InProgress) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    UploadProgressBar(bookImportState)
                 }
             }
         },
@@ -511,6 +515,39 @@ private fun DetailReadyScaffold(
             snackbarModifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
         ) {
             content(innerPadding)
+        }
+    }
+}
+
+@Composable
+private fun UploadProgressBar(state: BookImportState.InProgress, modifier: Modifier = Modifier) {
+    val label = when (state.phase) {
+        CatalogImportPhase.Preparing -> stringResource(Res.string.ui_upload_phase_preparing)
+        CatalogImportPhase.Uploading -> if (state.totalFiles > 1) {
+            stringResource(Res.string.ui_upload_phase_uploading_n_of_m, state.completedFiles, state.totalFiles)
+        } else {
+            stringResource(Res.string.ui_upload_phase_uploading)
+        }
+        CatalogImportPhase.Uploaded,
+        CatalogImportPhase.Reconciling,
+        CatalogImportPhase.Finalizing -> stringResource(Res.string.ui_upload_phase_processing)
+    }
+    val progress = if (state.phase == CatalogImportPhase.Uploading && state.totalFiles > 1) {
+        state.completedFiles.toFloat() / state.totalFiles
+    } else {
+        null
+    }
+    Column(modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+        )
+        if (progress != null) {
+            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        } else {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -539,7 +576,7 @@ private fun DetailLoadingContent(onBack: () -> Unit, bookImportState: BookImport
                 )
                 if (bookImportState is BookImportState.InProgress) {
                     Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator()
+                    UploadProgressBar(bookImportState)
                 }
             }
         }
