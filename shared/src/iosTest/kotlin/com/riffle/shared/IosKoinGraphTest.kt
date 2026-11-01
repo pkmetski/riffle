@@ -74,6 +74,7 @@ import com.riffle.shared.reader.IosPdfNavigatorBridge
 import com.riffle.shared.reader.IosPdfNavigatorBridgeFactory
 import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf
@@ -333,6 +334,31 @@ class IosKoinGraphTest {
         assertTrue(abs is AbsCommonCatalogFactory)
         // Komga must keep working alongside it.
         assertNotNull(factories[SourceType.KOMGA])
+    }
+
+    /**
+     * Catalog factories receive the streaming HttpClient (no request timeout) so large EPUB
+     * downloads are not killed by the 30-second ceiling on the default client. The streaming
+     * client is registered as a named binding separate from the default client used by API
+     * singletons (AbsApiClient, KomgaLibraryApiClient, …). Removing the named binding or
+     * accidentally injecting get() instead of get(named("streamingHttpClient")) in Koin.kt
+     * would reintroduce "Could not download book" for books larger than a 30s download window.
+     */
+    @Test
+    fun `the production graph registers a named streaming HttpClient for catalog file transfers`() {
+        startKoinWithDatabase(
+            navigatorBridgeFactory = StubEpubBridgeFactory,
+            audioPlayerBridgeFactory = StubAudioBridgeFactory,
+            pdfNavigatorBridgeFactory = StubPdfBridgeFactory,
+            publicationInspector = StubPublicationInspector,
+            readaloudBridgeFactory = StubReadaloudBridgeFactory,
+            databaseFile = uniqueDatabaseFile(),
+        )
+        val koin = KoinPlatform.getKoin()
+        val streaming = koin.get<HttpClient>(named("streamingHttpClient"))
+        val default = koin.get<HttpClient>()
+        assertNotNull(streaming, "no streamingHttpClient binding — catalog file downloads will be killed by the 30s default timeout")
+        assertNotEquals(streaming, default, "streamingHttpClient and default HttpClient must be distinct instances")
     }
 
     /**

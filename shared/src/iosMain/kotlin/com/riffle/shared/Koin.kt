@@ -174,6 +174,7 @@ import com.riffle.core.network.KomgaServerInfoApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.core.network.createStreamingHttpClient
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
@@ -306,6 +307,7 @@ private fun iosLibraryModule(
     elidedPdfBridge: IosElidedPdfBridge,
 ) = module {
     single { createDefaultHttpClient() }
+    single<HttpClient>(named("streamingHttpClient")) { createStreamingHttpClient() }
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
     single<AbsLibraryApi> { get<AbsApiClient>() }
@@ -1149,10 +1151,10 @@ private fun iosLibraryModule(
                 tokenStorage = get(),
                 deviceIdStore = get(),
                 clock = get(),
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
             ),
             SourceType.KOMGA to KomgaCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 tokenStorage = get(),
                 userAgent = "Riffle/dev (iOS) komga-source",
             ),
@@ -1162,22 +1164,22 @@ private fun iosLibraryModule(
             // (#1071 §17). All three catalogues are `commonMain` — Chitanka's scraper moved off
             // jsoup onto ksoup for exactly this.
             SourceType.CHITANKA to ChitankaCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 userAgent = "Riffle/dev (iOS) chitanka-source",
             ),
             SourceType.GUTENBERG to GutenbergCatalogFactory(
-                sharedHttpClient = get(),
+                sharedHttpClient = get(named("streamingHttpClient")),
                 userAgent = "Riffle/dev (iOS) gutenberg-source",
             ),
             SourceType.RADIO_ES to RadioEsCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 userAgent = "Riffle/dev (iOS) radio-es-source",
             ),
             // Developer-mode-only; requires a WebView login (IosOReillyLoginScreen) to
             // harvest the orm-jwt cookie. IosOReillySessionStore caches the cookie so
             // cookieProvider can be synchronous while the WKHTTPCookieStore is async.
             SourceType.OREILLY to OReillyCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 cookieProvider = { iosOReillySessionStore.cookieHeader },
                 userAgentProvider = { "Riffle/dev (iOS) oreilly-source" },
             ),
