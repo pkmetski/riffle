@@ -65,7 +65,6 @@ import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkLibraryItem
-import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkUploadMetadata
@@ -596,33 +595,13 @@ class AbsCatalog(
 
     // endregion
 
-    // region PlaylistsCapability
+    // region PlaylistsCapability — delegated to common
 
-    override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> =
-        libraryApi.getPlaylists(config.baseUrl, rootId, config.token, config.insecureAllowed)
-            .unwrap()
-            .map { it.toCatalogPlaylist() }
-
-    override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? =
-        // ABS's `listPlaylists` returns fully-populated itemIds, so the trivial "list + filter"
-        // is correct here (unlike Komga where listPlaylists is summary-only). Cheap enough to
-        // not warrant a name-scoped endpoint.
-        listPlaylists(rootId).firstOrNull { it.name == name }
-
-    override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {
-        val created = libraryApi.createPlaylist(config.baseUrl, rootId, name, initialBookId = initialItemId, config.token, config.insecureAllowed)
-            .unwrap()
-            ?: throw CatalogException.Unknown(IllegalStateException("ABS returned null for createPlaylist"))
-        return created.toCatalogPlaylist()
-    }
-
-    override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {
-        libraryApi.addBookToPlaylist(config.baseUrl, playlistId, itemId, config.token, config.insecureAllowed).unwrap()
-    }
-
-    override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
-        libraryApi.removeBookFromPlaylist(config.baseUrl, playlistId, itemId, config.token, config.insecureAllowed).unwrap()
-    }
+    override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> = common.listPlaylists(rootId)
+    override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? = common.findPlaylist(rootId, name)
+    override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist = common.createPlaylist(rootId, name, initialItemId)
+    override suspend fun addItemToPlaylist(playlistId: String, itemId: String) = common.addItemToPlaylist(playlistId, itemId)
+    override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) = common.removeItemFromPlaylist(playlistId, itemId)
 
     // endregion
 
@@ -822,14 +801,6 @@ class AbsCatalog(
     )
 
     private fun NetworkCollection.toCatalogCollection(): CatalogCollection = CatalogCollection(
-        id = id,
-        rootId = libraryId,
-        name = name,
-        bookCount = bookCount,
-        itemIds = items.map { it.id },
-    )
-
-    private fun NetworkPlaylist.toCatalogPlaylist(): CatalogPlaylist = CatalogPlaylist(
         id = id,
         rootId = libraryId,
         name = name,

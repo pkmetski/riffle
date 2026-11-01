@@ -5,6 +5,7 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogAudioFingerprint
+import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogAudiobookChapter
@@ -17,6 +18,7 @@ import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.Clock
@@ -28,6 +30,7 @@ import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
+import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.withHttpChannelStream
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpHeaders
@@ -61,7 +64,7 @@ class AbsCommonCatalog(
     private val serverInfoApi: AbsServerInfoApi,
     private val clock: Clock,
     private val httpClient: HttpClient,
-) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability, AudiobookMediaCapability, DownloadsCapability {
+) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability, AudiobookMediaCapability, DownloadsCapability, PlaylistsCapability {
 
     override val sourceType: SourceType = SourceType.ABS
 
@@ -302,5 +305,40 @@ class AbsCommonCatalog(
 
     // endregion
 
+    // region PlaylistsCapability
+
+    override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> =
+        libraryApi.getPlaylists(config.baseUrl, rootId, config.token, config.insecureAllowed)
+            .unwrap()
+            .map { it.toCatalogPlaylist() }
+
+    override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? =
+        listPlaylists(rootId).firstOrNull { it.name == name }
+
+    override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {
+        val created = libraryApi.createPlaylist(config.baseUrl, rootId, name, initialBookId = initialItemId, config.token, config.insecureAllowed)
+            .unwrap()
+            ?: throw CatalogException.Unknown(IllegalStateException("ABS returned null for createPlaylist"))
+        return created.toCatalogPlaylist()
+    }
+
+    override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {
+        libraryApi.addBookToPlaylist(config.baseUrl, playlistId, itemId, config.token, config.insecureAllowed).unwrap()
+    }
+
+    override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
+        libraryApi.removeBookFromPlaylist(config.baseUrl, playlistId, itemId, config.token, config.insecureAllowed).unwrap()
+    }
+
+    // endregion
+
     internal companion object
 }
+
+internal fun NetworkPlaylist.toCatalogPlaylist(): CatalogPlaylist = CatalogPlaylist(
+    id = id,
+    rootId = libraryId,
+    name = name,
+    bookCount = bookCount,
+    itemIds = items.map { it.id },
+)
