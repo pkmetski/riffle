@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.shared.generated.resources.Res
+import com.riffle.shared.generated.resources.ui_action_annotate
 import com.riffle.shared.generated.resources.ui_action_copy
 import com.riffle.shared.generated.resources.ui_action_look_up
 import com.riffle.shared.generated.resources.ui_action_play_from_here
@@ -34,6 +35,7 @@ internal fun SelectionActionStrip(
     onLookUp: () -> Unit,
     onSearchWeb: () -> Unit,
     onShare: () -> Unit,
+    onAnnotate: () -> Unit,
     onPlayFromHere: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -51,6 +53,7 @@ internal fun SelectionActionStrip(
             TextButton(onClick = onLookUp) { Text(stringResource(Res.string.ui_action_look_up), style = MaterialTheme.typography.labelMedium) }
             TextButton(onClick = onSearchWeb) { Text(stringResource(Res.string.ui_action_search), style = MaterialTheme.typography.labelMedium) }
             TextButton(onClick = onShare) { Text(stringResource(Res.string.ui_action_share), style = MaterialTheme.typography.labelMedium) }
+            TextButton(onClick = onAnnotate) { Text(stringResource(Res.string.ui_action_annotate), style = MaterialTheme.typography.labelMedium) }
             if (onPlayFromHere != null) {
                 TextButton(onClick = onPlayFromHere) { Text(stringResource(Res.string.ui_action_play_from_here), style = MaterialTheme.typography.labelMedium) }
             }
