@@ -118,6 +118,7 @@ import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorPageDirection
 import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
+import com.riffle.feature.reader.NavigatorRect
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.PullBoundaryGestureState
@@ -1691,6 +1692,12 @@ fun EpubReaderScreen(
         // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
         val liveSelection = selection
+        // Preserve the selection rect after createIosHighlight clears the native selection so the
+        // annotation sheet stays anchored near the text instead of jumping to the bottom.
+        // Cleared when both the sheet and the selection are gone (user dismissed or no active edit).
+        var lastSelectionRect by remember { mutableStateOf<NavigatorRect?>(null) }
+        if (liveSelection?.rect != null) lastSelectionRect = liveSelection.rect
+        if (liveSelection == null && editTargetId == null) lastSelectionRect = null
 
         // Selection action strip: Copy / Search / Share — mirrors Android's ActionMode items.
         // Shown while text is selected but before the user taps Annotate or the full sheet opens.
@@ -1783,7 +1790,7 @@ fun EpubReaderScreen(
             // the sheet never slides behind the system chrome.
             val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
             val annotationSheetModifier = run {
-                val selRect = liveSelection?.rect
+                val selRect = liveSelection?.rect ?: if (editTarget != null) lastSelectionRect else null
                 val screenWidthDp = LocalWindowInfo.current.containerSize.width.toFloat()
                 if (selRect != null) {
                     val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
