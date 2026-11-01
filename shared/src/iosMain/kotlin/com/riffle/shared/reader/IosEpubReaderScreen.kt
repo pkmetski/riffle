@@ -1705,7 +1705,7 @@ fun EpubReaderScreen(
         // rect (above when there's room, below otherwise), matching Android's
         // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
-        val liveSelection by navigator.selectionFlow.collectAsState()
+        val liveSelection = navigator.selectionFlow.collectAsState().value
         // Preserve the selection rect after createIosHighlight clears the native selection so the
         // annotation sheet stays anchored near the text instead of jumping to the bottom.
         // Cleared when both the sheet and the selection are gone (user dismissed or no active edit).
