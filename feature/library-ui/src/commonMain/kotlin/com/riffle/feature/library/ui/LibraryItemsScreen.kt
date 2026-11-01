@@ -2,12 +2,16 @@ package com.riffle.feature.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -29,12 +34,11 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -363,16 +368,39 @@ fun LibraryTabContent(
 }
 
 @Composable
-internal fun CircleNavIcon(selected: Boolean, icon: @Composable () -> Unit) {
+internal fun RowScope.CircleNavItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         contentAlignment = Alignment.Center,
-        modifier = if (selected) {
-            Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-        } else {
-            Modifier.size(40.dp)
-        },
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .then(modifier)
+            .selectable(
+                selected = selected,
+                role = Role.Tab,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
     ) {
-        icon()
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(
+                    color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                )
+                .indication(interactionSource, ripple(bounded = true)),
+        ) {
+            icon()
+        }
     }
 }
 
@@ -390,116 +418,88 @@ private fun LibraryTabBar(
     val playlistsLabel = stringResource(Res.string.ui_playlists)
     val allBooksLabel = stringResource(Res.string.ui_all_books)
     NavigationBar {
-        NavigationBarItem(
+        CircleNavItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
-            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-            icon = {
-                CircleNavIcon(selected = selectedTab == 0) {
-                    Icon(
-                        if (selectedTab == 0) RiffleIcons.Home else RiffleIcons.HomeOutlined,
-                        contentDescription = homeLabel,
-                    )
-                }
-            },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_HOME),
-        )
+        ) {
+            Icon(
+                if (selectedTab == 0) RiffleIcons.Home else RiffleIcons.HomeOutlined,
+                contentDescription = homeLabel,
+            )
+        }
         if (visibility.toRead) {
-            NavigationBarItem(
+            CircleNavItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-                icon = {
-                    CircleNavIcon(selected = selectedTab == 1) {
-                        Icon(
-                            if (selectedTab == 1) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
-                            contentDescription = toReadLabel,
-                        )
-                    }
-                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_TO_READ),
-            )
+            ) {
+                Icon(
+                    if (selectedTab == 1) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
+                    contentDescription = toReadLabel,
+                )
+            }
         }
         if (visibility.annotations) {
             val annotationsIndex = tabIndexForAnnotations()
-            NavigationBarItem(
+            CircleNavItem(
                 selected = selectedTab == annotationsIndex,
                 onClick = { onTabSelected(annotationsIndex) },
-                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-                icon = {
-                    CircleNavIcon(selected = selectedTab == annotationsIndex) {
-                        Icon(
-                            if (selectedTab == annotationsIndex) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
-                            contentDescription = annotationsLabel,
-                        )
-                    }
-                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ANNOTATIONS),
-            )
+            ) {
+                Icon(
+                    if (selectedTab == annotationsIndex) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
+                    contentDescription = annotationsLabel,
+                )
+            }
         }
         if (visibility.series) {
-            NavigationBarItem(
+            CircleNavItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
-                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-                icon = {
-                    CircleNavIcon(selected = selectedTab == 3) {
-                        Icon(
-                            if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
-                            contentDescription = seriesLabel,
-                        )
-                    }
-                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_SERIES),
-            )
+            ) {
+                Icon(
+                    if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
+                    contentDescription = seriesLabel,
+                )
+            }
         }
         if (visibility.collections) {
-            NavigationBarItem(
+            CircleNavItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
-                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-                icon = {
-                    CircleNavIcon(selected = selectedTab == 4) {
-                        Icon(
-                            if (selectedTab == 4) RiffleIcons.Sell else RiffleIcons.SellOutlined,
-                            contentDescription = collectionsLabel,
-                        )
-                    }
-                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_COLLECTIONS),
-            )
+            ) {
+                Icon(
+                    if (selectedTab == 4) RiffleIcons.Sell else RiffleIcons.SellOutlined,
+                    contentDescription = collectionsLabel,
+                )
+            }
         }
         if (visibility.playlists) {
             val playlistsIndex = tabIndexForPlaylists()
-            NavigationBarItem(
+            CircleNavItem(
                 selected = selectedTab == playlistsIndex,
                 onClick = { onTabSelected(playlistsIndex) },
-                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-                icon = {
-                    CircleNavIcon(selected = selectedTab == playlistsIndex) {
-                        Icon(
-                            if (selectedTab == playlistsIndex) RiffleIcons.QueueMusic else RiffleIcons.QueueMusicOutlined,
-                            contentDescription = playlistsLabel,
-                        )
-                    }
-                },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_PLAYLISTS),
-            )
+            ) {
+                Icon(
+                    if (selectedTab == playlistsIndex) RiffleIcons.QueueMusic else RiffleIcons.QueueMusicOutlined,
+                    contentDescription = playlistsLabel,
+                )
+            }
         }
-        NavigationBarItem(
+        CircleNavItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
-            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
-            icon = {
-                CircleNavIcon(selected = selectedTab == 5) {
-                    Icon(
-                        if (selectedTab == 5) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
-                        contentDescription = allBooksLabel,
-                    )
-                }
-            },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ALL_BOOKS),
-        )
+        ) {
+            Icon(
+                if (selectedTab == 5) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
+                contentDescription = allBooksLabel,
+            )
+        }
     }
 }
 
