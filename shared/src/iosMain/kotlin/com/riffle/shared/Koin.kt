@@ -1337,8 +1337,8 @@ private fun iosLibraryModule(
     }
     factory { params ->
         LibraryItemDetailViewModel(
-            itemId = params.get(),
-            sourceId = params.get(),
+            itemId = params[0],
+            sourceId = params.values.getOrNull(1) as? String,
             libraryObserver = get(),
             recordItemOpened = get(),
             updateReadingProgressUseCase = get(),
