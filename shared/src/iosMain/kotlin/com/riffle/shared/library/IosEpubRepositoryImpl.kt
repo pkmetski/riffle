@@ -39,6 +39,14 @@ internal class IosEpubRepositoryImpl(
     ): EpubDownloadResult {
         if (isDownloaded(item.sourceId, item.id)) return EpubDownloadResult.AlreadyDownloaded
         val destPath = downloadPath(item.sourceId, item.id)
+        val cPath = cachePath(item.sourceId, item.id)
+        if (NSFileManager.defaultManager.fileExistsAtPath(cPath)) {
+            return if (IosItemFiles.move(cPath, destPath)) {
+                EpubDownloadResult.Success
+            } else {
+                EpubDownloadResult.NetworkError(IllegalStateException("Failed to promote cache to downloads"))
+            }
+        }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return EpubDownloadResult.NetworkError(IllegalStateException("No catalog for source ${item.sourceId}"))
         return try {
