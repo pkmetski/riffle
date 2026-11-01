@@ -80,7 +80,7 @@
     <string name="ui_genres">Genres: </string>
     <string name="ui_language">Language: </string>
     <string name="ui_publisher">Publisher: %1$s</string>
-    <string name="ui_sections_count">%1$d sections</string>
+    <string name="ui_sections_count">%1$d chapters</string>
     <string name="ui_chapters_count">%1$d chapters</string>
     <string name="ui_audiobook_duration_line">Audiobook · %1$s</string>
     <string name="ui_duration_total">%1$s total</string>

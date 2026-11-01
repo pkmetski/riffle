@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -361,6 +363,20 @@ fun LibraryTabContent(
 }
 
 @Composable
+internal fun CircleNavIcon(selected: Boolean, icon: @Composable () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = if (selected) {
+            Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+        } else {
+            Modifier.size(40.dp)
+        },
+    ) {
+        icon()
+    }
+}
+
+@Composable
 private fun LibraryTabBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
@@ -377,11 +393,14 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
+            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
             icon = {
-                Icon(
-                    if (selectedTab == 0) RiffleIcons.Home else RiffleIcons.HomeOutlined,
-                    contentDescription = homeLabel,
-                )
+                CircleNavIcon(selected = selectedTab == 0) {
+                    Icon(
+                        if (selectedTab == 0) RiffleIcons.Home else RiffleIcons.HomeOutlined,
+                        contentDescription = homeLabel,
+                    )
+                }
             },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_HOME),
         )
@@ -389,11 +408,14 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
+                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
                 icon = {
-                    Icon(
-                        if (selectedTab == 1) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
-                        contentDescription = toReadLabel,
-                    )
+                    CircleNavIcon(selected = selectedTab == 1) {
+                        Icon(
+                            if (selectedTab == 1) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
+                            contentDescription = toReadLabel,
+                        )
+                    }
                 },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_TO_READ),
             )
@@ -403,11 +425,14 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == annotationsIndex,
                 onClick = { onTabSelected(annotationsIndex) },
+                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
                 icon = {
-                    Icon(
-                        if (selectedTab == annotationsIndex) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
-                        contentDescription = annotationsLabel,
-                    )
+                    CircleNavIcon(selected = selectedTab == annotationsIndex) {
+                        Icon(
+                            if (selectedTab == annotationsIndex) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
+                            contentDescription = annotationsLabel,
+                        )
+                    }
                 },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ANNOTATIONS),
             )
@@ -416,11 +441,14 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 3,
                 onClick = { onTabSelected(3) },
+                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
                 icon = {
-                    Icon(
-                        if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
-                        contentDescription = seriesLabel,
-                    )
+                    CircleNavIcon(selected = selectedTab == 3) {
+                        Icon(
+                            if (selectedTab == 3) RiffleIcons.FormatListNumbered else RiffleIcons.FormatListNumberedOutlined,
+                            contentDescription = seriesLabel,
+                        )
+                    }
                 },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_SERIES),
             )
@@ -429,11 +457,14 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
+                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
                 icon = {
-                    Icon(
-                        if (selectedTab == 4) RiffleIcons.Sell else RiffleIcons.SellOutlined,
-                        contentDescription = collectionsLabel,
-                    )
+                    CircleNavIcon(selected = selectedTab == 4) {
+                        Icon(
+                            if (selectedTab == 4) RiffleIcons.Sell else RiffleIcons.SellOutlined,
+                            contentDescription = collectionsLabel,
+                        )
+                    }
                 },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_COLLECTIONS),
             )
@@ -443,11 +474,14 @@ private fun LibraryTabBar(
             NavigationBarItem(
                 selected = selectedTab == playlistsIndex,
                 onClick = { onTabSelected(playlistsIndex) },
+                colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
                 icon = {
-                    Icon(
-                        if (selectedTab == playlistsIndex) RiffleIcons.QueueMusic else RiffleIcons.QueueMusicOutlined,
-                        contentDescription = playlistsLabel,
-                    )
+                    CircleNavIcon(selected = selectedTab == playlistsIndex) {
+                        Icon(
+                            if (selectedTab == playlistsIndex) RiffleIcons.QueueMusic else RiffleIcons.QueueMusicOutlined,
+                            contentDescription = playlistsLabel,
+                        )
+                    }
                 },
                 modifier = Modifier.testTag(TestTags.LIBRARY_TAB_PLAYLISTS),
             )
@@ -455,11 +489,14 @@ private fun LibraryTabBar(
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },
+            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
             icon = {
-                Icon(
-                    if (selectedTab == 5) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
-                    contentDescription = allBooksLabel,
-                )
+                CircleNavIcon(selected = selectedTab == 5) {
+                    Icon(
+                        if (selectedTab == 5) RiffleIcons.AllBooks else RiffleIcons.AllBooksOutlined,
+                        contentDescription = allBooksLabel,
+                    )
+                }
             },
             modifier = Modifier.testTag(TestTags.LIBRARY_TAB_ALL_BOOKS),
         )

@@ -214,6 +214,18 @@ internal class FakeMarkReadAcrossDimensions : MarkReadAcrossDimensions(
     override suspend fun invoke(sourceId: String, itemId: String, finished: Boolean) {}
 }
 
+internal class RecordingMarkReadAcrossDimensions : MarkReadAcrossDimensions(
+    FakeLibraryMutator,
+    FakeReadingSessionRepository,
+    FakeReadaloudLinkRepository,
+    FakeSourceRepository,
+) {
+    val calls = mutableListOf<Triple<String, String, Boolean>>()
+    override suspend fun invoke(sourceId: String, itemId: String, finished: Boolean) {
+        calls += Triple(sourceId, itemId, finished)
+    }
+}
+
 internal class FakeAudiobookChapterCacheRepository : AudiobookChapterCacheRepository {
     override suspend fun getCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? = null
     override suspend fun getStaleCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? = null

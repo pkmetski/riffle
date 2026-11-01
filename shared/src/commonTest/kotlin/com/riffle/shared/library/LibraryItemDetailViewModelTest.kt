@@ -251,6 +251,67 @@ class LibraryItemDetailViewModelTest {
         job.cancel()
     }
 
+    // Regression: when sourceId is null (browse navigation for web-source items like Chitanka),
+    // markAsRead must use the item's own sourceId from the loaded state, not the VM constructor
+    // param. The iOS Koin factory used to resolve both String params to the first value (itemId)
+    // via type-based matching, causing a FK violation on the reading_positions insert.
+    @Test
+    fun markAsReadWithNullSourceIdUsesItemSourceId() = runTest(mainDispatcher) {
+        val recordingMarkRead = RecordingMarkReadAcrossDimensions()
+        val vmDirect = LibraryItemDetailViewModel(
+            itemId = fakeItem.id,
+            sourceId = null,
+            libraryObserver = makeLibraryObserver(fakeItem),
+            recordItemOpened = FakeRecordItemOpened(),
+            updateReadingProgressUseCase = FakeUpdateReadingProgress(),
+            markReadAcrossDimensions = recordingMarkRead,
+            sourceRepository = makeSourceRepository(),
+            tokenStorage = makeTokenStorage(),
+            epubRepository = FakeEpubRepository(),
+            ebookCfiTranslatorFactory = FakeEbookCfiTranslatorFactory,
+            audiobookPositionStore = FakeAudiobookPositionStore(),
+            pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
+            toReadRepository = makeToReadRepository(false),
+            playlistsRepository = FakePlaylistsRepository(),
+            readaloudLinkRepository = FakeReadaloudLinkRepository,
+            readaloudAudioRepository = FakeReadaloudAudioRepository(),
+            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            audiobookCacheRepository = FakeAudiobookCacheRepository(),
+            localAvailabilityEvents = FakeLocalAvailabilityEvents(),
+            readaloudOfflineDownloader = FakeReadaloudOfflineDownloader,
+            connectivityObserver = makeConnectivityObserver(),
+            downloadManager = FakeDownloadManager(),
+            bookImportManager = FakeBookImportManager(),
+            crossEpubIndexBuildTrigger = FakeCrossEpubIndexBuildTrigger,
+            sidecarPrefetcher = FakeReadaloudSidecarPrefetcher,
+            epubTocExtractor = FakeEpubTocExtractor(),
+            pdfPageCountExtractor = FakePdfPageCountExtractor,
+            fetchAudiobookChaptersUseCase = FetchAudiobookChaptersUseCase(FakeAudiobookChapterCacheRepository()),
+            catalogRegistry = FakeCatalogRegistry,
+            libraryRefresher = FakeLibraryRefresher(),
+            saveLocalFileMetadataOverride = FakeLocalFileMetadataOverrideSaver,
+            copyCoverImage = FakeCoverImageCopier,
+            readingSpeedStore = FakeReadingSpeedStore(),
+            webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
+        )
+        testScheduler.advanceUntilIdle()
+        assertIs<LibraryItemDetailUiState.Ready>(vmDirect.uiState.value)
+
+        vmDirect.markAsRead()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(1, recordingMarkRead.calls.size, "markAsRead must invoke MarkReadAcrossDimensions exactly once")
+        val (usedSourceId, usedItemId, finished) = recordingMarkRead.calls.first()
+        assertEquals(
+            fakeItem.sourceId,
+            usedSourceId,
+            "sourceId passed to MarkReadAcrossDimensions must be the item's sourceId, not the VM constructor's null param",
+        )
+        assertEquals(fakeItem.id, usedItemId)
+        assertTrue(finished)
+    }
+
     @Test
     fun capabilitiesHasReadaloudFalseWhenNoLink() = runTest(mainDispatcher) {
         val vm = makeViewModel(

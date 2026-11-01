@@ -1,8 +1,6 @@
 package com.riffle.feature.library.ui
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +51,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -1125,17 +1125,18 @@ internal fun ReadToggleButton(
     onMarkAsUnread: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val fillColor = MaterialTheme.colorScheme.primary
+    val ringColor = MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
             .size(40.dp)
+            .drawWithContent {
+                if (isRead) drawCircle(color = fillColor)
+                drawContent()
+                val strokePx = 1.dp.toPx()
+                drawCircle(color = ringColor, radius = size.minDimension / 2f - strokePx / 2f, style = Stroke(strokePx))
+            }
             .clip(CircleShape)
-            .then(
-                if (isRead) {
-                    Modifier.background(MaterialTheme.colorScheme.primary)
-                } else {
-                    Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                },
-            )
             .clickable(onClick = if (isRead) onMarkAsUnread else onMarkAsRead),
         contentAlignment = Alignment.Center,
     ) {
@@ -1150,17 +1151,18 @@ internal fun ReadToggleButton(
 
 @Composable
 private fun ToReadToggleButton(isInToRead: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    val fillColor = MaterialTheme.colorScheme.primary
+    val ringColor = MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
             .size(40.dp)
+            .drawWithContent {
+                if (isInToRead) drawCircle(color = fillColor)
+                drawContent()
+                val strokePx = 1.dp.toPx()
+                drawCircle(color = ringColor, radius = size.minDimension / 2f - strokePx / 2f, style = Stroke(strokePx))
+            }
             .clip(CircleShape)
-            .then(
-                if (isInToRead) {
-                    Modifier.background(MaterialTheme.colorScheme.primary)
-                } else {
-                    Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                },
-            )
             .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center,
     ) {
@@ -1175,17 +1177,18 @@ private fun ToReadToggleButton(isInToRead: Boolean, onToggle: () -> Unit, modifi
 
 @Composable
 private fun AddToPlaylistButton(isInAnyPlaylist: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val fillColor = MaterialTheme.colorScheme.primary
+    val ringColor = MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
             .size(40.dp)
+            .drawWithContent {
+                if (isInAnyPlaylist) drawCircle(color = fillColor)
+                drawContent()
+                val strokePx = 1.dp.toPx()
+                drawCircle(color = ringColor, radius = size.minDimension / 2f - strokePx / 2f, style = Stroke(strokePx))
+            }
             .clip(CircleShape)
-            .then(
-                if (isInAnyPlaylist) {
-                    Modifier.background(MaterialTheme.colorScheme.primary)
-                } else {
-                    Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                },
-            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

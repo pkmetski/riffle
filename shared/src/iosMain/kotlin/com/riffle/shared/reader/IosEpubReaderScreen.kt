@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -116,6 +118,7 @@ import com.riffle.feature.reader.NavigatorNavigationTarget
 import com.riffle.feature.reader.NavigatorPageDirection
 import com.riffle.feature.reader.NavigatorPageLoad
 import com.riffle.feature.reader.NavigatorPosition
+import com.riffle.feature.reader.NavigatorRect
 import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.PullBoundaryGestureState
@@ -354,6 +357,9 @@ fun EpubReaderScreen(
     // When true and the annotation has a note, shows NoteOnlyPopup instead of the full sheet —
     // mirrors Android's HighlightActionsPopup(noteOnly=true) path.
     var editTargetWasGlyphTap by remember { mutableStateOf(false) }
+    // Rect of the decoration that was tapped to open the annotation sheet. Preserved so the
+    // sheet stays anchored near the annotation even when no live selection is active.
+    var decorationTapRect by remember { mutableStateOf<NavigatorRect?>(null) }
     // Non-null while the note editor is up; the value is the annotation id, or "" for a note
     // being written on a selection that has not been persisted yet.
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
@@ -821,6 +827,7 @@ fun EpubReaderScreen(
             editTargetId = activation.id.substringBefore('#')
             editTargetWasGlyphTap = activation.group == NOTE_GLYPH_DECORATION_GROUP
             annotationsPanelOpen = false
+            decorationTapRect = activation.rect
         }
     }
 
@@ -1689,6 +1696,15 @@ fun EpubReaderScreen(
         // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
         val editTarget = annotations.firstOrNull { it.id == editTargetId }
         val liveSelection = selection
+        // Preserve the selection rect after createIosHighlight clears the native selection so the
+        // annotation sheet stays anchored near the text instead of jumping to the bottom.
+        // Cleared when both the sheet and the selection are gone (user dismissed or no active edit).
+        var lastSelectionRect by remember { mutableStateOf<NavigatorRect?>(null) }
+        if (liveSelection?.rect != null) lastSelectionRect = liveSelection.rect
+        if (liveSelection == null && editTargetId == null) {
+            lastSelectionRect = null
+            decorationTapRect = null
+        }
 
         // Selection action strip: Copy / Search / Share — mirrors Android's ActionMode items.
         // Shown while text is selected but before the user taps Annotate or the full sheet opens.
@@ -1709,12 +1725,10 @@ fun EpubReaderScreen(
             }
             val stripModifier = if (stripTargetY != null) {
                 Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.TopCenter)
                     .padding(top = stripTargetY.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
             } else {
-                Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                Modifier.align(Alignment.TopCenter).padding(8.dp)
             }
             SelectionActionStrip(
                 onCopy = {
@@ -1767,8 +1781,8 @@ fun EpubReaderScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .widthIn(max = 300.dp),
             )
         }
 
@@ -1783,8 +1797,9 @@ fun EpubReaderScreen(
             // the sheet never slides behind the system chrome.
             val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
             val annotationSheetModifier = run {
-                val selRect = liveSelection?.rect
-                if (selRect != null && editTarget == null) {
+                val selRect = liveSelection?.rect ?: if (editTarget != null) lastSelectionRect ?: decorationTapRect else null
+                val screenWidthDp = LocalWindowInfo.current.containerSize.width.toFloat()
+                if (selRect != null) {
                     val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
                     val targetY = annotationSheetTargetY(
                         selectionY = selRect.y,
@@ -1792,16 +1807,19 @@ fun EpubReaderScreen(
                         minAboveY = statusBarTopDp.value + 8f,
                         maxBelowY = screenHeightDp,
                     )
+                    val maxSheetWidthDp = 300f
+                    val marginDp = 12f
+                    val centerX = selRect.x + selRect.width / 2f
+                    val startX = (centerX - maxSheetWidthDp / 2f).coerceIn(marginDp, screenWidthDp - maxSheetWidthDp - marginDp)
                     Modifier
                         .align(Alignment.TopStart)
-                        .padding(top = targetY.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
+                        .offset(x = startX.dp, y = targetY.dp)
+                        .widthIn(min = 264.dp, max = 300.dp)
                 } else {
                     Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
                         .padding(12.dp)
+                        .widthIn(min = 264.dp, max = 300.dp)
                 }
             }
             AnnotationActionsSheet(

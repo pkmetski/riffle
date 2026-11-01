@@ -59,7 +59,7 @@
     <string name="ui_genres">Géneros: </string>
     <string name="ui_language">Idioma: </string>
     <string name="ui_publisher">Editorial: %1$s</string>
-    <string name="ui_sections_count">%1$d secciones</string>
+    <string name="ui_sections_count">%1$d capítulos</string>
     <string name="ui_chapters_count">%1$d capítulos</string>
     <string name="ui_audiobook_duration_line">Audiolibro · %1$s</string>
     <string name="ui_duration_total">%1$s total</string>
