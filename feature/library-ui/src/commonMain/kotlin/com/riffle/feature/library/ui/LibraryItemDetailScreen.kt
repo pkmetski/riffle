@@ -127,7 +127,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_cann
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_title
 import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_preparing
-import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_processing
 import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_uploading
 import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_uploading_n_of_m
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to
@@ -521,6 +520,8 @@ private fun DetailReadyScaffold(
 
 @Composable
 private fun UploadProgressBar(state: BookImportState.InProgress, modifier: Modifier = Modifier) {
+    // Uploaded/Reconciling/Finalizing phases never reach here: BookImportManagerImpl
+    // transitions to Completed on Uploaded, so those callbacks don't update InProgress.
     val label = when (state.phase) {
         CatalogImportPhase.Preparing -> stringResource(Res.string.ui_upload_phase_preparing)
         CatalogImportPhase.Uploading -> if (state.totalFiles > 1) {
@@ -528,9 +529,7 @@ private fun UploadProgressBar(state: BookImportState.InProgress, modifier: Modif
         } else {
             stringResource(Res.string.ui_upload_phase_uploading)
         }
-        CatalogImportPhase.Uploaded,
-        CatalogImportPhase.Reconciling,
-        CatalogImportPhase.Finalizing -> stringResource(Res.string.ui_upload_phase_processing)
+        else -> stringResource(Res.string.ui_upload_phase_uploading)
     }
     val progress = if (state.phase == CatalogImportPhase.Uploading && state.totalFiles > 1) {
         state.completedFiles.toFloat() / state.totalFiles
