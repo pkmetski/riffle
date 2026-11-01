@@ -98,6 +98,7 @@ import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import com.riffle.feature.player.ui.ReadaloudPeek
+import com.riffle.feature.reader.AnchorRect
 import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.resolveAnnotationSheetColor
 import com.riffle.feature.reader.AutoScrollStall
@@ -303,6 +304,7 @@ fun EpubReaderScreen(
     val annotations by annotationSession.annotations.collectAsState()
     val lastUsedHighlightColor by annotationSession.lastUsedHighlightColor.collectAsState()
     val lastUsedColorIsNone by annotationSession.lastUsedColorIsNone.collectAsState()
+    val highlightToEdit by annotationSession.highlightToEdit.collectAsState()
     val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
     val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
@@ -356,11 +358,7 @@ fun EpubReaderScreen(
     // The annotation whose actions sheet is open, or null. Set by a decoration tap and by a
     // fresh create so the sheet switches from "annotate this selection" to "edit this
     // annotation" without the user having to tap the new highlight.
-    var editTargetId by remember { mutableStateOf<String?>(null) }
-    // True when `editTargetId` was set by tapping a note glyph rather than the highlight body.
-    // When true and the annotation has a note, shows NoteOnlyPopup instead of the full sheet —
-    // mirrors Android's HighlightActionsPopup(noteOnly=true) path.
-    var editTargetWasGlyphTap by remember { mutableStateOf(false) }
+    // editTargetId and noteOnly are driven by annotationSession.highlightToEdit — mirrors Android.
     // Rect of the decoration that was tapped to open the annotation sheet. Preserved so the
     // sheet stays anchored near the annotation even when no live selection is active.
     var decorationTapRect by remember { mutableStateOf<NavigatorRect?>(null) }
@@ -831,10 +829,15 @@ fun EpubReaderScreen(
     // `#segN` suffix at the same seam (`annotationIdOf`) for the same reason.
     LaunchedEffect(navigator) {
         navigator.decorationActivations.collect { activation ->
-            editTargetId = activation.id.substringBefore('#')
-            editTargetWasGlyphTap = activation.group == NOTE_GLYPH_DECORATION_GROUP
             annotationsPanelOpen = false
             decorationTapRect = activation.rect
+            val id = activation.id.substringBefore('#')
+            val anchorRect = activation.rect?.toAnchorRect() ?: AnchorRect.Zero
+            if (activation.group == NOTE_GLYPH_DECORATION_GROUP) {
+                annotationSession.openNoteReader(id, anchorRect)
+            } else {
+                annotationSession.openHighlightActions(id, anchorRect)
+            }
         }
     }
 
@@ -850,9 +853,8 @@ fun EpubReaderScreen(
                     // calls suppressNextBodyTap() synchronously; by the time this coroutine resumes,
                     // that call has already happened, so the counter is non-zero and we discard.
                     if (navigator.consumeSuppressedBodyTap()) return@collect
-                    val annotationSheetWasOpen = editTargetId != null || navigator.selectionFlow.value != null
-                    editTargetId = null
-                    editTargetWasGlyphTap = false
+                    val annotationSheetWasOpen = annotationSession.highlightToEdit.value != null || navigator.selectionFlow.value != null
+                    annotationSession.dismissHighlightActions()
                     pendingStyles = emptySet()
                     // Tapping away from an open annotation sheet only dismisses it; it must not
                     // also flip chrome visibility (mirrors Android's highlightPopupDismissedAtNs guard).
@@ -1208,8 +1210,7 @@ fun EpubReaderScreen(
                 imageSvg = p.svg,
             )
             if (existing != null) {
-                editTargetId = existing.id
-                editTargetWasGlyphTap = false
+                annotationSession.openHighlightActions(existing.id)
             } else {
                 val position = navigator.snapshotPosition() ?: return@collect
                 val href = position.href
@@ -1226,8 +1227,7 @@ fun EpubReaderScreen(
                     imageSvg = p.svg,
                     imageBytes = p.imageBytes,
                 )
-                editTargetId = created.id
-                editTargetWasGlyphTap = false
+                annotationSession.openHighlightActions(created.id)
             }
         }
     }
@@ -1238,7 +1238,7 @@ fun EpubReaderScreen(
     LaunchedEffect(navigator, source) {
         if (source != ReaderSource.Highlights) return@LaunchedEffect
         navigator.riffleUrls.collect { url ->
-            parseAnnotationTapUrl(url)?.let { id -> editTargetId = id }
+            parseAnnotationTapUrl(url)?.let { id -> annotationSession.openHighlightActions(id) }
         }
     }
     LaunchedEffect(navigator) {
@@ -1704,7 +1704,8 @@ fun EpubReaderScreen(
         // `HighlightActionsPopup` works too. For live selections we anchor near the selection
         // rect (above when there's room, below otherwise), matching Android's
         // HighlightPopupPositionProvider. For existing annotation edits we dock at the bottom.
-        val editTarget = annotations.firstOrNull { it.id == editTargetId }
+        val editTargetId = highlightToEdit?.id?.takeIf { it != AnnotationSession.DRAFT_ANNOTATION_ID }
+        val editTarget = editTargetId?.let { id -> annotations.firstOrNull { it.id == id } }
         val liveSelection = navigator.selectionFlow.collectAsState().value
         // Preserve the selection rect after createIosHighlight clears the native selection so the
         // annotation sheet stays anchored near the text instead of jumping to the bottom.
@@ -1713,7 +1714,7 @@ fun EpubReaderScreen(
         // the original text after createIosHighlight clears the native selection. Cleared when
         // both the sheet and any active edit are gone.
         var lastSelectionRect by remember { mutableStateOf<NavigatorRect?>(null) }
-        if (liveSelection == null && editTargetId == null) {
+        if (liveSelection == null && highlightToEdit == null) {
             lastSelectionRect = null
             decorationTapRect = null
             annotateSheetOpen = false
@@ -1768,11 +1769,19 @@ fun EpubReaderScreen(
                     annotateSheetOpen = true
                     scope.launch {
                         if (source == ReaderSource.Highlights) return@launch
+                        val anchorRect = capturedSelection.rect?.toAnchorRect() ?: AnchorRect.Zero
                         createIosHighlight(
                             capturedSelection, capturedColor, capturedPendingStyles, null,
                             navigator, annotationStore, annotationSession,
                             item.sourceId, item.id, spineRef,
-                        )?.let { editTargetId = it.id }
+                        )?.let { created ->
+                            annotationSession.persistLastUsedColorToken(capturedColor?.token ?: "")
+                            annotationSession.openHighlightActions(
+                                id = created.id,
+                                anchorRect = anchorRect,
+                                justCreatedFromDraft = true,
+                            )
+                        }
                         pendingStyles = emptySet()
                     }
                 },
@@ -1794,7 +1803,7 @@ fun EpubReaderScreen(
 
         // NoteOnlyPopup: when the user taps a note glyph on an annotation that has a note, show
         // a compact read-only card matching Android's noteOnly=true popup path.
-        if (noteEditorFor == null && editTargetWasGlyphTap && editTarget != null && liveSelection == null) {
+        if (noteEditorFor == null && highlightToEdit?.noteOnly == true && editTarget != null && liveSelection == null) {
             val readerBackground = (resolvedPrefs ?: FormattingPreferences()).readerSwatchBackdropColor
             NoteOnlyPopup(
                 note = editTarget.note,
@@ -1802,11 +1811,10 @@ fun EpubReaderScreen(
                 readerBackground = readerBackground,
                 onOpenNoteEditor = {
                     noteEditorFor = editTarget.id
-                    editTargetWasGlyphTap = false
+                    annotationSession.openHighlightActions(editTarget.id)
                 },
                 onDismiss = {
-                    editTargetId = null
-                    editTargetWasGlyphTap = false
+                    annotationSession.forceCloseHighlightEditTarget()
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1815,7 +1823,7 @@ fun EpubReaderScreen(
             )
         }
 
-        if (noteEditorFor == null && (editTarget != null || (liveSelection != null && annotateSheetOpen)) && !editTargetWasGlyphTap) {
+        if (noteEditorFor == null && (editTarget != null || (liveSelection != null && annotateSheetOpen)) && highlightToEdit?.noteOnly != true) {
             // The reader's own paper colour, not the app surface: an alpha-0x80 swatch composited
             // over the wrong backdrop previews a colour the book will never show. Same shared
             // derivation Android's popup reads.
@@ -1867,12 +1875,16 @@ fun EpubReaderScreen(
                             annotationSession.recolorHighlight(editTarget.id, color)
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
+                            val capturedSel = liveSelection
+                            val anchorRect = capturedSel.rect?.toAnchorRect() ?: AnchorRect.Zero
                             createIosHighlight(
-                                liveSelection, color, pendingStyles, null,
+                                capturedSel, color, pendingStyles, null,
                                 navigator, annotationStore, annotationSession,
                                 item.sourceId, item.id, spineRef,
-                            )?.let { editTargetId = it.id }
-                            annotationSession.persistLastUsedColorToken(color.token)
+                            )?.let { created ->
+                                annotationSession.persistLastUsedColorToken(color.token)
+                                annotationSession.openHighlightActions(created.id, anchorRect, justCreatedFromDraft = true)
+                            }
                             pendingStyles = emptySet()
                         }
                     }
@@ -1883,12 +1895,16 @@ fun EpubReaderScreen(
                             annotationSession.recolorHighlightRaw(editTarget.id, "")
                         } else if (liveSelection != null) {
                             if (source == ReaderSource.Highlights) return@launch
+                            val capturedSel = liveSelection
+                            val anchorRect = capturedSel.rect?.toAnchorRect() ?: AnchorRect.Zero
                             createIosHighlight(
-                                liveSelection, null, pendingStyles, null,
+                                capturedSel, null, pendingStyles, null,
                                 navigator, annotationStore, annotationSession,
                                 item.sourceId, item.id, spineRef,
-                            )?.let { editTargetId = it.id }
-                            annotationSession.persistLastUsedColorToken("")
+                            )?.let { created ->
+                                annotationSession.persistLastUsedColorToken("")
+                                annotationSession.openHighlightActions(created.id, anchorRect, justCreatedFromDraft = true)
+                            }
                             pendingStyles = emptySet()
                         }
                     }
@@ -1913,11 +1929,13 @@ fun EpubReaderScreen(
                             emphasisPreferencesStore.setLastUsedStyles(item.sourceId, item.id, next)
                             if (liveSelection != null && next.isNotEmpty()) {
                                 if (source == ReaderSource.Highlights) return@launch
+                                val capturedSel = liveSelection
+                                val anchorRect = capturedSel.rect?.toAnchorRect() ?: AnchorRect.Zero
                                 createIosHighlight(
-                                    liveSelection, null, next, null,
+                                    capturedSel, null, next, null,
                                     navigator, annotationStore, annotationSession,
                                     item.sourceId, item.id, spineRef,
-                                )?.let { editTargetId = it.id }
+                                )?.let { annotationSession.openHighlightActions(it.id, anchorRect, justCreatedFromDraft = true) }
                                 pendingStyles = emptySet()
                             }
                         }
@@ -1927,16 +1945,16 @@ fun EpubReaderScreen(
                 onDelete = editTarget?.let { target ->
                     {
                         scope.launch { annotationSession.deleteAnnotation(target.id) }
-                        editTargetId = null
+                        annotationSession.forceCloseHighlightEditTarget()
                     }
                 },
                 showOpenInBook = shouldShowOpenInBook(source),
                 onOpenInBook = {
-                    val targetId = editTargetId ?: return@AnnotationActionsSheet
+                    val targetId = highlightToEdit?.id ?: return@AnnotationActionsSheet
                     val annotation = highlightsAnnotations.firstOrNull { it.id == targetId }
                         ?: return@AnnotationActionsSheet
                     val locatorJson = annotationLocatorJson(annotation.chapterHref, annotation.cfi, annotation.progression)
-                    editTargetId = null
+                    annotationSession.forceCloseHighlightEditTarget()
                     onOpenInBook?.invoke(locatorJson)
                 },
                 modifier = annotationSheetModifier,
@@ -1961,7 +1979,10 @@ fun EpubReaderScreen(
                                     sel, null, pendingStyles, text,
                                     navigator, annotationStore, annotationSession,
                                     item.sourceId, item.id, spineRef,
-                                )?.let { editTargetId = it.id }
+                                )?.let { created ->
+                                    val anchorRect = sel.rect?.toAnchorRect() ?: AnchorRect.Zero
+                                    annotationSession.openHighlightActions(created.id, anchorRect, justCreatedFromDraft = true)
+                                }
                             }
                         }
                         pendingStyles = emptySet()
@@ -2011,14 +2032,14 @@ fun EpubReaderScreen(
                                 goTo(NavigatorNavigationTarget.ToHref("highlights/ch$chapterIndex.xhtml"))
                             }
                         }
-                        editTargetId = id
+                        annotationSession.openHighlightActions(id, AnchorRect.Zero)
                         return@SharedAnnotationsPanel
                     }
                     val target = annotations.firstOrNull { it.id == id }
                     if (target != null) {
                         scope.launch {
                             goTo(NavigatorNavigationTarget.ToLocatorJson(annotationDecorationLocator(target)))
-                            editTargetId = id
+                            annotationSession.openHighlightActions(id, AnchorRect.Zero)
                         }
                     }
                 },
@@ -2354,6 +2375,9 @@ internal fun emphasisStylesForAnnotation(
     .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS && it.cfi == annotation.cfi }
     .flatMap { it.emphasisStyles.orEmpty() }
     .toSet()
+
+private fun NavigatorRect.toAnchorRect(): AnchorRect =
+    AnchorRect(left = x.toInt(), top = y.toInt(), right = (x + width).toInt(), bottom = (y + height).toInt())
 
 internal suspend fun createIosHighlight(
     selection: com.riffle.feature.reader.NavigatorSelection,
