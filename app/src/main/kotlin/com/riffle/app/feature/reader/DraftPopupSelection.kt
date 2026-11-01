@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
+import com.riffle.feature.reader.resolveAnnotationSheetColor
 
 /**
  * Pure derivation of the highlight-actions popup's pre-selected state (swatch + emphasis chips).
@@ -26,12 +27,13 @@ internal fun resolveDraftPopupSelection(
     lastUsedColorIsNone: Boolean,
     lastUsedEmphasisStyles: Set<EmphasisStyle>,
 ): DraftPopupSelection {
-    if (isDraft) {
-        val color = if (lastUsedColorIsNone) null else lastUsedHighlightColor
-        return DraftPopupSelection(selectedColor = color, emphasisStyles = lastUsedEmphasisStyles)
-    }
-    val color = if (persistedColor.isNullOrEmpty()) null else HighlightColor.fromToken(persistedColor)
-    return DraftPopupSelection(selectedColor = color, emphasisStyles = persistedEmphasisStyles)
+    val color = resolveAnnotationSheetColor(
+        persistedColor = if (isDraft) null else persistedColor,
+        lastUsedHighlightColor = lastUsedHighlightColor,
+        lastUsedColorIsNone = lastUsedColorIsNone,
+    )
+    val emphasisStyles = if (isDraft) lastUsedEmphasisStyles else persistedEmphasisStyles
+    return DraftPopupSelection(selectedColor = color, emphasisStyles = emphasisStyles)
 }
 
 internal data class DraftPopupSelection(
