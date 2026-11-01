@@ -59,7 +59,7 @@
     <string name="ui_genres">Жанрове: </string>
     <string name="ui_language">Език: </string>
     <string name="ui_publisher">Издател: %1$s</string>
-    <string name="ui_sections_count">%1$d раздела</string>
+    <string name="ui_sections_count">%1$d глави</string>
     <string name="ui_chapters_count">%1$d глави</string>
     <string name="ui_audiobook_duration_line">Аудиокнига · %1$s</string>
     <string name="ui_duration_total">%1$s общо</string>
