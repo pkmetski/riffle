@@ -99,6 +99,7 @@ import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import com.riffle.feature.player.ui.ReadaloudPeek
 import com.riffle.feature.reader.AnnotationSession
+import com.riffle.feature.reader.resolveAnnotationSheetColor
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -300,6 +301,8 @@ fun EpubReaderScreen(
         )
     }
     val annotations by annotationSession.annotations.collectAsState()
+    val lastUsedHighlightColor by annotationSession.lastUsedHighlightColor.collectAsState()
+    val lastUsedColorIsNone by annotationSession.lastUsedColorIsNone.collectAsState()
     val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
     val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
@@ -1702,8 +1705,10 @@ fun EpubReaderScreen(
         // Preserve the selection rect after createIosHighlight clears the native selection so the
         // annotation sheet stays anchored near the text instead of jumping to the bottom.
         // Cleared when both the sheet and the selection are gone (user dismissed or no active edit).
+        // Captured once when the user taps Annotate, so the annotation sheet stays anchored near
+        // the original text after createIosHighlight clears the native selection. Cleared when
+        // both the sheet and any active edit are gone.
         var lastSelectionRect by remember { mutableStateOf<NavigatorRect?>(null) }
-        if (liveSelection?.rect != null) lastSelectionRect = liveSelection.rect
         if (liveSelection == null && editTargetId == null) {
             lastSelectionRect = null
             decorationTapRect = null
@@ -1751,7 +1756,10 @@ fun EpubReaderScreen(
                     com.riffle.shared.reader.IosSystemActions.share(selText)
                     navigator.clearSelection()
                 },
-                onAnnotate = { annotateSheetOpen = true },
+                onAnnotate = {
+                    lastSelectionRect = liveSelection.rect
+                    annotateSheetOpen = true
+                },
                 onPlayFromHere = if (readaloudVisible) {
                     {
                         val href = liveSelection.href
@@ -1828,9 +1836,11 @@ fun EpubReaderScreen(
                 }
             }
             AnnotationActionsSheet(
-                selectedColor = editTarget?.let {
-                    if (it.color.isEmpty()) null else HighlightColor.fromToken(it.color)
-                },
+                selectedColor = resolveAnnotationSheetColor(
+                    persistedColor = editTarget?.color,
+                    lastUsedHighlightColor = lastUsedHighlightColor,
+                    lastUsedColorIsNone = lastUsedColorIsNone,
+                ),
                 emphasisStyles = editTarget?.let { emphasisStylesForAnnotation(it, annotationSession.emphasisPool.value) } ?: pendingStyles,
                 note = editTarget?.note,
                 readerBackground = readerBackground,
