@@ -197,6 +197,10 @@ class LibraryItemDetailViewModelTest {
         copyCoverImage = FakeCoverImageCopier,
         readingSpeedStore = FakeReadingSpeedStore(),
         webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
+        dispatchers = object : com.riffle.core.domain.DispatcherProvider {
+            private val d = mainDispatcher
+            override val main = d; override val mainImmediate = d; override val io = d; override val default = d
+        },
     )
 
     @Test
@@ -294,6 +298,10 @@ class LibraryItemDetailViewModelTest {
             copyCoverImage = FakeCoverImageCopier,
             readingSpeedStore = FakeReadingSpeedStore(),
             webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
+            dispatchers = object : com.riffle.core.domain.DispatcherProvider {
+                private val d = mainDispatcher
+                override val main = d; override val mainImmediate = d; override val io = d; override val default = d
+            },
         )
         testScheduler.advanceUntilIdle()
         assertIs<LibraryItemDetailUiState.Ready>(vmDirect.uiState.value)

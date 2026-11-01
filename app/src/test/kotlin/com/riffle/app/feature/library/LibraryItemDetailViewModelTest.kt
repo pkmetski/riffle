@@ -456,6 +456,10 @@ class LibraryItemDetailViewModelTest {
             override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
         },
         webSourceLibraryItemUpserter = webSourceLibraryItemUpserter,
+        dispatchers = object : com.riffle.core.domain.DispatcherProvider {
+            private val d = kotlinx.coroutines.Dispatchers.Unconfined
+            override val main = d; override val mainImmediate = d; override val io = d; override val default = d
+        },
     )
 
     private fun adaptingSaveLocalFileMetadataOverride(dao: com.riffle.core.database.LocalFileMetadataOverrideDao): LocalFileMetadataOverrideSaver {

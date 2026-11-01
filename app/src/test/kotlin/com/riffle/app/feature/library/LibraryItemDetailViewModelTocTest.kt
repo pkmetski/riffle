@@ -214,6 +214,10 @@ class LibraryItemDetailViewModelTocTest {
         webSourceLibraryItemUpserter = object : com.riffle.feature.library.WebSourceLibraryItemUpserter {
             override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) {}
         },
+        dispatchers = object : com.riffle.core.domain.DispatcherProvider {
+            private val d = kotlinx.coroutines.Dispatchers.Unconfined
+            override val main = d; override val mainImmediate = d; override val io = d; override val default = d
+        },
     )
 
     private val epubItem = LibraryItem(
