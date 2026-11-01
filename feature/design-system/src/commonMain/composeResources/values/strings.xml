@@ -41,6 +41,8 @@
     <string name="ui_no_books_in_progress">No books in progress</string>
     <!-- Empty state: to-read list is empty on the iOS home screen. -->
     <string name="ui_no_books_in_to_read">No books in your to-read list</string>
+    <!-- Empty state: no recent O'Reilly reading activity to show on the home tab. -->
+    <string name="ui_no_recent_reading_activity">No recent reading activity on O'Reilly</string>
     <!-- Navigation: back button with a leading arrow, e.g. "← Back". -->
     <string name="ui_back_with_arrow">← Back</string>
     <!-- Navigation: back-to-libraries button on the iOS Settings screen. -->

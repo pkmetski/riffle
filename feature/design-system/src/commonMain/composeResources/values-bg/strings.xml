@@ -13,6 +13,7 @@
     <string name="ui_offline_showing_cached_data">Офлайн — показват се кеширани данни</string>
     <string name="ui_no_books_in_progress">Няма книги в процес на четене</string>
     <string name="ui_no_books_in_to_read">Няма книги в списъка ти за четене</string>
+    <string name="ui_no_recent_reading_activity">Няма последна активност в O'Reilly</string>
     <string name="ui_back_with_arrow">← Назад</string>
     <string name="ui_libraries_with_arrow">← Библиотеки</string>
     <string name="ui_settings">Настройки</string>

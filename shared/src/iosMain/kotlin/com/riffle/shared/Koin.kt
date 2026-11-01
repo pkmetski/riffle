@@ -247,6 +247,7 @@ import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyHomeViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.shared.audiobook.IosAbsAudiobookRepository
@@ -1285,6 +1286,12 @@ private fun iosLibraryModule(
             connectivityObserver = get(),
             dispatchers = get(),
             toReadRepository = get(),
+        )
+    }
+    factory { params ->
+        OReillyHomeViewModel(
+            libraryId = params.get(),
+            libraryObserver = get(),
         )
     }
 

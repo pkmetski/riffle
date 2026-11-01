@@ -44,6 +44,31 @@ internal object OReillyParser {
     fun parseKalturaSession(body: String): OReillyKalturaSession =
         json.decodeFromString(OReillyKalturaSession.serializer(), body)
 
+    fun parseReadingHistory(body: String): OReillyReadingHistoryResponse =
+        json.decodeFromString(OReillyReadingHistoryResponse.serializer(), body)
+
+    /**
+     * Maps a reading-history item to a [CatalogItem] with [CatalogItem.readingProgress] set from
+     * the server-reported [OReillyReadingHistoryItem.percentComplete] (0–100 → 0..1).
+     * Returns null when the item has no usable id or no recorded progress.
+     */
+    fun readingHistoryItemToCatalogItem(item: OReillyReadingHistoryItem): CatalogItem? {
+        val id = item.bestId() ?: return null
+        val pct = item.percentComplete ?: return null
+        if (pct <= 0.0) return null
+        val rootId = if (item.isAudiobook) OReillyRoots.AUDIOBOOKS else OReillyRoots.BOOKS
+        return CatalogItem(
+            id = id,
+            rootId = rootId,
+            title = item.title,
+            author = item.authors.joinToString(", "),
+            coverUrl = item.coverUrl?.takeIf { it.isNotBlank() } ?: OReillyApi.coverUrl(id),
+            ebookFormat = if (item.isAudiobook) BookFormat.Audiobook else BookFormat.Epub,
+            hasAudio = item.isAudiobook,
+            readingProgress = (pct / 100.0).toFloat().coerceIn(0f, 1f),
+        )
+    }
+
     /** True when a search hit belongs to the requested root (books vs audiobooks). */
     private fun OReillySearchHit.matchesRoot(rootId: String): Boolean = when (rootId) {
         OReillyRoots.AUDIOBOOKS -> isAudiobook

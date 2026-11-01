@@ -203,14 +203,46 @@ fun UnboundedBrowseScreen(
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedLocalTab) {
-                TAB_HOME, TAB_TO_READ, TAB_ANNOTATIONS -> {
+                TAB_HOME -> {
+                    if (sourceType == SourceType.OREILLY) {
+                        OReillyHomeTab(libraryId = libraryId, onOpenDetail = onOpenDetail)
+                    } else {
+                        CoverGridZoomBox(
+                            browseScaleFlow = viewModel.coverGridScale,
+                            onPersistScaleChange = viewModel::setCoverGridScale,
+                            homeScaleFlow = viewModel.homeCoverGridScale,
+                            onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                            isHomeTab = true,
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            LibraryTabContent(
+                                selectedTab = unboundedLocalTabToLibraryTabIndex(TAB_HOME),
+                                projection = projection,
+                                playlists = playlists,
+                                annotationsState = annotationsState,
+                                coversAreSquare = coversAreSquare,
+                                linkedItemIds = emptySet(),
+                                showRecentlyAdded = false,
+                                onItemSelected = { item: LibraryItem -> onOpenDetail(item.id) },
+                                onAnnotatedBookSelected = onAnnotatedBookSelected,
+                                onSeriesSelected = {},
+                                onCollectionSelected = {},
+                                onSectionSeeMore = {},
+                                onPlaylistSelected = {},
+                                onToggleNotStarted = {},
+                                onSetSortMode = {},
+                            )
+                        }
+                    }
+                }
+                TAB_TO_READ, TAB_ANNOTATIONS -> {
                     val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
                     CoverGridZoomBox(
                         browseScaleFlow = viewModel.coverGridScale,
                         onPersistScaleChange = viewModel::setCoverGridScale,
                         homeScaleFlow = viewModel.homeCoverGridScale,
                         onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
-                        isHomeTab = selectedLocalTab == TAB_HOME,
+                        isHomeTab = false,
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         LibraryTabContent(
