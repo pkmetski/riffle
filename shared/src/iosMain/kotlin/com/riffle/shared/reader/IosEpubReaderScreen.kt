@@ -357,6 +357,9 @@ fun EpubReaderScreen(
     // When true and the annotation has a note, shows NoteOnlyPopup instead of the full sheet —
     // mirrors Android's HighlightActionsPopup(noteOnly=true) path.
     var editTargetWasGlyphTap by remember { mutableStateOf(false) }
+    // Rect of the decoration that was tapped to open the annotation sheet. Preserved so the
+    // sheet stays anchored near the annotation even when no live selection is active.
+    var decorationTapRect by remember { mutableStateOf<NavigatorRect?>(null) }
     // Non-null while the note editor is up; the value is the annotation id, or "" for a note
     // being written on a selection that has not been persisted yet.
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
@@ -824,6 +827,7 @@ fun EpubReaderScreen(
             editTargetId = activation.id.substringBefore('#')
             editTargetWasGlyphTap = activation.group == NOTE_GLYPH_DECORATION_GROUP
             annotationsPanelOpen = false
+            decorationTapRect = activation.rect
         }
     }
 
@@ -1697,7 +1701,10 @@ fun EpubReaderScreen(
         // Cleared when both the sheet and the selection are gone (user dismissed or no active edit).
         var lastSelectionRect by remember { mutableStateOf<NavigatorRect?>(null) }
         if (liveSelection?.rect != null) lastSelectionRect = liveSelection.rect
-        if (liveSelection == null && editTargetId == null) lastSelectionRect = null
+        if (liveSelection == null && editTargetId == null) {
+            lastSelectionRect = null
+            decorationTapRect = null
+        }
 
         // Selection action strip: Copy / Search / Share — mirrors Android's ActionMode items.
         // Shown while text is selected but before the user taps Annotate or the full sheet opens.
@@ -1790,7 +1797,7 @@ fun EpubReaderScreen(
             // the sheet never slides behind the system chrome.
             val statusBarTopDp = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
             val annotationSheetModifier = run {
-                val selRect = liveSelection?.rect ?: if (editTarget != null) lastSelectionRect else null
+                val selRect = liveSelection?.rect ?: if (editTarget != null) lastSelectionRect ?: decorationTapRect else null
                 val screenWidthDp = LocalWindowInfo.current.containerSize.width.toFloat()
                 if (selRect != null) {
                     val screenHeightDp = LocalWindowInfo.current.containerSize.height.toFloat()
