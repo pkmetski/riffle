@@ -76,7 +76,18 @@ internal fun saveKeychainItem(service: String, account: String, value: String) {
 }
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun loadKeychainItem(service: String, account: String): String? = withKeychainQuery(service, account) { query ->
+internal fun loadKeychainItem(service: String, account: String): String? {
+    val t0 = kotlin.time.TimeSource.Monotonic.markNow()
+    val result = loadKeychainItemInternal(service, account)
+    val dt = t0.elapsedNow()
+    if (dt.inWholeMilliseconds > 100) {
+        println("[DEBUG-ADDSOURCE] loadKeychainItem slow: account=$account dt=$dt")
+    }
+    return result
+}
+
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+private fun loadKeychainItemInternal(service: String, account: String): String? = withKeychainQuery(service, account) { query ->
     CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
     CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
     val data: NSData? = memScoped {

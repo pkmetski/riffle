@@ -165,12 +165,16 @@ class AddSourceViewModel constructor(
     val navigateHome = _navigateHome.receiveAsFlow()
 
     init {
+        val t0 = clock.nowMs()
+        println("[DEBUG-ADDSOURCE] AddSourceViewModel.init start t=$t0")
         backend = parseBackend(savedStateHandle.get<String>("type"))
         editingServerId = savedStateHandle.get<String>("editId")?.takeIf { it.isNotEmpty() }
         viewModelScope.launch { initFromRoute() }
+        println("[DEBUG-ADDSOURCE] AddSourceViewModel.init end dt=${clock.nowMs() - t0}ms")
     }
 
     private suspend fun initFromRoute() {
+        println("[DEBUG-ADDSOURCE] initFromRoute start backend=$backend editId=$editingServerId")
         when (backend) {
             is AddSourceBackend.Credentialed -> {
                 // Fixed-host credentialed sources (O'Reilly) have no user-entered URL — stamp the
@@ -179,14 +183,21 @@ class AddSourceViewModel constructor(
                 if (descriptor?.hasNetworkHost == false) {
                     applyUrl(descriptor.urlPlaceholder.orEmpty())
                 }
-                val id = editingServerId ?: return
+                val id = editingServerId ?: run {
+                    println("[DEBUG-ADDSOURCE] initFromRoute: ADD case (no editId) — returning early")
+                    return
+                }
+                val t1 = clock.nowMs()
                 val server = repository.getById(id) ?: return
+                println("[DEBUG-ADDSOURCE] getById dt=${clock.nowMs() - t1}ms")
                 // tokenStorage.getPassword calls the Keychain on iOS — a blocking syscall that
                 // can take 1–5 seconds on first access after app launch. Dispatch off Main so
                 // the UI thread stays responsive while we wait.
+                val t2 = clock.nowMs()
                 val resolvedPassword = withContext(dispatchers.io) {
                     tokenStorage.getPassword(id).orEmpty()
                 }
+                println("[DEBUG-ADDSOURCE] getPassword dt=${clock.nowMs() - t2}ms")
                 applyUrl(server.url.value)
                 username = server.username
                 password = resolvedPassword
