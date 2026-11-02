@@ -8,11 +8,10 @@ import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
-import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.FileStore
 import com.riffle.core.data.NS_EPUB_CACHE
-import com.riffle.core.data.NS_EPUB_DOWNLOADS
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.models.EbookFormat

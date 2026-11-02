@@ -100,7 +100,6 @@ import com.riffle.feature.player.ui.ReadaloudMiniPlayer
 import com.riffle.feature.player.ui.ReadaloudPeek
 import com.riffle.feature.reader.AnchorRect
 import com.riffle.feature.reader.AnnotationSession
-import com.riffle.feature.reader.resolveAnnotationSheetColor
 import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
@@ -150,6 +149,7 @@ import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.feature.reader.highlights.shouldShowShareHighlights
 import com.riffle.feature.reader.readiumFontFamilyName
+import com.riffle.feature.reader.resolveAnnotationSheetColor
 import com.riffle.feature.reader.spineIndexOfHref
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.toReadiumTextStyling

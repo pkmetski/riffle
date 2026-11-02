@@ -199,7 +199,10 @@ class LibraryItemDetailViewModelTest {
         webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
         dispatchers = object : com.riffle.core.domain.DispatcherProvider {
             private val d = mainDispatcher
-            override val main = d; override val mainImmediate = d; override val io = d; override val default = d
+            override val main = d
+            override val mainImmediate = d
+            override val io = d
+            override val default = d
         },
     )
 
@@ -300,7 +303,10 @@ class LibraryItemDetailViewModelTest {
             webSourceLibraryItemUpserter = FakeWebSourceLibraryItemUpserter,
             dispatchers = object : com.riffle.core.domain.DispatcherProvider {
                 private val d = mainDispatcher
-                override val main = d; override val mainImmediate = d; override val io = d; override val default = d
+                override val main = d
+                override val mainImmediate = d
+                override val io = d
+                override val default = d
             },
         )
         testScheduler.advanceUntilIdle()
