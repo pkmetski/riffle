@@ -13,9 +13,7 @@ class AnnotationSyncConfigStoreImpl constructor(
     private val store: EncryptedKeyValueStore,
 ) : AnnotationSyncConfigStore {
 
-    private val state = MutableStateFlow(readFromStore().also {
-        println("[DEBUG-ADDSOURCE] AnnotationSyncConfigStoreImpl created, config=${it?.baseUrl}")
-    })
+    private val state = MutableStateFlow(readFromStore())
     private val mutex = Mutex()
 
     override fun observe(): StateFlow<AnnotationSyncConfig?> = state.asStateFlow()

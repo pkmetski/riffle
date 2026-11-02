@@ -66,12 +66,9 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
     // blocking syscall that takes 1–5 s each on first access. Resolving in composition (Main) was
     // freezing the entire UI at app launch.
     LaunchedEffect(Unit) {
-        val t0 = kotlin.time.TimeSource.Monotonic.markNow()
-        println("[DEBUG-ADDSOURCE] RiffleAppRoot: resolving ForegroundSyncDriver off Main")
         val syncDriver = withContext(Dispatchers.Default) {
             KoinPlatform.getKoin().get<ForegroundSyncDriver>()
         }
-        println("[DEBUG-ADDSOURCE] RiffleAppRoot: ForegroundSyncDriver ready dt=${t0.elapsedNow()}")
         runStartupWork(
             io = dispatchers.io,
             contentCacheCleaner = contentCacheCleaner,

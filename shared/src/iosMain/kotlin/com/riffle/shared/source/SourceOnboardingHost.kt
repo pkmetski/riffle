@@ -222,11 +222,7 @@ internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
 
 private fun addSourceViewModel(type: SourceType, serverType: ServerType = ServerType.AUDIOBOOKSHELF, editId: String? = null): AddSourceViewModel {
     val routeType = AddSourceBackend.Credentialed(type, serverType).routeType
-    val t0 = kotlin.time.TimeSource.Monotonic.markNow()
-    println("[DEBUG-ADDSOURCE] addSourceViewModel START type=$type editId=$editId")
-    return KoinPlatform.getKoin().get<AddSourceViewModel> { parametersOf(routeType, editId.orEmpty()) }.also {
-        println("[DEBUG-ADDSOURCE] addSourceViewModel END dt=${t0.elapsedNow()}")
-    }
+    return KoinPlatform.getKoin().get<AddSourceViewModel> { parametersOf(routeType, editId.orEmpty()) }
 }
 
 /**
