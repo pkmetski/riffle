@@ -242,6 +242,7 @@ fun AppShell(
         },
         onLibrarySelected = { library ->
             scope.launch { drawerState.close() }
+            appSection = AppSection.Library
             val srcType = activeServer?.type
             if (srcType != null) {
                 activeLibraryId = library.id

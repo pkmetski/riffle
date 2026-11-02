@@ -298,6 +298,50 @@ final class NavDrawerTests: XCTestCase {
         )
     }
 
+    // MARK: - ND-9  Selecting a library from the drawer while Settings is open closes Settings
+
+    /// Regression: tapping a library entry while Settings was the active section must switch to
+    /// the Library section and dismiss Settings. Before the fix, `onLibrarySelected` in AppShell
+    /// never reset `appSection`, so Settings remained visible even after the drawer closed.
+    func testSelectingLibraryWhileSettingsOpenDismissesSettings() throws {
+        let burger = app.buttons["Open menu"]
+        XCTAssertTrue(burger.waitForExistence(timeout: 10), "Library home must show the burger menu")
+
+        // Navigate to Settings via the drawer.
+        burger.tap()
+        let settingsEntry = app.staticTexts["Settings"]
+        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 10), "Drawer must show a Settings entry")
+        settingsEntry.tap()
+        XCTAssertTrue(
+            app.buttons["← Libraries"].waitForExistence(timeout: 25),
+            "Settings must open after tapping the drawer entry"
+        )
+
+        // Open the drawer by swiping right from the left edge (Settings has no hamburger button).
+        let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
+        let center = app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
+        leftEdge.press(forDuration: 0.1, thenDragTo: center)
+
+        // Wait for the library entry to appear in the drawer.
+        let libraryEntry = app.staticTexts[StubAbsServer.testLibraryName]
+        XCTAssertTrue(
+            libraryEntry.waitForExistence(timeout: 10),
+            "Drawer must show library entries after swipe-open from Settings"
+        )
+
+        libraryEntry.tap()
+
+        // Settings must be gone — the Library section is now active.
+        XCTAssertFalse(
+            app.buttons["← Libraries"].exists,
+            "Selecting a library from the drawer must dismiss the Settings screen"
+        )
+        XCTAssertTrue(
+            burger.waitForExistence(timeout: 25),
+            "The Library section must be active after switching library from Settings"
+        )
+    }
+
     // MARK: - ND-6  Drawer lists every visible library and switching one re-titles the screen
 
     /// The drawer's library list is the only way to move between an ABS source's libraries.
