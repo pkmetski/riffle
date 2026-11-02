@@ -10,6 +10,7 @@ import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.SourceRepository
@@ -277,6 +278,12 @@ class AddSourceViewModelTest {
         bannerTicker = bannerTicker,
         strings = FakeSourceUiStrings,
         applicationScope = applicationScope,
+        dispatchers = object : DispatcherProvider {
+            override val main get() = testDispatcher
+            override val mainImmediate get() = testDispatcher
+            override val io get() = testDispatcher
+            override val default get() = testDispatcher
+        },
         savedStateHandle = savedState,
     )
 
