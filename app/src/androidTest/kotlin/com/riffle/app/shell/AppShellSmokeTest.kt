@@ -16,6 +16,9 @@ import com.riffle.app.harness.StubAbsServer
 import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.clearAllTables
 import com.riffle.feature.designsystem.TestTags
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -91,5 +94,35 @@ class AppShellSmokeTest : KoinTest {
         loginAndReachLibrary()
         composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_TOGGLE).performClick()
         composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_DOWNLOADS).assertIsDisplayed()
+    }
+
+    /**
+     * Regression: selecting a library from the drawer while Settings is open must close Settings
+     * and return to the Library section. Before the fix, onLibrarySelected never reset appSection,
+     * so Settings remained visible.
+     */
+    @Test
+    fun selectingLibraryWhileSettingsOpenDismissesSettings() {
+        loginAndReachLibrary()
+        // Open Settings via drawer
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_TOGGLE).performClick()
+        composeTestRule.onNodeWithTag(TestTags.NAV_DRAWER_SETTINGS).performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(TestTags.SETTINGS_BACK).fetchSemanticsNodes().isNotEmpty()
+        }
+        // Re-open the drawer by swiping from the left edge (Settings has no hamburger toggle)
+        composeTestRule.onRoot().performTouchInput {
+            down(Offset(0f, centerY))
+            moveBy(Offset(width * 0.6f, 0f))
+            up()
+        }
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(TestTags.navDrawerLibrary(StubAbsServer.TEST_LIBRARY_ID))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag(TestTags.navDrawerLibrary(StubAbsServer.TEST_LIBRARY_ID)).performClick()
+        composeTestRule.waitForIdle()
+        // Settings must no longer be visible
+        composeTestRule.onNodeWithTag(TestTags.SETTINGS_BACK).assertDoesNotExist()
     }
 }
