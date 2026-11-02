@@ -13,6 +13,7 @@ import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
 import com.riffle.app.feature.source.oreilly.OReillyLoginScreen
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceBackend
@@ -49,7 +50,7 @@ fun AndroidOnboardingSlot(
 
     val startStep: AndroidOnboardingStep = remember(initialBackend) {
         val credentialed = initialBackend as? AddSourceBackend.Credentialed
-        if (credentialed != null) AndroidOnboardingStep.Credentials(credentialed.sourceType) else AndroidOnboardingStep.Picker
+        if (credentialed != null) AndroidOnboardingStep.Credentials(credentialed.sourceType, credentialed.serverType) else AndroidOnboardingStep.Picker
     }
     var step by remember(initialBackend) { mutableStateOf(startStep) }
 
@@ -82,7 +83,7 @@ fun AndroidOnboardingSlot(
         is AndroidOnboardingStep.Credentials -> {
             val routeType = AddSourceBackend.Credentialed(
                 current.type,
-                com.riffle.core.models.ServerType.AUDIOBOOKSHELF,
+                current.serverType,
             ).routeType
             val viewModel: AddSourceViewModel = koinViewModel(
                 qualifier = named("paramsAddSource"),
@@ -168,6 +169,6 @@ private sealed interface AndroidOnboardingStep {
     data object OReillyLogin : AndroidOnboardingStep
     data object LocalFiles : AndroidOnboardingStep
     data class Confirm(val type: SourceType) : AndroidOnboardingStep
-    data class Credentials(val type: SourceType) : AndroidOnboardingStep
+    data class Credentials(val type: SourceType, val serverType: ServerType = ServerType.AUDIOBOOKSHELF) : AndroidOnboardingStep
     data class SelectLibraries(val pending: PendingSource) : AndroidOnboardingStep
 }

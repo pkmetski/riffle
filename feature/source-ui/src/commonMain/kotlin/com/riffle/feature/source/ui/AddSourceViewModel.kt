@@ -11,6 +11,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
@@ -106,6 +107,7 @@ class AddSourceViewModel constructor(
     private val annotationDao: AnnotationDao,
     private val bannerTicker: Flow<Unit>,
     private val strings: SourceUiStrings,
+    private val applicationScope: ApplicationScope,
     devDefaults: DevSourceDefaults = DevSourceDefaults.Empty,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -329,11 +331,13 @@ class AddSourceViewModel constructor(
                         editingServerId?.let { repository.remove(it) }
                         when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
                             is CommitSourceResult.Success -> {
-                                if (serverType == ServerType.STORYTELLER_SERVICE) {
-                                    runCatching { storytellerSyncer.syncStale() }
-                                    runCatching { readaloudMatcher.reconcileLinks() }
-                                }
                                 _navigateHome.send(Unit)
+                                if (serverType == ServerType.STORYTELLER_SERVICE) {
+                                    applicationScope.launchSurvivable {
+                                        runCatching { storytellerSyncer.syncStale() }
+                                        runCatching { readaloudMatcher.reconcileLinks() }
+                                    }
+                                }
                             }
                             is CommitSourceResult.Failure ->
                                 error = strings.couldntSaveSource(c.cause.message)

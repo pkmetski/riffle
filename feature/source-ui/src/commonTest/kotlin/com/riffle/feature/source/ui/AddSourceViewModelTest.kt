@@ -7,6 +7,7 @@ import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
@@ -20,8 +21,10 @@ import com.riffle.core.models.SourceUrl
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -194,12 +198,42 @@ class AddSourceViewModelTest {
         override suspend fun deletePassword(sourceId: String) {}
     }
 
+    private inner class TestApplicationScope : ApplicationScope {
+        override val coroutineScope: CoroutineScope = CoroutineScope(testDispatcher)
+        override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
+            coroutineScope.launch(block = block)
+        override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
+            coroutineScope.block()
+    }
+
+    private class NoopApplicationScope : ApplicationScope {
+        override val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+        override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
+            coroutineScope.launch(block = block)
+        override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
+            coroutineScope.block()
+    }
+
     private class NoopStorytellerSyncer : StorytellerReadaloudCacheSyncer {
         override suspend fun syncStale() {}
     }
 
     private class NoopReadaloudLinkReconciler : ReadaloudLinkReconciler {
         override suspend fun reconcileLinks() {}
+    }
+
+    private class RecordingStorytellerSyncer : StorytellerReadaloudCacheSyncer {
+        var syncStaleCallCount = 0
+        override suspend fun syncStale() {
+            syncStaleCallCount++
+        }
+    }
+
+    private class RecordingReadaloudLinkReconciler : ReadaloudLinkReconciler {
+        var reconcileCallCount = 0
+        override suspend fun reconcileLinks() {
+            reconcileCallCount++
+        }
     }
 
     private fun makeVm(
@@ -216,6 +250,10 @@ class AddSourceViewModelTest {
         // If AddSourceViewModel is changed back to request the concrete types, this won't compile.
         storytellerSyncer: StorytellerReadaloudCacheSyncer = NoopStorytellerSyncer(),
         readaloudMatcher: ReadaloudLinkReconciler = NoopReadaloudLinkReconciler(),
+        // Default to TestApplicationScope so Storyteller post-auth sync runs on testDispatcher
+        // and is drained by advanceUntilIdle(). Tests that want to observe sync must pass
+        // TestApplicationScope() explicitly; tests that don't care use the default.
+        applicationScope: ApplicationScope = TestApplicationScope(),
     ): AddSourceViewModel = AddSourceViewModel(
         repository = repository,
         // `RecordingRepository` implements both SourceRepository and SourceAdapter, so
@@ -238,6 +276,7 @@ class AddSourceViewModelTest {
         annotationDao = annotationDao,
         bannerTicker = bannerTicker,
         strings = FakeSourceUiStrings,
+        applicationScope = applicationScope,
         savedStateHandle = savedState,
     )
 
@@ -869,5 +908,90 @@ class AddSourceViewModelTest {
         val vm = makeVm(fakeRepo(AuthenticateResult.WrongCredentials("x")))
         vm.updateHost("abs.example.com\t")
         assertEquals("abs.example.com", vm.host)
+    }
+
+    // Regression: AndroidOnboardingSlot.Credentials only stored SourceType (not serverType), so
+    // initialBackend=AddSourceBackend.Storyteller produced routeType="audiobookshelf" instead of
+    // "storyteller". The ViewModel then parsed it as AUDIOBOOKSHELF, making the form show
+    // "Add Audiobookshelf" and save the source with the wrong server type.
+    @Test
+    fun `init with type=storyteller resolves backend as Storyteller not Audiobookshelf`() {
+        val savedState = SavedStateHandle(mapOf("type" to "storyteller"))
+        val vm = makeVm(fakeRepo(AuthenticateResult.WrongCredentials("x")), savedState = savedState)
+        assertEquals(AddSourceBackend.Storyteller, vm.backend)
+        val credentialed = vm.backend as? AddSourceBackend.Credentialed
+        assertEquals(com.riffle.core.models.ServerType.STORYTELLER_SERVICE, credentialed?.serverType)
+        assertEquals("storyteller", credentialed?.routeType)
+    }
+
+    @Test
+    fun `type=audiobookshelf and type=storyteller produce distinct backends with distinct routeTypes`() {
+        val absVm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "audiobookshelf")),
+        )
+        val stVm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "storyteller")),
+        )
+        val abs = absVm.backend as? AddSourceBackend.Credentialed
+        val st = stVm.backend as? AddSourceBackend.Credentialed
+        assertEquals(com.riffle.core.models.ServerType.AUDIOBOOKSHELF, abs?.serverType)
+        assertEquals(com.riffle.core.models.ServerType.STORYTELLER_SERVICE, st?.serverType)
+        assertTrue(abs?.routeType != st?.routeType, "Audiobookshelf and Storyteller must have distinct routeTypes")
+    }
+
+    // Regression: syncStale() + reconcileLinks() ran on Dispatchers.Main inside viewModelScope
+    // before _navigateHome was sent. This blocked the UI thread for ~45s (heavy fuzzy matching).
+    // Fix: send _navigateHome first to close the form, then launch sync in ApplicationScope
+    // (survives ViewModel clearance) on Dispatchers.Default.
+    @Test
+    fun `Storyteller auth success sends navigateHome and runs sync in survivable scope`() = runTest {
+        val pending = singleLibraryPending().copy(serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE)
+        val repo = RecordingRepository(AuthenticateResult.Success(pending))
+        val syncer = RecordingStorytellerSyncer()
+        val reconciler = RecordingReadaloudLinkReconciler()
+        val vm = makeVm(
+            repo,
+            savedState = SavedStateHandle(mapOf("type" to "storyteller")),
+            storytellerSyncer = syncer,
+            readaloudMatcher = reconciler,
+            // TestApplicationScope runs launchSurvivable on testDispatcher, so
+            // advanceUntilIdle() drains both the ViewModel coroutine and the survivable launch.
+            applicationScope = TestApplicationScope(),
+        )
+        vm.updateScheme("https://")
+        vm.updateHost("storyteller.example.com")
+        vm.username = "admin"
+        vm.password = "pass"
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.navigateHome.first()
+        assertEquals(1, repo.commitCallCount)
+        assertEquals(1, syncer.syncStaleCallCount, "syncStale must be called after Storyteller auth")
+        assertEquals(1, reconciler.reconcileCallCount, "reconcileLinks must be called after Storyteller auth")
+    }
+
+    @Test
+    fun `ABS auth success does not call syncStale or reconcileLinks`() = runTest {
+        val pending = singleLibraryPending()
+        val repo = RecordingRepository(AuthenticateResult.Success(pending))
+        val syncer = RecordingStorytellerSyncer()
+        val reconciler = RecordingReadaloudLinkReconciler()
+        val vm = makeVm(
+            repo,
+            savedState = SavedStateHandle(mapOf("type" to "audiobookshelf")),
+            storytellerSyncer = syncer,
+            readaloudMatcher = reconciler,
+        )
+        vm.updateScheme("https://")
+        vm.updateHost("abs.example.com")
+        vm.username = "admin"
+        vm.password = "pass"
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.navigateHome.first()
+        assertEquals(0, syncer.syncStaleCallCount, "syncStale must NOT be called for non-Storyteller auth")
+        assertEquals(0, reconciler.reconcileCallCount, "reconcileLinks must NOT be called for non-Storyteller auth")
     }
 }
