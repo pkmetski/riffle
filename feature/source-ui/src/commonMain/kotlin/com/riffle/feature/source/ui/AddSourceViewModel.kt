@@ -28,6 +28,8 @@ import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.feature.settings.AnnotationSyncKind
 import com.riffle.feature.settings.deriveAnnotationSyncKind
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Backend kind selectable in [AddSourceScreen]. WebDAV lives here as a peer to the browsable
@@ -108,6 +111,7 @@ class AddSourceViewModel constructor(
     private val strings: SourceUiStrings,
     devDefaults: DevSourceDefaults = DevSourceDefaults.Empty,
     savedStateHandle: SavedStateHandle,
+    private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     var backend by mutableStateOf<AddSourceBackend>(
@@ -329,11 +333,13 @@ class AddSourceViewModel constructor(
                         editingServerId?.let { repository.remove(it) }
                         when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
                             is CommitSourceResult.Success -> {
-                                if (serverType == ServerType.STORYTELLER_SERVICE) {
-                                    runCatching { storytellerSyncer.syncStale() }
-                                    runCatching { readaloudMatcher.reconcileLinks() }
-                                }
                                 _navigateHome.send(Unit)
+                                if (serverType == ServerType.STORYTELLER_SERVICE) {
+                                    withContext(backgroundDispatcher) {
+                                        runCatching { storytellerSyncer.syncStale() }
+                                        runCatching { readaloudMatcher.reconcileLinks() }
+                                    }
+                                }
                             }
                             is CommitSourceResult.Failure ->
                                 error = strings.couldntSaveSource(c.cause.message)

@@ -202,6 +202,20 @@ class AddSourceViewModelTest {
         override suspend fun reconcileLinks() {}
     }
 
+    private class RecordingStorytellerSyncer : StorytellerReadaloudCacheSyncer {
+        var syncStaleCallCount = 0
+        override suspend fun syncStale() {
+            syncStaleCallCount++
+        }
+    }
+
+    private class RecordingReadaloudLinkReconciler : ReadaloudLinkReconciler {
+        var reconcileCallCount = 0
+        override suspend fun reconcileLinks() {
+            reconcileCallCount++
+        }
+    }
+
     private fun makeVm(
         repository: SourceRepository,
         savedState: SavedStateHandle = SavedStateHandle(),
@@ -216,6 +230,7 @@ class AddSourceViewModelTest {
         // If AddSourceViewModel is changed back to request the concrete types, this won't compile.
         storytellerSyncer: StorytellerReadaloudCacheSyncer = NoopStorytellerSyncer(),
         readaloudMatcher: ReadaloudLinkReconciler = NoopReadaloudLinkReconciler(),
+        backgroundDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
     ): AddSourceViewModel = AddSourceViewModel(
         repository = repository,
         // `RecordingRepository` implements both SourceRepository and SourceAdapter, so
@@ -239,6 +254,7 @@ class AddSourceViewModelTest {
         bannerTicker = bannerTicker,
         strings = FakeSourceUiStrings,
         savedStateHandle = savedState,
+        backgroundDispatcher = backgroundDispatcher,
     )
 
     /**
@@ -900,5 +916,68 @@ class AddSourceViewModelTest {
         assertEquals(com.riffle.core.models.ServerType.AUDIOBOOKSHELF, abs?.serverType)
         assertEquals(com.riffle.core.models.ServerType.STORYTELLER_SERVICE, st?.serverType)
         assertTrue(abs?.routeType != st?.routeType, "Audiobookshelf and Storyteller must have distinct routeTypes")
+    }
+
+    // Regression: after Storyteller auth succeeded, syncStale() + reconcileLinks() ran on
+    // Dispatchers.Main before _navigateHome was sent. Both functions do heavy CPU work (matching
+    // hundreds of books via many DAO calls) between suspension points, blocking the main thread
+    // for tens of seconds and freezing the Storyteller config form.
+    // Fix: send _navigateHome first (closes the form), then run the sync on Dispatchers.Default.
+    @Test
+    fun `Storyteller auth success sends navigateHome before heavy sync runs`() = runTest {
+        val pending = singleLibraryPending().copy(serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE)
+        val repo = RecordingRepository(AuthenticateResult.Success(pending))
+        val syncerOrder = mutableListOf<String>()
+        val syncer = object : StorytellerReadaloudCacheSyncer {
+            override suspend fun syncStale() {
+                syncerOrder += "syncStale"
+            }
+        }
+        val reconciler = object : ReadaloudLinkReconciler {
+            override suspend fun reconcileLinks() {
+                syncerOrder += "reconcile"
+            }
+        }
+        val vm = makeVm(
+            repo,
+            savedState = SavedStateHandle(mapOf("type" to "storyteller")),
+            storytellerSyncer = syncer,
+            readaloudMatcher = reconciler,
+        )
+        vm.updateScheme("https://")
+        vm.updateHost("storyteller.example.com")
+        vm.username = "admin"
+        vm.password = "pass"
+        vm.onConnect()
+        // navigateHome must be receivable before advanceUntilIdle (sync runs after navigate).
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.navigateHome.first()
+        assertEquals(1, repo.commitCallCount)
+        // Both sync tasks must eventually run.
+        assertTrue(syncerOrder.contains("syncStale"), "syncStale must be called after Storyteller auth")
+        assertTrue(syncerOrder.contains("reconcile"), "reconcileLinks must be called after Storyteller auth")
+    }
+
+    @Test
+    fun `ABS auth success does not call syncStale or reconcileLinks`() = runTest {
+        val pending = singleLibraryPending()
+        val repo = RecordingRepository(AuthenticateResult.Success(pending))
+        val syncer = RecordingStorytellerSyncer()
+        val reconciler = RecordingReadaloudLinkReconciler()
+        val vm = makeVm(
+            repo,
+            savedState = SavedStateHandle(mapOf("type" to "audiobookshelf")),
+            storytellerSyncer = syncer,
+            readaloudMatcher = reconciler,
+        )
+        vm.updateScheme("https://")
+        vm.updateHost("abs.example.com")
+        vm.username = "admin"
+        vm.password = "pass"
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.navigateHome.first()
+        assertEquals(0, syncer.syncStaleCallCount, "syncStale must NOT be called for non-Storyteller auth")
+        assertEquals(0, reconciler.reconcileCallCount, "reconcileLinks must NOT be called for non-Storyteller auth")
     }
 }
