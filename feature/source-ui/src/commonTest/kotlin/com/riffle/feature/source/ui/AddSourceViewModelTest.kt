@@ -7,6 +7,7 @@ import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
@@ -20,8 +21,10 @@ import com.riffle.core.models.SourceUrl
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -194,6 +198,22 @@ class AddSourceViewModelTest {
         override suspend fun deletePassword(sourceId: String) {}
     }
 
+    private inner class TestApplicationScope : ApplicationScope {
+        override val coroutineScope: CoroutineScope = CoroutineScope(testDispatcher)
+        override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
+            coroutineScope.launch(block = block)
+        override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
+            coroutineScope.block()
+    }
+
+    private class NoopApplicationScope : ApplicationScope {
+        override val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+        override fun launchSurvivable(block: suspend CoroutineScope.() -> Unit): Job =
+            coroutineScope.launch(block = block)
+        override suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T =
+            coroutineScope.block()
+    }
+
     private class NoopStorytellerSyncer : StorytellerReadaloudCacheSyncer {
         override suspend fun syncStale() {}
     }
@@ -230,7 +250,10 @@ class AddSourceViewModelTest {
         // If AddSourceViewModel is changed back to request the concrete types, this won't compile.
         storytellerSyncer: StorytellerReadaloudCacheSyncer = NoopStorytellerSyncer(),
         readaloudMatcher: ReadaloudLinkReconciler = NoopReadaloudLinkReconciler(),
-        backgroundDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
+        // Default to TestApplicationScope so Storyteller post-auth sync runs on testDispatcher
+        // and is drained by advanceUntilIdle(). Tests that want to observe sync must pass
+        // TestApplicationScope() explicitly; tests that don't care use the default.
+        applicationScope: ApplicationScope = TestApplicationScope(),
     ): AddSourceViewModel = AddSourceViewModel(
         repository = repository,
         // `RecordingRepository` implements both SourceRepository and SourceAdapter, so
@@ -253,8 +276,8 @@ class AddSourceViewModelTest {
         annotationDao = annotationDao,
         bannerTicker = bannerTicker,
         strings = FakeSourceUiStrings,
+        applicationScope = applicationScope,
         savedStateHandle = savedState,
-        backgroundDispatcher = backgroundDispatcher,
     )
 
     /**
@@ -918,44 +941,35 @@ class AddSourceViewModelTest {
         assertTrue(abs?.routeType != st?.routeType, "Audiobookshelf and Storyteller must have distinct routeTypes")
     }
 
-    // Regression: after Storyteller auth succeeded, syncStale() + reconcileLinks() ran on
-    // Dispatchers.Main before _navigateHome was sent. Both functions do heavy CPU work (matching
-    // hundreds of books via many DAO calls) between suspension points, blocking the main thread
-    // for tens of seconds and freezing the Storyteller config form.
-    // Fix: send _navigateHome first (closes the form), then run the sync on Dispatchers.Default.
+    // Regression: syncStale() + reconcileLinks() ran on Dispatchers.Main inside viewModelScope
+    // before _navigateHome was sent. This blocked the UI thread for ~45s (heavy fuzzy matching).
+    // Fix: send _navigateHome first to close the form, then launch sync in ApplicationScope
+    // (survives ViewModel clearance) on Dispatchers.Default.
     @Test
-    fun `Storyteller auth success sends navigateHome before heavy sync runs`() = runTest {
+    fun `Storyteller auth success sends navigateHome and runs sync in survivable scope`() = runTest {
         val pending = singleLibraryPending().copy(serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE)
         val repo = RecordingRepository(AuthenticateResult.Success(pending))
-        val syncerOrder = mutableListOf<String>()
-        val syncer = object : StorytellerReadaloudCacheSyncer {
-            override suspend fun syncStale() {
-                syncerOrder += "syncStale"
-            }
-        }
-        val reconciler = object : ReadaloudLinkReconciler {
-            override suspend fun reconcileLinks() {
-                syncerOrder += "reconcile"
-            }
-        }
+        val syncer = RecordingStorytellerSyncer()
+        val reconciler = RecordingReadaloudLinkReconciler()
         val vm = makeVm(
             repo,
             savedState = SavedStateHandle(mapOf("type" to "storyteller")),
             storytellerSyncer = syncer,
             readaloudMatcher = reconciler,
+            // TestApplicationScope runs launchSurvivable on testDispatcher, so
+            // advanceUntilIdle() drains both the ViewModel coroutine and the survivable launch.
+            applicationScope = TestApplicationScope(),
         )
         vm.updateScheme("https://")
         vm.updateHost("storyteller.example.com")
         vm.username = "admin"
         vm.password = "pass"
         vm.onConnect()
-        // navigateHome must be receivable before advanceUntilIdle (sync runs after navigate).
         testDispatcher.scheduler.advanceUntilIdle()
         vm.navigateHome.first()
         assertEquals(1, repo.commitCallCount)
-        // Both sync tasks must eventually run.
-        assertTrue(syncerOrder.contains("syncStale"), "syncStale must be called after Storyteller auth")
-        assertTrue(syncerOrder.contains("reconcile"), "reconcileLinks must be called after Storyteller auth")
+        assertEquals(1, syncer.syncStaleCallCount, "syncStale must be called after Storyteller auth")
+        assertEquals(1, reconciler.reconcileCallCount, "reconcileLinks must be called after Storyteller auth")
     }
 
     @Test

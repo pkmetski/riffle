@@ -514,6 +514,7 @@ private fun iosLibraryModule(
             annotationDao = get(),
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
+            applicationScope = get(),
             devDefaults = get(),
             savedStateHandle = SavedStateHandle(buildMap {
                 put("type", params.get<String>(0))

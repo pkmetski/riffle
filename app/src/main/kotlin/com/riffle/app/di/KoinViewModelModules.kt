@@ -424,6 +424,7 @@ private val serverViewModelModule = module {
             annotationDao = get(),
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
+            applicationScope = get(),
             devDefaults = get(),
             savedStateHandle = get(),
         )
@@ -444,6 +445,7 @@ private val serverViewModelModule = module {
             annotationDao = get(),
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
+            applicationScope = get(),
             devDefaults = get(),
             savedStateHandle = SavedStateHandle(buildMap {
                 put("type", params.get<String>(0))

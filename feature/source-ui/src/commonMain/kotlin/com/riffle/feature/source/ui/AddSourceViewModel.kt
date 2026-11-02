@@ -11,6 +11,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
@@ -28,8 +29,6 @@ import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.feature.settings.AnnotationSyncKind
 import com.riffle.feature.settings.deriveAnnotationSyncKind
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,7 +38,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Backend kind selectable in [AddSourceScreen]. WebDAV lives here as a peer to the browsable
@@ -109,9 +107,9 @@ class AddSourceViewModel constructor(
     private val annotationDao: AnnotationDao,
     private val bannerTicker: Flow<Unit>,
     private val strings: SourceUiStrings,
+    private val applicationScope: ApplicationScope,
     devDefaults: DevSourceDefaults = DevSourceDefaults.Empty,
     savedStateHandle: SavedStateHandle,
-    private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     var backend by mutableStateOf<AddSourceBackend>(
@@ -335,7 +333,7 @@ class AddSourceViewModel constructor(
                             is CommitSourceResult.Success -> {
                                 _navigateHome.send(Unit)
                                 if (serverType == ServerType.STORYTELLER_SERVICE) {
-                                    withContext(backgroundDispatcher) {
+                                    applicationScope.launchSurvivable {
                                         runCatching { storytellerSyncer.syncStale() }
                                         runCatching { readaloudMatcher.reconcileLinks() }
                                     }
