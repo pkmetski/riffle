@@ -485,6 +485,49 @@ class RiffleViewModelTest {
 
     // endregion
 
+    // region Auth tokens
+
+    @Test
+    fun authTokenMapPopulatedForEachSource() = runTest(dispatcher) {
+        // Regression: authTokenMap used async {} (inheriting Main) for Keychain reads, blocking the
+        // UI thread on iOS. Fix: withContext(Dispatchers.Default) for the entire associate block.
+        // This test pins that all sources' tokens are correctly loaded into authTokenMap.
+        val s1 = source("src1")
+        val s2 = source("src2")
+        val storage = object : TokenStorage {
+            override suspend fun saveToken(sourceId: String, token: String) {}
+            override suspend fun getToken(sourceId: String): String? = when (sourceId) {
+                "src1" -> "token-src1"
+                "src2" -> "token-src2"
+                else -> null
+            }
+            override suspend fun deleteToken(sourceId: String) {}
+        }
+        val vm = makeViewModel(
+            sourceRepository = FakeMultiSourceRepository(listOf(s1, s2)),
+            tokenStorage = storage,
+        )
+        // advanceTimeBy(1) runs all t=0 tasks and stops before the infinite polling delay.
+        // advanceUntilIdle() would spin forever because the polling loop never idles.
+        advanceTimeBy(1)
+        assertEquals("token-src1", vm.authTokenMap["src1"], "authTokenMap must include src1 token")
+        assertEquals("token-src2", vm.authTokenMap["src2"], "authTokenMap must include src2 token")
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
+    fun authTokenMapUsesEmptyStringForMissingToken() = runTest(dispatcher) {
+        // Pins the fallback behaviour: a source whose token read returns null must map to ""
+        // (not be absent from the map), so callers don't need null-checks.
+        val s = source("src1")
+        val vm = makeViewModel(sourceRepository = FakeMultiSourceRepository(listOf(s)))
+        advanceTimeBy(1)
+        assertEquals("", vm.authTokenMap["src1"], "missing token must map to empty string")
+        vm.viewModelScope.cancel()
+    }
+
+    // endregion
+
     // region Sources
 
     @Test
@@ -522,6 +565,7 @@ class RiffleViewModelTest {
         offlineAvailability = offlineAvailability,
         coverGridDensityStore = coverGridDensityStore,
         probeDispatcher = dispatcher,
+        tokenDispatcher = dispatcher,
     )
 
     private fun fakeCoverGridDensityStore() = object : com.riffle.core.domain.CoverGridDensityStore {

@@ -21,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,6 +52,9 @@ class RiffleViewModel constructor(
     // fires the probe. Tests that use runComposeUiTest leave the default so that the compose
     // awaitIdle() pump does not advance the probe's real-time delay and hang.
     internal val probeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    // Token reads call through to Keychain on iOS, blocking for 1-5 s per call on device.
+    // Overriding to the test dispatcher in tests keeps authTokenMap population deterministic.
+    internal val tokenDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
@@ -153,10 +157,12 @@ class RiffleViewModel constructor(
             // but the query result (the set of configured sources) stays the same.
             sourceRepository.observeAll().distinctUntilChanged().collectLatest { sources ->
                 _failedSourceIds.value = emptySet()
-                authTokenMap = coroutineScope {
+                // On iOS, TokenStorage.getToken reads from the system Keychain — a blocking
+                // syscall that takes 1–5 s per call on first access. viewModelScope runs on
+                // Main; dispatching to Default keeps the UI thread free while tokens load.
+                authTokenMap = withContext(tokenDispatcher) {
                     sources.associate { source ->
-                        val token = async { tokenStorage.getToken(source.id) ?: "" }
-                        source.id to token.await()
+                        source.id to (tokenStorage.getToken(source.id) ?: "")
                     }
                 }
                 // supervisorScope keeps this lambda alive (so collectLatest doesn't return

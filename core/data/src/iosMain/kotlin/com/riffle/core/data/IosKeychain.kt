@@ -76,11 +76,7 @@ internal fun saveKeychainItem(service: String, account: String, value: String) {
 }
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun loadKeychainItem(service: String, account: String): String? =
-    loadKeychainItemInternal(service, account)
-
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun loadKeychainItemInternal(service: String, account: String): String? = withKeychainQuery(service, account) { query ->
+internal fun loadKeychainItem(service: String, account: String): String? = withKeychainQuery(service, account) { query ->
     CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue)
     CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne)
     val data: NSData? = memScoped {

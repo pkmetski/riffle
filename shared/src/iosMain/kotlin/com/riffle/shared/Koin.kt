@@ -16,7 +16,7 @@ import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
-import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
@@ -967,7 +967,9 @@ private fun iosLibraryModule(
     single<ReadaloudReviewMutator> { get<ReadaloudReviewRepositoryImpl>() }
     single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
     single<EncryptedKeyValueStore> { IosEncryptedKeyValueStore() }
-    single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
+    single<AnnotationSyncConfigStore> {
+        IosAnnotationSyncConfigStore(store = get(), scope = get<ApplicationScope>().coroutineScope)
+    }
     single<LocalFilesFolderHealthCheckerInterface> { IosLocalFilesFolderHealthChecker() }
     single<LocalFilesScannerInterface> {
         val scanner = get<IosLocalFilesScanner>()

@@ -192,7 +192,14 @@ class AddSourceViewModel constructor(
                 password = resolvedPassword
             }
             AddSourceBackend.Webdav -> {
-                val existing = withContext(dispatchers.io) { webdavConfigStore.observe().first() }
+                // awaitLoad() is a no-op on Android (synchronous Keychain read in constructor)
+                // but on iOS it waits for IosAnnotationSyncConfigStore's background Keychain read
+                // to complete before we call observe().value — otherwise observe().first() returns
+                // the initial null (not-yet-loaded) instead of the stored config.
+                val existing = withContext(dispatchers.io) {
+                    webdavConfigStore.awaitLoad()
+                    webdavConfigStore.observe().value
+                }
                 if (existing != null) {
                     isEditingWebdav = true
                     applyUrl(existing.baseUrl)
