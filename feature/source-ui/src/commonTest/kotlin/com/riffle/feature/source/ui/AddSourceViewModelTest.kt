@@ -870,4 +870,35 @@ class AddSourceViewModelTest {
         vm.updateHost("abs.example.com\t")
         assertEquals("abs.example.com", vm.host)
     }
+
+    // Regression: AndroidOnboardingSlot.Credentials only stored SourceType (not serverType), so
+    // initialBackend=AddSourceBackend.Storyteller produced routeType="audiobookshelf" instead of
+    // "storyteller". The ViewModel then parsed it as AUDIOBOOKSHELF, making the form show
+    // "Add Audiobookshelf" and save the source with the wrong server type.
+    @Test
+    fun `init with type=storyteller resolves backend as Storyteller not Audiobookshelf`() {
+        val savedState = SavedStateHandle(mapOf("type" to "storyteller"))
+        val vm = makeVm(fakeRepo(AuthenticateResult.WrongCredentials("x")), savedState = savedState)
+        assertEquals(AddSourceBackend.Storyteller, vm.backend)
+        val credentialed = vm.backend as? AddSourceBackend.Credentialed
+        assertEquals(com.riffle.core.models.ServerType.STORYTELLER_SERVICE, credentialed?.serverType)
+        assertEquals("storyteller", credentialed?.routeType)
+    }
+
+    @Test
+    fun `type=audiobookshelf and type=storyteller produce distinct backends with distinct routeTypes`() {
+        val absVm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "audiobookshelf")),
+        )
+        val stVm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "storyteller")),
+        )
+        val abs = absVm.backend as? AddSourceBackend.Credentialed
+        val st = stVm.backend as? AddSourceBackend.Credentialed
+        assertEquals(com.riffle.core.models.ServerType.AUDIOBOOKSHELF, abs?.serverType)
+        assertEquals(com.riffle.core.models.ServerType.STORYTELLER_SERVICE, st?.serverType)
+        assertTrue(abs?.routeType != st?.routeType, "Audiobookshelf and Storyteller must have distinct routeTypes")
+    }
 }
