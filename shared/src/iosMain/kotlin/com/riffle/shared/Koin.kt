@@ -16,7 +16,6 @@ import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
-import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
@@ -31,6 +30,7 @@ import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DeviceMetaSentinelWriter
+import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
