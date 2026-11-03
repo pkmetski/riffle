@@ -1,5 +1,8 @@
 package com.riffle.feature.reader.ui
 
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
@@ -8,6 +11,7 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.riffle.feature.designsystem.TestTags
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Shared reader top bar chrome. The back button, search, TOC, annotations, and format actions
@@ -119,5 +123,31 @@ class ReaderTopBarTest {
         }
         onNodeWithTag(TestTags.READER_ANNOTATIONS).performClick()
         assertEquals(1, taps)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun extraActionsAppearToRightOfFormatButton() = runComposeUiTest {
+        setContent {
+            ReaderTopBar(
+                visible = true,
+                title = "Chapter 1",
+                isReady = true,
+                onBack = {},
+                onSearch = {},
+                onToc = {},
+                onAnnotations = {},
+                onFormat = {},
+                extraActions = {
+                    IconButton(onClick = {}, modifier = Modifier.testTag("test_extra_action")) {}
+                },
+            )
+        }
+        val formatBounds = onNodeWithTag(TestTags.READER_SETTINGS).fetchSemanticsNode().boundsInRoot
+        val extraBounds = onNodeWithTag("test_extra_action").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            extraBounds.left >= formatBounds.right,
+            "Extra actions (left=${extraBounds.left}) must appear to the right of the format button (right=${formatBounds.right})",
+        )
     }
 }

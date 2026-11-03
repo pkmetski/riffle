@@ -292,7 +292,7 @@ fun ReadaloudDownloadButton(
                 contentDescription = stringResource(Res.string.ui_download_readaloud),
                 tint = MaterialTheme.colorScheme.outline,
                 badgeTint = MaterialTheme.colorScheme.outline,
-                circleModifier = Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                circleModifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
                 enabled = enabled,
                 onClick = onDownload,
             )
