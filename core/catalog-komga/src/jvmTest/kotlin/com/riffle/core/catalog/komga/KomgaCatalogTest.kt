@@ -8,7 +8,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.utils.io.readAvailable
 import io.ktor.utils.io.readRemaining
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -26,6 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 /**
  * Verifies that [KomgaCatalog] reads Komga's REST responses correctly, sends the HTTP Basic auth
@@ -49,15 +49,21 @@ class KomgaCatalogTest {
         catalog = KomgaCatalog(config, KomgaHttpClient(httpClient, header), httpClient)
     }
 
-    @After fun tearDown() { server.shutdown() }
+    @After fun tearDown() {
+        server.shutdown()
+    }
 
     @Test fun `listRoots maps Komga libraries to CatalogRoot`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             [
               {"id":"L1","name":"Comics","unavailable":false},
               {"id":"L2","name":"Manga","unavailable":false}
             ]
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val roots = catalog.listRoots()
 
@@ -67,12 +73,16 @@ class KomgaCatalogTest {
         assertEquals("book", roots[0].mediaType)
         val recorded = server.takeRequest()
         assertEquals("/api/v1/libraries", recorded.path)
-        assertEquals("Basic ${java.util.Base64.getEncoder().encodeToString("user:pass".toByteArray())}",
-            recorded.getHeader("Authorization"))
+        assertEquals(
+            "Basic ${java.util.Base64.getEncoder().encodeToString("user:pass".toByteArray())}",
+            recorded.getHeader("Authorization")
+        )
     }
 
     @Test fun `browse decodes paged books and maps mediaType`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {
               "content": [
                 {"id":"B1","libraryId":"L1","name":"book.epub","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Book One","authors":[{"name":"Alice","role":"writer"}]}},
@@ -81,7 +91,9 @@ class KomgaCatalogTest {
               ],
               "totalPages":1,"totalElements":3,"first":true,"last":true,"empty":false
             }
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val items = catalog.browse("L1", SortKey.TITLE)
 
@@ -172,7 +184,9 @@ class KomgaCatalogTest {
     // `created` as ISO-8601 (`2026-06-06T19:20:23Z`) — parse it into the CatalogItem's addedAt so
     // the sort key is stable. This assertion would flip red if the parse-through were reverted.
     @Test fun `browse populates addedAt from Komga's created timestamp`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {
               "content": [
                 {"id":"B1","libraryId":"L1","name":"one.epub","created":"2026-06-06T19:20:23Z","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"One","authors":[]}},
@@ -181,7 +195,9 @@ class KomgaCatalogTest {
               ],
               "totalPages":1,"totalElements":3,"first":true,"last":true,"empty":false
             }
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val items = catalog.browse("L1", SortKey.TITLE)
 
@@ -193,7 +209,9 @@ class KomgaCatalogTest {
     }
 
     @Test fun `listSeries uses first book thumbnail as cover cache key`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {
               "content": [
                 {"id":"B1","libraryId":"L1","seriesId":"S1","name":"one.cbz","number":1,
@@ -201,15 +219,21 @@ class KomgaCatalogTest {
               ],
               "totalPages":1,"totalElements":1,"first":true,"last":true,"empty":false
             }
-        """.trimIndent()))
-        server.enqueue(MockResponse().setBody("""
+                """.trimIndent()
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {
               "content": [
                 {"id":"S1","libraryId":"L1","name":"Series One","booksCount":1,"metadata":{"title":"Series One"}}
               ],
               "totalPages":1,"totalElements":1,"first":true,"last":true,"empty":false
             }
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val series = catalog.listSeries("L1")
 
@@ -268,7 +292,7 @@ class KomgaCatalogTest {
 
         catalog.pushEbookProgress(
             itemId = "B1",
-            location = "",       // markFinished(false) clears the local locator
+            location = "", // markFinished(false) clears the local locator
             progress = 0f,
             isFinished = false,
             lastUpdateEpochMs = 0L,
@@ -416,11 +440,15 @@ class KomgaCatalogTest {
     }
 
     @Test fun `pullProgress reads the book's readProgress record into CatalogProgress`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"id":"B1","libraryId":"L1","name":"book","media":{"mediaType":"application/pdf","pagesCount":200,"mediaProfile":"PDF"},
              "metadata":{"title":"Book","authors":[]},
              "readProgress":{"page":50,"completed":false,"readDate":"2026-07-01T10:00:00Z","lastModified":"2026-07-01T10:00:00Z"}}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val p = catalog.pullProgress("B1")
 
@@ -442,11 +470,15 @@ class KomgaCatalogTest {
         // Guards the boundary translator symmetry: whatever pullProgress emits must be a valid
         // input to pushEbookProgress, so the sweep can PATCH the ServerWins position back without
         // losing the page.
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"id":"B1","libraryId":"L1","name":"book","media":{"pagesCount":500,"mediaProfile":"PDF"},
              "metadata":{"title":"Book","authors":[]},
              "readProgress":{"page":123,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         val pulled = catalog.pullProgress("B1")!!
@@ -458,10 +490,14 @@ class KomgaCatalogTest {
     }
 
     @Test fun `pullProgress marks completed books as finished`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"id":"B1","libraryId":"L1","name":"book","media":{"pagesCount":200},"metadata":{"title":"Book","authors":[]},
              "readProgress":{"page":200,"completed":true,"readDate":"2026-07-01T10:00:00Z","lastModified":"2026-07-01T10:00:00Z"}}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val p = catalog.pullProgress("B1")!!
         assertTrue(p.isFinished)
@@ -471,9 +507,13 @@ class KomgaCatalogTest {
 
     @Test fun `pullProgress returns a record even when the book has no progress (never-opened)`() = runTest {
         // No readProgress field → dto.readProgress == null → toCatalogProgress → null.
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"id":"B1","libraryId":"L1","name":"book","media":{"pagesCount":200},"metadata":{"title":"Book","authors":[]}}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         assertNull("a book with no server-side progress has no CatalogProgress row", catalog.pullProgress("B1"))
     }
@@ -495,18 +535,26 @@ class KomgaCatalogTest {
 
     @Test fun `pullAllProgress sweeps every page of in-progress books`() = runTest {
         // Two pages back-to-back; the second is marked last=true.
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"content":[
               {"id":"B1","libraryId":"L1","name":"a","media":{"pagesCount":100},"metadata":{"title":"A","authors":[]},
                "readProgress":{"page":10,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
             ],"last":false,"totalPages":2,"totalElements":2,"empty":false,"first":true,"number":0}
-        """.trimIndent()))
-        server.enqueue(MockResponse().setBody("""
+                """.trimIndent()
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"content":[
               {"id":"B2","libraryId":"L1","name":"b","media":{"pagesCount":50},"metadata":{"title":"B","authors":[]},
                "readProgress":{"page":50,"completed":true,"lastModified":"2026-07-02T10:00:00Z"}}
             ],"last":true,"totalPages":2,"totalElements":2,"empty":false,"first":false,"number":1}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val all = catalog.pullAllProgress()
 
@@ -523,12 +571,16 @@ class KomgaCatalogTest {
         // row was seeded at readingProgress=0 and no later refresh could fix it. Best-effort
         // partial return is strictly better: In-Progress shows what we DID pull, and the next
         // sweep picks up the tail.
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"content":[
               {"id":"B1","libraryId":"L1","name":"a","media":{"pagesCount":100},"metadata":{"title":"A","authors":[]},
                "readProgress":{"page":10,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
             ],"last":false,"totalPages":3,"totalElements":3,"empty":false,"first":true,"number":0}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(502))
 
         val all = catalog.pullAllProgress()
@@ -538,12 +590,16 @@ class KomgaCatalogTest {
     }
 
     @Test fun `pullAllProgress preserves partial results when a page body is malformed JSON`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {"content":[
               {"id":"B1","libraryId":"L1","name":"a","media":{"pagesCount":100},"metadata":{"title":"A","authors":[]},
                "readProgress":{"page":10,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
             ],"last":false,"totalPages":3,"totalElements":3,"empty":false,"first":true,"number":0}
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
         server.enqueue(MockResponse().setBody("not-json"))
 
         val all = catalog.pullAllProgress()

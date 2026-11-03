@@ -33,7 +33,9 @@ class KomgaCbzPageStreamTest {
         catalog = KomgaCatalog(config, KomgaHttpClient(httpClient, header), httpClient)
     }
 
-    @After fun tearDown() { server.shutdown() }
+    @After fun tearDown() {
+        server.shutdown()
+    }
 
     @Test fun `KomgaCatalog declares CbzPageStreamCapability`() {
         assertTrue(catalog.has<CbzPageStreamCapability>())
@@ -101,7 +103,9 @@ class KomgaCbzPageStreamTest {
     }
 
     @Test fun `fetchCbzPageCount returns pagesCount from book metadata`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {
               "id": "B1",
               "libraryId": "L1",
@@ -109,7 +113,9 @@ class KomgaCbzPageStreamTest {
               "media": {"mediaType": "application/x-cbz", "pagesCount": 42},
               "metadata": {"title": "My Comic", "authors": []}
             }
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val cap = catalog as CbzPageStreamCapability
         val count = cap.fetchCbzPageCount("B1")
@@ -120,7 +126,9 @@ class KomgaCbzPageStreamTest {
     }
 
     @Test fun `fetchCbzPageCount returns 0 when pagesCount absent`() = runTest {
-        server.enqueue(MockResponse().setBody("""
+        server.enqueue(
+            MockResponse().setBody(
+                """
             {
               "id": "B1",
               "libraryId": "L1",
@@ -128,7 +136,9 @@ class KomgaCbzPageStreamTest {
               "media": {"mediaType": "application/x-cbz"},
               "metadata": {"title": "My Comic", "authors": []}
             }
-        """.trimIndent()))
+                """.trimIndent()
+            )
+        )
 
         val cap = catalog as CbzPageStreamCapability
         val count = cap.fetchCbzPageCount("B1")

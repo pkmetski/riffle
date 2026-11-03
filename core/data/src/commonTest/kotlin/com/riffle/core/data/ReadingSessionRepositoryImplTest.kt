@@ -17,7 +17,6 @@ import com.riffle.core.common.Clock
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.domain.AudiobookPositionStore

@@ -52,8 +52,11 @@ class PdfRepositoryImpl(
                     localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
                 }
             } catch (t: Throwable) {
-                return if (connectivityObserver?.isOnline?.value == false) PdfOpenResult.Offline
-                else PdfOpenResult.NetworkError(t)
+                return if (connectivityObserver?.isOnline?.value == false) {
+                    PdfOpenResult.Offline
+                } else {
+                    PdfOpenResult.NetworkError(t)
+                }
             }
         }
         val lastPosition = positionStore.load(item.sourceId, item.id)
@@ -79,8 +82,11 @@ class PdfRepositoryImpl(
                     ".pdf",
                 ) to true
             } catch (t: Throwable) {
-                return if (connectivityObserver?.isOnline?.value == false) PdfOpenResult.Offline
-                else PdfOpenResult.NetworkError(t)
+                return if (connectivityObserver?.isOnline?.value == false) {
+                    PdfOpenResult.Offline
+                } else {
+                    PdfOpenResult.NetworkError(t)
+                }
             }
         }
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = null, temporary = temporary)
