@@ -15,7 +15,10 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
         openReader(from: tile, in: app)
 
         let webView = app.webViews.firstMatch
-        XCTAssertTrue(webView.waitForExistence(timeout: 30),
+        // 90 s: openReader returns once the Compose back button appears, but Readium's WKWebView
+        // initialises asynchronously after that. On Clone 2 under resource pressure the pipeline
+        // (EPUB fetch → Readium parse → WKWebView setup) routinely exceeds 30 s.
+        XCTAssertTrue(webView.waitForExistence(timeout: 90),
                       "EPUB WebView must appear after opening the reader")
 
         let annotateButton = triggerTextSelectionInReader(webView: webView)
@@ -36,7 +39,7 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
         openReader(from: tile, in: app)
 
         let webView = app.webViews.firstMatch
-        XCTAssertTrue(webView.waitForExistence(timeout: 30))
+        XCTAssertTrue(webView.waitForExistence(timeout: 90))
 
         let annotateButton = triggerTextSelectionInReader(webView: webView)
         XCTAssertTrue(annotateButton.waitForExistence(timeout: 10),
