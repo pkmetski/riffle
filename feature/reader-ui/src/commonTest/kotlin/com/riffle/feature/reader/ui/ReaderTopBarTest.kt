@@ -139,12 +139,14 @@ class ReaderTopBarTest {
                 onAnnotations = {},
                 onFormat = {},
                 extraActions = {
-                    IconButton(onClick = {}, modifier = Modifier.testTag("test_extra_action")) {}
+                    IconButton(onClick = {}, modifier = Modifier.testTag(TestTags.READER_TOP_BAR_TEST_EXTRA_ACTION)) {}
                 },
             )
         }
+        // Coordinate comparison is valid for LTR layout (the app's only supported direction).
+        // In a right-to-left locale the order would mirror and this check would need to invert.
         val formatBounds = onNodeWithTag(TestTags.READER_SETTINGS).fetchSemanticsNode().boundsInRoot
-        val extraBounds = onNodeWithTag("test_extra_action").fetchSemanticsNode().boundsInRoot
+        val extraBounds = onNodeWithTag(TestTags.READER_TOP_BAR_TEST_EXTRA_ACTION).fetchSemanticsNode().boundsInRoot
         assertTrue(
             extraBounds.left >= formatBounds.right,
             "Extra actions (left=${extraBounds.left}) must appear to the right of the format button (right=${formatBounds.right})",
