@@ -38,7 +38,7 @@ import kotlinx.coroutines.sync.withLock
  * annotation-sweep infrastructure, [webdavBanner], [AnnotationSyncTargetHolder] — are flow-based
  * and react to the [state] update automatically.
  */
-internal class IosAnnotationSyncConfigStore(
+class IosAnnotationSyncConfigStore(
     private val store: EncryptedKeyValueStore,
     scope: CoroutineScope,
 ) : AnnotationSyncConfigStore {
