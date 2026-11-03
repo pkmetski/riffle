@@ -8,7 +8,7 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
     // MARK: - Scenario: Annotate button appears in the selection strip on text selection
 
     func testAnnotateButtonAppearsOnTextSelection() throws {
-        let tile = app.staticTexts[StubAbsServer.testItemTitle].firstMatch
+        let tile = app.buttons[StubAbsServer.testItemTitle].firstMatch
         XCTAssertTrue(tile.waitForExistence(timeout: 30),
                       "Test EPUB tile must appear in the library home")
 
@@ -40,7 +40,7 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
     // MARK: - Scenario: Tapping Annotate opens the annotation colour sheet
 
     func testTappingAnnotateOpensColourSheet() throws {
-        let tile = app.staticTexts[StubAbsServer.testItemTitle].firstMatch
+        let tile = app.buttons[StubAbsServer.testItemTitle].firstMatch
         XCTAssertTrue(tile.waitForExistence(timeout: 30))
 
         openReader(from: tile, in: app)
