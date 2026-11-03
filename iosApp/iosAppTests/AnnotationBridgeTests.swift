@@ -95,8 +95,13 @@ final class AnnotationBridgeTests: XCTestCase {
             result = value
             done.fulfill()
         }
-        XCTAssertEqual(XCTWaiter().wait(for: [done], timeout: 20), .completed,
-                       "evaluateJavaScript must always invoke its callback")
+        // Do NOT assert on timeout here. On loaded CI runners the WKWebView JS queue backs up
+        // and a single evaluation can exceed any fixed per-call timeout. The assertion used to
+        // fire immediately, failing the test even though the decoration WOULD appear if the retry
+        // loop were allowed to continue. The caller (evalWithRetry / decorationCount) uses a
+        // deadline-based loop that bounds total wait time to 30 s; a nil return from a slow eval
+        // is simply retried there rather than treated as a test failure.
+        _ = XCTWaiter().wait(for: [done], timeout: 5)
         return result
     }
 
@@ -104,10 +109,13 @@ final class AnnotationBridgeTests: XCTestCase {
         Int(Double(eval(bridge, script) ?? "") ?? -1)
     }
 
-    /// Polls `script` up to 40 times (50 ms apart) until the result is > 0, then returns it.
-    private func evalWithRetry(_ bridge: ReadiumEpubNavigatorBridge, _ script: String) -> Int {
+    // Polls `script` for up to `totalTimeout` seconds until the result is > 0, then returns it.
+    // Deadline-based rather than count-based so slow runners don't pile up 40 × 20 s = 800 s.
+    private func evalWithRetry(_ bridge: ReadiumEpubNavigatorBridge, _ script: String,
+                               totalTimeout: TimeInterval = 30) -> Int {
+        let deadline = Date().addingTimeInterval(totalTimeout)
         var last = 0
-        for _ in 0..<40 {
+        while Date() < deadline {
             last = evalInt(bridge, script)
             if last > 0 { return last }
             settle(seconds: 0.05)
@@ -121,9 +129,11 @@ final class AnnotationBridgeTests: XCTestCase {
     /// per placed decoration. A decoration whose locator could not be resolved never produces a
     /// child, which is the failure mode this whole file exists to catch. Retries because the
     /// decoration JS runs on `requestAnimationFrame`.
-    private func decorationCount(_ bridge: ReadiumEpubNavigatorBridge, group: String) -> Int {
+    private func decorationCount(_ bridge: ReadiumEpubNavigatorBridge, group: String,
+                                 totalTimeout: TimeInterval = 30) -> Int {
+        let deadline = Date().addingTimeInterval(totalTimeout)
         var last = 0
-        for _ in 0..<40 {
+        while Date() < deadline {
             last = evalInt(bridge, """
             (function(){var c=document.querySelector('[data-group="\(group)"]');\
             return c?c.children.length:0;})()

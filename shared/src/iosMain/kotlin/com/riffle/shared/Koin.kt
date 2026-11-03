@@ -16,7 +16,6 @@ import com.riffle.core.common.IosSystemClock
 import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
-import com.riffle.core.data.AnnotationSyncConfigStoreImpl
 import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
@@ -31,6 +30,7 @@ import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DeviceMetaSentinelWriter
+import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
@@ -174,6 +174,7 @@ import com.riffle.core.network.KomgaServerInfoApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.core.network.createStreamingHttpClient
 import com.riffle.core.sources.SourceAdapter
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
@@ -306,6 +307,7 @@ private fun iosLibraryModule(
     elidedPdfBridge: IosElidedPdfBridge,
 ) = module {
     single { createDefaultHttpClient() }
+    single<HttpClient>(named("streamingHttpClient")) { createStreamingHttpClient() }
     single { AbsApiClient(get()) }
     single<AbsApi> { get<AbsApiClient>() }
     single<AbsLibraryApi> { get<AbsApiClient>() }
@@ -515,6 +517,7 @@ private fun iosLibraryModule(
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
             applicationScope = get(),
+            dispatchers = get(),
             devDefaults = get(),
             savedStateHandle = SavedStateHandle(buildMap {
                 put("type", params.get<String>(0))
@@ -964,7 +967,9 @@ private fun iosLibraryModule(
     single<ReadaloudReviewMutator> { get<ReadaloudReviewRepositoryImpl>() }
     single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
     single<EncryptedKeyValueStore> { IosEncryptedKeyValueStore() }
-    single<AnnotationSyncConfigStore> { AnnotationSyncConfigStoreImpl(get()) }
+    single<AnnotationSyncConfigStore> {
+        IosAnnotationSyncConfigStore(store = get(), scope = get<ApplicationScope>().coroutineScope)
+    }
     single<LocalFilesFolderHealthCheckerInterface> { IosLocalFilesFolderHealthChecker() }
     single<LocalFilesScannerInterface> {
         val scanner = get<IosLocalFilesScanner>()
@@ -1150,10 +1155,10 @@ private fun iosLibraryModule(
                 tokenStorage = get(),
                 deviceIdStore = get(),
                 clock = get(),
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
             ),
             SourceType.KOMGA to KomgaCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 tokenStorage = get(),
                 userAgent = "Riffle/dev (iOS) komga-source",
             ),
@@ -1163,22 +1168,22 @@ private fun iosLibraryModule(
             // (#1071 §17). All three catalogues are `commonMain` — Chitanka's scraper moved off
             // jsoup onto ksoup for exactly this.
             SourceType.CHITANKA to ChitankaCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 userAgent = "Riffle/dev (iOS) chitanka-source",
             ),
             SourceType.GUTENBERG to GutenbergCatalogFactory(
-                sharedHttpClient = get(),
+                sharedHttpClient = get(named("streamingHttpClient")),
                 userAgent = "Riffle/dev (iOS) gutenberg-source",
             ),
             SourceType.RADIO_ES to RadioEsCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 userAgent = "Riffle/dev (iOS) radio-es-source",
             ),
             // Developer-mode-only; requires a WebView login (IosOReillyLoginScreen) to
             // harvest the orm-jwt cookie. IosOReillySessionStore caches the cookie so
             // cookieProvider can be synchronous while the WKHTTPCookieStore is async.
             SourceType.OREILLY to OReillyCatalogFactory(
-                httpClient = get(),
+                httpClient = get(named("streamingHttpClient")),
                 cookieProvider = { iosOReillySessionStore.cookieHeader },
                 userAgentProvider = { "Riffle/dev (iOS) oreilly-source" },
             ),
@@ -1373,6 +1378,7 @@ private fun iosLibraryModule(
             copyCoverImage = get(),
             readingSpeedStore = get(),
             webSourceLibraryItemUpserter = get(),
+            dispatchers = get(),
         )
     }
     factory { params ->

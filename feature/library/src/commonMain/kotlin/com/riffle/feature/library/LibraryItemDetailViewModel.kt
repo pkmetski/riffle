@@ -52,6 +52,7 @@ import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReservedPlaylistNameException
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
 import com.riffle.core.domain.ToReadRepository
@@ -80,7 +81,10 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.floor
 
 sealed interface LibraryItemDetailUiState {
@@ -206,6 +210,7 @@ class LibraryItemDetailViewModel constructor(
     private val copyCoverImage: CoverImageCopier,
     private val readingSpeedStore: ReadingSpeedStore,
     private val webSourceLibraryItemUpserter: WebSourceLibraryItemUpserter,
+    private val dispatchers: DispatcherProvider,
 ) : ViewModel() {
 
     private val _itemId: String = itemId
@@ -553,80 +558,107 @@ class LibraryItemDetailViewModel constructor(
         private set
 
     init {
+        // Token (keychain on iOS) is only needed for cover image auth, not for showing the
+        // Ready state. Fetch it in a sibling coroutine so it never delays the loading screen.
+        viewModelScope.launch(dispatchers.io) {
+            authToken = try {
+                val server = sourceRepository.getActive()
+                if (server != null) tokenStorage.getToken(server.id) ?: "" else ""
+            } catch (_: Exception) { "" }
+        }
+
         viewModelScope.launch {
-            val server = sourceRepository.getActive()
-            if (server != null) {
-                authToken = tokenStorage.getToken(server.id) ?: ""
-            }
-            _uiState.value = try {
-                val item = _sourceId
-                    ?.let { libraryObserver.getItem(it, _itemId) }
-                    ?: libraryObserver.getItem(_itemId)
-                if (item != null) {
-                    loadedItem = item
-                    _downloadState.value = deriveDownloadState(item)
-                    val link = if (server?.id != null) {
-                        readaloudLinkRepository.findByAbsItem(server.id, item.id)
-                    } else {
-                        null
+            val newUiState = withContext(dispatchers.io) {
+                supervisorScope {
+                    val server = sourceRepository.getActive()
+                    val item = try {
+                        _sourceId
+                            ?.let { libraryObserver.getItem(it, _itemId) }
+                            ?: libraryObserver.getItem(_itemId)
+                    } catch (_: Exception) { null }
+
+                    try {
+                        if (item != null) {
+                            loadedItem = item
+                            _downloadState.value = deriveDownloadState(item)
+
+                            // Phase 2: all secondary reads that depend on item run in parallel.
+                            val linkDeferred = async {
+                                if (server?.id != null) {
+                                    readaloudLinkRepository.findByAbsItem(server.id, item.id)
+                                } else null
+                            }
+                            val isCachedDeferred = async { isCachedOrDownloadedForFormat(item) }
+                            val isInToReadDeferred = async {
+                                toReadRepository.isInToReadForSource(item.sourceId, item.id, item.libraryId)
+                            }
+                            val seriesIdDeferred = async {
+                                item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.sourceId, item.id) }
+                            }
+                            val sourcesDeferred = async { sourceRepository.observeAll().first() }
+
+                            val link = linkDeferred.await()
+                            val isCachedOrDownloaded = isCachedDeferred.await()
+                            val isInToRead = isInToReadDeferred.await()
+                            val seriesId = seriesIdDeferred.await()
+                            val sources = sourcesDeferred.await()
+
+                            readaloudLink = link
+                            val readaloudBundlePresent = link?.let {
+                                readaloudAudioRepository.isAudioAvailable(it.storytellerSourceId, it.storytellerBookId)
+                            } ?: false
+                            _readaloudDownloadState.value = link?.let { readaloudDownloadStateFor(readaloudBundlePresent) }
+                            if (link != null && !readaloudBundlePresent) {
+                                sidecarPrefetcher.prepare(link.storytellerSourceId, link.storytellerBookId)
+                            }
+                            _audiobookDownloadState.value = if (item.isListenable) {
+                                deriveAudiobookDownloadState(item)
+                            } else null
+                            val catalog = catalogRegistry.forSourceId(item.sourceId)
+                            val isLiveStream = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) == true
+                            val canUploadToConfiguredSource = !isLiveStream && canUploadWebSourceItem(
+                                catalog?.sourceType,
+                                sources.any { destination ->
+                                    destination.id != item.sourceId &&
+                                        catalogRegistry.forSource(destination) is BookImportCapability
+                                },
+                            )
+                            val capabilities = DetailCapabilities(
+                                hasSeries = catalog is SeriesCapability,
+                                hasPlaylists = true,
+                                hasAudiobookMedia = catalog is AudiobookMediaCapability,
+                                hasMarkRead = !isLiveStream,
+                                hasDownloads = catalog is DownloadsCapability && !isLiveStream,
+                                hasReadaloud = link != null,
+                                hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
+                                canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
+                                canUploadToConfiguredSource = canUploadToConfiguredSource,
+                            )
+                            val originalItem = if (capabilities.canEditMetadata) {
+                                val originalCoverUrl = (catalog as? OriginalCoverCapability)
+                                    ?.originalCoverUrl(item.id)
+                                item.copy(coverUrl = originalCoverUrl)
+                            } else {
+                                null
+                            }
+                            LibraryItemDetailUiState.Ready(
+                                item = item,
+                                seriesId = seriesId,
+                                isInToRead = isInToRead,
+                                isCachedOrDownloaded = isCachedOrDownloaded,
+                                isOffline = !connectivityObserver.isOnline.value,
+                                capabilities = capabilities,
+                                originalItem = originalItem,
+                            )
+                        } else {
+                            LibraryItemDetailUiState.Error
+                        }
+                    } catch (_: Exception) {
+                        LibraryItemDetailUiState.Error
                     }
-                    readaloudLink = link
-                    val readaloudBundlePresent = link?.let {
-                        readaloudAudioRepository.isAudioAvailable(it.storytellerSourceId, it.storytellerBookId)
-                    } ?: false
-                    _readaloudDownloadState.value = link?.let { readaloudDownloadStateFor(readaloudBundlePresent) }
-                    if (link != null && !readaloudBundlePresent) {
-                        sidecarPrefetcher.prepare(link.storytellerSourceId, link.storytellerBookId)
-                    }
-                    _audiobookDownloadState.value = if (item.isListenable) {
-                        deriveAudiobookDownloadState(item)
-                    } else null
-                    val isCachedOrDownloaded = isCachedOrDownloadedForFormat(item)
-                    val isInToRead = toReadRepository.isInToReadForSource(item.sourceId, item.id, item.libraryId)
-                    val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.sourceId, item.id) }
-                    val catalog = catalogRegistry.forSourceId(item.sourceId)
-                    val isLiveStream = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) == true
-                    val canUploadToConfiguredSource = !isLiveStream && canUploadWebSourceItem(
-                        catalog?.sourceType,
-                        sourceRepository.observeAll().first().any { destination ->
-                            destination.id != item.sourceId &&
-                                catalogRegistry.forSource(destination) is BookImportCapability
-                        },
-                    )
-                    val capabilities = DetailCapabilities(
-                        hasSeries = catalog is SeriesCapability,
-                        hasPlaylists = true,
-                        hasAudiobookMedia = catalog is AudiobookMediaCapability,
-                        hasMarkRead = (catalog as? LiveStreamCapability)?.isLiveStream(item.id) != true,
-                        hasDownloads = catalog is DownloadsCapability &&
-                            (catalog as? LiveStreamCapability)?.isLiveStream(item.id) != true,
-                        hasReadaloud = link != null,
-                        hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
-                        canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
-                        canUploadToConfiguredSource = canUploadToConfiguredSource,
-                    )
-                    val originalItem = if (capabilities.canEditMetadata) {
-                        val originalCoverUrl = (catalog as? OriginalCoverCapability)
-                            ?.originalCoverUrl(item.id)
-                        item.copy(coverUrl = originalCoverUrl)
-                    } else {
-                        null
-                    }
-                    LibraryItemDetailUiState.Ready(
-                        item = item,
-                        seriesId = seriesId,
-                        isInToRead = isInToRead,
-                        isCachedOrDownloaded = isCachedOrDownloaded,
-                        isOffline = !connectivityObserver.isOnline.value,
-                        capabilities = capabilities,
-                        originalItem = originalItem,
-                    )
-                } else {
-                    LibraryItemDetailUiState.Error
                 }
-            } catch (_: Exception) {
-                LibraryItemDetailUiState.Error
             }
+            _uiState.value = newUiState
 
             val initialReady = _uiState.value
             if (initialReady is LibraryItemDetailUiState.Ready) {

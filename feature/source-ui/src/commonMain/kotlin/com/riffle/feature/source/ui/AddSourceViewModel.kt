@@ -14,6 +14,7 @@ import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.SourceRepository
@@ -34,10 +35,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Backend kind selectable in [AddSourceScreen]. WebDAV lives here as a peer to the browsable
@@ -108,6 +109,7 @@ class AddSourceViewModel constructor(
     private val bannerTicker: Flow<Unit>,
     private val strings: SourceUiStrings,
     private val applicationScope: ApplicationScope,
+    private val dispatchers: DispatcherProvider,
     devDefaults: DevSourceDefaults = DevSourceDefaults.Empty,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -178,12 +180,25 @@ class AddSourceViewModel constructor(
                 }
                 val id = editingServerId ?: return
                 val server = repository.getById(id) ?: return
+                // tokenStorage.getPassword calls the Keychain on iOS — a blocking syscall that
+                // can take 1–5 seconds on first access after app launch. Dispatch off Main so
+                // the UI thread stays responsive while we wait.
+                val resolvedPassword = withContext(dispatchers.io) {
+                    tokenStorage.getPassword(id).orEmpty()
+                }
                 applyUrl(server.url.value)
                 username = server.username
-                password = tokenStorage.getPassword(id).orEmpty()
+                password = resolvedPassword
             }
             AddSourceBackend.Webdav -> {
-                val existing = webdavConfigStore.observe().first()
+                // awaitLoad() is a no-op on Android (synchronous Keychain read in constructor)
+                // but on iOS it waits for IosAnnotationSyncConfigStore's background Keychain read
+                // to complete before we call observe().value — otherwise observe().first() returns
+                // the initial null (not-yet-loaded) instead of the stored config.
+                val existing = withContext(dispatchers.io) {
+                    webdavConfigStore.awaitLoad()
+                    webdavConfigStore.observe().value
+                }
                 if (existing != null) {
                     isEditingWebdav = true
                     applyUrl(existing.baseUrl)

@@ -4,6 +4,7 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.Clock
@@ -21,6 +22,7 @@ import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryFolder
 import com.riffle.core.network.NetworkLibraryItem
+import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkUserMediaProgress
@@ -472,5 +474,103 @@ class AbsCommonCatalogTest {
         override suspend fun saveToken(sourceId: String, token: String) {}
         override suspend fun getToken(sourceId: String): String? = token
         override suspend fun deleteToken(sourceId: String) {}
+    }
+
+    private class RecordingPlaylistApi(
+        private val playlists: List<NetworkPlaylist> = emptyList(),
+    ) : AbsLibraryApi {
+        val createdPlaylists = mutableListOf<Triple<String, String, String?>>() // rootId, name, initialItemId
+        val addedItems = mutableListOf<Pair<String, String>>() // playlistId, itemId
+        val removedItems = mutableListOf<Pair<String, String>>() // playlistId, itemId
+
+        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<NetworkLibrary>())
+        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<NetworkLibraryItem>())
+        override suspend fun searchLibrary(baseUrl: String, libraryId: String, query: String, limit: Int, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<NetworkLibraryItem>())
+        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkSeries>())
+        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkCollection>())
+
+        override suspend fun getPlaylists(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+            NetworkResult.Success(playlists.filter { it.libraryId == libraryId })
+
+        override suspend fun createPlaylist(baseUrl: String, libraryId: String, name: String, initialBookId: String?, token: String, insecureAllowed: Boolean): NetworkResult<NetworkPlaylist?> {
+            createdPlaylists += Triple(libraryId, name, initialBookId)
+            return NetworkResult.Success(NetworkPlaylist(id = "pl-new", libraryId = libraryId, name = name, items = emptyList(), bookIds = emptySet()))
+        }
+
+        override suspend fun addBookToPlaylist(baseUrl: String, playlistId: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkPlaylist?> {
+            addedItems += Pair(playlistId, libraryItemId)
+            return NetworkResult.Success(null)
+        }
+
+        override suspend fun removeBookFromPlaylist(baseUrl: String, playlistId: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkPlaylist?> {
+            removedItems += Pair(playlistId, libraryItemId)
+            return NetworkResult.Success(null)
+        }
+    }
+
+    @Test
+    fun isAPlaylistsCapabilitySoAddToPlaylistButtonAndPlaylistTabAppearOnIOS() {
+        // Regression: AbsCommonCatalog (the iOS-registered catalog) did not implement
+        // PlaylistsCapability, so LibraryItemDetailViewModel.hasAddToPlaylist was always false on
+        // iOS and LibraryItemsViewModel.playlists tab was never populated.
+        assertTrue(catalog() is PlaylistsCapability)
+    }
+
+    @Test
+    fun listPlaylistsMapsNetworkPlaylistsToCatalogPlaylists() = runTest {
+        val playlist = NetworkPlaylist(
+            id = "pl-1",
+            libraryId = "lib-1",
+            name = "To Listen",
+            items = listOf(item("i1", "Book A")),
+            bookIds = setOf("i1"),
+        )
+        val c = catalog(libraryApi = RecordingPlaylistApi(playlists = listOf(playlist)))
+        val result = (c as PlaylistsCapability).listPlaylists("lib-1")
+        assertEquals(1, result.size)
+        assertEquals("pl-1", result.single().id)
+        assertEquals("lib-1", result.single().rootId)
+        assertEquals("To Listen", result.single().name)
+        assertEquals(1, result.single().bookCount)
+        assertEquals(listOf("i1"), result.single().itemIds)
+    }
+
+    @Test
+    fun findPlaylistReturnsByNameAndNullWhenAbsent() = runTest {
+        val playlists = listOf(
+            NetworkPlaylist(id = "pl-a", libraryId = "lib-1", name = "Alpha", items = emptyList(), bookIds = emptySet()),
+            NetworkPlaylist(id = "pl-b", libraryId = "lib-1", name = "Beta", items = emptyList(), bookIds = emptySet()),
+        )
+        val c = catalog(libraryApi = RecordingPlaylistApi(playlists = playlists)) as PlaylistsCapability
+        assertEquals("pl-b", c.findPlaylist("lib-1", "Beta")?.id)
+        assertNull(c.findPlaylist("lib-1", "Gamma"))
+    }
+
+    @Test
+    fun createPlaylistForwardsToApiAndReturnsNewPlaylist() = runTest {
+        val recording = RecordingPlaylistApi()
+        val c = catalog(libraryApi = recording) as PlaylistsCapability
+        val created = c.createPlaylist("lib-1", "Summer Reads", initialItemId = "i99")
+        assertEquals(1, recording.createdPlaylists.size)
+        val (rootId, name, seed) = recording.createdPlaylists.single()
+        assertEquals("lib-1", rootId)
+        assertEquals("Summer Reads", name)
+        assertEquals("i99", seed)
+        assertEquals("pl-new", created.id)
+    }
+
+    @Test
+    fun addAndRemoveItemReachThePlaylistApi() = runTest {
+        val recording = RecordingPlaylistApi()
+        val c = catalog(libraryApi = recording) as PlaylistsCapability
+        c.addItemToPlaylist("pl-1", "item-5")
+        c.removeItemFromPlaylist("pl-1", "item-5")
+        assertEquals(listOf(Pair("pl-1", "item-5")), recording.addedItems)
+        assertEquals(listOf(Pair("pl-1", "item-5")), recording.removedItems)
     }
 }

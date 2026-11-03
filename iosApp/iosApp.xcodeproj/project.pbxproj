@@ -73,6 +73,7 @@
 		B1013010 /* AddKomgaSourceFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1013020 /* AddKomgaSourceFlowTests.swift */; };
 		B1014010 /* SourcePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1014020 /* SourcePickerTests.swift */; };
 		B1015010 /* ProgressPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1015020 /* ProgressPipelineTests.swift */; };
+		B1SAT010 /* SelectionAnnotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1SAT020 /* SelectionAnnotationTests.swift */; };
 		B1017010 /* DownloadsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100C020 /* DownloadsTests.swift */; };
 		B1018010 /* StubAbsServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1018020 /* StubAbsServer.swift */; };
 		B101801A /* PdfKitNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1005030 /* PdfKitNavigatorBridge.swift */; };
@@ -173,6 +174,7 @@
 		B1013020 /* AddKomgaSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddKomgaSourceFlowTests.swift; sourceTree = "<group>"; };
 		B1014020 /* SourcePickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePickerTests.swift; sourceTree = "<group>"; };
 		B1015020 /* ProgressPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPipelineTests.swift; sourceTree = "<group>"; };
+		B1SAT020 /* SelectionAnnotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionAnnotationTests.swift; sourceTree = "<group>"; };
 		B1018020 /* StubAbsServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubAbsServer.swift; sourceTree = "<group>"; };
 		B101901B /* PdfBridgeUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfBridgeUnitTests.swift; sourceTree = "<group>"; };
 		B1019020 /* StubKomgaServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubKomgaServer.swift; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 				B1013020 /* AddKomgaSourceFlowTests.swift */,
 				B1014020 /* SourcePickerTests.swift */,
 				B1015020 /* ProgressPipelineTests.swift */,
+				B1SAT020 /* SelectionAnnotationTests.swift */,
 				B101901B /* PdfBridgeUnitTests.swift */,
 				B1055020 /* FootnoteBridgeTests.swift */,
 				B1CA0032 /* IosContinuousReaderTests.swift */,
@@ -580,6 +583,7 @@
 				B1013010 /* AddKomgaSourceFlowTests.swift in Sources */,
 				B1014010 /* SourcePickerTests.swift in Sources */,
 				B1015010 /* ProgressPipelineTests.swift in Sources */,
+				B1SAT010 /* SelectionAnnotationTests.swift in Sources */,
 				B1051010 /* NavDrawerTests.swift in Sources */,
 				B1052010 /* LibraryGridAndTabsUITests.swift in Sources */,
 				B1056010 /* LibraryItemDetailTests.swift in Sources */,

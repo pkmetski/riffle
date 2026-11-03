@@ -1,6 +1,7 @@
 package com.riffle.shared.source
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +28,8 @@ import com.riffle.feature.source.ui.SourceTypePickerScreen
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import com.riffle.feature.source.ui.websource.unboundedBrowseSourceTypes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
@@ -113,15 +116,28 @@ fun SourceOnboardingHost(
         )
 
         is OnboardingStep.Credentials -> {
-            val viewModel = remember(current.type) { addSourceViewModel(current.type, current.serverType, editId) }
-            AddSourceScreen(
-                isExpandedWidth = expandedWidth,
-                showNavigationIcon = canNavigateBack || isEditRouting,
-                onNavigateBack = { if (isEditRouting) onCancelled() else step = OnboardingStep.Picker },
-                onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending, current.type, current.serverType) },
-                onAutoCompleted = onFinished,
-                viewModel = viewModel,
-            )
+            // Koin singleton resolution and ViewModel init both run here. Either can hit the
+            // Keychain (AnnotationSyncConfigStoreImpl reads 3 items on first creation) or other
+            // blocking I/O, causing 5-8 second Main-thread freezes that delay tap detection on
+            // the form's text fields. Offloading to Default keeps Main free during resolution;
+            // the form renders as soon as the VM is ready.
+            var viewModel by remember(current.type) { mutableStateOf<AddSourceViewModel?>(null) }
+            LaunchedEffect(current.type, editId) {
+                viewModel = withContext(Dispatchers.Default) {
+                    addSourceViewModel(current.type, current.serverType, editId)
+                }
+            }
+            val vm = viewModel
+            if (vm != null) {
+                AddSourceScreen(
+                    isExpandedWidth = expandedWidth,
+                    showNavigationIcon = canNavigateBack || isEditRouting,
+                    onNavigateBack = { if (isEditRouting) onCancelled() else step = OnboardingStep.Picker },
+                    onAuthenticated = { pending -> step = OnboardingStep.SelectLibraries(pending, current.type, current.serverType) },
+                    onAutoCompleted = onFinished,
+                    viewModel = vm,
+                )
+            }
         }
 
         is OnboardingStep.Confirm -> SingletonSourceConfirmScreen(
@@ -206,7 +222,7 @@ internal fun iosSupportedSourceTypes(): Set<SourceType> = buildSet {
 
 private fun addSourceViewModel(type: SourceType, serverType: ServerType = ServerType.AUDIOBOOKSHELF, editId: String? = null): AddSourceViewModel {
     val routeType = AddSourceBackend.Credentialed(type, serverType).routeType
-    return KoinPlatform.getKoin().get { parametersOf(routeType, editId.orEmpty()) }
+    return KoinPlatform.getKoin().get<AddSourceViewModel> { parametersOf(routeType, editId.orEmpty()) }
 }
 
 /**
@@ -226,16 +242,22 @@ fun WebdavOnboardingHost(
     onCancelled: () -> Unit,
     editId: String? = null,
 ) {
-    val viewModel = remember { webdavAddSourceViewModel(editId) }
-    AddSourceScreen(
-        isExpandedWidth = false,
-        onNavigateBack = onCancelled,
-        // WebDAV has no libraries to select and no PendingSource to commit: connecting is the
-        // whole flow, so both terminal callbacks finish.
-        onAuthenticated = { onFinished() },
-        onAutoCompleted = onFinished,
-        viewModel = viewModel,
-    )
+    var viewModel by remember { mutableStateOf<AddSourceViewModel?>(null) }
+    LaunchedEffect(editId) {
+        viewModel = withContext(Dispatchers.Default) { webdavAddSourceViewModel(editId) }
+    }
+    val vm = viewModel
+    if (vm != null) {
+        AddSourceScreen(
+            isExpandedWidth = false,
+            onNavigateBack = onCancelled,
+            // WebDAV has no libraries to select and no PendingSource to commit: connecting is the
+            // whole flow, so both terminal callbacks finish.
+            onAuthenticated = { onFinished() },
+            onAutoCompleted = onFinished,
+            viewModel = vm,
+        )
+    }
 }
 
 private fun webdavAddSourceViewModel(editId: String? = null): AddSourceViewModel =

@@ -208,6 +208,7 @@ private val libraryViewModelModule = module {
             copyCoverImage = get(),
             readingSpeedStore = get(),
             webSourceLibraryItemUpserter = get(),
+            dispatchers = get(),
         )
     }
     viewModel { params ->
@@ -425,6 +426,7 @@ private val serverViewModelModule = module {
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
             applicationScope = get(),
+            dispatchers = get(),
             devDefaults = get(),
             savedStateHandle = get(),
         )
@@ -446,6 +448,7 @@ private val serverViewModelModule = module {
             bannerTicker = get(named(AddSourceViewModel.WEBDAV_BANNER_TICKER)),
             strings = get(),
             applicationScope = get(),
+            dispatchers = get(),
             devDefaults = get(),
             savedStateHandle = SavedStateHandle(buildMap {
                 put("type", params.get<String>(0))

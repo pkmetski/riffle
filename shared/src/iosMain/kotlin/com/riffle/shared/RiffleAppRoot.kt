@@ -20,9 +20,12 @@ import com.riffle.feature.designsystem.RiffleTheme
 import com.riffle.feature.source.ui.OpenInImportMessages
 import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.rememberTransientMessages
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
+import org.koin.mp.KoinPlatform
 
 /**
  * The iOS composition root's appearance + startup wiring, mirroring what `MainActivity` and
@@ -49,7 +52,6 @@ import org.koin.core.qualifier.named
 fun RiffleAppRoot(content: @Composable () -> Unit) {
     val appearanceCoordinator = koinInject<AppearanceCoordinator>()
     val contentCacheCleaner = koinInject<ContentCacheCleaner>()
-    val syncDriver = koinInject<ForegroundSyncDriver>()
     val appBecameActive = koinInject<Flow<Unit>>(qualifier = named(ForegroundSyncDriver.APP_BECAME_ACTIVE))
     val connectivity = koinInject<ConnectivityObserver>()
     val dispatchers = koinInject<DispatcherProvider>()
@@ -59,9 +61,14 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
     LaunchedEffect(appearanceCoordinator, systemDark) {
         appearanceCoordinator.setSystemDark(systemDark)
     }
-    // Off the composition dispatcher — see runStartupWork. Both jobs are disk/DB/network work
-    // and neither may sit on the UI thread at first composition.
-    LaunchedEffect(syncDriver, contentCacheCleaner) {
+    // ForegroundSyncDriver is resolved on Default rather than in composition — its dependency chain
+    // includes AnnotationSyncConfigStoreImpl which reads 3 Keychain items in its constructor, a
+    // blocking syscall that takes 1–5 s each on first access. Resolving in composition (Main) was
+    // freezing the entire UI at app launch.
+    LaunchedEffect(Unit) {
+        val syncDriver = withContext(Dispatchers.Default) {
+            KoinPlatform.getKoin().get<ForegroundSyncDriver>()
+        }
         runStartupWork(
             io = dispatchers.io,
             contentCacheCleaner = contentCacheCleaner,
