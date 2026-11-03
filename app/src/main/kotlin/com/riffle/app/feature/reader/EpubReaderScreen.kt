@@ -83,6 +83,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.riffle.app.R
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
+import com.riffle.feature.player.AudiobookPlayerViewModel
+import org.koin.core.parameter.parametersOf
+import org.koin.mp.KoinPlatform
 import com.riffle.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
@@ -3322,11 +3326,25 @@ private fun AudiobookPlayerOverlay(
                     defaultValue = -2f
                 },
             ),
-        ) {
+        ) { backStackEntry ->
+            val koin = KoinPlatform.getKoin()
+            val argSourceId = backStackEntry.arguments?.getString("sourceId").orEmpty()
+            val argItemId = backStackEntry.arguments?.getString("itemId").orEmpty()
+            val argStartAtSec = backStackEntry.arguments?.getFloat("startAtSec") ?: -2f
+            val host = remember { ScreenScopedViewModelHost() }
+            val viewModel: AudiobookPlayerViewModel = remember {
+                host.adopt(
+                    koin.get {
+                        parametersOf(argItemId, argSourceId, null, null, argStartAtSec)
+                    }
+                )
+            }
+            DisposableEffect(Unit) { onDispose { host.clear() } }
             AudiobookPlayerScreen(
                 windowSizeClass = windowSizeClass,
                 onNavigateBack = onDismiss,
                 onSwitchToReadaloud = { _, atSec -> onSwitchToReadaloud(atSec) },
+                viewModel = viewModel,
             )
         }
     }
