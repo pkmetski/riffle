@@ -13,15 +13,9 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
                       "Test EPUB tile must appear in the library home")
 
         openReader(from: tile, in: app)
+        waitForReaderContentLoaded()
 
-        let webView = app.webViews.firstMatch
-        // 90 s: openReader returns once the Compose back button appears, but Readium's WKWebView
-        // initialises asynchronously after that. On Clone 2 under resource pressure the pipeline
-        // (EPUB fetch → Readium parse → WKWebView setup) routinely exceeds 30 s.
-        XCTAssertTrue(webView.waitForExistence(timeout: 90),
-                      "EPUB WebView must appear after opening the reader")
-
-        let annotateButton = triggerTextSelectionInReader(webView: webView)
+        let annotateButton = triggerTextSelectionInReader()
         XCTAssertTrue(
             annotateButton.waitForExistence(timeout: 10),
             "SelectionActionStrip must show an 'Annotate' button when text is selected"
@@ -37,11 +31,9 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
         XCTAssertTrue(tile.waitForExistence(timeout: 30))
 
         openReader(from: tile, in: app)
+        waitForReaderContentLoaded()
 
-        let webView = app.webViews.firstMatch
-        XCTAssertTrue(webView.waitForExistence(timeout: 90))
-
-        let annotateButton = triggerTextSelectionInReader(webView: webView)
+        let annotateButton = triggerTextSelectionInReader()
         XCTAssertTrue(annotateButton.waitForExistence(timeout: 10),
                       "Annotate button must appear after text selection")
 
@@ -60,25 +52,27 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
 
     // MARK: - Helpers
 
-    // Long-presses in the EPUB WebView to trigger Readium's text-selection pipeline. Retries up to
-    // three times across candidate y-positions so the press always lands on rendered body text even
-    // when the EPUB layout shifts the first paragraph. Returns the Annotate button element (caller
-    // must assert waitForExistence).
-    private func triggerTextSelectionInReader(webView: XCUIElement) -> XCUIElement {
-        // 8 s covers Readium's full page-load pipeline (EPUB fetch → parse → CSS inject → render)
-        // on a loaded CI runner. 2 s was not enough and produced intermittent "Annotate not found"
-        // failures when the long-press landed before body text was painted.
-        _ = XCTWaiter.wait(for: [XCTNSNotificationExpectation(name: .init("does-not-fire"))],
-                           timeout: 8)
+    // Waits for the EPUB reader content to be fully loaded. openReader() returns as soon as the
+    // Compose back button appears, but the reader shows a loading spinner (READER_LOADING) while
+    // the EPUB downloads and Readium initialises. The UIKitViewController with Readium's WKWebView
+    // is not added to the Compose tree until localPath is set, so app.webViews queries return empty
+    // until then. Waiting for the loading spinner to disappear is the correct signal — the same
+    // technique used by ProgressPipelineTests.
+    private func waitForReaderContentLoaded() {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 60)
+    }
 
-        // Long-press near the top-centre of the WebView to land on body text. Readium fires
-        // shouldShowMenuForSelection → selectionCallback → Kotlin selectionFlow → Compose recomposes
-        // showing SelectionActionStrip, which now includes the Annotate button. Try three y-offsets
-        // so a chapter whose first paragraph is pushed down by a title block doesn't break the test.
+    // Long-presses in the EPUB reader to trigger Readium's text-selection pipeline. Uses
+    // app.coordinate() rather than webView.coordinate() because Readium's WKWebView is embedded
+    // inside a UIKitViewController and may not be reachable via app.webViews in the accessibility
+    // tree — but XCUITest can still deliver gestures to raw screen coordinates. Retries across
+    // three y-offsets so the press lands on rendered body text even if the first paragraph is
+    // pushed down by a title block. Returns the Annotate button element (caller asserts existence).
+    private func triggerTextSelectionInReader() -> XCUIElement {
         let annotateButton = app.buttons["Annotate"].firstMatch
-        let yOffsets: [CGFloat] = [0.25, 0.40, 0.55]
+        let yOffsets: [CGFloat] = [0.35, 0.50, 0.65]
         for yOffset in yOffsets {
-            let textArea = webView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: yOffset))
+            let textArea = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: yOffset))
             textArea.press(forDuration: 1.5)
             if annotateButton.waitForExistence(timeout: 5) { break }
         }
