@@ -54,3 +54,5 @@ harness-test-tablet-logcat/
 integration-test-reports/
 unit-test-reports/
 lint-reports/
+ios-database-test-reports/
+ios-integration-test-reports/
