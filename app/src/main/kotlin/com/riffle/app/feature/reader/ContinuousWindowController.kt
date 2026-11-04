@@ -2243,6 +2243,36 @@ internal class ContinuousWindowController(
         return measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
     }
 
+    /**
+     * Prime the target chapter with its cached XHTML bytes and height from a previous session so
+     * the initial scroll can fire without waiting for the ResizeObserver.
+     *
+     * - Sets [ChapterWebView.cachedChapterBytes] so [shouldInterceptRequest] serves the bytes
+     *   directly (skipping EPUB zip read + CSS injection).
+     * - Pre-seeds [measuredHeights] with [heightPx] and applies the layout params.
+     * - Removes the window index from [pendingInitialMeasureIndices]; if the set becomes empty,
+     *   fires [pendingInitialScroll] immediately — the spinner lifts as soon as the first paint
+     *   completes rather than waiting for the ResizeObserver.
+     *
+     * Must be called on the main thread after [openWindowAt] has built the window (i.e. after
+     * the [ContinuousReaderView] initialisation block runs).
+     */
+    fun primeWithCachedHeight(href: String, cachedBytes: ByteArray, heightPx: Int) {
+        val target = href.substringBefore('#')
+        val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
+        if (windowIndex < 0 || windowIndex >= measuredHeights.size) return
+        if (measuredHeights[windowIndex] != placeholderHeight) return
+        val wv = webViews[windowIndex]
+        wv.cachedChapterBytes = cachedBytes
+        measuredHeights[windowIndex] = heightPx
+        applyChapterHeight(wv, heightPx)
+        if (pendingInitialMeasureIndices.remove(windowIndex) && pendingInitialMeasureIndices.isEmpty()) {
+            val scroll = pendingInitialScroll
+            pendingInitialScroll = null
+            scroll?.invoke()
+        }
+    }
+
     private fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> {
         var top = 0
         return webViews.mapIndexed { i, wv ->

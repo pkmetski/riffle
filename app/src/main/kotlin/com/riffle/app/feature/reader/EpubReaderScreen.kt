@@ -696,6 +696,7 @@ fun EpubReaderScreen(
                         onRendererBridgeCreated = { rendererBridgeRef.value = it },
                         currentLocatorHref = { viewModel.currentLocatorHref.value },
                         onContinuousCacheSave = viewModel::maybeSaveChapterCache,
+                        loadColdOpenCache = viewModel::loadColdOpenCache,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag(TestTags.READER_READY)
@@ -1312,6 +1313,7 @@ private fun EpubNavigatorView(
     onRendererBridgeCreated: (RendererBridge) -> Unit = {},
     currentLocatorHref: () -> String? = { null },
     onContinuousCacheSave: (heightPx: Int) -> Unit = {},
+    loadColdOpenCache: (chapterHref: String) -> CachedChapterEntry? = { null },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -3103,6 +3105,13 @@ private fun EpubNavigatorView(
                     alignToTop = false,
                     focusAnnotationId = focusId,
                 )
+                // Cold-reopen fast path: if the chapter cache has a hit for the target chapter,
+                // prime the window with cached XHTML bytes and height so the initial scroll fires
+                // before the ResizeObserver reports — the spinner lifts on first paint.
+                val cacheEntry = loadColdOpenCache(rawHref)
+                if (cacheEntry != null) {
+                    view.primeWithCachedHeight(rawHref, cacheEntry.xhtmlBytes, cacheEntry.heightPx)
+                }
             }
             // Install the Cadence per-chapter DOM-tokenisation hook so every chapter entering the
             // sliding window runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back
