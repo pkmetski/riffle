@@ -83,7 +83,6 @@ fun ReaderTopBar(
             },
             actions = {
                 if (isReady) {
-                    extraActions()
                     IconButton(
                         onClick = onSearch,
                         modifier = Modifier.testTag(TestTags.READER_SEARCH),
@@ -123,6 +122,7 @@ fun ReaderTopBar(
                             modifier = Modifier.semantics { contentDescription = formatDescription },
                         )
                     }
+                    extraActions()
                 }
             },
         )

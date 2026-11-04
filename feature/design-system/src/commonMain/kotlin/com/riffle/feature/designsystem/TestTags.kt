@@ -72,6 +72,7 @@ object TestTags {
     const val READER_TOC_PANEL = "toc_panel"
     const val READER_NAV_RAIL = "chapter_navigation_rail"
     const val READER_AUTOSCROLL = "reader_autoscroll"
+    const val READER_TOP_BAR_TEST_EXTRA_ACTION = "reader_top_bar_test_extra_action"
     const val READER_CADENCE = "reader_cadence"
     const val READER_SHARE_HIGHLIGHTS = "reader_share_highlights"
     const val READER_FOOTNOTE_POPUP = "footnote_popup"
