@@ -2235,6 +2235,14 @@ internal class ContinuousWindowController(
      */
     fun onRendererGone() = recoverFromRendererGone()
 
+    fun measuredHeightForHref(href: String): Int? {
+        val target = href.substringBefore('#')
+        val allIndex = allChapters.indexOfFirst { it.link.href.toString().substringBefore('#') == target }
+            .takeIf { it >= 0 } ?: return null
+        val windowIndex = allIndex - topIndex
+        return measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
+    }
+
     private fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> {
         var top = 0
         return webViews.mapIndexed { i, wv ->

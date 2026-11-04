@@ -694,6 +694,8 @@ fun EpubReaderScreen(
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
                         onRendererBridgeCreated = { rendererBridgeRef.value = it },
+                        currentLocatorHref = { viewModel.currentLocatorHref.value },
+                        onContinuousCacheSave = viewModel::maybeSaveChapterCache,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag(TestTags.READER_READY)
@@ -1308,6 +1310,8 @@ private fun EpubNavigatorView(
      *  need to capture the bridge for use outside this composable (e.g. the `CornerBookmarkIndicator`
      *  sibling in `EpubReaderScreen`) can stash it in a `mutableStateOf`. */
     onRendererBridgeCreated: (RendererBridge) -> Unit = {},
+    currentLocatorHref: () -> String? = { null },
+    onContinuousCacheSave: (heightPx: Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1320,6 +1324,20 @@ private fun EpubNavigatorView(
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
     val isContinuous = effectiveOrientation == ReaderOrientation.Continuous
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+
+    val chapterCacheLifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(chapterCacheLifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && isContinuous) {
+                val href = currentLocatorHref() ?: return@LifecycleEventObserver
+                val height = continuousViewRef.value?.measuredHeightForHref(href)
+                    ?: return@LifecycleEventObserver
+                onContinuousCacheSave(height)
+            }
+        }
+        chapterCacheLifecycle.addObserver(observer)
+        onDispose { chapterCacheLifecycle.removeObserver(observer) }
+    }
 
     // Per-publication ReadiumPresenter (#300 step 2). Owns the seam between paginated/vertical
     // rendering and the rest of the reader. Step 2 routes decoration application through it; the

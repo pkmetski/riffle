@@ -368,6 +368,7 @@ class EpubReaderViewModel constructor(
     private val packDownloader: com.riffle.core.dictionary.PackDownloaderInterface,
     private val downloadManager: com.riffle.app.feature.library.DownloadManager,
     private val progressSweep: com.riffle.core.sync.ProgressSweep,
+    private val readerChapterCache: ReaderChapterCache,
 ) : AndroidViewModel(application) {
 
     private val _showKoFiNudge = MutableStateFlow(false)
@@ -3998,6 +3999,36 @@ class EpubReaderViewModel constructor(
             else com.riffle.feature.library.DownloadState.NotDownloaded
         }
     }
+
+    fun maybeSaveChapterCache(heightPx: Int) {
+        viewModelScope.launch(dispatchers.io) {
+            val pub = lifecycle.publication.value ?: return@launch
+            val href = currentLocatorHref.value ?: return@launch
+            val prefs = effectiveFormattingPreferences.value
+            val spineIndex = pub.readingOrder.indexOfFirst { link ->
+                normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href)
+            }.takeIf { it >= 0 } ?: return@launch
+            val rawHtml = chapterHtmlCache[spineIndex] ?: return@launch
+            val xhtmlBytes = ContinuousStyleInjector.injectInto(rawHtml, prefs)
+                .toByteArray(Charsets.UTF_8)
+            readerChapterCache.save(
+                itemId = itemId,
+                chapterHref = normalizeEpubHref(href),
+                prefsFingerprint = prefs.fingerprint(),
+                xhtmlBytes = xhtmlBytes,
+                heightPx = heightPx,
+            )
+        }
+    }
+
+    fun loadColdOpenCache(chapterHref: String): CachedChapterEntry? =
+        readerChapterCache.load(
+            itemId = itemId,
+            chapterHref = normalizeEpubHref(chapterHref),
+            prefsFingerprint = effectiveFormattingPreferences.value.fingerprint(),
+        )
+
+    private fun FormattingPreferences.fingerprint(): String = formattingPreferencesFingerprint(this)
 }
 
 /**
@@ -4013,6 +4044,12 @@ class EpubReaderViewModel constructor(
  * `internal` so it's unit-testable without constructing [EpubReaderViewModel] (Robolectric-only
  * constraint — see [EpubReaderViewModelHighlightsSourceTest]'s file docstring).
  */
+internal fun formattingPreferencesFingerprint(prefs: com.riffle.core.domain.FormattingPreferences): String {
+    val crc = java.util.zip.CRC32()
+    crc.update(prefs.toString().toByteArray(Charsets.UTF_8))
+    return crc.value.toString(16)
+}
+
 internal fun decodeReaderSource(raw: String?): ReaderSource =
     raw?.let { r -> ReaderSource.entries.firstOrNull { it.name.equals(r, ignoreCase = true) } }
         ?: ReaderSource.FullBook

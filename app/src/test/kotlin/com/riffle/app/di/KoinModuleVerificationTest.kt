@@ -57,6 +57,8 @@ class KoinModuleVerificationTest {
         "com.riffle.feature.player.AudiobookPlayerViewModel.progressSweep",
         // Provided via parametersOf() at the call site (LibraryNav.ReaderDestination fields).
         "com.riffle.app.feature.reader.EpubReaderViewModel.source",
+        // Constructed inline as ReaderChapterCache(androidApplication().cacheDir), not via get().
+        "com.riffle.app.feature.reader.EpubReaderViewModel.readerChapterCache",
     )
 
     @OptIn(KoinInternalApi::class)
