@@ -286,7 +286,6 @@ class ReaderSessionLifecycleTest {
             io.mockk.coEvery { it.createAudiobookFollowIfApplicable(any()) } returns null
         }
         val lifecycle = ReaderSessionLifecycle(
-            backgroundScope = scope,
             openPublication = { pub },
             cfiStringToLocator = cfiResolver,
             libraryObserver = libraryObserver,
@@ -322,10 +321,12 @@ class ReaderSessionLifecycleTest {
     // ── Tests ────────────────────────────────────────────────────────────────────────────
 
     /**
-     * The puller runs in background — open() must return Ready without waiting for it.
-     * Both the puller and the epub repository are still invoked; the puller just no longer
-     * blocks the spinner. With UnconfinedTestDispatcher the background launch runs eagerly
-     * before the assertion, so puller.calls is populated after open() returns.
+     * Load-bearing invariant for the "reader opens at old cfi then visibly jumps" fix: the puller
+     * MUST complete BEFORE resolveReady reads the initial locator from DB. The epub open and puller
+     * now run concurrently (open() was changed to overlap the ZIP parse with the network round-trip),
+     * so the strict "puller before openEpub START" ordering no longer holds — but the behavioral
+     * invariant does: both are called, and the outcome is Ready (resolveReady only runs after the
+     * puller's withContext block returns).
      */
     @Test
     fun `open invokes both itemProgressPuller and epubRepository before resolveReady`() = runTest {
@@ -339,16 +340,16 @@ class ReaderSessionLifecycleTest {
 
         assertEquals(listOf("srv-abs" to "item-1"), puller.calls)
         assertEquals(1, repo.openCalls)
-        assertTrue("open should succeed with puller running in background", outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
+        assertTrue("open should succeed after puller + epub open", outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
     }
 
     /**
-     * A slow/hung puller must not block open() — the puller runs in the background scope and
-     * never touches the open() return path. Regression pin: previously a 1500ms timeout in
-     * open() blocked the spinner; now a 60s delay in the puller is invisible to the caller.
+     * A slow/hung puller must not wedge the reader indefinitely — the lifecycle bounds the
+     * pre-open reconcile so the reader still opens (at the local locator) if the server never
+     * responds. Regression pin for the 1.5s timeout in `open()`.
      */
     @Test
-    fun `open proceeds immediately even when puller is slow`() = runTest {
+    fun `open proceeds after puller timeout instead of hanging the reader`() = runTest {
         val slowPuller = RecordingItemProgressPuller {
             kotlinx.coroutines.delay(60_000L)
         }

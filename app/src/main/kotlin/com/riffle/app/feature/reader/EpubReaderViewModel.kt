@@ -443,7 +443,6 @@ class EpubReaderViewModel constructor(
     // per-book collaborators (readaloud, position, bookmarks, annotationSession).
     private val lifecycle: com.riffle.app.feature.reader.session.ReaderSessionLifecycle =
         readerSessionLifecycleFactory.create(
-            backgroundScope = viewModelScope,
             openPublication = { file -> openPublication(file) },
             cfiStringToLocator = { cfi -> cfiStringToLocator(cfi) },
             openLazy = { sourceId, itemId -> openLazyPublication(sourceId, itemId) },

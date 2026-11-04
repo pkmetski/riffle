@@ -499,12 +499,10 @@ val appKoinModule: Module = module {
     factory<ReaderSessionLifecycle.Factory> {
         object : ReaderSessionLifecycle.Factory {
             override fun create(
-                backgroundScope: kotlinx.coroutines.CoroutineScope,
                 openPublication: suspend (File) -> Publication?,
                 cfiStringToLocator: suspend (String) -> Locator?,
                 openLazy: (suspend (String, String) -> Pair<Publication, String?>?)?,
             ) = ReaderSessionLifecycle(
-                backgroundScope = backgroundScope,
                 openPublication = openPublication,
                 cfiStringToLocator = cfiStringToLocator,
                 libraryObserver = get(),
