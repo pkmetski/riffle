@@ -185,17 +185,14 @@ internal class ContinuousWindowController(
     /** Current formatting preferences for CSS injection. */
     private var formattingPrefs: FormattingPreferences = FormattingPreferences()
 
-    // Cold-open cache: href → (bytes, heightPx). Set before initialize() so appendChapter can
-    // prime the WebView with cachedChapterBytes before loadUrl fires, avoiding a race with
-    // shouldInterceptRequest on the WebCore thread.
+    // Cold-open cache: set before initialize() so appendChapter can prime the WebView with
+    // cachedChapterBytes before loadUrl fires, avoiding a race with shouldInterceptRequest.
     private var coldOpenHref: String? = null
     private var coldOpenBytes: ByteArray? = null
-    private var coldOpenHeightPx: Int = 0
 
-    fun setColdOpenEntry(href: String, bytes: ByteArray, heightPx: Int) {
+    fun setColdOpenEntry(href: String, bytes: ByteArray) {
         coldOpenHref = href.substringBefore('#')
         coldOpenBytes = bytes
-        coldOpenHeightPx = heightPx
     }
 
     // onDetachedFromWindow fires before AndroidView.onRelease, so bytes are snapshotted here in
@@ -1682,21 +1679,14 @@ internal class ContinuousWindowController(
             wv.chapterHref = entry.link.href.toString()
             return
         }
-        // Set cachedChapterBytes + pre-seed height BEFORE loadChapter so shouldInterceptRequest
-        // on the WebCore thread can serve bytes from cache without a race, and the initial scroll
-        // fires without waiting for the ResizeObserver.
-        val slotIndex = webViews.size - 1
+        // Set cachedChapterBytes BEFORE loadChapter so shouldInterceptRequest on the WebCore
+        // thread can serve bytes from cache without a race.
+        // Height pre-seeding (to fire scroll before ResizeObserver) is intentionally omitted
+        // here: invoking pendingInitialScroll before the paint-callback gate is armed causes
+        // the spinner to be removed before tiles are rasterised at the reading position.
+        // The ResizeObserver still fires after the cached bytes render and handles scroll/reveal.
         if (entry.link.href.toString().substringBefore('#') == coldOpenHref) {
             wv.cachedChapterBytes = coldOpenBytes
-            if (measuredHeights[slotIndex] == placeholderHeight) {
-                measuredHeights[slotIndex] = coldOpenHeightPx
-                applyChapterHeight(wv, coldOpenHeightPx)
-                if (pendingInitialMeasureIndices.remove(slotIndex) && pendingInitialMeasureIndices.isEmpty()) {
-                    val scroll = pendingInitialScroll
-                    pendingInitialScroll = null
-                    scroll?.invoke()
-                }
-            }
             coldOpenHref = null
         }
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
@@ -2305,21 +2295,6 @@ internal class ContinuousWindowController(
         return savedChapterHtmlBytes[target]
     }
 
-    fun primeWithCachedHeight(href: String, cachedBytes: ByteArray, heightPx: Int) {
-        val target = href.substringBefore('#')
-        val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
-        if (windowIndex < 0 || windowIndex >= measuredHeights.size) return
-        if (measuredHeights[windowIndex] != placeholderHeight) return
-        val wv = webViews[windowIndex]
-        wv.cachedChapterBytes = cachedBytes
-        measuredHeights[windowIndex] = heightPx
-        applyChapterHeight(wv, heightPx)
-        if (pendingInitialMeasureIndices.remove(windowIndex) && pendingInitialMeasureIndices.isEmpty()) {
-            val scroll = pendingInitialScroll
-            pendingInitialScroll = null
-            scroll?.invoke()
-        }
-    }
 
     private fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> {
         var top = 0

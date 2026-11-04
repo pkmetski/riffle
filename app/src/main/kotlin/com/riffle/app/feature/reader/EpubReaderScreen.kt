@@ -3115,7 +3115,7 @@ private fun EpubNavigatorView(
                 // Prime cachedChapterBytes BEFORE initialize calls loadUrl so shouldInterceptRequest
                 // on the WebCore thread sees the cached bytes without a race.
                 if (cacheEntry != null) {
-                    view.setColdOpenEntry(rawHref, cacheEntry.xhtmlBytes, cacheEntry.heightPx)
+                    view.setColdOpenEntry(rawHref, cacheEntry.xhtmlBytes)
                 }
                 view.initialize(
                     chapters = chapters,
@@ -3126,14 +3126,14 @@ private fun EpubNavigatorView(
                     // Saved reading positions come from locatorAt, which measures progression at the
                     // viewport midpoint. The inverse — scrollYForProgression — places mid-chapter
                     // progressions back at the midpoint. Top-aligning instead drifts the view
-                    // forward by half a viewport on every reopen. Annotation-tap opens still land
+                    // forward by half a viewport on every reopen. Annotation-tab opens still land
                     // precisely via the focusAnnotationId mark-anchor path in openWindowAt, which
                     // takes priority over the progression fallback.
                     alignToTop = false,
                     focusAnnotationId = focusId,
                 )
-                // setColdOpenEntry (called above) + initialize handle bytes and height priming
-                // synchronously in appendChapter, before loadUrl fires.
+                // setColdOpenEntry (called above) + initialize handle bytes priming synchronously
+                // in appendChapter, before loadUrl fires.
             }
             // Install the Cadence per-chapter DOM-tokenisation hook so every chapter entering the
             // sliding window runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back

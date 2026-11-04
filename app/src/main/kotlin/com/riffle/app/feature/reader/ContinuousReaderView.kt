@@ -541,10 +541,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     fun measuredHeightForHref(href: String): Int? = controller.measuredHeightForHref(href)
     fun getServedHtmlBytesForHref(href: String): ByteArray? = controller.getServedHtmlBytesForHref(href)
-    fun setColdOpenEntry(href: String, bytes: ByteArray, heightPx: Int) = controller.setColdOpenEntry(href, bytes, heightPx)
-
-    fun primeWithCachedHeight(href: String, cachedBytes: ByteArray, heightPx: Int) =
-        controller.primeWithCachedHeight(href, cachedBytes, heightPx)
+    fun setColdOpenEntry(href: String, bytes: ByteArray) = controller.setColdOpenEntry(href, bytes)
 
     /**
      * Resolve the parent-viewport Y (in scrollY-space) of anchor [fragmentId] within [chapterHref].
