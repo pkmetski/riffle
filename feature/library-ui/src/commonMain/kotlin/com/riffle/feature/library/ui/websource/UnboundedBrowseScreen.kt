@@ -7,8 +7,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -34,11 +32,11 @@ import com.riffle.feature.library.ui.CircleNavItem
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
 import com.riffle.feature.library.ui.ScreenScopedViewModelHost
+import com.riffle.feature.library.ui.SearchResultsContent
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_annotations
 import com.riffle.feature.library.ui.generated.resources.ui_home
 import com.riffle.feature.library.ui.generated.resources.ui_library
-import com.riffle.feature.library.ui.generated.resources.ui_open_menu
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
@@ -120,39 +118,34 @@ fun UnboundedBrowseScreen(
     }
 
     val query by viewModel.query.collectAsState()
+    val librarySearchQuery by libraryVm.searchQuery.collectAsState()
 
     val projection by libraryVm.projection.collectAsState()
     val annotationsState by annotationsVm.state.collectAsState()
     val tabVisibility by libraryVm.tabVisibility.collectAsState()
     val playlists by libraryVm.playlists.collectAsState()
+    val linkedItemIds by libraryVm.linkedItemIds.collectAsState()
+    val seriesCoverUrls by libraryVm.seriesCoverUrls.collectAsState()
     val coversAreSquare = isAudioRoot(sourceType, viewModel.rootId)
 
     var selectedLocalTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
 
     Scaffold(
         topBar = {
-            if (selectedLocalTab == TAB_LIBRARY) {
-                SourceBrowseHeader(
-                    sourceName = libraryName,
-                    searchQuery = query,
-                    onSearchQueryChange = viewModel::onQueryChange,
-                    onOpenDrawer = onOpenDrawer,
-                    sourceIcon = {
-                        SourceTypeIcon(type = sourceType, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
-                    },
-                )
-            } else {
-                TopAppBar(
-                    title = { Text(libraryName) },
-                    navigationIcon = {
-                        androidx.compose.material3.IconButton(onClick = onOpenDrawer) {
-                            Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
-                        }
-                    },
-                )
-            }
+            val headerQuery = unboundedBrowseHeaderQueryFor(selectedLocalTab, query, librarySearchQuery)
+            val onHeaderQueryChange: (String) -> Unit = if (selectedLocalTab == TAB_LIBRARY) viewModel::onQueryChange else libraryVm::onSearchQueryChange
+            SourceBrowseHeader(
+                sourceName = libraryName,
+                searchQuery = headerQuery,
+                onSearchQueryChange = onHeaderQueryChange,
+                onOpenDrawer = onOpenDrawer,
+                sourceIcon = {
+                    SourceTypeIcon(type = sourceType, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
+                },
+            )
         },
         bottomBar = {
+            if (librarySearchQuery.isNotBlank() && selectedLocalTab != TAB_LIBRARY) return@Scaffold
             NavigationBar {
                 CircleNavItem(
                     selected = selectedLocalTab == TAB_HOME,
@@ -200,7 +193,25 @@ fun UnboundedBrowseScreen(
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedLocalTab) {
                 TAB_HOME -> {
-                    if (sourceType == SourceType.OREILLY) {
+                    if (librarySearchQuery.isNotBlank()) {
+                        SearchResultsContent(
+                            query = librarySearchQuery,
+                            filteredSeries = projection.series,
+                            filteredCollections = projection.collections,
+                            filteredItems = projection.ungrouped,
+                            annotations = projection.annotations,
+                            audiobookBookmarks = projection.audiobookBookmarks,
+                            seriesCoverUrls = seriesCoverUrls,
+                            token = libraryVm.authToken,
+                            linkedItemIds = linkedItemIds,
+                            onSeriesSelected = {},
+                            onCollectionSelected = {},
+                            onItemSelected = { item: LibraryItem -> onOpenDetail(item.id) },
+                            onAnnotationSelected = { result -> onAnnotatedBookSelected(result.annotation.sourceId, result.annotation.itemId) },
+                            onAudiobookBookmarkSelected = {},
+                            onShowAllAnnotations = {},
+                        )
+                    } else if (sourceType == SourceType.OREILLY) {
                         OReillyHomeTab(libraryId = libraryId, onOpenDetail = onOpenDetail)
                     } else {
                         CoverGridZoomBox(
@@ -232,35 +243,55 @@ fun UnboundedBrowseScreen(
                     }
                 }
                 TAB_TO_READ, TAB_ANNOTATIONS -> {
-                    val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
-                    CoverGridZoomBox(
-                        browseScaleFlow = viewModel.coverGridScale,
-                        onPersistScaleChange = viewModel::setCoverGridScale,
-                        homeScaleFlow = viewModel.homeCoverGridScale,
-                        onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
-                        isHomeTab = false,
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        LibraryTabContent(
-                            selectedTab = libraryTabIndex,
-                            projection = projection,
-                            playlists = playlists,
-                            annotationsState = annotationsState,
-                            coversAreSquare = coversAreSquare,
-                            linkedItemIds = emptySet(),
-                            // Web sources only have items in library_items when the user has opened
-                            // them — showing a "Recently Added" section would reflect open history,
-                            // not anything the source published, so we suppress it.
-                            showRecentlyAdded = false,
-                            onItemSelected = { item: LibraryItem -> onOpenDetail(item.id) },
-                            onAnnotatedBookSelected = onAnnotatedBookSelected,
+                    if (librarySearchQuery.isNotBlank()) {
+                        SearchResultsContent(
+                            query = librarySearchQuery,
+                            filteredSeries = projection.series,
+                            filteredCollections = projection.collections,
+                            filteredItems = projection.ungrouped,
+                            annotations = projection.annotations,
+                            audiobookBookmarks = projection.audiobookBookmarks,
+                            seriesCoverUrls = seriesCoverUrls,
+                            token = libraryVm.authToken,
+                            linkedItemIds = linkedItemIds,
                             onSeriesSelected = {},
                             onCollectionSelected = {},
-                            onSectionSeeMore = {},
-                            onPlaylistSelected = {},
-                            onToggleNotStarted = {},
-                            onSetSortMode = {},
+                            onItemSelected = { item: LibraryItem -> onOpenDetail(item.id) },
+                            onAnnotationSelected = { result -> onAnnotatedBookSelected(result.annotation.sourceId, result.annotation.itemId) },
+                            onAudiobookBookmarkSelected = {},
+                            onShowAllAnnotations = {},
                         )
+                    } else {
+                        val libraryTabIndex = unboundedLocalTabToLibraryTabIndex(selectedLocalTab)
+                        CoverGridZoomBox(
+                            browseScaleFlow = viewModel.coverGridScale,
+                            onPersistScaleChange = viewModel::setCoverGridScale,
+                            homeScaleFlow = viewModel.homeCoverGridScale,
+                            onPersistHomeScaleChange = viewModel::setHomeCoverGridScale,
+                            isHomeTab = false,
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            LibraryTabContent(
+                                selectedTab = libraryTabIndex,
+                                projection = projection,
+                                playlists = playlists,
+                                annotationsState = annotationsState,
+                                coversAreSquare = coversAreSquare,
+                                linkedItemIds = emptySet(),
+                                // Web sources only have items in library_items when the user has opened
+                                // them — showing a "Recently Added" section would reflect open history,
+                                // not anything the source published, so we suppress it.
+                                showRecentlyAdded = false,
+                                onItemSelected = { item: LibraryItem -> onOpenDetail(item.id) },
+                                onAnnotatedBookSelected = onAnnotatedBookSelected,
+                                onSeriesSelected = {},
+                                onCollectionSelected = {},
+                                onSectionSeeMore = {},
+                                onPlaylistSelected = {},
+                                onToggleNotStarted = {},
+                                onSetSortMode = {},
+                            )
+                        }
                     }
                 }
                 else -> {
@@ -280,6 +311,13 @@ fun UnboundedBrowseScreen(
         }
     }
 }
+
+/** Returns the catalog query when on TAB_LIBRARY, otherwise the local library search query. */
+internal fun unboundedBrowseHeaderQueryFor(
+    selectedLocalTab: Int,
+    catalogQuery: String,
+    libraryQuery: String,
+): String = if (selectedLocalTab == TAB_LIBRARY) catalogQuery else libraryQuery
 
 private fun unboundedBrowseViewModel(
     sourceType: SourceType,
