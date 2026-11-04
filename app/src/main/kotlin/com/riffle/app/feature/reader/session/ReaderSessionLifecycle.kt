@@ -13,6 +13,7 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.models.Source
@@ -58,6 +59,7 @@ class ReaderSessionLifecycle constructor(
     private val annotationStore: AnnotationStore,
     private val logger: Logger,
     private val itemProgressPuller: com.riffle.core.data.ItemProgressPuller,
+    private val readingPositionStore: ReadingPositionStore,
     /** Optional hook for sources that build a [Publication] without downloading an EPUB file.
      *  Receives (sourceId, itemId) and returns (publication, lastPositionJson?).
      *  When non-null and returning non-null, the normal [epubRepository.openEpub] path is skipped. */
@@ -111,10 +113,12 @@ class ReaderSessionLifecycle constructor(
         }
 
         // Run epub open + Readium parse and the progress pull concurrently — they are independent.
-        // The progress pull updates the DB with the server's latest position; resolveReadyWithPub
-        // reads the locator from DB only after the pull completes (the puller's withContext block
-        // is the barrier). The epub work (file resolution → Readium ZIP parse) runs in parallel,
+        // The epub work (file resolution → Readium ZIP parse) runs in parallel with the puller,
         // so total latency is max(epubWork, puller) instead of epubWork + puller.
+        //
+        // IMPORTANT: epubResult.lastPosition is captured by openEpub() while the puller runs
+        // concurrently and may not reflect the server-fresh position yet. After both complete,
+        // we re-read position from the store so the puller's DB update is always honoured.
         //
         // Cancellation note: a plain runCatching around a suspending call swallows
         // CancellationException — re-throw it explicitly inside the puller catch block.
@@ -153,7 +157,12 @@ class ReaderSessionLifecycle constructor(
                 pub == null -> OpenOutcome.Error("Failed to open EPUB")
                 else -> {
                     epubFile = (epubResult as EpubOpenResult.Success).epubFile
-                    resolveReadyWithPub(pub, epubResult.lastPosition, item.title, params)
+                    // Re-read position after puller completes — epubResult.lastPosition was captured
+                    // concurrently with the puller and may be stale (the puller's DB write wins).
+                    val lastPosition = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        readingPositionStore.load(item.sourceId, item.id)
+                    }
+                    resolveReadyWithPub(pub, lastPosition, item.title, params)
                 }
             }
         }

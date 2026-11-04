@@ -22,6 +22,7 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.logging.RecordingLogger
 import io.mockk.every
 import io.mockk.mockk
@@ -208,6 +209,16 @@ class ReaderSessionLifecycleTest {
 
     }
 
+    private class FakeReadingPositionStore(var position: String? = null) : ReadingPositionStore {
+        override suspend fun load(sourceId: String, itemId: String): String? = position
+        override suspend fun save(sourceId: String, itemId: String, payload: String) { position = payload }
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+        override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
+        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) {}
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {}
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────────────────
 
     private val activeServer = Source(
@@ -280,6 +291,7 @@ class ReaderSessionLifecycleTest {
         pub: Publication? = mockk(relaxed = true),
         cfiResolver: suspend (String) -> Locator? = { null },
         itemProgressPuller: com.riffle.core.data.ItemProgressPuller = com.riffle.core.data.NoopItemProgressPuller,
+        readingPositionStore: ReadingPositionStore = FakeReadingPositionStore(),
     ): Pair<ReaderSessionLifecycle, OpenReconcileTargets> {
         val readerSyncFactory = mockk<com.riffle.feature.reader.ReaderSyncFactory>(relaxed = true).also {
             io.mockk.coEvery { it.createIfApplicable(any()) } returns null
@@ -300,6 +312,7 @@ class ReaderSessionLifecycleTest {
             annotationStore = annotationStore,
             logger = RecordingLogger(),
             itemProgressPuller = itemProgressPuller,
+            readingPositionStore = readingPositionStore,
         )
         return lifecycle to openReconcileTargets
     }
@@ -362,6 +375,43 @@ class ReaderSessionLifecycleTest {
 
         assertTrue(outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
         assertEquals(1, repo.openCalls)
+    }
+
+    /**
+     * Regression: the puller runs concurrently with epubRepository.openEpub(), so openEpub's
+     * lastPosition was captured before the puller wrote the server-fresh position to the DB.
+     * The lifecycle must re-read position from the store after both complete, so the initial
+     * locator reflects the puller's DB update rather than the stale local value.
+     */
+    @Test
+    fun `open uses puller-updated position as initial locator, not stale openEpub snapshot`() = runTest {
+        val positionStore = FakeReadingPositionStore(position = null)
+        // A locator JSON that the lifecycle will store after the puller writes it. We verify via the
+        // cfiResolver path so the test stays independent of Readium's URL-validation quirks.
+        val serverLocatorCfi = "epubcfi(/6/4!/4/2[body01]/1:0)"
+        val puller = RecordingItemProgressPuller {
+            positionStore.position = serverLocatorCfi
+        }
+        val capturedCfi = mutableListOf<String>()
+        val capturedLocator = mockk<Locator>(relaxed = true)
+        val (lifecycle, _) = makeLifecycle(
+            epubRepository = FakeEpubRepository(
+                EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
+            ),
+            itemProgressPuller = puller,
+            readingPositionStore = positionStore,
+            cfiResolver = { cfi ->
+                capturedCfi += cfi
+                capturedLocator
+            },
+        )
+
+        val outcome = lifecycle.open(params()) as ReaderSessionLifecycle.OpenOutcome.Ready
+
+        // The puller wrote a position to the store; the lifecycle must re-read it after the puller
+        // completes. Before this fix, the initial locator was null (openEpub snapshot was null).
+        assertEquals(listOf(serverLocatorCfi), capturedCfi)
+        assertSame(capturedLocator, outcome.effectiveInitialLocator)
     }
 
     /**
