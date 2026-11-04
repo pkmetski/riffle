@@ -132,7 +132,6 @@ import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.PullChip
 import com.riffle.feature.reader.ui.annotationSheetLabels
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -3109,7 +3108,10 @@ private fun EpubNavigatorView(
                 // Load cache BEFORE initialize so the bytes can be passed into appendChapter
                 // via setColdOpenEntry. appendChapter sets wv.cachedChapterBytes before loadUrl,
                 // so shouldInterceptRequest serves from cache without a race.
-                val cacheEntry = withContext(Dispatchers.IO) { loadColdOpenCache(rawHref) }
+                // No withContext(IO) here: loadColdOpenCache is a fast synchronous file read.
+                // Using withContext(IO) caused the continuation to be resumed off the main thread
+                // by Compose's FrameDeferringContinuationInterceptor, breaking WebView creation.
+                val cacheEntry = loadColdOpenCache(rawHref)
                 // Prime cachedChapterBytes BEFORE initialize calls loadUrl so shouldInterceptRequest
                 // on the WebCore thread sees the cached bytes without a race.
                 if (cacheEntry != null) {
