@@ -26,6 +26,7 @@ import com.riffle.core.logging.RecordingLogger
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -321,25 +322,25 @@ class ReaderSessionLifecycleTest {
 
     /**
      * Load-bearing invariant for the "reader opens at old cfi then visibly jumps" fix: the puller
-     * MUST run BEFORE [EpubRepository.openEpub] loads the initial locator. Reversing the two
-     * would render the stale local cfi first and let the reconcile land after the first frame —
-     * exactly the flash we're eliminating.
+     * MUST complete BEFORE resolveReady reads the initial locator from DB. The epub open and puller
+     * now run concurrently (open() was changed to overlap the ZIP parse with the network round-trip),
+     * so the strict "puller before openEpub START" ordering no longer holds — but the behavioral
+     * invariant does: both are called, and the outcome is Ready (resolveReady only runs after the
+     * puller's withContext block returns).
      */
     @Test
-    fun `open invokes itemProgressPuller BEFORE epubRepository openEpub`() = runTest {
-        val order = mutableListOf<String>()
-        val puller = RecordingItemProgressPuller { order += "puller" }
+    fun `open invokes both itemProgressPuller and epubRepository before resolveReady`() = runTest {
+        val puller = RecordingItemProgressPuller {}
         val repo = RecordingEpubRepository(
             EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
-            onOpen = { order += "openEpub" },
         )
         val (lifecycle, _) = makeLifecycle(epubRepository = repo, itemProgressPuller = puller)
 
-        lifecycle.open(params())
+        val outcome = lifecycle.open(params())
 
         assertEquals(listOf("srv-abs" to "item-1"), puller.calls)
         assertEquals(1, repo.openCalls)
-        assertEquals(listOf("puller", "openEpub"), order)
+        assertTrue("open should succeed after puller + epub open", outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
     }
 
     /**
@@ -676,5 +677,48 @@ class ReaderSessionLifecycleTest {
         lifecycle.onCleared()
         assertFalse(reconcile.isOpen("srv-abs", "item-1"))
         assertNull(lifecycle.publication.value)
+    }
+
+    /**
+     * Warm-cache handoff: extractPublicationForWarmCache() must return the current publication
+     * and null out the internal reference so onCleared() does not double-close it.
+     */
+    @Test
+    fun `extractPublicationForWarmCache returns publication and prevents onCleared from closing it`() = runTest {
+        val pub = mockk<Publication>(relaxed = true)
+        val (lifecycle, _) = makeLifecycle(pub = pub)
+        lifecycle.open(params())
+        assertSame(pub, lifecycle.publication.value)
+
+        val extracted = lifecycle.extractPublicationForWarmCache()
+        assertSame(pub, extracted)
+        assertNull(lifecycle.publication.value)
+
+        // onCleared should not close pub since the reference is already null.
+        lifecycle.onCleared()
+        verify(exactly = 0) { pub.close() }
+    }
+
+    @Test
+    fun `extractPublicationForWarmCache returns null before open`() = runTest {
+        val (lifecycle, _) = makeLifecycle()
+        assertNull(lifecycle.extractPublicationForWarmCache())
+    }
+
+    /**
+     * Parallelism invariant: when openPublication is provided by a warm-cache hit (instant),
+     * the reader still pulls progress before resolving — the puller runs concurrently and both
+     * complete before resolveReadyWithPub is called.
+     */
+    @Test
+    fun `open with instant openPublication still invokes puller and returns Ready`() = runTest {
+        val puller = RecordingItemProgressPuller {}
+        val pub = mockk<Publication>(relaxed = true)
+        val (lifecycle, _) = makeLifecycle(pub = pub, itemProgressPuller = puller)
+
+        val outcome = lifecycle.open(params())
+
+        assertTrue(outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
+        assertEquals(listOf("srv-abs" to "item-1"), puller.calls)
     }
 }

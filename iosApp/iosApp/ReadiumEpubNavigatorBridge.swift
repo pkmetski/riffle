@@ -73,6 +73,14 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var chapterCache = IosReaderChapterCache(cacheDir: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0])
     var cachedItemId: String = ""
 
+    // Publication warm cache — survives reader close so the next open of the same book
+    // skips the EPUB asset retrieval + Readium parse (1-3 s bottleneck).
+    private let warmCache: IosPublicationWarmCache
+
+    init(warmCache: IosPublicationWarmCache = IosPublicationWarmCache()) {
+        self.warmCache = warmCache
+    }
+
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
 
@@ -89,9 +97,23 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     func openEpub(filePath: String, locatorJson: String?) {
         Task { @MainActor in
             do {
-                guard let fileURL = FileURL(path: filePath, isDirectory: false) else { return }
+                var initialLocator: Locator?
+                if let json = locatorJson,
+                   let jsonValue = try? JSONValue(jsonString: json) {
+                    initialLocator = try? Locator(json: jsonValue, warnings: nil)
+                }
 
-                // Readium 3.x: retrieve an Asset from a local file, then open into a Publication.
+                // Warm-cache fast path: skip the EPUB parse if the same book's Publication is cached.
+                if let cachedPub = self.warmCache.take(itemId: self.cachedItemId) {
+                    self.publication = cachedPub
+                    self.prefetchToc(cachedPub)
+                    self.prefetchSpine(cachedPub)
+                    try self.attach(publication: cachedPub, initialLocator: initialLocator)
+                    return
+                }
+
+                // Cold path: retrieve the EPUB asset and parse the publication.
+                guard let fileURL = FileURL(path: filePath, isDirectory: false) else { return }
                 let httpClient = DefaultHTTPClient()
                 let assetRetriever = AssetRetriever(httpClient: httpClient)
                 let assetResult = await assetRetriever.retrieve(url: fileURL)
@@ -103,13 +125,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
                 self.publication = pub
                 self.prefetchToc(pub)
                 self.prefetchSpine(pub)
-
-                var initialLocator: Locator?
-                if let json = locatorJson,
-                   let jsonValue = try? JSONValue(jsonString: json) {
-                    initialLocator = try? Locator(json: jsonValue, warnings: nil)
-                }
-
                 try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
                 // Ignore open errors — reader shows blank state
@@ -361,6 +376,11 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.epubNavigator = nil
             self.continuousScrollView?.removeFromSuperview()
             self.continuousScrollView = nil
+            // Hand the publication to the warm cache so the next cold open of the same book
+            // can skip the EPUB parse entirely. The cache takes ownership; we clear our reference.
+            if let pub = self.publication {
+                self.warmCache.put(itemId: self.cachedItemId, pub: pub)
+            }
             self.publication = nil
             self.cachedLocatorJson = nil
             self.cachedLocator = nil
@@ -701,8 +721,10 @@ extension UIColor {
 // MARK: - ReadiumEpubNavigatorBridgeFactory
 
 @objc class ReadiumEpubNavigatorBridgeFactory: NSObject, IosEpubNavigatorBridgeFactory {
+    private let warmCache = IosPublicationWarmCache()
+
     func create() -> any IosEpubNavigatorBridge {
-        ReadiumEpubNavigatorBridge()
+        ReadiumEpubNavigatorBridge(warmCache: warmCache)
     }
 }
 

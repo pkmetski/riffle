@@ -25,6 +25,7 @@ import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
+import com.riffle.app.feature.reader.PublicationWarmCache
 import com.riffle.app.feature.reader.ReaderChapterCache
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.app.feature.reader.AndroidPdfRepository
@@ -637,8 +638,10 @@ private val readerViewModelModule = module {
             downloadManager = get(),
             progressSweep = get(),
             readerChapterCache = ReaderChapterCache(androidApplication().cacheDir),
+            publicationWarmCache = get(),
         )
     }
+    single { PublicationWarmCache() }
     single {
         AndroidPdfRepository(
             libraryObserver = get(),

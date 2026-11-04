@@ -370,6 +370,7 @@ class EpubReaderViewModel constructor(
     private val downloadManager: com.riffle.app.feature.library.DownloadManager,
     private val progressSweep: com.riffle.core.sync.ProgressSweep,
     private val readerChapterCache: ReaderChapterCache,
+    private val publicationWarmCache: PublicationWarmCache,
 ) : AndroidViewModel(application) {
 
     private val _showKoFiNudge = MutableStateFlow(false)
@@ -3529,6 +3530,9 @@ class EpubReaderViewModel constructor(
         // Tear down all readaloud session background jobs (pre-warm, sidecar obs, sync, speed debounce).
         readaloud.onBookClosed()
         // Release openReconcile claims, close the zip and publication.
+        // Extract the Publication before onCleared() closes it so it can survive in the warm cache
+        // for the next cold open of the same book, skipping the EPUB ZIP parse entirely.
+        lifecycle.extractPublicationForWarmCache()?.let { publicationWarmCache.put(itemId, it) }
         lifecycle.onCleared()
         // Flush dirty progress rows to WebDAV in-process (ADR 0063), same as ReconnectSyncKicker —
         // WorkManager sweeps are gated on OS network constraints and can stall up to one hour.
@@ -3830,6 +3834,7 @@ class EpubReaderViewModel constructor(
     }
 
     private suspend fun openPublication(file: File): Publication? {
+        publicationWarmCache.take(itemId)?.let { return it }
         val url = AbsoluteUrl("file://${file.absolutePath}") ?: return null
         val asset = when (val r = assetRetriever.retrieve(url)) {
             is Try.Success -> r.value
