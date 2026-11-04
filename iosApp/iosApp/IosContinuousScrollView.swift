@@ -184,6 +184,38 @@ final class IosContinuousScrollView: UIView {
         scrollTo(index: index, progression: progression)
     }
 
+    // MARK: - Cache integration
+
+    /// Prime the initial chapter with cached height and bytes, mirroring Android's
+    /// ContinuousWindowController.primeWithCachedHeight.  Must be called after setupSlots().
+    func primeWithCachedHeight(href: String, cachedData: Data, heightPx: Int) {
+        guard let index = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(href) }) else { return }
+        guard slotHeights[index] == defaultSlotHeight else { return }
+        schemeHandler.cachedChapterData[normalizeHref(href)] = cachedData
+        slotHeights[index] = CGFloat(heightPx)
+        heightMeasured[index] = true
+        slotOffsets = computeOffsets(from: slotHeights)
+        updateAllWebViewFrames()
+        updateContentHeight()
+        if !initialScrollApplied, index == pendingInitialIndex {
+            initialScrollApplied = true
+            scrollTo(index: pendingInitialIndex, progression: pendingInitialProgression)
+        }
+    }
+
+    /// Measured height for a chapter, nil if not yet measured.
+    func measuredHeight(forHref href: String) -> CGFloat? {
+        guard let index = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(href) }),
+              heightMeasured[index] == true else { return nil }
+        return slotHeights[index]
+    }
+
+    /// The href of the chapter currently at the viewport midpoint.
+    var currentChapterHref: String? {
+        guard lastReportedIndex >= 0, lastReportedIndex < spineHrefs.count else { return nil }
+        return spineHrefs[lastReportedIndex]
+    }
+
     func updatePreferences(_ prefs: IosReaderPreferences) {
         currentPrefs = prefs
         applyThemeBackground(theme: prefs.theme)

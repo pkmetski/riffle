@@ -57,10 +57,62 @@ extension ReadiumEpubNavigatorBridge {
             initialProgression: initialProgression,
             prefs: prefs
         )
+
+        // Cold-open fast path: if the chapter cache has a hit for the initial chapter, prime the
+        // slot with cached height and bytes so the initial scroll fires before the WebView paints.
+        let fingerprint = iosReaderPrefsFingerprint(prefs)
+        if let entry = chapterCache.load(itemId: cachedItemId, chapterHref: initialHref, prefsFingerprint: fingerprint) {
+            csv.primeWithCachedHeight(href: initialHref, cachedData: entry.data, heightPx: Int(entry.heightPx))
+        }
+
         continuousScrollView = csv
+
+        // Write path: on background, save the current chapter's bytes + height so the next
+        // cold open can serve from cache without reading from the EPUB zip.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.saveContinuousCacheOnBackground()
+        }
 
         // Pre-populate spine JSON from the publication so position tracking works immediately.
         prefetchSpine(pub)
+    }
+
+    private func saveContinuousCacheOnBackground() {
+        guard let csv = continuousScrollView,
+              let href = csv.currentChapterHref,
+              let prefs = currentContinuousPrefs,
+              let heightPx = csv.measuredHeight(forHref: href) else { return }
+        let fingerprint = iosReaderPrefsFingerprint(prefs)
+        // Re-derive the transformed XHTML from the scheme handler (needs publication still open).
+        guard let pub = publication else { return }
+        let normalizedHref = href.components(separatedBy: "#").first ?? href
+        let allLinks = pub.readingOrder + pub.resources
+        guard let link = allLinks.first(where: { normalizeHref($0.href) == normalizeHref(normalizedHref) }),
+              let resource = pub.get(link) else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard case .success(let rawData) = await resource.read(),
+                  let rawHtml = String(data: rawData, encoding: .utf8) ?? String(data: rawData, encoding: .isoLatin1),
+                  let prefs = self.currentContinuousPrefs else { return }
+            let transformed = IosContinuousCssInjector.injectInto(html: rawHtml, href: normalizedHref, prefs: prefs)
+            guard let xhtmlData = transformed.data(using: .utf8) else { return }
+            self.chapterCache.save(
+                itemId: self.cachedItemId,
+                chapterHref: normalizedHref,
+                prefsFingerprint: iosReaderPrefsFingerprint(prefs),
+                xhtmlData: xhtmlData,
+                heightPx: Int(heightPx)
+            )
+        }
+    }
+
+    private func normalizeHref(_ href: String) -> String {
+        let stripped = href.hasPrefix("/") ? String(href.dropFirst()) : href
+        return stripped.components(separatedBy: "#").first ?? stripped
     }
 
     func applyReaderPreferences(preferences: IosReaderPreferences) {

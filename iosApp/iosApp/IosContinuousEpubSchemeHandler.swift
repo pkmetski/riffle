@@ -26,6 +26,10 @@ final class IosContinuousEpubSchemeHandler: NSObject, WKURLSchemeHandler {
     /// Receives (href, rawHtml) and returns the transformed HTML.
     var htmlTransformer: ((String, String) -> String)?
 
+    /// Pre-transformed XHTML bytes to serve on cold open, keyed by normalised chapter href.
+    /// Set by IosContinuousScrollView.primeWithCachedHeight before initialize() loads the first chapter.
+    var cachedChapterData: [String: Data] = [:]
+
     // Task tracking: ObjectIdentifier(task) → still-active flag.
     // Both sides run on the main thread (WebKit calls start/stop on main), so no lock needed.
     private var activeTasks: [ObjectIdentifier: Bool] = [:]
@@ -84,10 +88,19 @@ final class IosContinuousEpubSchemeHandler: NSObject, WKURLSchemeHandler {
     // MARK: - Resource serving
 
     private func servePublicationResource(path: String) async throws -> (Data, String) {
+        let href = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        let isHtml = ["html", "xhtml", "htm"].contains((href as NSString).pathExtension.lowercased())
+
+        // Cold-open fast path: serve pre-transformed bytes from cache (bypasses EPUB zip read).
+        // Clear after use so sub-resources (images, CSS) fall through to the normal pub path.
+        if isHtml, let cached = cachedChapterData[normalizeHref(href)] {
+            cachedChapterData.removeValue(forKey: normalizeHref(href))
+            return (cached, mimeType(for: href))
+        }
+
         guard let pub = publication else {
             throw makeError("No publication loaded")
         }
-        let href = path.hasPrefix("/") ? String(path.dropFirst()) : path
         let allLinks = pub.readingOrder + pub.resources
         guard let link = allLinks.first(where: { normalizeHref($0.href) == normalizeHref(href) }) else {
             throw makeError("Resource not found: \(href)", code: 404)

@@ -69,6 +69,10 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var continuousScrollView: IosContinuousScrollView?
     var pendingIsContinuousMode = false
 
+    // Chapter cache for cold-open fast path.
+    var chapterCache = IosReaderChapterCache(cacheDir: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0])
+    var cachedItemId: String = ""
+
     // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
 
@@ -79,6 +83,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     // MARK: - IosEpubNavigatorBridge
 
     func viewController() -> UIViewController { hostViewController }
+
+    func setItemId(itemId: String) { cachedItemId = itemId }
 
     func openEpub(filePath: String, locatorJson: String?) {
         Task { @MainActor in
