@@ -871,7 +871,6 @@ internal class ContinuousWindowController(
         smoothTailRevealSuppressed = focusAnnotationId != null
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
-        pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
         clearDeferredLoads()
         pendingInWindowNav = null
         windowBuiltAtMs = nowMs()
@@ -1030,10 +1029,18 @@ internal class ContinuousWindowController(
         // Only the target chapter loads now; its neighbours are appended as placeholder slots
         // (so the scroll geometry is complete from the first frame) and load one at a time once
         // the target has been revealed — see notifyFirstLoadCompleteOnce / startNextDeferredLoad.
+        //
+        // Capture webViews.size before appending so window-relative indices from InitialWindow
+        // can be translated to absolute webViews positions. When openWindowAt is called on an
+        // existing instance (cross-chapter navigateTo, openWindowAtNonSmoothForTest) the old
+        // chapters still occupy positions 0..priorCount-1; without the offset the deferred load
+        // and pending-measure references would point at stale WebViews from the previous window.
+        val priorWebViewsCount = webViews.size
         repeat(totalChapters) { i -> appendChapter(topIndex + i, deferLoad = i != targetWindowIndex) }
-        initial.deferredLoadOrder().forEach { i -> deferredInitialLoads.addLast(webViews[i]) }
+        pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices().map { it + priorWebViewsCount })
+        initial.deferredLoadOrder().forEach { i -> deferredInitialLoads.addLast(webViews[priorWebViewsCount + i]) }
         initialTopAwaitingMeasure = targetWindowIndex > 0
-        for (i in 0 until targetWindowIndex) deferredAboveUnmeasured.add(webViews[i])
+        for (i in 0 until targetWindowIndex) deferredAboveUnmeasured.add(webViews[priorWebViewsCount + i])
 
         val fallback = Runnable {
             pendingFallbackRunnable = null
