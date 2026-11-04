@@ -221,7 +221,7 @@ fun LibraryItemsScreen(
                 LibraryTabBar(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
-                    visibility = tabVisibility ?: LibraryTabVisibility.All,
+                    visibility = tabVisibility ?: LibraryTabVisibility.Empty,
                 )
             }
         },

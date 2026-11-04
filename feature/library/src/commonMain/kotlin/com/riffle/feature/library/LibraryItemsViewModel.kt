@@ -75,6 +75,7 @@ class LibraryItemsViewModel constructor(
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
     private val dispatchers: DispatcherProvider,
+    private val tabVisibilityCache: LibraryTabVisibilityCache,
 ) : ViewModel() {
 
     private val _activeSourceId = MutableStateFlow<String?>(null)
@@ -334,7 +335,7 @@ class LibraryItemsViewModel constructor(
     // Books with at least one live highlight in THIS library — the same query the Annotations tab
     // content uses (AnnotationsListViewModel), so tab visibility can't disagree with what the tab
     // would render.
-    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.domain.AnnotatedBook>> =
+    private val annotatedBooksInLibrary: StateFlow<List<com.riffle.core.domain.AnnotatedBook>> =
         sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
@@ -342,6 +343,7 @@ class LibraryItemsViewModel constructor(
                 if (sourceId == null) flowOf(emptyList())
                 else annotationsLibraryRepository.observeAnnotatedBooks(sourceId, libraryId)
             }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * Which optional Library tabs are visible. Home and All Books are unconditional; every other
@@ -354,8 +356,8 @@ class LibraryItemsViewModel constructor(
      * Null while the library hasn't loaded any items yet ([allItems] empty is treated as "not yet
      * settled") — Room's initial `emptyList()` tick from every projection sub-flow would otherwise
      * fire the tab-bar clamp before real data lands and wipe a `rememberSaveable`-restored tab.
-     * The UI treats null as "show every tab" so the initial paint is stable and the LaunchedEffect
-     * doesn't run.
+     * When a cached value exists from a previous visit, it is returned during the unsettled window
+     * so the tab bar renders immediately on reopen instead of flashing in from empty.
      */
     val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
         projection,
@@ -374,7 +376,7 @@ class LibraryItemsViewModel constructor(
         val pls = values[3] as List<CatalogPlaylist>
         val audiobookOnly = values[4] as Boolean
         if (items.isEmpty()) {
-            null
+            tabVisibilityCache.get(libraryId)
         } else {
             LibraryTabVisibility(
                 toRead = p.toRead.isNotEmpty(),
@@ -395,6 +397,9 @@ class LibraryItemsViewModel constructor(
         private set
 
     init {
+        viewModelScope.launch {
+            tabVisibility.filterNotNull().collect { tabVisibilityCache.put(libraryId, it) }
+        }
         // Loading gate: unblocks the UI as soon as Room has cached content, or the network
         // refresh completes (for a genuinely empty first-open). Runs independently of the
         // prefs/token read below so the DataStore round-trip (~200ms) never blocks the spinner.

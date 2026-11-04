@@ -18,6 +18,7 @@ import com.riffle.feature.library.urlFormEncode
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
+import com.riffle.feature.library.LibraryTabVisibilityCache
 import com.riffle.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
@@ -151,6 +152,7 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 
 private val libraryViewModelModule = module {
+    single { LibraryTabVisibilityCache() }
     viewModel { params ->
         LibraryItemsViewModel(
             libraryId = params.get(),
@@ -171,6 +173,7 @@ private val libraryViewModelModule = module {
             audiobookBookmarkStore = get(),
             annotationsLibraryRepository = get(),
             dispatchers = get(),
+            tabVisibilityCache = get(),
         )
     }
     viewModel { params ->

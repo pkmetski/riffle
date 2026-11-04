@@ -308,6 +308,7 @@ class LibraryItemsViewModelTest {
             override val io = testDispatcher
             override val default = testDispatcher
         },
+        tabVisibilityCache = LibraryTabVisibilityCache(),
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
