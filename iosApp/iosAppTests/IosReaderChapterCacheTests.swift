@@ -64,50 +64,50 @@ final class IosReaderChapterCacheTests: XCTestCase {
     // MARK: - Fingerprint tests
 
     func testFingerprintIsStableAcrossCalls() {
-        let prefs = makePrefs()
-        XCTAssertEqual(iosReaderPrefsFingerprint(prefs), iosReaderPrefsFingerprint(prefs))
+        XCTAssertEqual(makeFingerprint(), makeFingerprint())
     }
 
     func testFingerprintDiffersOnThemeChange() {
-        let light = makePrefs(theme: "light")
-        let dark = makePrefs(theme: "dark")
-        XCTAssertNotEqual(iosReaderPrefsFingerprint(light), iosReaderPrefsFingerprint(dark))
+        let light = makeFingerprint(theme: "light")
+        let dark = makeFingerprint(theme: "dark")
+        XCTAssertNotEqual(light, dark)
     }
 
     func testFingerprintDiffersOnFontSizeChange() {
-        let normal = makePrefs(fontSizePercent: 1.0)
-        let large = makePrefs(fontSizePercent: 1.5)
-        XCTAssertNotEqual(iosReaderPrefsFingerprint(normal), iosReaderPrefsFingerprint(large))
+        let normal = makeFingerprint(fontSizePercent: 1.0)
+        let large = makeFingerprint(fontSizePercent: 1.5)
+        XCTAssertNotEqual(normal, large)
     }
 
     func testFingerprintIsNonEmptyHexString() {
-        let fingerprint = iosReaderPrefsFingerprint(makePrefs())
+        let fingerprint = makeFingerprint()
         XCTAssertFalse(fingerprint.isEmpty)
         XCTAssertTrue(fingerprint.allSatisfy { $0.isHexDigit }, "Expected hex string, got: \(fingerprint)")
     }
 
     // MARK: - Helpers
 
-    private func makePrefs(
+    private func makeFingerprint(
         fontSizePercent: Float = 1.0,
         theme: String = "light",
         fontFamilyCss: String = "",
         lineHeightMultiplier: Float = 1.5,
         pageMargins: Double = 1.0,
-        justifyText: Bool = false
-    ) -> IosReaderPreferences {
-        IosReaderPreferences(
+        justifyText: Bool = false,
+        textColorArgb: Int64 = 0,
+        publisherStyles: Bool = false,
+        columnCount: Int32 = 1
+    ) -> String {
+        iosReaderPrefsFingerprint(IosReaderPrefsSnapshot(
             fontSizePercent: fontSizePercent,
-            scrollMode: true,
             theme: theme,
             fontFamilyCss: fontFamilyCss,
             lineHeightMultiplier: lineHeightMultiplier,
             pageMargins: pageMargins,
             justifyText: justifyText,
-            textColorArgb: 0,
-            publisherStyles: false,
-            columnCount: 1,
-            isContinuousMode: true
-        )
+            textColorArgb: textColorArgb,
+            publisherStyles: publisherStyles,
+            columnCount: columnCount
+        ))
     }
 }

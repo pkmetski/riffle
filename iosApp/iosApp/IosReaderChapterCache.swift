@@ -82,13 +82,27 @@ private struct IosChapterCacheMeta: Codable {
 
 // MARK: - Prefs fingerprint
 
+/// Primitive snapshot of the formatting prefs that affect XHTML output.
+/// Used as a cache key — avoids a dependency on the KMM-generated IosReaderPreferences type here.
+struct IosReaderPrefsSnapshot {
+    let fontSizePercent: Float
+    let theme: String
+    let fontFamilyCss: String
+    let lineHeightMultiplier: Float
+    let pageMargins: Double
+    let justifyText: Bool
+    let textColorArgb: Int64
+    let publisherStyles: Bool
+    let columnCount: Int32
+}
+
 /// Stable djb2-style hash of the formatting prefs that affect XHTML output.
 /// Used as a cache key alongside itemId + chapterHref to detect pref changes.
-func iosReaderPrefsFingerprint(_ prefs: IosReaderPreferences) -> String {
+func iosReaderPrefsFingerprint(_ snapshot: IosReaderPrefsSnapshot) -> String {
     let raw = [
-        "\(prefs.fontSizePercent)", prefs.theme, prefs.fontFamilyCss,
-        "\(prefs.lineHeightMultiplier)", "\(prefs.pageMargins)", "\(prefs.justifyText)",
-        "\(prefs.textColorArgb)", "\(prefs.publisherStyles)", "\(prefs.columnCount)"
+        "\(snapshot.fontSizePercent)", snapshot.theme, snapshot.fontFamilyCss,
+        "\(snapshot.lineHeightMultiplier)", "\(snapshot.pageMargins)", "\(snapshot.justifyText)",
+        "\(snapshot.textColorArgb)", "\(snapshot.publisherStyles)", "\(snapshot.columnCount)"
     ].joined(separator: "|")
     var hash: UInt32 = 5381
     for byte in raw.utf8 {

@@ -88,7 +88,7 @@ extension ReadiumEpubNavigatorBridge {
         prefetchSpine(pub)
     }
 
-    func saveContinuousCacheOnBackground() {
+    @MainActor func saveContinuousCacheOnBackground() {
         guard let csv = continuousScrollView,
               let href = csv.currentChapterHref,
               let prefs = currentContinuousPrefs,
@@ -242,4 +242,19 @@ extension ReadiumEpubNavigatorBridge {
             theme: resolvedTheme
         )
     }
+}
+
+// File-private overload so internal call sites can pass a prefs object directly.
+private func iosReaderPrefsFingerprint(_ prefs: IosReaderPreferences) -> String {
+    iosReaderPrefsFingerprint(IosReaderPrefsSnapshot(
+        fontSizePercent: prefs.fontSizePercent,
+        theme: prefs.theme,
+        fontFamilyCss: prefs.fontFamilyCss,
+        lineHeightMultiplier: prefs.lineHeightMultiplier,
+        pageMargins: prefs.pageMargins,
+        justifyText: prefs.justifyText,
+        textColorArgb: prefs.textColorArgb,
+        publisherStyles: prefs.publisherStyles,
+        columnCount: prefs.columnCount
+    ))
 }
