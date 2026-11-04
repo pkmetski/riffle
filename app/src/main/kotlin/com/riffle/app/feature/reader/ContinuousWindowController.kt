@@ -1688,6 +1688,7 @@ internal class ContinuousWindowController(
         if (entry.link.href.toString().substringBefore('#') == coldOpenHref) {
             wv.cachedChapterBytes = coldOpenBytes
             coldOpenHref = null
+            coldOpenBytes = null
         }
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
