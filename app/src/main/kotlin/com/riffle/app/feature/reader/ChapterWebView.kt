@@ -247,6 +247,12 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     @Volatile
     var cachedChapterBytes: ByteArray? = null
 
+    /** The last injected XHTML bytes served by [shouldInterceptRequest] for the current chapter
+     *  (normal-read path only — not set when cache bytes are served). Used by the cache-save path
+     *  so we don't need to re-read the EPUB zip on close. Reset on each [loadChapter]. */
+    @Volatile
+    var lastServedHtmlBytes: ByteArray? = null
+
     /**
      * Incremented on every [loadChapter]. Each loaded page stamps this value into
      * `window.__riffleToken` (see [injectStylesAndMeasure]) and echoes it back with every height
@@ -465,13 +471,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                         cachedChapterBytes = null
                         val html = String(cached, Charsets.UTF_8)
                         if (rawChapterHtml == null) rawChapterHtml = html
+                        // Also populate lastServedHtmlBytes so the close-time save can use them
+                        // directly without re-reading from the EPUB zip.
+                        if (lastServedHtmlBytes == null) lastServedHtmlBytes = cached
                         cached
                     } else {
                         val html = String(bytes, Charsets.UTF_8)
                         // Retain the first HTML document served for this load (the main chapter,
                         // fetched before any sub-resource) so a footnote tap can resolve locally.
                         if (rawChapterHtml == null) rawChapterHtml = html
-                        ContinuousStyleInjector.injectInto(html, currentPrefs).toByteArray(Charsets.UTF_8)
+                        val injected = ContinuousStyleInjector.injectInto(html, currentPrefs).toByteArray(Charsets.UTF_8)
+                        if (lastServedHtmlBytes == null) lastServedHtmlBytes = injected
+                        injected
                     }
                 } else {
                     bytes
@@ -511,6 +522,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         expectedChapterUrl = chapterUrl
         currentPrefs = prefs
         rawChapterHtml = null
+        lastServedHtmlBytes = null
         footnoteDoc = null
         loadToken++
         loadUrl(chapterUrl)

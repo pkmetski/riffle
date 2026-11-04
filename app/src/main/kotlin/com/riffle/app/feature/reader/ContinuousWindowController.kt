@@ -185,6 +185,19 @@ internal class ContinuousWindowController(
     /** Current formatting preferences for CSS injection. */
     private var formattingPrefs: FormattingPreferences = FormattingPreferences()
 
+    // Cold-open cache: href → (bytes, heightPx). Set before initialize() so appendChapter can
+    // prime the WebView with cachedChapterBytes before loadUrl fires, avoiding a race with
+    // shouldInterceptRequest on the WebCore thread.
+    private var coldOpenHref: String? = null
+    private var coldOpenBytes: ByteArray? = null
+    private var coldOpenHeightPx: Int = 0
+
+    fun setColdOpenEntry(href: String, bytes: ByteArray, heightPx: Int) {
+        coldOpenHref = href.substringBefore('#')
+        coldOpenBytes = bytes
+        coldOpenHeightPx = heightPx
+    }
+
     /** Publication used by [ChapterWebView] to serve EPUB resources via shouldInterceptRequest. */
     private var publication: Publication? = null
 
@@ -1665,6 +1678,23 @@ internal class ContinuousWindowController(
             wv.chapterHref = entry.link.href.toString()
             return
         }
+        // Set cachedChapterBytes + pre-seed height BEFORE loadChapter so shouldInterceptRequest
+        // on the WebCore thread can serve bytes from cache without a race, and the initial scroll
+        // fires without waiting for the ResizeObserver.
+        val slotIndex = webViews.size - 1
+        if (entry.link.href.toString().substringBefore('#') == coldOpenHref) {
+            wv.cachedChapterBytes = coldOpenBytes
+            if (measuredHeights[slotIndex] == placeholderHeight) {
+                measuredHeights[slotIndex] = coldOpenHeightPx
+                applyChapterHeight(wv, coldOpenHeightPx)
+                if (pendingInitialMeasureIndices.remove(slotIndex) && pendingInitialMeasureIndices.isEmpty()) {
+                    val scroll = pendingInitialScroll
+                    pendingInitialScroll = null
+                    scroll?.invoke()
+                }
+            }
+            coldOpenHref = null
+        }
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
 
@@ -2238,9 +2268,14 @@ internal class ContinuousWindowController(
     fun measuredHeightForHref(href: String): Int? {
         val target = href.substringBefore('#')
         val allIndex = allChapters.indexOfFirst { it.link.href.toString().substringBefore('#') == target }
-            .takeIf { it >= 0 } ?: return null
+            .takeIf { it >= 0 } ?: run {
+                android.util.Log.d("DEBUG-CACHE", "measuredHeight MISS target='$target' allChapterHrefs=${allChapters.take(3).map { it.link.href.toString() }}")
+                return null
+            }
         val windowIndex = allIndex - topIndex
-        return measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
+        val h = measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
+        android.util.Log.d("DEBUG-CACHE", "measuredHeight target='$target' allIndex=$allIndex windowIndex=$windowIndex height=$h")
+        return h
     }
 
     /**
@@ -2257,9 +2292,22 @@ internal class ContinuousWindowController(
      * Must be called on the main thread after [openWindowAt] has built the window (i.e. after
      * the [ContinuousReaderView] initialisation block runs).
      */
+    fun getServedHtmlBytesForHref(href: String): ByteArray? {
+        val target = href.substringBefore('#')
+        val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
+            .takeIf { it >= 0 } ?: run {
+                android.util.Log.d("DEBUG-CACHE", "getServedHtmlBytes MISS target='$target' webViewHrefs=${webViews.map { it.chapterHref.substringBefore('#') }}")
+                return null
+            }
+        val bytes = webViews[windowIndex].lastServedHtmlBytes
+        android.util.Log.d("DEBUG-CACHE", "getServedHtmlBytes idx=$windowIndex bytes=${bytes?.size} target='$target'")
+        return bytes
+    }
+
     fun primeWithCachedHeight(href: String, cachedBytes: ByteArray, heightPx: Int) {
         val target = href.substringBefore('#')
         val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
+        android.util.Log.d("DEBUG-CACHE", "PRIME href=$href target=$target windowIndex=$windowIndex measuredHeight=${measuredHeights.getOrNull(windowIndex)} placeholderHeight=$placeholderHeight")
         if (windowIndex < 0 || windowIndex >= measuredHeights.size) return
         if (measuredHeights[windowIndex] != placeholderHeight) return
         val wv = webViews[windowIndex]

@@ -4001,33 +4001,53 @@ class EpubReaderViewModel constructor(
         }
     }
 
-    fun maybeSaveChapterCache(heightPx: Int) {
+    fun maybeSaveChapterCache(heightPx: Int, xhtmlBytes: ByteArray?) {
+        android.util.Log.d("DEBUG-CACHE", "SAVE called heightPx=$heightPx bytes=${xhtmlBytes?.size} href=${currentLocatorHref.value} itemId=$itemId")
         viewModelScope.launch(dispatchers.io + NonCancellable) {
-            val pub = lifecycle.publication.value ?: return@launch
-            val href = currentLocatorHref.value ?: return@launch
+            val href = currentLocatorHref.value ?: run {
+                android.util.Log.d("DEBUG-CACHE", "SAVE ABORT: href null")
+                return@launch
+            }
             val prefs = effectiveFormattingPreferences.value
-            val spineIndex = pub.readingOrder.indexOfFirst { link ->
-                normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href)
-            }.takeIf { it >= 0 } ?: return@launch
-            val rawHtml = chapterHtmlCache[spineIndex] ?: return@launch
-            val xhtmlBytes = ContinuousStyleInjector.injectInto(rawHtml, prefs)
-                .toByteArray(Charsets.UTF_8)
+            val bytes = xhtmlBytes ?: run {
+                android.util.Log.d("DEBUG-CACHE", "SAVE: bytes null, falling back to readChapterHtml")
+                val pub = lifecycle.publication.value ?: run {
+                    android.util.Log.d("DEBUG-CACHE", "SAVE ABORT: pub null")
+                    return@launch
+                }
+                val spineIndex = pub.readingOrder.indexOfFirst { link ->
+                    normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href)
+                }.takeIf { it >= 0 } ?: run {
+                    android.util.Log.d("DEBUG-CACHE", "SAVE ABORT: spineIndex not found for href=$href")
+                    return@launch
+                }
+                val rawHtml = chapterHtmlCache[spineIndex] ?: readChapterHtml(spineIndex) ?: run {
+                    android.util.Log.d("DEBUG-CACHE", "SAVE ABORT: rawHtml null spineIndex=$spineIndex")
+                    return@launch
+                }
+                ContinuousStyleInjector.injectInto(rawHtml, prefs).toByteArray(Charsets.UTF_8)
+            }
             readerChapterCache.save(
                 itemId = itemId,
                 chapterHref = normalizeEpubHref(href),
                 prefsFingerprint = prefs.fingerprint(),
-                xhtmlBytes = xhtmlBytes,
+                xhtmlBytes = bytes,
                 heightPx = heightPx,
             )
+            android.util.Log.d("DEBUG-CACHE", "SAVED itemId=$itemId href=${normalizeEpubHref(href)} bytes=${bytes.size} heightPx=$heightPx fingerprint=${prefs.fingerprint()}")
         }
     }
 
-    fun loadColdOpenCache(chapterHref: String): CachedChapterEntry? =
-        readerChapterCache.load(
+    fun loadColdOpenCache(chapterHref: String): CachedChapterEntry? {
+        val fingerprint = effectiveFormattingPreferences.value.fingerprint()
+        val result = readerChapterCache.load(
             itemId = itemId,
             chapterHref = normalizeEpubHref(chapterHref),
-            prefsFingerprint = effectiveFormattingPreferences.value.fingerprint(),
+            prefsFingerprint = fingerprint,
         )
+        android.util.Log.d("DEBUG-CACHE", "LOAD itemId=$itemId href=${normalizeEpubHref(chapterHref)} fingerprint=$fingerprint -> ${if (result != null) "HIT bytes=${result.xhtmlBytes.size} heightPx=${result.heightPx}" else "MISS"}")
+        return result
+    }
 
     private fun FormattingPreferences.fingerprint(): String = formattingPreferencesFingerprint(this)
 }
