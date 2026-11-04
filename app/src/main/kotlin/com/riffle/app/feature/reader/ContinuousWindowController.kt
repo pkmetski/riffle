@@ -198,6 +198,10 @@ internal class ContinuousWindowController(
         coldOpenHeightPx = heightPx
     }
 
+    // onDetachedFromWindow fires before AndroidView.onRelease, so bytes are snapshotted here in
+    // onDetach() and getServedHtmlBytesForHref falls back to this map after webViews is cleared.
+    private val savedChapterHtmlBytes = mutableMapOf<String, ByteArray>()
+
     /** Publication used by [ChapterWebView] to serve EPUB resources via shouldInterceptRequest. */
     private var publication: Publication? = null
 
@@ -2234,6 +2238,11 @@ internal class ContinuousWindowController(
      * they don't leak when the reader screen goes away.
      */
     fun onDetach() {
+        for (wv in webViews) {
+            val bytes = wv.lastServedHtmlBytes ?: continue
+            val href = wv.chapterHref.substringBefore('#')
+            if (href.isNotEmpty()) savedChapterHtmlBytes[href] = bytes
+        }
         webViews.forEach { it.destroy() }
         webViews.clear()
         recycledViews.forEach { it.destroy() }
@@ -2268,14 +2277,9 @@ internal class ContinuousWindowController(
     fun measuredHeightForHref(href: String): Int? {
         val target = href.substringBefore('#')
         val allIndex = allChapters.indexOfFirst { it.link.href.toString().substringBefore('#') == target }
-            .takeIf { it >= 0 } ?: run {
-                android.util.Log.d("DEBUG-CACHE", "measuredHeight MISS target='$target' allChapterHrefs=${allChapters.take(3).map { it.link.href.toString() }}")
-                return null
-            }
+            .takeIf { it >= 0 } ?: return null
         val windowIndex = allIndex - topIndex
-        val h = measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
-        android.util.Log.d("DEBUG-CACHE", "measuredHeight target='$target' allIndex=$allIndex windowIndex=$windowIndex height=$h")
-        return h
+        return measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
     }
 
     /**
@@ -2294,20 +2298,16 @@ internal class ContinuousWindowController(
      */
     fun getServedHtmlBytesForHref(href: String): ByteArray? {
         val target = href.substringBefore('#')
+        // Primary: live WebView (reader is still open)
         val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
-            .takeIf { it >= 0 } ?: run {
-                android.util.Log.d("DEBUG-CACHE", "getServedHtmlBytes MISS target='$target' webViewHrefs=${webViews.map { it.chapterHref.substringBefore('#') }}")
-                return null
-            }
-        val bytes = webViews[windowIndex].lastServedHtmlBytes
-        android.util.Log.d("DEBUG-CACHE", "getServedHtmlBytes idx=$windowIndex bytes=${bytes?.size} target='$target'")
-        return bytes
+        if (windowIndex >= 0) return webViews[windowIndex].lastServedHtmlBytes
+        // Fallback: bytes captured in onDetach() (fires before onRelease, so webViews is empty)
+        return savedChapterHtmlBytes[target]
     }
 
     fun primeWithCachedHeight(href: String, cachedBytes: ByteArray, heightPx: Int) {
         val target = href.substringBefore('#')
         val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
-        android.util.Log.d("DEBUG-CACHE", "PRIME href=$href target=$target windowIndex=$windowIndex measuredHeight=${measuredHeights.getOrNull(windowIndex)} placeholderHeight=$placeholderHeight")
         if (windowIndex < 0 || windowIndex >= measuredHeights.size) return
         if (measuredHeights[windowIndex] != placeholderHeight) return
         val wv = webViews[windowIndex]
