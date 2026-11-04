@@ -8,13 +8,6 @@ import com.riffle.feature.source.ui.websource.TAB_TO_READ
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/**
- * Regression for the missing search bar on non-Library tabs in [UnboundedBrowseScreen].
- *
- * Before the fix the topBar only showed SourceBrowseHeader when selectedLocalTab == TAB_LIBRARY;
- * the other tabs showed a plain TopAppBar with no search field. These tests pin that every tab
- * uses the correct query source: Library tab → catalog query, all others → library search query.
- */
 class UnboundedBrowseSearchBarTest {
 
     @Test
