@@ -20,10 +20,12 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -44,6 +46,7 @@ import java.util.zip.ZipFile
  * MUST NOT import android.webkit.*, ContinuousReaderView, or any Compose types.
  */
 class ReaderSessionLifecycle constructor(
+    private val backgroundScope: CoroutineScope,
     private val openPublication: suspend (File) -> Publication?,
     private val cfiStringToLocator: suspend (String) -> Locator?,
     private val libraryObserver: LibraryObserver,
@@ -66,6 +69,7 @@ class ReaderSessionLifecycle constructor(
 
     interface Factory {
         fun create(
+            backgroundScope: CoroutineScope,
             openPublication: suspend (File) -> Publication?,
             cfiStringToLocator: suspend (String) -> Locator?,
             openLazy: (suspend (String, String) -> Pair<Publication, String?>?)? = null,
@@ -118,25 +122,28 @@ class ReaderSessionLifecycle constructor(
         //
         // Cancellation note: a plain runCatching around a suspending call swallows
         // CancellationException — re-throw it explicitly inside the puller catch block.
+        // Fire the progress pull in background — don't block open() on a network round-trip.
+        // The local DB position is current for the common case (same device). For cross-device
+        // sync the puller still writes the server-fresh position to the DB; the in-reader sync
+        // cycle converges without a visible jump. Previously this was a blocking 1500ms barrier;
+        // with PublicationWarmCache the epub work finishes in <10ms so the puller became the
+        // sole source of spinner latency.
+        backgroundScope.launch {
+            runCatching { itemProgressPuller.pullItem(item.sourceId, item.id) }
+                .onFailure { t ->
+                    if (t is kotlinx.coroutines.CancellationException) return@launch
+                    logger.w(LogChannel.ProgressSync) {
+                        "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
+                            "${t::class.simpleName}: ${t.message}"
+                    }
+                }
+        }
         return kotlinx.coroutines.coroutineScope {
             val epubWorkDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
                 when (val result = epubRepository.openEpub(item)) {
                     is EpubOpenResult.Success -> result to openPublication(result.epubFile)
                     is EpubOpenResult.NetworkError -> result to null
                     EpubOpenResult.Offline -> result to null
-                }
-            }
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                kotlinx.coroutines.withTimeoutOrNull(1_500L) {
-                    try {
-                        itemProgressPuller.pullItem(item.sourceId, item.id)
-                    } catch (t: Throwable) {
-                        if (t is kotlinx.coroutines.CancellationException) throw t
-                        logger.w(LogChannel.ProgressSync) {
-                            "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
-                                "${t::class.simpleName}: ${t.message}"
-                        }
-                    }
                 }
             }
             val (epubResult, pub) = epubWorkDeferred.await()
