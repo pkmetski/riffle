@@ -1,5 +1,7 @@
 package com.riffle.feature.library
 
+import kotlin.concurrent.Volatile
+
 class LibraryTabVisibilityCache {
     // @Volatile reference to an immutable snapshot: reads (IO thread from combine) always see the
     // latest reference without touching mutable HashMap internals; writes (Main thread only, from
