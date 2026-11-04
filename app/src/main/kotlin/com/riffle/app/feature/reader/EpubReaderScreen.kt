@@ -1339,7 +1339,16 @@ private fun EpubNavigatorView(
             }
         }
         chapterCacheLifecycle.addObserver(observer)
-        onDispose { chapterCacheLifecycle.removeObserver(observer) }
+        onDispose {
+            chapterCacheLifecycle.removeObserver(observer)
+            // Also save on back-navigation (reader composable leaves composition).
+            // ON_STOP above only fires on app-background, not on normal reader close.
+            if (isContinuous) {
+                val href = currentLocatorHref()
+                val height = href?.let { continuousViewRef.value?.measuredHeightForHref(it) }
+                if (href != null && height != null) onContinuousCacheSave(height)
+            }
+        }
     }
 
     // Per-publication ReadiumPresenter (#300 step 2). Owns the seam between paginated/vertical

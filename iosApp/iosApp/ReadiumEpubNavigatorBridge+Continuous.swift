@@ -88,7 +88,7 @@ extension ReadiumEpubNavigatorBridge {
         prefetchSpine(pub)
     }
 
-    private func saveContinuousCacheOnBackground() {
+    func saveContinuousCacheOnBackground() {
         guard let csv = continuousScrollView,
               let href = csv.currentChapterHref,
               let prefs = currentContinuousPrefs,

@@ -86,6 +86,7 @@ import com.riffle.feature.reader.highlights.realCapturedFontOrNull
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -4001,7 +4002,7 @@ class EpubReaderViewModel constructor(
     }
 
     fun maybeSaveChapterCache(heightPx: Int) {
-        viewModelScope.launch(dispatchers.io) {
+        viewModelScope.launch(dispatchers.io + NonCancellable) {
             val pub = lifecycle.publication.value ?: return@launch
             val href = currentLocatorHref.value ?: return@launch
             val prefs = effectiveFormattingPreferences.value

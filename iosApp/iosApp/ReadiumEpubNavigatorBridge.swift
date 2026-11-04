@@ -353,6 +353,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     func disposeNavigator() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            // Save the chapter cache before tearing down — publication and view must still be live.
+            self.saveContinuousCacheOnBackground()
             self.epubNavigator?.willMove(toParent: nil)
             self.epubNavigator?.view.removeFromSuperview()
             self.epubNavigator?.removeFromParent()
