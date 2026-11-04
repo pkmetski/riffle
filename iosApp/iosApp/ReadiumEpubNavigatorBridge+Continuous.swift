@@ -58,11 +58,18 @@ extension ReadiumEpubNavigatorBridge {
             prefs: prefs
         )
 
-        // Cold-open fast path: if the chapter cache has a hit for the initial chapter, prime the
-        // slot with cached height and bytes so the initial scroll fires before the WebView paints.
+        // Cold-open fast path: load chapter cache off the main thread so disk I/O doesn't block
+        // first paint, then prime the slot on main once the read completes.
         let fingerprint = iosReaderPrefsFingerprint(prefs)
-        if let entry = chapterCache.load(itemId: cachedItemId, chapterHref: initialHref, prefsFingerprint: fingerprint) {
-            csv.primeWithCachedHeight(href: initialHref, cachedData: entry.data, heightPx: Int(entry.heightPx))
+        let capturedItemId = cachedItemId
+        let capturedCsv = csv
+        Task.detached(priority: .userInitiated) { [cache = self.chapterCache] in
+            let entry = cache.load(itemId: capturedItemId, chapterHref: initialHref, prefsFingerprint: fingerprint)
+            if let entry {
+                await MainActor.run {
+                    capturedCsv.primeWithCachedHeight(href: initialHref, cachedData: entry.data, heightPx: Int(entry.heightPx))
+                }
+            }
         }
 
         continuousScrollView = csv

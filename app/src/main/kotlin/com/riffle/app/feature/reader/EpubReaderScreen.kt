@@ -132,6 +132,7 @@ import com.riffle.feature.reader.ui.ChapterMapOverlay
 import com.riffle.feature.reader.ui.NoteEditorSheet
 import com.riffle.feature.reader.ui.PullChip
 import com.riffle.feature.reader.ui.annotationSheetLabels
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -3108,7 +3109,7 @@ private fun EpubNavigatorView(
                 // Cold-reopen fast path: if the chapter cache has a hit for the target chapter,
                 // prime the window with cached XHTML bytes and height so the initial scroll fires
                 // before the ResizeObserver reports — the spinner lifts on first paint.
-                val cacheEntry = loadColdOpenCache(rawHref)
+                val cacheEntry = withContext(Dispatchers.IO) { loadColdOpenCache(rawHref) }
                 if (cacheEntry != null) {
                     view.primeWithCachedHeight(rawHref, cacheEntry.xhtmlBytes, cacheEntry.heightPx)
                 }
