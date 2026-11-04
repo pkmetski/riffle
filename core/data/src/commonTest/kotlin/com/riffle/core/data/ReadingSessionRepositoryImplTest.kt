@@ -142,7 +142,10 @@ class ReadingSessionRepositoryImplTest {
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not needed in test")
-        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = error("not needed in test")
+        override suspend fun <T> withFileStream(
+            itemId: String, format: BookFormat, handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = error("not needed in test")
         override suspend fun connectivityCheck(): CatalogHealth = error("not needed in test")
 
         // ProgressPeerCapability
@@ -213,7 +216,14 @@ class ReadingSessionRepositoryImplTest {
         override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String) = emptyFlow<List<LibraryItemEntity>>()
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {}
-        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
+        override suspend fun updateMetadata(
+            sourceId: String, id: String, libraryId: String, title: String, author: String,
+            coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean,
+            audioDurationSec: Double, description: String?, seriesName: String?,
+            publishedYear: String?, genres: String, publisher: String?, language: String?,
+            lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?,
+            finishedAt: Long?, pageCount: Int?,
+        ) = Unit
         override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {}
         override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> = emptyList()
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = items[itemId]

@@ -99,7 +99,14 @@ class WebSourceLibraryItemMaterializerTest {
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
             insertedItems += items
         }
-        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
+        override suspend fun updateMetadata(
+            sourceId: String, id: String, libraryId: String, title: String, author: String,
+            coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean,
+            audioDurationSec: Double, description: String?, seriesName: String?,
+            publishedYear: String?, genres: String, publisher: String?, language: String?,
+            lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?,
+            finishedAt: Long?, pageCount: Int?,
+        ) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             progressUpdates += Triple(sourceId, itemId, progress)
         }
@@ -116,7 +123,10 @@ class WebSourceLibraryItemMaterializerTest {
             return items[itemId]
         }
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not needed")
-        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (com.riffle.core.catalog.CatalogFileStream) -> T): T = error("not needed")
+        override suspend fun <T> withFileStream(
+            itemId: String, format: BookFormat, handleHint: String?,
+            block: suspend (com.riffle.core.catalog.CatalogFileStream) -> T,
+        ): T = error("not needed")
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
     }
 
@@ -295,7 +305,10 @@ private object NoopReadingPositionDao : ReadingPositionDao {
     override suspend fun upsert(entity: ReadingPositionEntity) = Unit
     override suspend fun getByItemId(sourceId: String, itemId: String): ReadingPositionEntity? = null
     override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
-    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
+    override suspend fun acceptServerIfUnchanged(
+        sourceId: String, itemId: String, position: String,
+        serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+    ) = 0
     override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
     override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
     override suspend fun dirtyForSource(sourceId: String) = emptyList<ReadingPositionEntity>()
@@ -308,7 +321,10 @@ private object NoopReadingPositionDao : ReadingPositionDao {
 private object NoopAudiobookPositionDao : AudiobookPositionDao {
     override suspend fun upsert(entity: AudiobookPositionEntity) = Unit
     override suspend fun getByItemId(sourceId: String, itemId: String): AudiobookPositionEntity? = null
-    override suspend fun acceptServerIfUnchanged(sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean) = 0
+    override suspend fun acceptServerIfUnchanged(
+        sourceId: String, itemId: String, positionSec: Double,
+        serverStamp: Long, ifLocalUpdatedAt: Long, deleted: Boolean,
+    ) = 0
     override suspend fun confirmPushedIfUnchanged(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
     override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = 0
     override suspend fun dirtyForSource(sourceId: String) = emptyList<AudiobookPositionEntity>()
