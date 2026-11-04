@@ -335,7 +335,7 @@ class LibraryItemsViewModel constructor(
     // Books with at least one live highlight in THIS library — the same query the Annotations tab
     // content uses (AnnotationsListViewModel), so tab visibility can't disagree with what the tab
     // would render.
-    private val annotatedBooksInLibrary: StateFlow<List<com.riffle.core.domain.AnnotatedBook>> =
+    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.domain.AnnotatedBook>> =
         sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
@@ -343,7 +343,6 @@ class LibraryItemsViewModel constructor(
                 if (sourceId == null) flowOf(emptyList())
                 else annotationsLibraryRepository.observeAnnotatedBooks(sourceId, libraryId)
             }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * Which optional Library tabs are visible. Home and All Books are unconditional; every other

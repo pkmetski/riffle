@@ -640,10 +640,11 @@ private val readerViewModelModule = module {
             packDownloader = get(),
             downloadManager = get(),
             progressSweep = get(),
-            readerChapterCache = ReaderChapterCache(androidApplication().cacheDir),
+            readerChapterCache = get(),
             publicationWarmCache = get(),
         )
     }
+    single { ReaderChapterCache(androidApplication().cacheDir) }
     single { PublicationWarmCache() }
     single {
         AndroidPdfRepository(

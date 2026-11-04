@@ -40,7 +40,7 @@ class ReaderChapterCache(private val cacheDir: File) {
                 put("xhtmlSize", xhtmlBytes.size)
             }
             metaTmpFile.writeText(meta.toString())
-            metaTmpFile.renameTo(metaFile)
+            check(metaTmpFile.renameTo(metaFile)) { "atomic rename failed" }
         }
         Unit
     }

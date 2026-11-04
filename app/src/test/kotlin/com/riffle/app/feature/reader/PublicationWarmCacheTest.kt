@@ -43,12 +43,12 @@ class PublicationWarmCacheTest {
     }
 
     @Test
-    fun `put does not close previous publication when same itemId`() {
+    fun `put closes previous publication even when same itemId`() {
         val pub1 = mockk<Publication>(relaxed = true)
         val pub2 = mockk<Publication>(relaxed = true)
         cache.put("item-1", pub1)
         cache.put("item-1", pub2)
-        verify(exactly = 0) { pub1.close() }
+        verify(exactly = 1) { pub1.close() }
         assertSame(pub2, cache.take("item-1"))
     }
 

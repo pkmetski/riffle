@@ -23,7 +23,9 @@ class PublicationWarmCache {
 
     fun put(itemId: String, pub: Publication) {
         val old = slot.getAndSet(Slot(itemId, pub))
-        if (old != null && old.itemId != itemId) old.pub.close()
+        // Always close the displaced publication — even when replacing with the same itemId,
+        // e.g. when two VMs for the same book race through onCleared().
+        if (old != null) old.pub.close()
     }
 
     fun take(itemId: String): Publication? {
