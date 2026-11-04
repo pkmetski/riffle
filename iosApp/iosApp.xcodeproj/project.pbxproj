@@ -46,7 +46,7 @@
 		B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0020 /* IosContinuousEpubSchemeHandler.swift */; };
 		B1CA0031 /* IosContinuousReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0032 /* IosContinuousReaderTests.swift */; };
 		B1CA0071 /* IosReaderChapterCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0072 /* IosReaderChapterCacheTests.swift */; };
-		B1CA0083 /* IosPublicationWarmCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0082 /* IosPublicationWarmCacheTests.swift */; };
+		B1CA0083 /* PublicationWarmCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0082 /* PublicationWarmCacheTests.swift */; };
 		B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0021 /* IosContinuousScrollView.swift */; };
 		B1CA0034 /* ReadiumEpubNavigatorBridge+Continuous.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0041 /* ReadiumEpubNavigatorBridge+Continuous.swift */; };
 		B100301A /* IosAudioPlayerBridgeImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1003030 /* IosAudioPlayerBridgeImpl.swift */; };
@@ -159,7 +159,7 @@
 		B1CA0080 /* IosPublicationWarmCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPublicationWarmCache.swift; sourceTree = "<group>"; };
 		B1CA0032 /* IosContinuousReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosContinuousReaderTests.swift; sourceTree = "<group>"; };
 		B1CA0072 /* IosReaderChapterCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReaderChapterCacheTests.swift; sourceTree = "<group>"; };
-		B1CA0082 /* IosPublicationWarmCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPublicationWarmCacheTests.swift; sourceTree = "<group>"; };
+		B1CA0082 /* PublicationWarmCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicationWarmCacheTests.swift; sourceTree = "<group>"; };
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
 		B1005030 /* PdfKitNavigatorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfKitNavigatorBridge.swift; sourceTree = "<group>"; };
 		B1006020 /* PdfReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfReaderTests.swift; sourceTree = "<group>"; };
@@ -334,7 +334,7 @@
 				B1055020 /* FootnoteBridgeTests.swift */,
 				B1CA0032 /* IosContinuousReaderTests.swift */,
 				B1CA0072 /* IosReaderChapterCacheTests.swift */,
-				B1CA0082 /* IosPublicationWarmCacheTests.swift */,
+				B1CA0082 /* PublicationWarmCacheTests.swift */,
 				E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */,
 				A1C0DE010002 /* AutoScrollBridgeTests.swift */,
 				A1C0DE020002 /* CadenceBridgeTests.swift */,
@@ -662,7 +662,7 @@
 				B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */,
 				B1CA0031 /* IosContinuousReaderTests.swift in Sources */,
 				B1CA0071 /* IosReaderChapterCacheTests.swift in Sources */,
-				B1CA0083 /* IosPublicationWarmCacheTests.swift in Sources */,
+				B1CA0083 /* PublicationWarmCacheTests.swift in Sources */,
 				B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */,
 				B1CA0034 /* ReadiumEpubNavigatorBridge+Continuous.swift in Sources (unit tests) */,
 				B1CA0051 /* IosReaderChapterCache.swift in Sources (unit tests) */,
