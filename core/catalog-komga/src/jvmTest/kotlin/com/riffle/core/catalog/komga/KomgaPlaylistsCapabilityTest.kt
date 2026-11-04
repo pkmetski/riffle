@@ -37,7 +37,9 @@ class KomgaPlaylistsCapabilityTest {
         catalog = KomgaCatalog(config, KomgaHttpClient(httpClient, header), httpClient)
     }
 
-    @After fun tearDown() { server.shutdown() }
+    @After fun tearDown() {
+        server.shutdown()
+    }
 
     /** Every capability path routes through `firstOwnedReadListNamed` → `currentUserId`, which
      * hits `GET /api/v1/users/me` once per catalog instance. Tests that don't care about
@@ -54,14 +56,18 @@ class KomgaPlaylistsCapabilityTest {
     @Test fun `findPlaylist returns only books in the requested library`() = runTest {
         enqueueMe()
         // 1st call: GET /api/v1/readlists?size=1000&page=0
-        server.enqueue(readListPage(
-            """{"id":"RL1","name":"To Read","bookIds":["B_L1_1","B_L2_1","B_L1_2","B_L2_2"],"ownerId":"USER_ME"}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL1","name":"To Read","bookIds":["B_L1_1","B_L2_1","B_L1_2","B_L2_2"],"ownerId":"USER_ME"}"""
+            )
+        )
         // 2nd call: GET /api/v1/readlists/RL1/books?library_id=L1&size=1000&page=0
-        server.enqueue(bookPage(
-            """{"id":"B_L1_1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"L1 book 1","authors":[]}}""",
-            """{"id":"B_L1_2","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"L1 book 2","authors":[]}}""",
-        ))
+        server.enqueue(
+            bookPage(
+                """{"id":"B_L1_1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"L1 book 1","authors":[]}}""",
+                """{"id":"B_L1_2","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"L1 book 2","authors":[]}}""",
+            )
+        )
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
@@ -98,9 +104,11 @@ class KomgaPlaylistsCapabilityTest {
         // 1st call inside firstOwnedReadListNamed: GET /api/v1/users/me
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
         // 2nd call: GET /api/v1/readlists — the "To Read" list is owned by someone else.
-        server.enqueue(readListPage(
-            """{"id":"RL_STRANGER","name":"To Read","bookIds":["B1"],"ownerId":"USER_OTHER"}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_STRANGER","name":"To Read","bookIds":["B1"],"ownerId":"USER_OTHER"}"""
+            )
+        )
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
@@ -109,12 +117,16 @@ class KomgaPlaylistsCapabilityTest {
 
     @Test fun `findPlaylist matches readlist owned by current user`() = runTest {
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
-        server.enqueue(readListPage(
-            """{"id":"RL_MINE","name":"To Read","bookIds":["B1"],"ownerId":"USER_ME"}"""
-        ))
-        server.enqueue(bookPage(
-            """{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"One","authors":[]}}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_MINE","name":"To Read","bookIds":["B1"],"ownerId":"USER_ME"}"""
+            )
+        )
+        server.enqueue(
+            bookPage(
+                """{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"One","authors":[]}}"""
+            )
+        )
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
@@ -131,13 +143,17 @@ class KomgaPlaylistsCapabilityTest {
     // ToReadRepositoryImpl handles it gracefully via its local-store fallback.
     @Test fun `findPlaylist accepts null-ownerId readlist as pre-upgrade fallback when user identity is known`() = runTest {
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
-        server.enqueue(readListPage(
-            """{"id":"RL_OLD","name":"To Read","bookIds":["B1"]}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_OLD","name":"To Read","bookIds":["B1"]}"""
+            )
+        )
         // 3rd call: fetchReadListBookIdsInLibrary
-        server.enqueue(bookPage(
-            """{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Old book","authors":[]}}"""
-        ))
+        server.enqueue(
+            bookPage(
+                """{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Old book","authors":[]}}"""
+            )
+        )
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
@@ -150,13 +166,17 @@ class KomgaPlaylistsCapabilityTest {
     @Test fun `findPlaylist prefers exact-ownership match over null-ownerId readlist`() = runTest {
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
         // List contains both a null-ownerId relic and an exact-ownership match.
-        server.enqueue(readListPage(
-            """{"id":"RL_OLD","name":"To Read","bookIds":["B_OLD"]}""",
-            """{"id":"RL_MINE","name":"To Read","bookIds":["B_MINE"],"ownerId":"USER_ME"}""",
-        ))
-        server.enqueue(bookPage(
-            """{"id":"B_MINE","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Mine","authors":[]}}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_OLD","name":"To Read","bookIds":["B_OLD"]}""",
+                """{"id":"RL_MINE","name":"To Read","bookIds":["B_MINE"],"ownerId":"USER_ME"}""",
+            )
+        )
+        server.enqueue(
+            bookPage(
+                """{"id":"B_MINE","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Mine","authors":[]}}"""
+            )
+        )
 
         val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
 
@@ -169,12 +189,16 @@ class KomgaPlaylistsCapabilityTest {
     // one owned by the current user rather than returning the foreign id.
     @Test fun `createPlaylist ignores foreign-owned readlist and POSTs a new one`() = runTest {
         server.enqueue(MockResponse().setBody("""{"id":"USER_ME"}"""))
-        server.enqueue(readListPage(
-            """{"id":"RL_STRANGER","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_OTHER"}"""
-        ))
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL_MINE","name":"To Read","bookIds":["B_NEW"],"ownerId":"USER_ME"}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_STRANGER","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_OTHER"}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL_MINE","name":"To Read","bookIds":["B_NEW"],"ownerId":"USER_ME"}"""
+            )
+        )
 
         val created = catalog.createPlaylist(rootId = "L1", name = "To Read", initialItemId = "B_NEW")
 
@@ -215,9 +239,11 @@ class KomgaPlaylistsCapabilityTest {
     @Test fun `createPlaylist with initialItemId POSTs seeded readlist when none matches`() = runTest {
         enqueueMe()
         server.enqueue(readListPage(/* empty page */))
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL_NEW","name":"To Read","bookIds":["B_SEED"],"ownerId":"USER_ME"}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL_NEW","name":"To Read","bookIds":["B_SEED"],"ownerId":"USER_ME"}"""
+            )
+        )
 
         val created = catalog.createPlaylist(rootId = "L1", name = "To Read", initialItemId = "B_SEED")
 
@@ -244,9 +270,11 @@ class KomgaPlaylistsCapabilityTest {
     // state.
     @Test fun `createPlaylist reuse-branch return reflects post-PATCH bookIds`() = runTest {
         enqueueMe()
-        server.enqueue(readListPage(
-            """{"id":"RL_EXISTING","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_ME"}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_EXISTING","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_ME"}"""
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         val created = catalog.createPlaylist(rootId = "L1", name = "To Read", initialItemId = "B_SEED")
@@ -262,9 +290,11 @@ class KomgaPlaylistsCapabilityTest {
     // the hidden books from the server-side list. Refuse the mutation instead so the user's tap
     // gets reverted (and logged via RIFFLE_TOREAD) rather than corrupting the shared readlist.
     @Test fun `addItemToPlaylist refuses when server-returned readlist is filtered`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":["B_VISIBLE"],"filtered":true}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":["B_VISIBLE"],"filtered":true}"""
+            )
+        )
 
         try {
             catalog.addItemToPlaylist(playlistId = "RL1", itemId = "B_NEW")
@@ -279,9 +309,11 @@ class KomgaPlaylistsCapabilityTest {
     }
 
     @Test fun `removeItemFromPlaylist refuses when server-returned readlist is filtered`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":["B_VISIBLE","B_TARGET"],"filtered":true}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":["B_VISIBLE","B_TARGET"],"filtered":true}"""
+            )
+        )
 
         try {
             catalog.removeItemFromPlaylist(playlistId = "RL1", itemId = "B_TARGET")
@@ -340,9 +372,11 @@ class KomgaPlaylistsCapabilityTest {
 
     @Test fun `createPlaylist appends initialItemId to existing owned readlist`() = runTest {
         enqueueMe()
-        server.enqueue(readListPage(
-            """{"id":"RL_EXISTING","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_ME"}"""
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL_EXISTING","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_ME"}"""
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         val created = catalog.createPlaylist(rootId = "L1", name = "To Read", initialItemId = "B_SEED")
@@ -360,9 +394,11 @@ class KomgaPlaylistsCapabilityTest {
     // the current bookIds and only PATCHed with the new one, every existing To-Read entry would
     // vanish on the next add. Assertion: PATCH body contains both the old and new ids in order.
     @Test fun `addItemToPlaylist PATCHes with appended bookIds preserving order`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":["B1","B2"]}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":["B1","B2"]}"""
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         catalog.addItemToPlaylist(playlistId = "RL1", itemId = "B3")
@@ -376,9 +412,11 @@ class KomgaPlaylistsCapabilityTest {
     }
 
     @Test fun `addItemToPlaylist is idempotent when book already present`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":["B1","B2","B3"]}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":["B1","B2","B3"]}"""
+            )
+        )
 
         catalog.addItemToPlaylist(playlistId = "RL1", itemId = "B2")
 
@@ -388,9 +426,11 @@ class KomgaPlaylistsCapabilityTest {
     }
 
     @Test fun `removeItemFromPlaylist PATCHes without removed book`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":["B1","B2","B3"]}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":["B1","B2","B3"]}"""
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         catalog.removeItemFromPlaylist(playlistId = "RL1", itemId = "B2")
@@ -407,9 +447,11 @@ class KomgaPlaylistsCapabilityTest {
     // caller-side snapshot already dropped playlistId. This test locks in the DELETE-on-empty
     // sweep that mirrors ABS's server-side behaviour.
     @Test fun `removeItemFromPlaylist DELETEs the readlist when the last book is removed`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":["B1"]}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":["B1"]}"""
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         catalog.removeItemFromPlaylist(playlistId = "RL1", itemId = "B1")
@@ -421,10 +463,12 @@ class KomgaPlaylistsCapabilityTest {
     }
 
     @Test fun `listPlaylists returns summary only with empty itemIds`() = runTest {
-        server.enqueue(readListPage(
-            """{"id":"RL1","name":"To Read","bookIds":["B1","B2"]}""",
-            """{"id":"RL2","name":"Favourites","bookIds":["B3"]}""",
-        ))
+        server.enqueue(
+            readListPage(
+                """{"id":"RL1","name":"To Read","bookIds":["B1","B2"]}""",
+                """{"id":"RL2","name":"Favourites","bookIds":["B3"]}""",
+            )
+        )
 
         val result = catalog.listPlaylists(rootId = "L1")
 
@@ -442,9 +486,11 @@ class KomgaPlaylistsCapabilityTest {
     // defaults would happily emit unexpected structures if the DTO were changed to have extra
     // optional fields with non-null defaults.
     @Test fun `patch body shape is exactly bookIds`() = runTest {
-        server.enqueue(MockResponse().setBody(
-            """{"id":"RL1","name":"To Read","bookIds":[]}"""
-        ))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"RL1","name":"To Read","bookIds":[]}"""
+            )
+        )
         server.enqueue(MockResponse().setResponseCode(204))
 
         catalog.addItemToPlaylist(playlistId = "RL1", itemId = "B1")

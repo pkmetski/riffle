@@ -14,7 +14,6 @@ import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
 import com.riffle.core.domain.CommitSourceResult

@@ -3,7 +3,6 @@ package com.riffle.core.data
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
 import kotlinx.coroutines.flow.Flow
