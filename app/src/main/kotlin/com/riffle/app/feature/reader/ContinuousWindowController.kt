@@ -918,7 +918,9 @@ internal class ContinuousWindowController(
                         // reverting each frame back to `pre` until LANDING_HOLD_MS elapses.
                         landingHoldTargetY = -1
                         landingHoldUntilUptimeMs = 0L
-                        val wvSmooth = webViews.getOrNull(i)
+                        // Re-resolve after scrollTo: a synchronous forward shift in
+                        // handleScrollChange may have changed the index of the target WebView.
+                        val wvSmooth = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
                         if (wvSmooth != null) {
                             // Same paint gate as the non-smooth path: the pre-scroll above slid
                             // the target's rendering window under the viewport, so make the
@@ -962,10 +964,12 @@ internal class ContinuousWindowController(
                         }
                     } else {
                         port.scrollTo(y)
+                        // Re-resolve after scrollTo: a synchronous forward shift in
+                        // handleScrollChange may have changed the index of the target WebView.
+                        val wv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                         if (isFirstLand) {
-                            val wv = webViews.getOrNull(i)
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
                                 var spinnerDismissed = false
