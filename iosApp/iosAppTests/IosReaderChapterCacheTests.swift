@@ -81,9 +81,9 @@ final class IosReaderChapterCacheTests: XCTestCase {
     }
 
     func testFingerprintIsNonEmptyHexString() {
-        let fp = iosReaderPrefsFingerprint(makePrefs())
-        XCTAssertFalse(fp.isEmpty)
-        XCTAssertTrue(fp.allSatisfy { $0.isHexDigit }, "Expected hex string, got: \(fp)")
+        let fingerprint = iosReaderPrefsFingerprint(makePrefs())
+        XCTAssertFalse(fingerprint.isEmpty)
+        XCTAssertTrue(fingerprint.allSatisfy { $0.isHexDigit }, "Expected hex string, got: \(fingerprint)")
     }
 
     // MARK: - Helpers

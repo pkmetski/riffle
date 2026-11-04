@@ -41,7 +41,10 @@ class IosStorytellerSyncDelegateTest {
             override fun observeAll(): Flow<List<Source>> = throw UnsupportedOperationException()
             override suspend fun getActive(): Source? = null
             override suspend fun getById(sourceId: String): Source? = null
-            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>): com.riffle.core.domain.CommitSourceResult = throw UnsupportedOperationException()
+            override suspend fun commit(
+                pending: com.riffle.core.domain.PendingSource,
+                hiddenLibraryIds: Set<String>,
+            ): com.riffle.core.domain.CommitSourceResult = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) {}
             override suspend fun remove(sourceId: String) {}
             override suspend fun getSourceVersion(sourceId: String): String? = null

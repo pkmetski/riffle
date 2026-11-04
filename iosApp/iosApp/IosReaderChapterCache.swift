@@ -19,8 +19,8 @@ final class IosReaderChapterCache {
     // MARK: - Save
 
     func save(itemId: String, chapterHref: String, prefsFingerprint: String, xhtmlData: Data, heightPx: Int) {
-        let fm = FileManager.default
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let meta = IosChapterCacheMeta(
             itemId: itemId,
@@ -38,8 +38,8 @@ final class IosReaderChapterCache {
         do {
             try metaData.write(to: metaTmp, options: .atomic)
             try xhtmlData.write(to: bodyTmp, options: .atomic)
-            _ = try? fm.replaceItemAt(metaFinal, withItemAt: metaTmp)
-            _ = try? fm.replaceItemAt(bodyFinal, withItemAt: bodyTmp)
+            _ = try? fileManager.replaceItemAt(metaFinal, withItemAt: metaTmp)
+            _ = try? fileManager.replaceItemAt(bodyFinal, withItemAt: bodyTmp)
         } catch {
             // Non-fatal: cold reopen will simply show the normal loading path.
         }
@@ -85,7 +85,11 @@ private struct IosChapterCacheMeta: Codable {
 /// Stable djb2-style hash of the formatting prefs that affect XHTML output.
 /// Used as a cache key alongside itemId + chapterHref to detect pref changes.
 func iosReaderPrefsFingerprint(_ prefs: IosReaderPreferences) -> String {
-    let raw = "\(prefs.fontSizePercent)|\(prefs.theme)|\(prefs.fontFamilyCss)|\(prefs.lineHeightMultiplier)|\(prefs.pageMargins)|\(prefs.justifyText)|\(prefs.textColorArgb)|\(prefs.publisherStyles)|\(prefs.columnCount)"
+    let raw = [
+        "\(prefs.fontSizePercent)", prefs.theme, prefs.fontFamilyCss,
+        "\(prefs.lineHeightMultiplier)", "\(prefs.pageMargins)", "\(prefs.justifyText)",
+        "\(prefs.textColorArgb)", "\(prefs.publisherStyles)", "\(prefs.columnCount)"
+    ].joined(separator: "|")
     var hash: UInt32 = 5381
     for byte in raw.utf8 {
         hash = hash &* 31 &+ UInt32(byte)
