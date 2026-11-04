@@ -92,6 +92,21 @@ open class ReadaloudMatchingService(
 
             for ((absSourceId, serverCandidates) in candidatesByAbsServer) {
                 if (absSourceId in userConfirmedAbsServers) continue
+                // If a confirmed auto-link for this (book, server) pair already exists, skip the
+                // O(candidates) match computation entirely — there's nothing to update and the
+                // heap pressure from normaliseTokens/joinToString on large libraries causes OOM
+                // when the reader has WebViews loaded.
+                val existingAutoLink = existingLinks.find {
+                    !it.userConfirmed &&
+                        it.absSourceId == absSourceId &&
+                        it.storytellerSourceId == book.sourceId &&
+                        it.storytellerBookId == book.itemId &&
+                        it.state == ReadaloudLinkEntity.STATE_CONFIRMED
+                }
+                if (existingAutoLink != null) {
+                    freshAutoSlots += existingAutoLink.absSourceId to existingAutoLink.absLibraryItemId
+                    continue
+                }
                 when (val outcome = ReadaloudMatcher.match(book.toStorytellerBook(), serverCandidates)) {
                     is MatchOutcome.Confirmed -> outcome.links.forEach { match ->
                         val slot = match.absServerUuid to match.absLibraryItemId
@@ -102,6 +117,19 @@ open class ReadaloudMatchingService(
                             if (existing.storytellerSourceId == book.sourceId && existing.storytellerBookId == book.itemId) {
                                 freshAutoSlots += slot
                             }
+                            return@forEach
+                        }
+                        // Skip the upsert when the row already reflects the correct match — avoids
+                        // unnecessary DB writes that would cascade through the observeAll Flow on
+                        // every startup reconcile (each write invalidates the table, triggering a
+                        // full re-query of all links even when nothing changed).
+                        if (existing != null &&
+                            existing.storytellerSourceId == book.sourceId &&
+                            existing.storytellerBookId == book.itemId &&
+                            existing.state == ReadaloudLinkEntity.STATE_CONFIRMED &&
+                            !existing.userConfirmed
+                        ) {
+                            freshAutoSlots += slot
                             return@forEach
                         }
                         // Either source may be concurrently deleted (race with source removal
