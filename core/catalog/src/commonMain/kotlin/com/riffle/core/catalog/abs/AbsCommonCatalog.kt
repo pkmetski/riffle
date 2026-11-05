@@ -3,34 +3,55 @@ package com.riffle.core.catalog.abs
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogAudioFingerprint
-import com.riffle.core.catalog.CatalogPlaylist
-import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogAudiobookChapter
 import com.riffle.core.catalog.CatalogAudiobookStream
+import com.riffle.core.catalog.CatalogBookmark
+import com.riffle.core.catalog.CatalogCollection
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.CatalogSeries
+import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.CatalogSessionHandle
+import com.riffle.core.catalog.CatalogStats
 import com.riffle.core.catalog.CfiDialect
+import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.ReadaloudCapability
+import com.riffle.core.catalog.ReadingSessionsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.StatsCapability
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.common.Clock
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsAudioUrl
+import com.riffle.core.network.AbsBookmarkApi
+import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
+import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkPlaylist
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.withHttpChannelStream
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpHeaders
@@ -64,7 +85,23 @@ class AbsCommonCatalog(
     private val serverInfoApi: AbsServerInfoApi,
     private val clock: Clock,
     private val httpClient: HttpClient,
-) : Catalog, ProgressPeerCapability, AudiobookProgressPeerCapability, AudiobookMediaCapability, DownloadsCapability, PlaylistsCapability {
+    private val playbackApi: AbsPlaybackApi,
+    private val bookmarkApi: AbsBookmarkApi,
+) : Catalog,
+    ProgressPeerCapability,
+    AudiobookProgressPeerCapability,
+    AudiobookMediaCapability,
+    DownloadsCapability,
+    PlaylistsCapability,
+    SeriesCapability,
+    CollectionsCapability,
+    ReadingSessionsCapability,
+    StatsCapability,
+    BookmarksCapability,
+    ReadCapability,
+    OfflineBrowseCapability,
+    ReadaloudCapability,
+    ToReadListCapability {
 
     override val sourceType: SourceType = SourceType.ABS
 
@@ -305,6 +342,125 @@ class AbsCommonCatalog(
 
     // endregion
 
+    // region SeriesCapability
+
+    override suspend fun listSeries(rootId: String): List<CatalogSeries> =
+        libraryApi.getSeries(config.baseUrl, rootId, config.token, config.insecureAllowed)
+            .unwrap()
+            .map { it.toCatalogSeries() }
+
+    override suspend fun listItemsInSeries(rootId: String, seriesId: String): List<CatalogItem> {
+        val series = libraryApi.getSeries(config.baseUrl, rootId, config.token, config.insecureAllowed).unwrap()
+        val match = series.firstOrNull { it.id == seriesId } ?: return emptyList()
+        return match.items.map { book ->
+            CatalogItem(
+                id = book.id,
+                rootId = book.libraryId.ifEmpty { rootId },
+                title = book.title,
+                author = book.author,
+                coverUrl = absItemCoverUrl(book.id, book.updatedAt),
+                ebookFormat = book.ebookFormat.toCatalogFormat(hasAudio = book.hasAudio),
+                hasAudio = book.hasAudio,
+                audioDurationSec = book.audioDurationSec,
+                ebookFileIno = book.ebookFileIno,
+                description = book.description,
+                seriesName = book.seriesName,
+                seriesSequence = book.sequence,
+                publishedYear = book.publishedYear,
+                genres = book.genres,
+                publisher = book.publisher,
+                readingProgress = book.readingProgress,
+                updatedAt = book.updatedAt,
+            )
+        }
+    }
+
+    // endregion
+
+    // region CollectionsCapability
+
+    override suspend fun listCollections(rootId: String): List<CatalogCollection> =
+        libraryApi.getCollections(config.baseUrl, rootId, config.token, config.insecureAllowed)
+            .unwrap()
+            .map { it.toCatalogCollection() }
+
+    override suspend fun createCollection(rootId: String, name: String): CatalogCollection {
+        val created = libraryApi.createCollection(config.baseUrl, rootId, name, initialBookId = null, config.token, config.insecureAllowed)
+            .unwrap()
+            ?: throw CatalogException.Unknown(IllegalStateException("ABS returned null for createCollection"))
+        return created.toCatalogCollection()
+    }
+
+    override suspend fun addItemToCollection(collectionId: String, itemId: String) {
+        libraryApi.addBookToCollection(config.baseUrl, collectionId, itemId, config.token, config.insecureAllowed).unwrap()
+    }
+
+    override suspend fun removeItemFromCollection(collectionId: String, itemId: String) {
+        libraryApi.removeBookFromCollection(config.baseUrl, collectionId, itemId, config.token, config.insecureAllowed).unwrap()
+    }
+
+    // endregion
+
+    // region ReadingSessionsCapability
+
+    override suspend fun openSession(itemId: String, deviceLabel: String): CatalogSessionHandle {
+        val session = playbackApi.openPlaybackSession(config.baseUrl, itemId, config.deviceId, config.token, config.insecureAllowed).unwrap()
+        val sessionId = session.sessionId
+            ?: throw CatalogException.Unknown(IllegalStateException("ABS returned null sessionId for item $itemId"))
+        return CatalogSessionHandle(
+            sessionId = sessionId,
+            itemId = itemId,
+            startedAtEpochMs = clock.nowMs(),
+        )
+    }
+
+    override suspend fun syncSession(handle: CatalogSessionHandle, currentTimeSec: Double, timeListenedSec: Double) {
+        playbackApi.syncPlaybackSession(config.baseUrl, handle.sessionId, currentTimeSec, timeListenedSec, config.token, config.insecureAllowed).unwrap()
+    }
+
+    override suspend fun closeSession(handle: CatalogSessionHandle, currentTimeSec: Double, timeListenedSec: Double) {
+        playbackApi.closePlaybackSession(config.baseUrl, handle.sessionId, currentTimeSec, timeListenedSec, config.token, config.insecureAllowed).unwrap()
+    }
+
+    // endregion
+
+    // region StatsCapability
+
+    override suspend fun getStats(): CatalogStats {
+        val totalTime = serverInfoApi.getListeningStats(config.baseUrl, config.token, config.insecureAllowed).unwrap().totalTimeSec
+        val progressRecords = libraryApi.getUserProgress(config.baseUrl, config.token, config.insecureAllowed).unwrap().values
+        return CatalogStats(
+            totalSecondsListened = totalTime,
+            totalItemsInProgress = progressRecords.count { it.finishedAt == null },
+            totalItemsFinished = progressRecords.count { it.finishedAt != null },
+        )
+    }
+
+    // endregion
+
+    // region BookmarksCapability
+
+    override suspend fun listAllBookmarks(): List<CatalogBookmark> =
+        bookmarkApi.listBookmarks(config.baseUrl, config.token, config.insecureAllowed)
+            .unwrap()
+            .map { it.toCatalogBookmark() }
+
+    override suspend fun createBookmark(itemId: String, timeSec: Int, title: String): CatalogBookmark =
+        bookmarkApi.createBookmark(config.baseUrl, itemId, timeSec, title, config.token, config.insecureAllowed)
+            .unwrap()
+            .toCatalogBookmark()
+
+    override suspend fun deleteBookmark(itemId: String, timeSec: Int) {
+        bookmarkApi.deleteBookmark(config.baseUrl, itemId, timeSec, config.token, config.insecureAllowed).unwrap()
+    }
+
+    override suspend fun renameBookmark(itemId: String, timeSec: Int, newTitle: String): CatalogBookmark =
+        bookmarkApi.updateBookmark(config.baseUrl, itemId, timeSec, newTitle, config.token, config.insecureAllowed)
+            .unwrap()
+            .toCatalogBookmark()
+
+    // endregion
+
     // region PlaylistsCapability
 
     override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> =
@@ -331,6 +487,33 @@ class AbsCommonCatalog(
     }
 
     // endregion
+
+    private fun absItemCoverUrl(itemId: String, updatedAt: Long?): String =
+        AbsCoverUrl.of(config.baseUrl, itemId, updatedAt)
+
+    private fun NetworkSeries.toCatalogSeries(): CatalogSeries = CatalogSeries(
+        id = id,
+        rootId = libraryId,
+        name = name,
+        coverUrl = items.firstOrNull()?.let { absItemCoverUrl(it.id, it.updatedAt) },
+        bookCount = bookCount,
+        items = items.map { CatalogSeriesEntry(itemId = it.id, sequence = it.sequence) },
+    )
+
+    private fun NetworkCollection.toCatalogCollection(): CatalogCollection = CatalogCollection(
+        id = id,
+        rootId = libraryId,
+        name = name,
+        bookCount = bookCount,
+        itemIds = items.map { it.id },
+    )
+
+    private fun NetworkAbsBookmark.toCatalogBookmark(): CatalogBookmark = CatalogBookmark(
+        itemId = libraryItemId,
+        timeSec = timeSec,
+        title = title,
+        createdAt = createdAt,
+    )
 
     internal companion object
 }

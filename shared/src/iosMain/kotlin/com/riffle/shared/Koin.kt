@@ -1152,6 +1152,8 @@ private fun iosLibraryModule(
                 libraryApi = get(),
                 sessionApi = get(),
                 serverInfoApi = get(),
+                playbackApi = get(),
+                bookmarkApi = get(),
                 tokenStorage = get(),
                 deviceIdStore = get(),
                 clock = get(),
