@@ -123,12 +123,11 @@ class ReaderSessionLifecycle constructor(
         // Cancellation note: a plain runCatching around a suspending call swallows
         // CancellationException — re-throw it explicitly inside the puller catch block.
         return kotlinx.coroutines.coroutineScope {
-            val epubWorkDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
-                when (val result = epubRepository.openEpub(item)) {
-                    is EpubOpenResult.Success -> result to openPublication(result.epubFile)
-                    is EpubOpenResult.NetworkError -> result to null
-                    EpubOpenResult.Offline -> result to null
-                }
+            // Run the EPUB file I/O concurrently with the progress puller. openPublication is kept
+            // out of the async(IO) block so it runs on the caller's context (Dispatchers.Main) after
+            // await() — Readium's publicationOpener.open() must not be called from an IO thread.
+            val epubResultDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
+                epubRepository.openEpub(item)
             }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 kotlinx.coroutines.withTimeoutOrNull(1_500L) {
@@ -143,7 +142,7 @@ class ReaderSessionLifecycle constructor(
                     }
                 }
             }
-            val (epubResult, pub) = epubWorkDeferred.await()
+            val epubResult = epubResultDeferred.await()
             when {
                 epubResult is EpubOpenResult.NetworkError -> OpenOutcome.Error(
                     // Use `toString()` as the fallback: `Throwable.message` is null for exceptions like
@@ -154,15 +153,20 @@ class ReaderSessionLifecycle constructor(
                     "Network error: ${epubResult.cause.message ?: epubResult.cause.toString()}",
                 )
                 epubResult is EpubOpenResult.Offline -> OpenOutcome.Error("Book not available offline")
-                pub == null -> OpenOutcome.Error("Failed to open EPUB")
                 else -> {
-                    epubFile = (epubResult as EpubOpenResult.Success).epubFile
-                    // Re-read position after puller completes — epubResult.lastPosition was captured
-                    // concurrently with the puller and may be stale (the puller's DB write wins).
-                    val lastPosition = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        readingPositionStore.load(item.sourceId, item.id)
+                    epubResult as EpubOpenResult.Success
+                    val pub = openPublication(epubResult.epubFile)
+                    if (pub == null) {
+                        OpenOutcome.Error("Failed to open EPUB")
+                    } else {
+                        epubFile = epubResult.epubFile
+                        // Re-read position after puller completes — position captured concurrently
+                        // with the puller may be stale (the puller's DB write wins).
+                        val lastPosition = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            readingPositionStore.load(item.sourceId, item.id)
+                        }
+                        resolveReadyWithPub(pub, lastPosition, item.title, params)
                     }
-                    resolveReadyWithPub(pub, lastPosition, item.title, params)
                 }
             }
         }

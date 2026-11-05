@@ -367,6 +367,14 @@ internal class ContinuousWindowController(
         firstLoadComplete = false
         onFirstLoadRestart()
         firstRevealGatedOnPaint = false
+        // Mirror the cross-window navigateTo teardown so stale WebViews from the initial open do
+        // not pollute webViewIndexFor lookups in the next window's postLandAt closure.
+        webViews.forEach { it.destroy() }
+        webViews.clear()
+        measuredHeights.clear()
+        container.removeAllViews()
+        recycledViews.forEach { it.destroy() }
+        recycledViews.clear()
         openWindowAt(href, progression, smoothTail = false)
     }
 
