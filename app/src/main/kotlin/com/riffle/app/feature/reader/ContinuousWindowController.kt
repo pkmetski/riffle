@@ -939,21 +939,17 @@ internal class ContinuousWindowController(
                         if (wvSmooth != null) {
                             // The pre-scroll above slid the target's rendering window under the
                             // viewport, so Chromium is rasterising exactly the rows about to be
-                            // shown. Make the container visible and reveal (lift the nav cover)
-                            // immediately so the ViewModel's server-resume can't re-fire a
-                            // navigateTo during the paint wait — keeping firstLoadComplete=false
-                            // for up to PAINTED_FALLBACK_MS lets a stale server position override
-                            // the cross-chapter jump before the tail animation even starts.
+                            // shown. Make the container visible now; reveal (lift the nav cover)
+                            // once Chromium has drawn those rows — never before, or the tween
+                            // starts on white tiles.
                             syncChapterWindows()
                             container.visibility = android.view.View.VISIBLE
-                            notifyFirstLoadCompleteOnce()
-                            // Start the tail only once Chromium has drawn those rows — never
-                            // before, or the tween starts on white tiles.
                             val smoothGen = windowGeneration
-                            var smoothScrolled = false
+                            var smoothRevealed = false
                             fun revealSmooth() {
-                                if (!smoothScrolled && smoothGen == windowGeneration) {
-                                    smoothScrolled = true
+                                if (!smoothRevealed && smoothGen == windowGeneration) {
+                                    smoothRevealed = true
+                                    notifyFirstLoadCompleteOnce()
                                     // Skip the stale anchor-fallback scroll if scrollToFocusAnnotation
                                     // has already landed on the pixel-accurate annotation offset.
                                     if (!smoothTailRevealSuppressed) {
