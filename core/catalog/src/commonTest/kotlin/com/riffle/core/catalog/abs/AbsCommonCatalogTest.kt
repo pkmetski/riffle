@@ -2,11 +2,20 @@ package com.riffle.core.catalog.abs
 
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.CfiDialect
+import com.riffle.core.catalog.CollectionsCapability
 import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.ReadaloudCapability
+import com.riffle.core.catalog.ReadingSessionsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.StatsCapability
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.TokenStorage
@@ -14,16 +23,25 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
+import com.riffle.core.network.NetworkAudioChapter
+import com.riffle.core.network.NetworkAudioTrack
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryFolder
 import com.riffle.core.network.NetworkLibraryItem
+import com.riffle.core.network.NetworkListeningStats
+import com.riffle.core.network.NetworkPlaybackSession
 import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.NetworkSeries
+import com.riffle.core.network.NetworkSeriesItem
 import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkUserMediaProgress
 import io.ktor.client.HttpClient
@@ -91,7 +109,7 @@ class AbsCommonCatalogTest {
         ): NetworkResult<NetworkServerProgress> = NetworkResult.Success(progress)
     }
 
-    private class FakeLibraryApi(
+    private open class FakeLibraryApi(
         private val libraries: List<NetworkLibrary> = emptyList(),
         private val items: List<NetworkLibraryItem> = emptyList(),
         private val userProgress: Map<String, NetworkUserMediaProgress> = emptyMap(),
@@ -122,16 +140,94 @@ class AbsCommonCatalogTest {
             NetworkResult.Success(userProgress)
 
         override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-            NetworkResult.Success(emptyList<com.riffle.core.network.NetworkSeries>())
+            NetworkResult.Success(emptyList<NetworkSeries>())
 
         override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
             NetworkResult.Success(emptyList<com.riffle.core.network.NetworkCollection>())
     }
 
-    private class FakeServerInfoApi(private val version: String?) : AbsServerInfoApi {
+    private class FakeServerInfoApi(
+        private val version: String?,
+        private val listeningStats: NetworkListeningStats = NetworkListeningStats(totalTimeSec = 0.0),
+    ) : AbsServerInfoApi {
         override suspend fun getServerInfo(baseUrl: String, token: String, insecureAllowed: Boolean): String? = version
-
         override suspend fun getCurrentUserId(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
+        override suspend fun getListeningStats(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkListeningStats> =
+            NetworkResult.Success(listeningStats)
+    }
+
+    private class RecordingPlaybackApi : AbsPlaybackApi {
+        val openedSessions = mutableListOf<String>()
+        val syncedSessions = mutableListOf<Triple<String, Double, Double>>()
+        val closedSessions = mutableListOf<Triple<String, Double, Double>>()
+
+        override suspend fun openPlaybackSession(
+            baseUrl: String,
+            libraryItemId: String,
+            deviceId: String,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<NetworkPlaybackSession> {
+            openedSessions += libraryItemId
+            return NetworkResult.Success(
+                NetworkPlaybackSession(
+                    sessionId = "sess-${libraryItemId}",
+                    tracks = listOf(NetworkAudioTrack(index = 0, startOffsetSec = 0.0, durationSec = 100.0, contentUrl = "/track", mimeType = "audio/mp3")),
+                    chapters = emptyList(),
+                    currentTimeSec = 0.0,
+                    durationSec = 100.0,
+                ),
+            )
+        }
+
+        override suspend fun syncPlaybackSession(
+            baseUrl: String,
+            sessionId: String,
+            currentTimeSec: Double,
+            timeListenedSec: Double,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<Unit> {
+            syncedSessions += Triple(sessionId, currentTimeSec, timeListenedSec)
+            return NetworkResult.Success(Unit)
+        }
+
+        override suspend fun closePlaybackSession(
+            baseUrl: String,
+            sessionId: String,
+            currentTimeSec: Double,
+            timeListenedSec: Double,
+            token: String,
+            insecureAllowed: Boolean,
+        ): NetworkResult<Unit> {
+            closedSessions += Triple(sessionId, currentTimeSec, timeListenedSec)
+            return NetworkResult.Success(Unit)
+        }
+    }
+
+    private class RecordingBookmarkApi : AbsBookmarkApi {
+        val created = mutableListOf<Triple<String, Int, String>>()
+        val deleted = mutableListOf<Pair<String, Int>>()
+        val renamed = mutableListOf<Triple<String, Int, String>>()
+        var bookmarks: List<NetworkAbsBookmark> = emptyList()
+
+        override suspend fun createBookmark(baseUrl: String, itemId: String, timeSec: Int, title: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkAbsBookmark> {
+            created += Triple(itemId, timeSec, title)
+            return NetworkResult.Success(NetworkAbsBookmark(libraryItemId = itemId, title = title, timeSec = timeSec, createdAt = 1L))
+        }
+
+        override suspend fun updateBookmark(baseUrl: String, itemId: String, timeSec: Int, title: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkAbsBookmark> {
+            renamed += Triple(itemId, timeSec, title)
+            return NetworkResult.Success(NetworkAbsBookmark(libraryItemId = itemId, title = title, timeSec = timeSec, createdAt = 1L))
+        }
+
+        override suspend fun deleteBookmark(baseUrl: String, itemId: String, timeSec: Int, token: String, insecureAllowed: Boolean): NetworkResult<NetworkAbsBookmark> {
+            deleted += Pair(itemId, timeSec)
+            return NetworkResult.Success(NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 1L))
+        }
+
+        override suspend fun listBookmarks(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkAbsBookmark>> =
+            NetworkResult.Success(bookmarks)
     }
 
     private class FixedClock(private val value: Long) : Clock {
@@ -152,11 +248,15 @@ class AbsCommonCatalogTest {
         sessionApi: AbsSessionApi = RecordingSessionApi(),
         libraryApi: AbsLibraryApi = FakeLibraryApi(),
         serverInfoApi: AbsServerInfoApi = FakeServerInfoApi("2.17.0"),
+        playbackApi: AbsPlaybackApi = RecordingPlaybackApi(),
+        bookmarkApi: AbsBookmarkApi = RecordingBookmarkApi(),
     ) = AbsCommonCatalog(
         config = config,
         libraryApi = libraryApi,
         sessionApi = sessionApi,
         serverInfoApi = serverInfoApi,
+        playbackApi = playbackApi,
+        bookmarkApi = bookmarkApi,
         clock = FixedClock(5_000L),
         httpClient = HttpClient(MockEngine { respond("") }),
     )
@@ -462,6 +562,8 @@ class AbsCommonCatalogTest {
         libraryApi = FakeLibraryApi(),
         sessionApi = RecordingSessionApi(),
         serverInfoApi = FakeServerInfoApi("2.17.0"),
+        playbackApi = RecordingPlaybackApi(),
+        bookmarkApi = RecordingBookmarkApi(),
         tokenStorage = tokenStorage,
         deviceIdStore = object : DeviceIdStore {
             override suspend fun getOrCreate() = "dev-1"
@@ -572,5 +674,141 @@ class AbsCommonCatalogTest {
         c.removeItemFromPlaylist("pl-1", "item-5")
         assertEquals(listOf(Pair("pl-1", "item-5")), recording.addedItems)
         assertEquals(listOf(Pair("pl-1", "item-5")), recording.removedItems)
+    }
+
+    @Test
+    fun implementsAllMigratedMarkerAndFullCapabilities() {
+        val c = catalog()
+        assertTrue(c is SeriesCapability)
+        assertTrue(c is CollectionsCapability)
+        assertTrue(c is ReadingSessionsCapability)
+        assertTrue(c is StatsCapability)
+        assertTrue(c is BookmarksCapability)
+        assertTrue(c is ReadCapability)
+        assertTrue(c is OfflineBrowseCapability)
+        assertTrue(c is ReadaloudCapability)
+        assertTrue(c is ToReadListCapability)
+    }
+
+    @Test
+    fun listSeriesMapsNetworkSeriesToCatalogSeries() = runTest {
+        val seriesItem = NetworkSeriesItem(
+            id = "book-1",
+            libraryId = "lib-1",
+            title = "Book One",
+            author = "Author",
+            sequence = "1",
+            readingProgress = null,
+            ebookFormat = com.riffle.core.models.EbookFormat.Epub,
+        )
+        val series = NetworkSeries(id = "s-1", libraryId = "lib-1", name = "My Series", items = listOf(seriesItem))
+        val fakeLibrary = object : FakeLibraryApi() {
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(listOf(series))
+        }
+        val result = (catalog(libraryApi = fakeLibrary) as SeriesCapability).listSeries("lib-1")
+        assertEquals(1, result.size)
+        assertEquals("s-1", result.single().id)
+        assertEquals("My Series", result.single().name)
+        assertEquals(1, result.single().bookCount)
+        assertEquals(listOf("book-1"), result.single().items.map { it.itemId })
+        assertEquals("1", result.single().items.single().sequence)
+    }
+
+    @Test
+    fun listItemsInSeriesReturnsEmptyWhenSeriesNotFound() = runTest {
+        val result = (catalog() as SeriesCapability).listItemsInSeries("lib-1", "no-such-series")
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun listCollectionsMapsNetworkCollectionsToCatalogCollections() = runTest {
+        val collection = com.riffle.core.network.NetworkCollection(
+            id = "col-1",
+            libraryId = "lib-1",
+            name = "Favourites",
+            items = listOf(item("book-a", "Book A")),
+        )
+        val fakeLibrary = object : FakeLibraryApi() {
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkResult.Success(listOf(collection))
+        }
+        val result = (catalog(libraryApi = fakeLibrary) as CollectionsCapability).listCollections("lib-1")
+        assertEquals(1, result.size)
+        assertEquals("col-1", result.single().id)
+        assertEquals("Favourites", result.single().name)
+        assertEquals(listOf("book-a"), result.single().itemIds)
+    }
+
+    @Test
+    fun openSessionCreatesASessionHandleWithCorrectIds() = runTest {
+        val recording = RecordingPlaybackApi()
+        val handle = (catalog(playbackApi = recording) as ReadingSessionsCapability).openSession("item-7", "iPhone")
+        assertEquals("item-7", handle.itemId)
+        assertEquals("sess-item-7", handle.sessionId)
+        assertEquals(5_000L, handle.startedAtEpochMs)
+        assertEquals(listOf("item-7"), recording.openedSessions)
+    }
+
+    @Test
+    fun syncAndCloseSessionForwardToPlaybackApi() = runTest {
+        val recording = RecordingPlaybackApi()
+        val c = catalog(playbackApi = recording) as ReadingSessionsCapability
+        val handle = c.openSession("item-8", "iPad")
+        c.syncSession(handle, currentTimeSec = 42.0, timeListenedSec = 5.0)
+        c.closeSession(handle, currentTimeSec = 50.0, timeListenedSec = 8.0)
+        assertEquals(listOf(Triple("sess-item-8", 42.0, 5.0)), recording.syncedSessions)
+        assertEquals(listOf(Triple("sess-item-8", 50.0, 8.0)), recording.closedSessions)
+    }
+
+    @Test
+    fun getStatsAggregatesListeningTimeAndProgressCounts() = runTest {
+        val fakeInfo = FakeServerInfoApi("2.17.0", NetworkListeningStats(totalTimeSec = 3600.0))
+        val fakeLibrary = FakeLibraryApi(
+            userProgress = mapOf(
+                "a" to NetworkUserMediaProgress(ebookProgress = 0.5f, lastUpdate = 1L),
+                "b" to NetworkUserMediaProgress(ebookProgress = 1f, lastUpdate = 2L, finishedAt = 10L),
+            ),
+        )
+        val stats = (catalog(libraryApi = fakeLibrary, serverInfoApi = fakeInfo) as StatsCapability).getStats()
+        assertEquals(3600.0, stats.totalSecondsListened)
+        assertEquals(1, stats.totalItemsInProgress)
+        assertEquals(1, stats.totalItemsFinished)
+    }
+
+    @Test
+    fun listAllBookmarksMapsNetworkBookmarksToCatalogBookmarks() = runTest {
+        val recording = RecordingBookmarkApi().apply {
+            bookmarks = listOf(
+                NetworkAbsBookmark(libraryItemId = "item-1", title = "Chapter 3", timeSec = 120, createdAt = 999L),
+            )
+        }
+        val result = (catalog(bookmarkApi = recording) as BookmarksCapability).listAllBookmarks()
+        assertEquals(1, result.size)
+        assertEquals("item-1", result.single().itemId)
+        assertEquals("Chapter 3", result.single().title)
+        assertEquals(120, result.single().timeSec)
+        assertEquals(999L, result.single().createdAt)
+    }
+
+    @Test
+    fun createAndDeleteBookmarkForwardToBookmarkApi() = runTest {
+        val recording = RecordingBookmarkApi()
+        val c = catalog(bookmarkApi = recording) as BookmarksCapability
+        val created = c.createBookmark("item-2", 60, "Start of Act 2")
+        assertEquals("item-2", created.itemId)
+        assertEquals(60, created.timeSec)
+        assertEquals(1, recording.created.size)
+        c.deleteBookmark("item-2", 60)
+        assertEquals(listOf(Pair("item-2", 60)), recording.deleted)
+    }
+
+    @Test
+    fun renameBookmarkForwardsToBookmarkApi() = runTest {
+        val recording = RecordingBookmarkApi()
+        val c = catalog(bookmarkApi = recording) as BookmarksCapability
+        val renamed = c.renameBookmark("item-3", 30, "New Title")
+        assertEquals("New Title", renamed.title)
+        assertEquals(listOf(Triple("item-3", 30, "New Title")), recording.renamed)
     }
 }

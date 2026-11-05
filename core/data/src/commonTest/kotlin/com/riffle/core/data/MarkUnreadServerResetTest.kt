@@ -15,11 +15,15 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
+import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
+import com.riffle.core.network.NetworkPlaybackSession
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkServerProgress
 import io.ktor.client.HttpClient
@@ -122,6 +126,22 @@ class MarkUnreadServerResetTest {
         override suspend fun getCurrentUserId(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
     }
 
+    private object NoopPlaybackApi : AbsPlaybackApi {
+        override suspend fun openPlaybackSession(baseUrl: String, libraryItemId: String, deviceId: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkPlaybackSession> =
+            NetworkResult.Success(NetworkPlaybackSession(sessionId = null, tracks = emptyList(), chapters = emptyList(), currentTimeSec = 0.0, durationSec = 0.0))
+    }
+
+    private object NoopBookmarkApi : AbsBookmarkApi {
+        override suspend fun createBookmark(baseUrl: String, itemId: String, timeSec: Int, title: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkAbsBookmark> =
+            NetworkResult.Success(NetworkAbsBookmark(libraryItemId = itemId, title = title, timeSec = timeSec, createdAt = 0L))
+        override suspend fun updateBookmark(baseUrl: String, itemId: String, timeSec: Int, title: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkAbsBookmark> =
+            NetworkResult.Success(NetworkAbsBookmark(libraryItemId = itemId, title = title, timeSec = timeSec, createdAt = 0L))
+        override suspend fun deleteBookmark(baseUrl: String, itemId: String, timeSec: Int, token: String, insecureAllowed: Boolean): NetworkResult<NetworkAbsBookmark> =
+            NetworkResult.Success(NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L))
+        override suspend fun listBookmarks(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkAbsBookmark>> =
+            NetworkResult.Success(emptyList())
+    }
+
     private object FakeTokenStorage : TokenStorage {
         override suspend fun saveToken(sourceId: String, token: String) {}
         override suspend fun getToken(sourceId: String): String = "tok"
@@ -149,6 +169,8 @@ class MarkUnreadServerResetTest {
                     libraryApi = NoopLibraryApi,
                     sessionApi = api,
                     serverInfoApi = NoopServerInfoApi,
+                    playbackApi = NoopPlaybackApi,
+                    bookmarkApi = NoopBookmarkApi,
                     tokenStorage = FakeTokenStorage,
                     deviceIdStore = FakeDeviceIdStore,
                     clock = object : Clock {

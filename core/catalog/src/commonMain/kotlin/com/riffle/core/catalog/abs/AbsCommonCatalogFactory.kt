@@ -7,7 +7,9 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import io.ktor.client.HttpClient
@@ -27,6 +29,8 @@ class AbsCommonCatalogFactory(
     private val libraryApi: AbsLibraryApi,
     private val sessionApi: AbsSessionApi,
     private val serverInfoApi: AbsServerInfoApi,
+    private val playbackApi: AbsPlaybackApi,
+    private val bookmarkApi: AbsBookmarkApi,
     private val tokenStorage: TokenStorage,
     private val deviceIdStore: DeviceIdStore,
     private val clock: Clock,
@@ -47,6 +51,8 @@ class AbsCommonCatalogFactory(
             libraryApi = libraryApi,
             sessionApi = sessionApi,
             serverInfoApi = serverInfoApi,
+            playbackApi = playbackApi,
+            bookmarkApi = bookmarkApi,
             clock = clock,
             httpClient = httpClient,
         )
