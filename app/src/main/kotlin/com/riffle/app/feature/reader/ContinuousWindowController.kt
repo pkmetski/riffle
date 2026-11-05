@@ -436,6 +436,13 @@ internal class ContinuousWindowController(
     private var windowBuiltAtMs = 0L
 
     /**
+     * Incremented on every [openWindowAt] call. Captured by paint-gate callbacks (dismissSpinner,
+     * revealSmooth) so a stale callback from a previous window that fires after a rebuild becomes
+     * a no-op — prevents premature firstLoadComplete notifications from old postDelayed closures.
+     */
+    private var windowGeneration = 0
+
+    /**
      * True while window slot 0 is a deferred, still-unmeasured behind-neighbour of the target.
      * Feeds the same backward scroll floor / shift hold as an unmeasured backward prepend
      * ([backwardPrependScrollFloorY], [maybeShift]): scrolling up into the blank placeholder would
@@ -830,6 +837,7 @@ internal class ContinuousWindowController(
     ) {
         pendingFallbackRunnable?.let { port.removeCallbacks(it) }
         pendingFallbackRunnable = null
+        windowGeneration++
         windowManager.reset()
         backwardNavigationIntent = false
         backwardShiftConsumedForTouchGesture = false
@@ -934,9 +942,10 @@ internal class ContinuousWindowController(
                             // container visible (still under the nav cover, which waits for
                             // isFirstLoadComplete) and start the tail once Chromium has drawn
                             // those rows — never before, or the tween starts on white.
+                            val smoothGen = windowGeneration
                             var smoothRevealed = false
                             fun revealSmooth() {
-                                if (!smoothRevealed) {
+                                if (!smoothRevealed && smoothGen == windowGeneration) {
                                     smoothRevealed = true
                                     notifyFirstLoadCompleteOnce()
                                     // Skip the stale anchor-fallback scroll if scrollToFocusAnnotation
@@ -979,9 +988,10 @@ internal class ContinuousWindowController(
                         if (isFirstLand) {
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
+                                val spinnerGen = windowGeneration
                                 var spinnerDismissed = false
                                 fun dismissSpinner() {
-                                    if (!spinnerDismissed) {
+                                    if (!spinnerDismissed && spinnerGen == windowGeneration) {
                                         spinnerDismissed = true
                                         notifyFirstLoadCompleteOnce()
                                     }
