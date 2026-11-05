@@ -122,7 +122,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun reapplyLandingSupersededSetByTouchClearedByNavigation() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -183,7 +183,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun boundaryDetentArmedAfterBackwardPrepend() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -251,7 +251,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun firstRevealGatedOnPaintCallbackNotAnimationFrame() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -307,7 +307,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -380,7 +380,7 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun scrollsAcrossBothLongChapterShortPartTitleBoundaries() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
             composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }

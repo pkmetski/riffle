@@ -117,7 +117,6 @@ class StubAbsServer(
           {"id":"$TEST_PDF_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PDF_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"$TEST_PDF_FILE_INO"}},"userMediaProgress":null},
           {"id":"$TEST_FOOTNOTE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_FOOTNOTE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FOOTNOTE_FILE_INO"}},"userMediaProgress":null},
           {"id":"$TEST_PADDING_ITEM_ID_1","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_1","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_1"}},"userMediaProgress":null},
-          {"id":"$TEST_PADDING_ITEM_ID_2","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_2","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_2"}},"userMediaProgress":null},
           {"id":"$TEST_CUSTOM_EPUB_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_CUSTOM_EPUB_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_CUSTOM_EPUB_FILE_INO"}},"userMediaProgress":null}
         ]}"""
     )
