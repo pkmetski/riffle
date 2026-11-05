@@ -44,6 +44,12 @@ class StubAbsServer(
         const val TEST_PADDING_ITEM_ID_2 = "item-test-6"
         const val TEST_PADDING_ITEM_TITLE_2 = "Test EPUB 6"
         const val TEST_PADDING_FILE_INO_2 = "ino-test-6"
+        // Dedicated item for tests that supply a custom epub via epubBytesProvider.
+        // Using a separate ID ensures the custom epub is never confused with the
+        // standard test.epub that other test classes cache on disk for TEST_STANDALONE_ITEM_ID.
+        const val TEST_CUSTOM_EPUB_ITEM_ID = "item-test-custom"
+        const val TEST_CUSTOM_EPUB_ITEM_TITLE = "Test Custom EPUB"
+        const val TEST_CUSTOM_EPUB_FILE_INO = "ino-test-custom"
     }
 
     private val _sessionSyncCount = java.util.concurrent.atomic.AtomicInteger(0)
@@ -84,6 +90,8 @@ class StubAbsServer(
             request.path == "/api/items/$TEST_PDF_ITEM_ID/ebook/$TEST_PDF_FILE_INO" -> pdfFileResponse()
             request.path == "/api/items/$TEST_FOOTNOTE_ITEM_ID" -> footnoteItemResponse()
             request.path == "/api/items/$TEST_FOOTNOTE_ITEM_ID/ebook/$TEST_FOOTNOTE_FILE_INO" -> footnoteFileResponse()
+            request.path == "/api/items/$TEST_CUSTOM_EPUB_ITEM_ID" -> customEpubItemResponse()
+            request.path == "/api/items/$TEST_CUSTOM_EPUB_ITEM_ID/ebook/$TEST_CUSTOM_EPUB_FILE_INO" -> epubFileResponse()
             request.path == "/api/me" && request.method == "GET" -> meResponse()
             request.path?.matches(Regex("/api/me/progress/[^/]+")) == true && request.method == "GET" -> progressGetResponse()
             request.path?.matches(Regex("/api/me/progress/[^/]+")) == true && request.method == "PATCH" -> progressSyncResponse(request)
@@ -109,7 +117,8 @@ class StubAbsServer(
           {"id":"$TEST_PDF_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PDF_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"$TEST_PDF_FILE_INO"}},"userMediaProgress":null},
           {"id":"$TEST_FOOTNOTE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_FOOTNOTE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FOOTNOTE_FILE_INO"}},"userMediaProgress":null},
           {"id":"$TEST_PADDING_ITEM_ID_1","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_1","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_1"}},"userMediaProgress":null},
-          {"id":"$TEST_PADDING_ITEM_ID_2","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_2","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_2"}},"userMediaProgress":null}
+          {"id":"$TEST_PADDING_ITEM_ID_2","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PADDING_ITEM_TITLE_2","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_PADDING_FILE_INO_2"}},"userMediaProgress":null},
+          {"id":"$TEST_CUSTOM_EPUB_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_CUSTOM_EPUB_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_CUSTOM_EPUB_FILE_INO"}},"userMediaProgress":null}
         ]}"""
     )
 
@@ -150,6 +159,11 @@ class StubAbsServer(
     private fun footnoteItemResponse() = json(
         200,
         """{"id":"$TEST_FOOTNOTE_ITEM_ID","media":{"ebookFile":{"ino":"$TEST_FOOTNOTE_FILE_INO"}}}"""
+    )
+
+    private fun customEpubItemResponse() = json(
+        200,
+        """{"id":"$TEST_CUSTOM_EPUB_ITEM_ID","media":{"ebookFile":{"ino":"$TEST_CUSTOM_EPUB_FILE_INO"}}}"""
     )
 
     private fun footnoteFileResponse(): MockResponse {
