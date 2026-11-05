@@ -367,6 +367,14 @@ internal class ContinuousWindowController(
         firstLoadComplete = false
         onFirstLoadRestart()
         firstRevealGatedOnPaint = false
+        // Mirror the cross-window navigateTo teardown so stale WebViews from the initial open do
+        // not pollute webViewIndexFor lookups in the next window's postLandAt closure.
+        webViews.forEach { it.destroy() }
+        webViews.clear()
+        measuredHeights.clear()
+        container.removeAllViews()
+        recycledViews.forEach { it.destroy() }
+        recycledViews.clear()
         openWindowAt(href, progression, smoothTail = false)
     }
 
@@ -943,7 +951,7 @@ internal class ContinuousWindowController(
                             // before, or the tween starts on white tiles.
                             val smoothGen = windowGeneration
                             var smoothScrolled = false
-                            fun startSmoothScroll() {
+                            fun revealSmooth() {
                                 if (!smoothScrolled && smoothGen == windowGeneration) {
                                     smoothScrolled = true
                                     // Skip the stale anchor-fallback scroll if scrollToFocusAnnotation
@@ -954,9 +962,9 @@ internal class ContinuousWindowController(
                                 }
                             }
                             port.postOnAnimation {
-                                wvSmooth.onCurrentContentPainted { startSmoothScroll() }
+                                wvSmooth.onCurrentContentPainted { revealSmooth() }
                             }
-                            container.postDelayed({ startSmoothScroll() }, PAINTED_FALLBACK_MS)
+                            container.postDelayed({ revealSmooth() }, PAINTED_FALLBACK_MS)
                         } else {
                             // wvSmooth == null (WebView not yet attached): reveal and start the
                             // tween on the SAME animation frame. Previously the reveal used
