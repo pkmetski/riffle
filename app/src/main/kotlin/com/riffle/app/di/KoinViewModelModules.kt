@@ -18,6 +18,7 @@ import com.riffle.feature.library.urlFormEncode
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
+import com.riffle.feature.library.LibraryTabVisibilityCache
 import com.riffle.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
@@ -25,6 +26,8 @@ import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.app.feature.reader.EpubReaderViewModel
+import com.riffle.app.feature.reader.PublicationWarmCache
+import com.riffle.app.feature.reader.ReaderChapterCache
 import com.riffle.app.feature.reader.ExtractEpubTocUseCase
 import com.riffle.app.feature.reader.AndroidPdfRepository
 import com.riffle.feature.reader.PdfReaderViewModel
@@ -149,6 +152,7 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 
 private val libraryViewModelModule = module {
+    single { LibraryTabVisibilityCache() }
     viewModel { params ->
         LibraryItemsViewModel(
             libraryId = params.get(),
@@ -169,6 +173,7 @@ private val libraryViewModelModule = module {
             audiobookBookmarkStore = get(),
             annotationsLibraryRepository = get(),
             dispatchers = get(),
+            tabVisibilityCache = get(),
         )
     }
     viewModel { params ->
@@ -635,8 +640,12 @@ private val readerViewModelModule = module {
             packDownloader = get(),
             downloadManager = get(),
             progressSweep = get(),
+            readerChapterCache = get(),
+            publicationWarmCache = get(),
         )
     }
+    single { ReaderChapterCache(androidApplication().cacheDir) }
+    single { PublicationWarmCache() }
     single {
         AndroidPdfRepository(
             libraryObserver = get(),

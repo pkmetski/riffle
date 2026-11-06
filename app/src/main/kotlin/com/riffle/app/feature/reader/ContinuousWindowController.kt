@@ -185,6 +185,20 @@ internal class ContinuousWindowController(
     /** Current formatting preferences for CSS injection. */
     private var formattingPrefs: FormattingPreferences = FormattingPreferences()
 
+    // Cold-open cache: set before initialize() so appendChapter can prime the WebView with
+    // cachedChapterBytes before loadUrl fires, avoiding a race with shouldInterceptRequest.
+    private var coldOpenHref: String? = null
+    private var coldOpenBytes: ByteArray? = null
+
+    fun setColdOpenEntry(href: String, bytes: ByteArray) {
+        coldOpenHref = href.substringBefore('#')
+        coldOpenBytes = bytes
+    }
+
+    // onDetachedFromWindow fires before AndroidView.onRelease, so bytes are snapshotted here in
+    // onDetach() and getServedHtmlBytesForHref falls back to this map after webViews is cleared.
+    private val savedChapterHtmlBytes = mutableMapOf<String, ByteArray>()
+
     /** Publication used by [ChapterWebView] to serve EPUB resources via shouldInterceptRequest. */
     private var publication: Publication? = null
 
@@ -353,6 +367,14 @@ internal class ContinuousWindowController(
         firstLoadComplete = false
         onFirstLoadRestart()
         firstRevealGatedOnPaint = false
+        // Mirror the cross-window navigateTo teardown so stale WebViews from the initial open do
+        // not pollute webViewIndexFor lookups in the next window's postLandAt closure.
+        webViews.forEach { it.destroy() }
+        webViews.clear()
+        measuredHeights.clear()
+        container.removeAllViews()
+        recycledViews.forEach { it.destroy() }
+        recycledViews.clear()
         openWindowAt(href, progression, smoothTail = false)
     }
 
@@ -412,6 +434,13 @@ internal class ContinuousWindowController(
 
     /** Uptime at the last [openWindowAt], for the reveal-latency log line. */
     private var windowBuiltAtMs = 0L
+
+    /**
+     * Incremented on every [openWindowAt] call. Captured by paint-gate callbacks (dismissSpinner,
+     * revealSmooth) so a stale callback from a previous window that fires after a rebuild becomes
+     * a no-op — prevents premature firstLoadComplete notifications from old postDelayed closures.
+     */
+    private var windowGeneration = 0
 
     /**
      * True while window slot 0 is a deferred, still-unmeasured behind-neighbour of the target.
@@ -808,6 +837,7 @@ internal class ContinuousWindowController(
     ) {
         pendingFallbackRunnable?.let { port.removeCallbacks(it) }
         pendingFallbackRunnable = null
+        windowGeneration++
         windowManager.reset()
         backwardNavigationIntent = false
         backwardShiftConsumedForTouchGesture = false
@@ -857,7 +887,6 @@ internal class ContinuousWindowController(
         smoothTailRevealSuppressed = focusAnnotationId != null
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
-        pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
         clearDeferredLoads()
         pendingInWindowNav = null
         windowBuiltAtMs = nowMs()
@@ -904,29 +933,30 @@ internal class ContinuousWindowController(
                         // reverting each frame back to `pre` until LANDING_HOLD_MS elapses.
                         landingHoldTargetY = -1
                         landingHoldUntilUptimeMs = 0L
-                        val wvSmooth = webViews.getOrNull(i)
+                        // Re-resolve after scrollTo: a synchronous forward shift in
+                        // handleScrollChange may have changed the index of the target WebView.
+                        val wvSmooth = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
                         if (wvSmooth != null) {
-                            // Same paint gate as the non-smooth path: the pre-scroll above slid
-                            // the target's rendering window under the viewport, so make the
-                            // container visible (still under the nav cover, which waits for
-                            // isFirstLoadComplete) and start the tail once Chromium has drawn
-                            // those rows — never before, or the tween starts on white.
+                            // The pre-scroll above slid the target's rendering window under the
+                            // viewport, so Chromium is rasterising exactly the rows about to be
+                            // shown. Make the container visible now; reveal (lift the nav cover)
+                            // once Chromium has drawn those rows — never before, or the tween
+                            // starts on white tiles.
+                            syncChapterWindows()
+                            container.visibility = android.view.View.VISIBLE
+                            val smoothGen = windowGeneration
                             var smoothRevealed = false
                             fun revealSmooth() {
-                                if (!smoothRevealed) {
+                                if (!smoothRevealed && smoothGen == windowGeneration) {
                                     smoothRevealed = true
                                     notifyFirstLoadCompleteOnce()
                                     // Skip the stale anchor-fallback scroll if scrollToFocusAnnotation
-                                    // has already landed on the pixel-accurate annotation offset. The
-                                    // flag is set when annotations were applied after DOM-ready but
-                                    // before this revealSmooth fired, making the pre-computed y wrong.
+                                    // has already landed on the pixel-accurate annotation offset.
                                     if (!smoothTailRevealSuppressed) {
                                         port.smoothScrollTo(y)
                                     }
                                 }
                             }
-                            syncChapterWindows()
-                            container.visibility = android.view.View.VISIBLE
                             port.postOnAnimation {
                                 wvSmooth.onCurrentContentPainted { revealSmooth() }
                             }
@@ -948,15 +978,18 @@ internal class ContinuousWindowController(
                         }
                     } else {
                         port.scrollTo(y)
+                        // Re-resolve after scrollTo: a synchronous forward shift in
+                        // handleScrollChange may have changed the index of the target WebView.
+                        val wv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                         if (isFirstLand) {
-                            val wv = webViews.getOrNull(i)
                             if (wv != null) {
                                 firstRevealGatedOnPaint = true
+                                val spinnerGen = windowGeneration
                                 var spinnerDismissed = false
                                 fun dismissSpinner() {
-                                    if (!spinnerDismissed) {
+                                    if (!spinnerDismissed && spinnerGen == windowGeneration) {
                                         spinnerDismissed = true
                                         notifyFirstLoadCompleteOnce()
                                     }
@@ -1012,10 +1045,18 @@ internal class ContinuousWindowController(
         // Only the target chapter loads now; its neighbours are appended as placeholder slots
         // (so the scroll geometry is complete from the first frame) and load one at a time once
         // the target has been revealed — see notifyFirstLoadCompleteOnce / startNextDeferredLoad.
+        //
+        // Capture webViews.size before appending so window-relative indices from InitialWindow
+        // can be translated to absolute webViews positions. When openWindowAt is called on an
+        // existing instance (cross-chapter navigateTo, openWindowAtNonSmoothForTest) the old
+        // chapters still occupy positions 0..priorCount-1; without the offset the deferred load
+        // and pending-measure references would point at stale WebViews from the previous window.
+        val priorWebViewsCount = webViews.size
         repeat(totalChapters) { i -> appendChapter(topIndex + i, deferLoad = i != targetWindowIndex) }
-        initial.deferredLoadOrder().forEach { i -> deferredInitialLoads.addLast(webViews[i]) }
+        pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices().map { it + priorWebViewsCount })
+        initial.deferredLoadOrder().forEach { i -> deferredInitialLoads.addLast(webViews[priorWebViewsCount + i]) }
         initialTopAwaitingMeasure = targetWindowIndex > 0
-        for (i in 0 until targetWindowIndex) deferredAboveUnmeasured.add(webViews[i])
+        for (i in 0 until targetWindowIndex) deferredAboveUnmeasured.add(webViews[priorWebViewsCount + i])
 
         val fallback = Runnable {
             pendingFallbackRunnable = null
@@ -1665,6 +1706,17 @@ internal class ContinuousWindowController(
             wv.chapterHref = entry.link.href.toString()
             return
         }
+        // Set cachedChapterBytes BEFORE loadChapter so shouldInterceptRequest on the WebCore
+        // thread can serve bytes from cache without a race.
+        // Height pre-seeding (to fire scroll before ResizeObserver) is intentionally omitted
+        // here: invoking pendingInitialScroll before the paint-callback gate is armed causes
+        // the spinner to be removed before tiles are rasterised at the reading position.
+        // The ResizeObserver still fires after the cached bytes render and handles scroll/reveal.
+        if (entry.link.href.toString().substringBefore('#') == coldOpenHref) {
+            wv.cachedChapterBytes = coldOpenBytes
+            coldOpenHref = null
+            coldOpenBytes = null
+        }
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
 
@@ -2204,6 +2256,11 @@ internal class ContinuousWindowController(
      * they don't leak when the reader screen goes away.
      */
     fun onDetach() {
+        for (wv in webViews) {
+            val bytes = wv.lastServedHtmlBytes ?: continue
+            val href = wv.chapterHref.substringBefore('#')
+            if (href.isNotEmpty()) savedChapterHtmlBytes[href] = bytes
+        }
         webViews.forEach { it.destroy() }
         webViews.clear()
         recycledViews.forEach { it.destroy() }
@@ -2234,6 +2291,38 @@ internal class ContinuousWindowController(
      * pass it into the binder during [install].
      */
     fun onRendererGone() = recoverFromRendererGone()
+
+    fun measuredHeightForHref(href: String): Int? {
+        val target = href.substringBefore('#')
+        val allIndex = allChapters.indexOfFirst { it.link.href.toString().substringBefore('#') == target }
+            .takeIf { it >= 0 } ?: return null
+        val windowIndex = allIndex - topIndex
+        return measuredHeights.getOrNull(windowIndex)?.takeIf { it > 0 }
+    }
+
+    /**
+     * Prime the target chapter with its cached XHTML bytes and height from a previous session so
+     * the initial scroll can fire without waiting for the ResizeObserver.
+     *
+     * - Sets [ChapterWebView.cachedChapterBytes] so [shouldInterceptRequest] serves the bytes
+     *   directly (skipping EPUB zip read + CSS injection).
+     * - Pre-seeds [measuredHeights] with [heightPx] and applies the layout params.
+     * - Removes the window index from [pendingInitialMeasureIndices]; if the set becomes empty,
+     *   fires [pendingInitialScroll] immediately — the spinner lifts as soon as the first paint
+     *   completes rather than waiting for the ResizeObserver.
+     *
+     * Must be called on the main thread after [openWindowAt] has built the window (i.e. after
+     * the [ContinuousReaderView] initialisation block runs).
+     */
+    fun getServedHtmlBytesForHref(href: String): ByteArray? {
+        val target = href.substringBefore('#')
+        // Primary: live WebView (reader is still open)
+        val windowIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
+        if (windowIndex >= 0) return webViews[windowIndex].lastServedHtmlBytes
+        // Fallback: bytes captured in onDetach() (fires before onRelease, so webViews is empty)
+        return savedChapterHtmlBytes[target]
+    }
+
 
     private fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> {
         var top = 0

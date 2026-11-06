@@ -237,6 +237,23 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     private var currentPrefs: FormattingPreferences = FormattingPreferences()
 
     /**
+     * Pre-loaded injected XHTML bytes for the chapter about to be loaded via [loadChapter].
+     * When non-null, [shouldInterceptRequest] serves these bytes directly instead of reading from
+     * the EPUB zip and re-injecting CSS. Cleared after the first chapter-HTML request is served
+     * so sub-resources (CSS/fonts) fall through to the normal EPUB path.
+     * Written on the main thread before [loadChapter]; read on the WebCore thread in
+     * [shouldInterceptRequest] — @Volatile ensures visibility.
+     */
+    @Volatile
+    var cachedChapterBytes: ByteArray? = null
+
+    /** The last injected XHTML bytes served by [shouldInterceptRequest] for the current chapter
+     *  (normal-read path only — not set when cache bytes are served). Used by the cache-save path
+     *  so we don't need to re-read the EPUB zip on close. Reset on each [loadChapter]. */
+    @Volatile
+    var lastServedHtmlBytes: ByteArray? = null
+
+    /**
      * Incremented on every [loadChapter]. Each loaded page stamps this value into
      * `window.__riffleToken` (see [injectStylesAndMeasure]) and echoes it back with every height
      * report. [HeightBridge] drops reports whose token != the current one, so a recycled WebView's
@@ -446,11 +463,27 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 // --USER__ settings attribute Readium injects, so the first paint is already styled
                 // (no FOUC) AND renders identically to Scroll/Paginated mode.
                 val finalBytes = if (isHtml) {
-                    val html = String(bytes, Charsets.UTF_8)
-                    // Retain the first HTML document served for this load (the main chapter, fetched
-                    // before any sub-resource) so a footnote tap can resolve the note body locally.
-                    if (rawChapterHtml == null) rawChapterHtml = html
-                    ContinuousStyleInjector.injectInto(html, currentPrefs).toByteArray(Charsets.UTF_8)
+                    val cached = cachedChapterBytes
+                    if (cached != null) {
+                        // Serve pre-injected bytes from the chapter cache (cold-reopen fast path).
+                        // Clear immediately so subsequent sub-resource requests fall through to the
+                        // normal EPUB zip path.
+                        cachedChapterBytes = null
+                        val html = String(cached, Charsets.UTF_8)
+                        if (rawChapterHtml == null) rawChapterHtml = html
+                        // Also populate lastServedHtmlBytes so the close-time save can use them
+                        // directly without re-reading from the EPUB zip.
+                        if (lastServedHtmlBytes == null) lastServedHtmlBytes = cached
+                        cached
+                    } else {
+                        val html = String(bytes, Charsets.UTF_8)
+                        // Retain the first HTML document served for this load (the main chapter,
+                        // fetched before any sub-resource) so a footnote tap can resolve locally.
+                        if (rawChapterHtml == null) rawChapterHtml = html
+                        val injected = ContinuousStyleInjector.injectInto(html, currentPrefs).toByteArray(Charsets.UTF_8)
+                        if (lastServedHtmlBytes == null) lastServedHtmlBytes = injected
+                        injected
+                    }
                 } else {
                     bytes
                 }
@@ -489,6 +522,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         expectedChapterUrl = chapterUrl
         currentPrefs = prefs
         rawChapterHtml = null
+        lastServedHtmlBytes = null
         footnoteDoc = null
         loadToken++
         loadUrl(chapterUrl)

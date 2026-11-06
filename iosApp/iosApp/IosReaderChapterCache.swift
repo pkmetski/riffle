@@ -1,0 +1,112 @@
+import Foundation
+
+// MARK: - IosReaderChapterCache
+
+/// Single-entry disk cache for the current chapter's pre-transformed XHTML and measured height.
+/// Mirrors Android's `ReaderChapterCache` — same `meta.json` + `body.bin` layout, same atomic
+/// tmp-rename write so a crash during save never leaves a corrupt entry.
+///
+/// Cache key: `itemId + chapterHref + prefsFingerprint`.
+/// One write per session (on background / reader close), one read on cold open.
+final class IosReaderChapterCache {
+
+    private let dir: URL
+
+    init(cacheDir: URL) {
+        self.dir = cacheDir.appendingPathComponent("reader_chapter", isDirectory: true)
+    }
+
+    // MARK: - Save
+
+    func save(itemId: String, chapterHref: String, prefsFingerprint: String, xhtmlData: Data, heightPx: Int) {
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        let meta = IosChapterCacheMeta(
+            itemId: itemId,
+            chapterHref: normalizeHref(chapterHref),
+            prefsFingerprint: prefsFingerprint,
+            heightPx: heightPx
+        )
+        guard let metaData = try? JSONEncoder().encode(meta) else { return }
+
+        let metaTmp = dir.appendingPathComponent("meta.tmp")
+        let metaFinal = dir.appendingPathComponent("meta.json")
+        let bodyTmp = dir.appendingPathComponent("body.tmp")
+        let bodyFinal = dir.appendingPathComponent("body.bin")
+
+        do {
+            try metaData.write(to: metaTmp, options: .atomic)
+            try xhtmlData.write(to: bodyTmp, options: .atomic)
+            _ = try? fileManager.replaceItemAt(metaFinal, withItemAt: metaTmp)
+            _ = try? fileManager.replaceItemAt(bodyFinal, withItemAt: bodyTmp)
+        } catch {
+            // Non-fatal: cold reopen will simply show the normal loading path.
+        }
+    }
+
+    // MARK: - Load
+
+    func load(itemId: String, chapterHref: String, prefsFingerprint: String) -> (data: Data, heightPx: Int)? {
+        let metaFile = dir.appendingPathComponent("meta.json")
+        let bodyFile = dir.appendingPathComponent("body.bin")
+
+        guard let metaData = try? Data(contentsOf: metaFile),
+              let meta = try? JSONDecoder().decode(IosChapterCacheMeta.self, from: metaData) else {
+            return nil
+        }
+        guard meta.itemId == itemId,
+              meta.chapterHref == normalizeHref(chapterHref),
+              meta.prefsFingerprint == prefsFingerprint else {
+            return nil
+        }
+        guard let body = try? Data(contentsOf: bodyFile) else { return nil }
+        return (body, meta.heightPx)
+    }
+
+    // MARK: - Helpers
+
+    private func normalizeHref(_ href: String) -> String {
+        href.components(separatedBy: "#").first ?? href
+    }
+}
+
+// MARK: - IosChapterCacheMeta
+
+private struct IosChapterCacheMeta: Codable {
+    let itemId: String
+    let chapterHref: String
+    let prefsFingerprint: String
+    let heightPx: Int
+}
+
+// MARK: - Prefs fingerprint
+
+/// Primitive snapshot of the formatting prefs that affect XHTML output.
+/// Used as a cache key — avoids a dependency on the KMM-generated IosReaderPreferences type here.
+struct IosReaderPrefsSnapshot {
+    let fontSizePercent: Float
+    let theme: String
+    let fontFamilyCss: String
+    let lineHeightMultiplier: Float
+    let pageMargins: Double
+    let justifyText: Bool
+    let textColorArgb: Int64
+    let publisherStyles: Bool
+    let columnCount: Int32
+}
+
+/// Stable djb2-style hash of the formatting prefs that affect XHTML output.
+/// Used as a cache key alongside itemId + chapterHref to detect pref changes.
+func iosReaderPrefsFingerprint(_ snapshot: IosReaderPrefsSnapshot) -> String {
+    let raw = [
+        "\(snapshot.fontSizePercent)", snapshot.theme, snapshot.fontFamilyCss,
+        "\(snapshot.lineHeightMultiplier)", "\(snapshot.pageMargins)", "\(snapshot.justifyText)",
+        "\(snapshot.textColorArgb)", "\(snapshot.publisherStyles)", "\(snapshot.columnCount)"
+    ].joined(separator: "|")
+    var hash: UInt32 = 5381
+    for byte in raw.utf8 {
+        hash = hash &* 31 &+ UInt32(byte)
+    }
+    return String(format: "%08x", hash)
+}

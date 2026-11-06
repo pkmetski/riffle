@@ -539,6 +539,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     override fun isTargetInWindow(href: String): Boolean = controller.isTargetInWindow(href)
 
+    fun measuredHeightForHref(href: String): Int? = controller.measuredHeightForHref(href)
+    fun getServedHtmlBytesForHref(href: String): ByteArray? = controller.getServedHtmlBytesForHref(href)
+    fun setColdOpenEntry(href: String, bytes: ByteArray) = controller.setColdOpenEntry(href, bytes)
+
     /**
      * Resolve the parent-viewport Y (in scrollY-space) of anchor [fragmentId] within [chapterHref].
      * See [ContinuousWindowController.anchorAbsoluteY]. Used to make an in-view same-document

@@ -23,6 +23,9 @@ interface IosEpubNavigatorBridge {
     /** The UIViewController that hosts EPUBNavigatorViewController. Embed via UIKitViewController. */
     fun viewController(): UIViewController
 
+    /** Set the library item ID for the current book — used as a cache key for the chapter cache. */
+    fun setItemId(itemId: String)
+
     /** Open the EPUB at [filePath], optionally restoring [locatorJson]. */
     fun openEpub(filePath: String, locatorJson: String?)
 

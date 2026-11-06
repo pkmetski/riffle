@@ -148,6 +148,7 @@ tasks.register("checkRiffleInfraSeams") {
             "core/data/src/androidMain/kotlin/com/riffle/core/data/localfiles/CopyCoverImageUseCase.kt",
             "core/data/src/androidMain/kotlin/com/riffle/core/data/localfiles/LocalFilesScanner.kt",
             // Reader/session/export layer — same reader-layer rationale as the CBZ entries.
+            "app/src/main/kotlin/com/riffle/app/feature/reader/ReaderChapterCache.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/FigureZoomOverlay.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/highlights/HighlightsPdfExporter.kt",

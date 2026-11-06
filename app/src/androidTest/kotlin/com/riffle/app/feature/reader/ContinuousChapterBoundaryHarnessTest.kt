@@ -122,11 +122,11 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun reapplyLandingSupersededSetByTouchClearedByNavigation() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -183,11 +183,11 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun boundaryDetentArmedAfterBackwardPrepend() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -251,11 +251,11 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun firstRevealGatedOnPaintCallbackNotAnimationFrame() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -307,11 +307,11 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun timedRevealAppliedWhenInitialOpenLandsAtNonZeroCssY() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -380,11 +380,11 @@ class ContinuousChapterBoundaryHarnessTest : KoinTest {
     @Test
     fun scrollsAcrossBothLongChapterShortPartTitleBoundaries() {
         addServerAndBrowseLibrary()
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+        composeTestRule.waitUntil(timeoutMillis = 25_000) {
+            composeTestRule.onAllNodesWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithContentDescription(StubAbsServer.TEST_CUSTOM_EPUB_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)

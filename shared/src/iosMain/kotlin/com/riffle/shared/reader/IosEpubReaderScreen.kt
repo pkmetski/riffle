@@ -288,7 +288,7 @@ fun EpubReaderScreen(
     var spine by remember { mutableStateOf(SpinePositions.Empty) }
     var figureZoomState by remember { mutableStateOf<FigureZoomState?>(null) }
     val scope = rememberCoroutineScope()
-    val bridge = remember { bridgeFactory.create() }
+    val bridge = remember { bridgeFactory.create().also { it.setItemId(item.id) } }
     val navigator = remember(bridge) { ReadiumSwiftNavigator(bridge) }
     val annotationSession = remember(navigator) {
         annotationSessionFactory.create(

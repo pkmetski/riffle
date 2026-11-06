@@ -243,7 +243,14 @@ class WebSourceLibraryItemUpserterTest {
             items.forEach { if ((it.sourceId to it.id) !in rows) rows[it.sourceId to it.id] = it }
         }
 
-        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) {
+        override suspend fun updateMetadata(
+            sourceId: String, id: String, libraryId: String, title: String, author: String,
+            coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean,
+            audioDurationSec: Double, description: String?, seriesName: String?,
+            publishedYear: String?, genres: String, publisher: String?, language: String?,
+            lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?,
+            finishedAt: Long?, pageCount: Int?,
+        ) {
             val existing = rows[sourceId to id] ?: return
             rows[sourceId to id] = existing.copy(
                 libraryId = libraryId, title = title, author = author, coverUrl = coverUrl,

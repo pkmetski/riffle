@@ -405,6 +405,37 @@ class ReadaloudMatchingServiceTest {
     }
 
     @Test
+    fun `confirmed auto-link already exists — skips match computation and no upsert is attempted`() = runTest {
+        // Regression: on every library refresh reconcileLinks ran the O(candidates) match loop even
+        // when every link was already correct. With the reader open and 3 WebViews filling ~500MB
+        // heap, the normaliseTokens/joinToString calls OOM'd. The fix short-circuits the inner loop
+        // when findByStorytellerBook already returns a confirmed auto-link for the (book, server)
+        // pair — no match call, no upsert, existing row kept fresh.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780261103573")),
+        )
+        val links = RecordingReadaloudLinkDao().apply {
+            seed(
+                ReadaloudLinkEntity(
+                    absSourceId = "abs-1",
+                    absLibraryItemId = "ebook",
+                    storytellerSourceId = "st-1",
+                    storytellerBookId = "42",
+                    state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                    userConfirmed = false,
+                    createdAt = 10L, updatedAt = 10L,
+                ),
+            )
+        }
+
+        service(items, links).reconcileLinks()
+
+        assertTrue(links.upserts.isEmpty(), "no upsert when confirmed auto-link already exists")
+        assertTrue(links.deletions.isEmpty(), "existing confirmed auto-link must survive the sweep")
+    }
+
+    @Test
     fun `stale candidates are cleared every pass`() = runTest {
         val items = StubLibraryItemDao(
             storyteller = listOf(row("st-1", "42", title = "Dune", author = "Frank Herbert")),
@@ -483,7 +514,14 @@ class ReadaloudMatchingServiceTest {
         override fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
-        override suspend fun updateMetadata(sourceId: String, id: String, libraryId: String, title: String, author: String, coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean, audioDurationSec: Double, description: String?, seriesName: String?, publishedYear: String?, genres: String, publisher: String?, language: String?, lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?, finishedAt: Long?, pageCount: Int?) = Unit
+        override suspend fun updateMetadata(
+            sourceId: String, id: String, libraryId: String, title: String, author: String,
+            coverUrl: String?, ebookFileIno: String?, ebookFormat: String, hasAudio: Boolean,
+            audioDurationSec: Double, description: String?, seriesName: String?,
+            publishedYear: String?, genres: String, publisher: String?, language: String?,
+            lastOpenedAt: Long?, addedAt: Long, isbn: String?, asin: String?,
+            finishedAt: Long?, pageCount: Int?,
+        ) = Unit
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = byId[itemId]
         override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> = emptyList()
         override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity> {

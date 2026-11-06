@@ -234,6 +234,7 @@ class LibraryItemsViewModelRefreshCrashTest {
                 override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> = flowOf(emptyList())
             },
             dispatchers = makeDispatcherProvider(),
+            tabVisibilityCache = LibraryTabVisibilityCache(),
         )
 
         // Run the refresh coroutine launched in init to completion. We use runCurrent() rather than

@@ -517,6 +517,7 @@ val appKoinModule: Module = module {
                 annotationStore = get(),
                 logger = get(),
                 itemProgressPuller = get(),
+                readingPositionStore = get(),
                 openLazy = openLazy,
             )
         }

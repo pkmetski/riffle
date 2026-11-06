@@ -184,13 +184,14 @@ object ReadaloudMatcher {
         val tokens = raw.lowercase()
             .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
             .joinToString("")
-            .split(Regex("\\s+"))
+            .split(WHITESPACE)
             .filter { it.isNotEmpty() }
         // Drop a leading article only from the very first token, so a title-internal article
         // (or a "The The" pathology) is never trimmed by mistake.
         return if (tokens.firstOrNull() in LEADING_ARTICLES) tokens.drop(1) else tokens
     }
 
+    private val WHITESPACE = Regex("\\s+")
     private val LEADING_ARTICLES = setOf("the", "a", "an")
 
     /**
@@ -210,7 +211,7 @@ object ReadaloudMatcher {
         raw.lowercase()
             .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
             .joinToString("")
-            .split(Regex("\\s+"))
+            .split(WHITESPACE)
             .filter { it.length > 1 }
             .toSet()
 }

@@ -86,6 +86,7 @@ import com.riffle.feature.reader.highlights.realCapturedFontOrNull
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -368,6 +369,8 @@ class EpubReaderViewModel constructor(
     private val packDownloader: com.riffle.core.dictionary.PackDownloaderInterface,
     private val downloadManager: com.riffle.app.feature.library.DownloadManager,
     private val progressSweep: com.riffle.core.sync.ProgressSweep,
+    private val readerChapterCache: ReaderChapterCache,
+    private val publicationWarmCache: PublicationWarmCache,
 ) : AndroidViewModel(application) {
 
     private val _showKoFiNudge = MutableStateFlow(false)
@@ -3527,6 +3530,9 @@ class EpubReaderViewModel constructor(
         // Tear down all readaloud session background jobs (pre-warm, sidecar obs, sync, speed debounce).
         readaloud.onBookClosed()
         // Release openReconcile claims, close the zip and publication.
+        // Extract the Publication before onCleared() closes it so it can survive in the warm cache
+        // for the next cold open of the same book, skipping the EPUB ZIP parse entirely.
+        lifecycle.extractPublicationForWarmCache()?.let { publicationWarmCache.put(itemId, it) }
         lifecycle.onCleared()
         // Flush dirty progress rows to WebDAV in-process (ADR 0063), same as ReconnectSyncKicker —
         // WorkManager sweeps are gated on OS network constraints and can stall up to one hour.
@@ -3828,6 +3834,7 @@ class EpubReaderViewModel constructor(
     }
 
     private suspend fun openPublication(file: File): Publication? {
+        publicationWarmCache.take(itemId)?.let { return it }
         val url = AbsoluteUrl("file://${file.absolutePath}") ?: return null
         val asset = when (val r = assetRetriever.retrieve(url)) {
             is Try.Success -> r.value
@@ -3998,6 +4005,37 @@ class EpubReaderViewModel constructor(
             else com.riffle.feature.library.DownloadState.NotDownloaded
         }
     }
+
+    fun maybeSaveChapterCache(heightPx: Int, xhtmlBytes: ByteArray?) {
+        viewModelScope.launch(dispatchers.io + NonCancellable) {
+            val href = currentLocatorHref.value ?: return@launch
+            val prefs = effectiveFormattingPreferences.value
+            val bytes = xhtmlBytes ?: run {
+                val pub = lifecycle.publication.value ?: return@launch
+                val spineIndex = pub.readingOrder.indexOfFirst { link ->
+                    normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href)
+                }.takeIf { it >= 0 } ?: return@launch
+                val rawHtml = chapterHtmlCache[spineIndex] ?: readChapterHtml(spineIndex) ?: return@launch
+                ContinuousStyleInjector.injectInto(rawHtml, prefs).toByteArray(Charsets.UTF_8)
+            }
+            readerChapterCache.save(
+                itemId = itemId,
+                chapterHref = normalizeEpubHref(href),
+                prefsFingerprint = prefs.fingerprint(),
+                xhtmlBytes = bytes,
+                heightPx = heightPx,
+            )
+        }
+    }
+
+    fun loadColdOpenCache(chapterHref: String): CachedChapterEntry? =
+        readerChapterCache.load(
+            itemId = itemId,
+            chapterHref = normalizeEpubHref(chapterHref),
+            prefsFingerprint = effectiveFormattingPreferences.value.fingerprint(),
+        )
+
+    private fun FormattingPreferences.fingerprint(): String = formattingPreferencesFingerprint(this)
 }
 
 /**
@@ -4013,6 +4051,12 @@ class EpubReaderViewModel constructor(
  * `internal` so it's unit-testable without constructing [EpubReaderViewModel] (Robolectric-only
  * constraint — see [EpubReaderViewModelHighlightsSourceTest]'s file docstring).
  */
+internal fun formattingPreferencesFingerprint(prefs: com.riffle.core.domain.FormattingPreferences): String {
+    val crc = java.util.zip.CRC32()
+    crc.update(prefs.toString().toByteArray(Charsets.UTF_8))
+    return crc.value.toString(16)
+}
+
 internal fun decodeReaderSource(raw: String?): ReaderSource =
     raw?.let { r -> ReaderSource.entries.firstOrNull { it.name.equals(r, ignoreCase = true) } }
         ?: ReaderSource.FullBook

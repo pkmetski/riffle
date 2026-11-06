@@ -203,6 +203,7 @@ import com.riffle.feature.library.HomeViewModel
 import com.riffle.feature.library.LibraryItemDetailViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionViewModel
+import com.riffle.feature.library.LibraryTabVisibilityCache
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.PlaylistDetailViewModel
@@ -1303,6 +1304,8 @@ private fun iosLibraryModule(
         )
     }
 
+    single { LibraryTabVisibilityCache() }
+
     // ViewModel factories — keyed by libraryId (+ sectionType for section screen)
     factory { params ->
         LibraryItemsViewModel(
@@ -1324,6 +1327,7 @@ private fun iosLibraryModule(
             audiobookBookmarkStore = get(),
             annotationsLibraryRepository = get(),
             dispatchers = get(),
+            tabVisibilityCache = get(),
         )
     }
     factory { params ->

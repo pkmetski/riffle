@@ -13,6 +13,7 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.models.Source
@@ -20,6 +21,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -57,6 +59,7 @@ class ReaderSessionLifecycle constructor(
     private val annotationStore: AnnotationStore,
     private val logger: Logger,
     private val itemProgressPuller: com.riffle.core.data.ItemProgressPuller,
+    private val readingPositionStore: ReadingPositionStore,
     /** Optional hook for sources that build a [Publication] without downloading an EPUB file.
      *  Receives (sourceId, itemId) and returns (publication, lastPositionJson?).
      *  When non-null and returning non-null, the normal [epubRepository.openEpub] path is skipped. */
@@ -102,64 +105,71 @@ class ReaderSessionLifecycle constructor(
                 ?: libraryObserver.getItem(params.itemId)
         } ?: return OpenOutcome.Error("Book not found")
 
-        // Refresh this book's server position BEFORE loading the initial locator so the reader
-        // opens at the fresh spot instead of rendering the old local cfi first and then visibly
-        // jumping when the in-reader sync cycle catches up. Bounded so a slow/unreachable server
-        // never blocks reader-open indefinitely — on timeout we proceed with the local locator,
-        // which the live sync cycle will then reconcile (the pre-fix behaviour).
-        // Runs BEFORE openReconcileTargets.markOpen (inside resolveReady) — otherwise the
-        // puller's `isOpen` guard would skip it.
-        // Cancellation must propagate — a plain `runCatching { ... }` around a suspending call
-        // swallows CancellationException (Kotlin footgun) and would defeat both the timeout AND
-        // structured concurrency if the caller cancels this open() mid-flight. Catch only
-        // non-cancellation Throwables and re-throw CancellationException explicitly.
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            kotlinx.coroutines.withTimeoutOrNull(1_500L) {
-                try {
-                    itemProgressPuller.pullItem(item.sourceId, item.id)
-                } catch (t: Throwable) {
-                    if (t is kotlinx.coroutines.CancellationException) throw t
-                    logger.w(LogChannel.ProgressSync) {
-                        "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
-                            "${t::class.simpleName}: ${t.message}"
-                    }
-                }
-            }
-        }
         // Lazy path: source built a Publication directly (e.g. O'Reilly per-chapter streaming).
-        // Skip the EPUB download entirely when this succeeds.
+        // Provides its own lastPositionJson — progress pull not needed.
         val lazyPair = openLazy?.invoke(item.sourceId, item.id)
         if (lazyPair != null) {
             return resolveReadyWithPub(lazyPair.first, lazyPair.second, item.title, params)
         }
 
-        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            epubRepository.openEpub(item)
+        // Run epub open + Readium parse and the progress pull concurrently — they are independent.
+        // The epub work (file resolution → Readium ZIP parse) runs in parallel with the puller,
+        // so total latency is max(epubWork, puller) instead of epubWork + puller.
+        //
+        // IMPORTANT: epubResult.lastPosition is captured by openEpub() while the puller runs
+        // concurrently and may not reflect the server-fresh position yet. After both complete,
+        // we re-read position from the store so the puller's DB update is always honoured.
+        //
+        // Cancellation note: a plain runCatching around a suspending call swallows
+        // CancellationException — re-throw it explicitly inside the puller catch block.
+        return kotlinx.coroutines.coroutineScope {
+            // Run the EPUB file I/O concurrently with the progress puller. openPublication is kept
+            // out of the async(IO) block so it runs on the caller's context (Dispatchers.Main) after
+            // await() — Readium's publicationOpener.open() must not be called from an IO thread.
+            val epubResultDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
+                epubRepository.openEpub(item)
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                kotlinx.coroutines.withTimeoutOrNull(1_500L) {
+                    try {
+                        itemProgressPuller.pullItem(item.sourceId, item.id)
+                    } catch (t: Throwable) {
+                        if (t is kotlinx.coroutines.CancellationException) throw t
+                        logger.w(LogChannel.ProgressSync) {
+                            "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
+                                "${t::class.simpleName}: ${t.message}"
+                        }
+                    }
+                }
+            }
+            val epubResult = epubResultDeferred.await()
+            when {
+                epubResult is EpubOpenResult.NetworkError -> OpenOutcome.Error(
+                    // Use `toString()` as the fallback: `Throwable.message` is null for exceptions like
+                    // NullPointerException / KotlinNullPointerException / IOException that were
+                    // thrown with no reason, which surfaced to the user as "Network error: null".
+                    // toString() includes the exception class name at minimum ("java.io.IOException")
+                    // so the user gets a debuggable string instead of "null".
+                    "Network error: ${epubResult.cause.message ?: epubResult.cause.toString()}",
+                )
+                epubResult is EpubOpenResult.Offline -> OpenOutcome.Error("Book not available offline")
+                else -> {
+                    epubResult as EpubOpenResult.Success
+                    val pub = openPublication(epubResult.epubFile)
+                    if (pub == null) {
+                        OpenOutcome.Error("Failed to open EPUB")
+                    } else {
+                        epubFile = epubResult.epubFile
+                        // Re-read position after puller completes — position captured concurrently
+                        // with the puller may be stale (the puller's DB write wins).
+                        val lastPosition = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            readingPositionStore.load(item.sourceId, item.id)
+                        }
+                        resolveReadyWithPub(pub, lastPosition, item.title, params)
+                    }
+                }
+            }
         }
-
-        return when (result) {
-            is EpubOpenResult.Success -> resolveReady(result, item.title, params)
-            is EpubOpenResult.NetworkError -> OpenOutcome.Error(
-                // Use `toString()` as the fallback: `Throwable.message` is null for exceptions like
-                // NullPointerException / KotlinNullPointerException / IOException that were
-                // thrown with no reason, which surfaced to the user as "Network error: null".
-                // toString() includes the exception class name at minimum ("java.io.IOException")
-                // so the user gets a debuggable string instead of "null".
-                "Network error: ${result.cause.message ?: result.cause.toString()}",
-            )
-            EpubOpenResult.Offline -> OpenOutcome.Error("Book not available offline")
-        }
-    }
-
-    private suspend fun resolveReady(
-        result: EpubOpenResult.Success,
-        title: String,
-        params: OpenParams,
-    ): OpenOutcome {
-        epubFile = result.epubFile
-        val pub = openPublication(result.epubFile)
-            ?: return OpenOutcome.Error("Failed to open EPUB")
-        return resolveReadyWithPub(pub, result.lastPosition, title, params)
     }
 
     private suspend fun resolveReadyWithPub(
@@ -353,6 +363,17 @@ class ReaderSessionLifecycle constructor(
         epubZip = null
         _publication.value?.close()
         _publication.value = null
+    }
+
+    /**
+     * Extracts the current [Publication] and clears the internal reference without closing it.
+     * The caller takes ownership and must close it when done (or put it in a warm cache).
+     * [onCleared] will find null and skip the close if this is called first.
+     */
+    fun extractPublicationForWarmCache(): Publication? {
+        val pub = _publication.value
+        _publication.value = null
+        return pub
     }
 
     data class OpenParams(

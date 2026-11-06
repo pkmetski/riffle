@@ -86,8 +86,12 @@ class IosAnnotationSyncConfigStoreTest {
 private class FakeIosEncryptedKeyValueStore : EncryptedKeyValueStore {
     private val map = mutableMapOf<String, String>()
     override fun get(key: String): String? = map[key]
-    override fun put(key: String, value: String) { map[key] = value }
-    override fun remove(key: String) { map.remove(key) }
+    override fun put(key: String, value: String) {
+        map[key] = value
+    }
+    override fun remove(key: String) {
+        map.remove(key)
+    }
 }
 
 private class SlowFakeEncryptedKeyValueStore : EncryptedKeyValueStore {

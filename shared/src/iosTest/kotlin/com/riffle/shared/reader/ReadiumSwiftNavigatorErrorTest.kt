@@ -96,6 +96,7 @@ class ReadiumSwiftNavigatorErrorTest {
         override fun setPullResetCallback(callback: (() -> Unit)?) = Unit
         override fun setPullGestureEnabled(enabled: Boolean) = Unit
         override fun setPublicationOpenErrorCallback(callback: ((message: String) -> Unit)?) = Unit
+        override fun setItemId(itemId: String) = Unit
     }
 
     @Test

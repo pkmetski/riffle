@@ -694,6 +694,9 @@ fun EpubReaderScreen(
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
                         onRendererBridgeCreated = { rendererBridgeRef.value = it },
+                        currentLocatorHref = { viewModel.currentLocatorHref.value },
+                        onContinuousCacheSave = viewModel::maybeSaveChapterCache,
+                        loadColdOpenCache = viewModel::loadColdOpenCache,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag(TestTags.READER_READY)
@@ -1308,6 +1311,9 @@ private fun EpubNavigatorView(
      *  need to capture the bridge for use outside this composable (e.g. the `CornerBookmarkIndicator`
      *  sibling in `EpubReaderScreen`) can stash it in a `mutableStateOf`. */
     onRendererBridgeCreated: (RendererBridge) -> Unit = {},
+    currentLocatorHref: () -> String? = { null },
+    onContinuousCacheSave: (heightPx: Int, xhtmlBytes: ByteArray?) -> Unit = { _, _ -> },
+    loadColdOpenCache: (chapterHref: String) -> CachedChapterEntry? = { null },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1320,6 +1326,28 @@ private fun EpubNavigatorView(
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
     val isContinuous = effectiveOrientation == ReaderOrientation.Continuous
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+
+    val chapterCacheLifecycle = LocalLifecycleOwner.current.lifecycle
+    // rememberUpdatedState so the observer always reads the live isContinuous value even if
+    // it changed since the DisposableEffect was first created (e.g. user switched mode in settings).
+    val currentIsContinuousState = rememberUpdatedState(isContinuous)
+    DisposableEffect(chapterCacheLifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && currentIsContinuousState.value) {
+                val href = currentLocatorHref() ?: return@LifecycleEventObserver
+                val height = continuousViewRef.value?.measuredHeightForHref(href)
+                    ?: return@LifecycleEventObserver
+                val bytes = continuousViewRef.value?.getServedHtmlBytesForHref(href)
+                onContinuousCacheSave(height, bytes)
+            }
+        }
+        chapterCacheLifecycle.addObserver(observer)
+        onDispose {
+            chapterCacheLifecycle.removeObserver(observer)
+            // Back-navigation save is handled in AndroidView.onRelease (below), where the view
+            // is still alive. By the time this onDispose runs, continuousViewRef is already null.
+        }
+    }
 
     // Per-publication ReadiumPresenter (#300 step 2). Owns the seam between paginated/vertical
     // rendering and the rest of the reader. Step 2 routes decoration application through it; the
@@ -3009,7 +3037,14 @@ private fun EpubNavigatorView(
                 // Reset the coordinator's viewFlow when the view leaves composition on a mode
                 // switch. Without this, the next continuous-mode entry gets the stale destroyed
                 // view from viewFlow immediately (non-null) and navigateTo is silently a no-op.
-                onRelease = {
+                onRelease = { view ->
+                    // Save cache here, while the view is still alive. By the time
+                    // DisposableEffect.onDispose runs, continuousViewRef is already null.
+                    val href = currentLocatorHref()
+                    val height = href?.let { view.measuredHeightForHref(it) }
+                    if (href != null && height != null) {
+                        onContinuousCacheSave(height, view.getServedHtmlBytesForHref(href))
+                    }
                     continuousViewRef.value = null
                     coordinator.detach()
                 },
@@ -3070,6 +3105,18 @@ private fun EpubNavigatorView(
                 // annotation state would stay empty — onPageFinished would skip every chapter as
                 // it loaded.
                 highlightRenderer.applyAnnotations(highlightRenders)
+                // Load cache BEFORE initialize so the bytes can be passed into appendChapter
+                // via setColdOpenEntry. appendChapter sets wv.cachedChapterBytes before loadUrl,
+                // so shouldInterceptRequest serves from cache without a race.
+                // No withContext(IO) here: loadColdOpenCache is a fast synchronous file read.
+                // Using withContext(IO) caused the continuation to be resumed off the main thread
+                // by Compose's FrameDeferringContinuationInterceptor, breaking WebView creation.
+                val cacheEntry = loadColdOpenCache(rawHref)
+                // Prime cachedChapterBytes BEFORE initialize calls loadUrl so shouldInterceptRequest
+                // on the WebCore thread sees the cached bytes without a race.
+                if (cacheEntry != null) {
+                    view.setColdOpenEntry(rawHref, cacheEntry.xhtmlBytes)
+                }
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,
@@ -3079,12 +3126,14 @@ private fun EpubNavigatorView(
                     // Saved reading positions come from locatorAt, which measures progression at the
                     // viewport midpoint. The inverse — scrollYForProgression — places mid-chapter
                     // progressions back at the midpoint. Top-aligning instead drifts the view
-                    // forward by half a viewport on every reopen. Annotation-tap opens still land
+                    // forward by half a viewport on every reopen. Annotation-tab opens still land
                     // precisely via the focusAnnotationId mark-anchor path in openWindowAt, which
                     // takes priority over the progression fallback.
                     alignToTop = false,
                     focusAnnotationId = focusId,
                 )
+                // setColdOpenEntry (called above) + initialize handle bytes priming synchronously
+                // in appendChapter, before loadUrl fires.
             }
             // Install the Cadence per-chapter DOM-tokenisation hook so every chapter entering the
             // sliding window runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back

@@ -186,7 +186,10 @@ internal fun FontChipRow(
     selected: ReaderFontFamily,
     onSelect: (ReaderFontFamily) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+    ) {
         fonts.forEach { family ->
             val label = family.localizedLabel()
             // TODO: migrate to Res.string.ui_font_named
