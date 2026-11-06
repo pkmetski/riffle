@@ -75,9 +75,10 @@ class StartupUpdateViewModel constructor(
         }
     }
 
-    fun ignoreVersion(versionCode: Int) {
+    fun ignoreVersion(versionCode: Int, wasPreRelease: Boolean) {
         viewModelScope.launch {
             appUpdatePreferencesStore.setIgnoredVersionCode(versionCode)
+            appUpdatePreferencesStore.setIgnoredVersionWasPreRelease(wasPreRelease)
             _dialogState.value = null
         }
     }

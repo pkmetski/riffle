@@ -30,7 +30,7 @@ import com.riffle.feature.settings.ui.changelog.ReleaseDateText
 internal fun UpdateAvailableDialog(
     state: StartupUpdateDialogState,
     downloadState: UpdateDownloadState?,
-    onIgnore: (versionCode: Int) -> Unit,
+    onIgnore: (versionCode: Int, wasPreRelease: Boolean) -> Unit,
     onUpdate: (update: AvailableUpdate) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -97,7 +97,7 @@ internal fun UpdateAvailableDialog(
         dismissButton = {
             if (!isDownloading) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { onIgnore(state.update.versionCode) }) {
+                    TextButton(onClick = { onIgnore(state.update.versionCode, state.update.prerelease) }) {
                         Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_ignore_this_version))
                     }
                     TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_later)) }
