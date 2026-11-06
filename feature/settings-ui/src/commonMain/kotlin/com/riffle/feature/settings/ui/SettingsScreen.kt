@@ -98,6 +98,7 @@ fun SettingsScreen(
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
     val autoUpdateEnabled by viewModel.autoUpdateEnabled.collectAsState()
+    val betaUpdatesEnabled by viewModel.betaUpdatesEnabled.collectAsState()
     val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
     val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
     val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
@@ -237,11 +238,13 @@ fun SettingsScreen(
                     installedVersionName = viewModel.installedVersionName,
                     state = appUpdateState,
                     autoUpdateEnabled = autoUpdateEnabled,
+                    betaUpdatesEnabled = betaUpdatesEnabled,
                     canInstallUpdate = platformHooks.canInstallUpdate(),
                     onCheckForUpdate = viewModel::checkForUpdate,
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
                     onViewReleaseUrl = platformHooks::onViewReleaseUrl,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
+                    onSetBetaUpdatesEnabled = viewModel::setBetaUpdatesEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
                     onVersionTap = viewModel::onVersionTap,
                 )

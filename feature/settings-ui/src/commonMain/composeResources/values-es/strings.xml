@@ -44,6 +44,8 @@
     <string name="ui_chapter_map">Mapa de capítulos</string>
     <string name="ui_check_for_updates">Buscar actualizaciones</string>
     <string name="ui_check_for_updates_automatically">Buscar actualizaciones automáticamente</string>
+    <string name="ui_include_beta_versions">Incluir versiones beta</string>
+    <string name="ui_include_beta_versions_sublabel">Recibir versiones preliminares para pruebas anticipadas</string>
     <string name="ui_checking_for_updates">Buscando actualizaciones…</string>
     <string name="ui_clear">Borrar</string>
     <string name="ui_collapse">Contraer</string>

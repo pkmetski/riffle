@@ -46,6 +46,8 @@
     <string name="ui_chapter_map">Chapter map</string>
     <string name="ui_check_for_updates">Check for updates</string>
     <string name="ui_check_for_updates_automatically">Check for updates automatically</string>
+    <string name="ui_include_beta_versions">Include beta versions</string>
+    <string name="ui_include_beta_versions_sublabel">Receive pre-release builds for early testing</string>
     <string name="ui_checking_for_updates">Checking for updates…</string>
     <string name="ui_clear">Clear</string>
     <string name="ui_collapse">Collapse</string>

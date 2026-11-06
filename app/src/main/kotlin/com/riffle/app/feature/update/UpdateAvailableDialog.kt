@@ -46,10 +46,22 @@ internal fun UpdateAvailableDialog(
             LazyColumn {
                 items(state.releases) { release ->
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "v${release.versionName}",
-                            style = MaterialTheme.typography.titleSmall,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "v${release.versionName}",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            if (release.prerelease) {
+                                Text(
+                                    text = "Beta",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                )
+                            }
+                        }
                         ReleaseDateText(release.publishedAt)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(

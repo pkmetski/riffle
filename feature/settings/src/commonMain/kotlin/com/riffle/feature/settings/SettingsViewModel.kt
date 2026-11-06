@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -150,6 +151,20 @@ class SettingsViewModel constructor(
 
     fun setAutoUpdateEnabled(value: Boolean) {
         viewModelScope.launch { appUpdatePreferencesStore.setAutoUpdateEnabled(value) }
+    }
+
+    val betaUpdatesEnabled: StateFlow<Boolean> =
+        appUpdatePreferencesStore.betaUpdatesEnabled
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setBetaUpdatesEnabled(value: Boolean) {
+        viewModelScope.launch {
+            appUpdatePreferencesStore.setBetaUpdatesEnabled(value)
+            if (!value && appUpdatePreferencesStore.ignoredVersionWasPreRelease.first()) {
+                appUpdatePreferencesStore.setIgnoredVersionCode(0)
+                appUpdatePreferencesStore.setIgnoredVersionWasPreRelease(false)
+            }
+        }
     }
 
     private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
