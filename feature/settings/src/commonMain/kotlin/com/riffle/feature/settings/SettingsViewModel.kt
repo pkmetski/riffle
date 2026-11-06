@@ -160,9 +160,15 @@ class SettingsViewModel constructor(
     fun setBetaUpdatesEnabled(value: Boolean) {
         viewModelScope.launch {
             appUpdatePreferencesStore.setBetaUpdatesEnabled(value)
-            if (!value && appUpdatePreferencesStore.ignoredVersionWasPreRelease.first()) {
-                appUpdatePreferencesStore.setIgnoredVersionCode(0)
-                appUpdatePreferencesStore.setIgnoredVersionWasPreRelease(false)
+            if (!value) {
+                val available = _appUpdateState.value as? AppUpdateUiState.UpdateAvailable
+                if (available != null && available.update.prerelease) {
+                    _appUpdateState.value = AppUpdateUiState.Idle
+                }
+                if (appUpdatePreferencesStore.ignoredVersionWasPreRelease.first()) {
+                    appUpdatePreferencesStore.setIgnoredVersionCode(0)
+                    appUpdatePreferencesStore.setIgnoredVersionWasPreRelease(false)
+                }
             }
         }
     }

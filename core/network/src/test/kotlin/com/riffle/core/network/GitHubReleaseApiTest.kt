@@ -402,6 +402,82 @@ class GitHubReleaseApiTest {
     // updates" button. The manual button's contract is "check now", so every call must bypass any
     // cached copy. If someone drops the .cacheControl(FORCE_NETWORK) line, this test flips red.
     @Test
+    fun `latestRelease includes prerelease when includePrereleases is true`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  {
+                    "tag_name": "v1.5.0-beta1",
+                    "draft": false,
+                    "prerelease": true,
+                    "assets": [
+                      { "name": "riffle-1.5.0-beta1.apk", "browser_download_url": "https://x/beta.apk", "size": 3000 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val result = api.latestRelease("pkmetski/riffle", includePrereleases = true)
+
+        assertTrue(result is GitHubReleaseResult.Success)
+        val release = (result as GitHubReleaseResult.Success).release
+        assertEquals("v1.5.0-beta1", release.tagName)
+        assertTrue(release.prerelease)
+        assertEquals("https://x/beta.apk", release.apkUrl)
+    }
+
+    @Test
+    fun `listReleases includes prereleases when includePrereleases is true`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  { "tag_name": "v1.5.0-beta1", "draft": false, "prerelease": true, "body": "Beta notes",
+                    "assets": [{ "name": "riffle-1.5.0-beta1.apk", "browser_download_url": "https://x/beta.apk", "size": 3000 }] },
+                  { "tag_name": "v1.4.0", "draft": false, "prerelease": false, "body": "Stable notes",
+                    "assets": [{ "name": "riffle-1.4.0.apk", "browser_download_url": "https://x/stable.apk", "size": 4000 }] }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val releases = api.listReleases("pkmetski/riffle", includePrereleases = true)
+
+        assertEquals(2, releases.size)
+        assertEquals("v1.5.0-beta1", releases[0].tagName)
+        assertTrue(releases[0].prerelease)
+        assertEquals("v1.4.0", releases[1].tagName)
+        assertFalse(releases[1].prerelease)
+    }
+
+    @Test
+    fun `latestRelease returns NoApplicableRelease when only prereleases exist and beta is off`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  {
+                    "tag_name": "v1.5.0-beta1",
+                    "draft": false,
+                    "prerelease": true,
+                    "assets": [
+                      { "name": "riffle-1.5.0-beta1.apk", "browser_download_url": "https://x/beta.apk", "size": 3000 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val result = api.latestRelease("pkmetski/riffle", includePrereleases = false)
+
+        assertTrue(result is GitHubReleaseResult.NoApplicableRelease)
+    }
+
+    @Test
     fun `latestRelease request opts out of the cache with no-cache no-store`() = runTest {
         server.enqueue(MockResponse().setBody("[]").addHeader("Content-Type", "application/json"))
 

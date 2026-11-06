@@ -65,6 +65,24 @@ class IosAppUpdatePreferencesStoreImplTest {
     }
 
     @Test
+    fun `betaUpdatesEnabled persists across store instances`() = runTest {
+        IosAppUpdatePreferencesStoreImpl().setBetaUpdatesEnabled(true)
+
+        val reopened = IosAppUpdatePreferencesStoreImpl()
+
+        assertTrue(reopened.betaUpdatesEnabled.first(), "betaUpdatesEnabled must survive a new instance")
+    }
+
+    @Test
+    fun `ignoredVersionWasPreRelease persists across store instances`() = runTest {
+        IosAppUpdatePreferencesStoreImpl().setIgnoredVersionWasPreRelease(true)
+
+        val reopened = IosAppUpdatePreferencesStoreImpl()
+
+        assertTrue(reopened.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease must survive a new instance")
+    }
+
+    @Test
     fun `betaUpdatesEnabled defaults to false`() = runTest {
         val store = IosAppUpdatePreferencesStoreImpl()
         assertFalse(store.betaUpdatesEnabled.first(), "betaUpdatesEnabled should default to false")

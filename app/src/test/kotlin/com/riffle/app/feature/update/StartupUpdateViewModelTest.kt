@@ -316,6 +316,31 @@ class StartupUpdateViewModelTest {
     }
 
     @Test
+    fun `prerelease flag on ReleaseInfo is propagated to AvailableUpdate in dialog`() = runTest {
+        val prefs = fakePrefs()
+        val vm = viewModel(
+            repo = fakeRepo(
+                listOf(
+                    ReleaseInfo(
+                        versionName = "1.5.0-beta.1",
+                        versionCode = 10500,
+                        changelog = "",
+                        downloadUrl = "https://x/beta.apk",
+                        sizeBytes = 1000L,
+                        prerelease = true,
+                    )
+                )
+            ),
+            prefs = prefs,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.dialogState.value
+        assertNotNull(state)
+        assertTrue(state!!.update.prerelease)
+    }
+
+    @Test
     fun `isDevVersionName returns true for dash-dev suffix and false for real versions`() {
         assertTrue(isDevVersionName("0.0.0-dev"))
         assertTrue(isDevVersionName("1.2.3-dev"))

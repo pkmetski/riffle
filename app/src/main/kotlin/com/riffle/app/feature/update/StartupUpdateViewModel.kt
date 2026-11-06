@@ -70,6 +70,7 @@ class StartupUpdateViewModel constructor(
                     versionCode = latest.versionCode,
                     downloadUrl = latest.downloadUrl,
                     sizeBytes = latest.sizeBytes,
+                    prerelease = latest.prerelease,
                 ),
             )
         }
