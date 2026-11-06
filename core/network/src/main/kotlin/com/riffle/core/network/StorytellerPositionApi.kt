@@ -19,28 +19,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.IOException
 
-/** [locatorJson] is the raw Readium `locator` object; [timestampMillis] its server `lastUpdate`. */
-data class StorytellerPosition(val locatorJson: String, val timestampMillis: Long)
-
-/**
- * Storyteller's single-peer reading-position endpoint (`/api/v2/books/{id}/positions`). The
- * position is a native Readium `Locator` plus a millisecond timestamp — no CFI translation needed
- * (contrast the ABS path, ADR 0013). Drives the Storyteller-only last-update-wins sync (ADR 0027).
- *
- * `Success(null)` ⇒ no position is recorded yet (the old `NoPosition` variant).
- */
-interface StorytellerPositionApi {
-    suspend fun getPosition(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): NetworkResult<StorytellerPosition?>
-    suspend fun putPosition(
-        baseUrl: String,
-        bookId: String,
-        locatorJson: String,
-        timestampMillis: Long,
-        token: String,
-        insecureAllowed: Boolean,
-    ): NetworkResult<Unit>
-}
-
 class StorytellerPositionApiImpl(
     private val client: HttpClient,
 ) : StorytellerPositionApi {
