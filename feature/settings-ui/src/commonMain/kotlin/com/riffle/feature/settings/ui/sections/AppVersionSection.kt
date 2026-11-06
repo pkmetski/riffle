@@ -118,6 +118,7 @@ internal fun AppVersionSection(
             Switch(
                 checked = betaUpdatesEnabled,
                 onCheckedChange = onSetBetaUpdatesEnabled,
+                modifier = Modifier.testTag(TestTags.SETTINGS_BETA_UPDATES_TOGGLE),
             )
         },
     )

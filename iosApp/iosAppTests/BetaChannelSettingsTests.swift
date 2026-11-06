@@ -40,39 +40,31 @@ final class BetaChannelSettingsTests: XCTestCase {
         )
     }
 
-    func testBetaOptOutClearsPrereleaseIgnore() {
-        UserDefaults.standard.set(10500, forKey: ignoredCodeKey)
+    func testIgnoredVersionWasPreReleaseRoundTrip() {
         UserDefaults.standard.set(true, forKey: ignoredWasPreReleaseKey)
-
-        let wasPreRelease = UserDefaults.standard.bool(forKey: ignoredWasPreReleaseKey)
-        if wasPreRelease {
-            UserDefaults.standard.set(0, forKey: ignoredCodeKey)
-            UserDefaults.standard.set(false, forKey: ignoredWasPreReleaseKey)
-        }
-
-        XCTAssertEqual(
-            UserDefaults.standard.integer(forKey: ignoredCodeKey), 0,
-            "ignoredVersionCode must be cleared when opting out of beta with a prerelease ignore active"
+        XCTAssertTrue(
+            UserDefaults.standard.bool(forKey: ignoredWasPreReleaseKey),
+            "ignoredVersionWasPreRelease must persist true after being set"
         )
+
+        UserDefaults.standard.set(false, forKey: ignoredWasPreReleaseKey)
         XCTAssertFalse(
             UserDefaults.standard.bool(forKey: ignoredWasPreReleaseKey),
-            "ignoredVersionWasPreRelease must be cleared when opting out of beta"
+            "ignoredVersionWasPreRelease must persist false after being set"
         )
     }
 
-    func testBetaOptOutPreservesStableIgnore() {
-        UserDefaults.standard.set(10400, forKey: ignoredCodeKey)
-        UserDefaults.standard.set(false, forKey: ignoredWasPreReleaseKey)
-
-        let wasPreRelease = UserDefaults.standard.bool(forKey: ignoredWasPreReleaseKey)
-        if wasPreRelease {
-            UserDefaults.standard.set(0, forKey: ignoredCodeKey)
-            UserDefaults.standard.set(false, forKey: ignoredWasPreReleaseKey)
-        }
-
+    func testIgnoredVersionCodeRoundTrip() {
+        UserDefaults.standard.set(10500, forKey: ignoredCodeKey)
         XCTAssertEqual(
-            UserDefaults.standard.integer(forKey: ignoredCodeKey), 10400,
-            "ignoredVersionCode must remain unchanged when opting out of beta with a stable ignore active"
+            UserDefaults.standard.integer(forKey: ignoredCodeKey), 10500,
+            "ignoredVersionCode must persist the written value"
+        )
+
+        UserDefaults.standard.set(0, forKey: ignoredCodeKey)
+        XCTAssertEqual(
+            UserDefaults.standard.integer(forKey: ignoredCodeKey), 0,
+            "ignoredVersionCode must persist 0 after being cleared"
         )
     }
 }
