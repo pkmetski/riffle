@@ -58,8 +58,12 @@ class StartupUpdateViewModelTest {
         return object : AppUpdatePreferencesStore {
             override val autoUpdateEnabled: Flow<Boolean> = autoFlow
             override val ignoredVersionCode: Flow<Int> = ignoredFlow
+            override val betaUpdatesEnabled: Flow<Boolean> = MutableStateFlow(false)
+            override val ignoredVersionWasPreRelease: Flow<Boolean> = MutableStateFlow(false)
             override suspend fun setAutoUpdateEnabled(value: Boolean) { autoFlow.value = value }
             override suspend fun setIgnoredVersionCode(value: Int) { ignoredFlow.value = value }
+            override suspend fun setBetaUpdatesEnabled(value: Boolean) {}
+            override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) {}
         }
     }
 

@@ -246,8 +246,12 @@ class SettingsViewModelTest {
     private val fakeAppUpdatePreferencesStore = object : AppUpdatePreferencesStore {
         override val autoUpdateEnabled: Flow<Boolean> = autoUpdateEnabledFlow
         override val ignoredVersionCode: Flow<Int> = MutableStateFlow(0)
+        override val betaUpdatesEnabled: Flow<Boolean> = MutableStateFlow(false)
+        override val ignoredVersionWasPreRelease: Flow<Boolean> = MutableStateFlow(false)
         override suspend fun setAutoUpdateEnabled(value: Boolean) { autoUpdateEnabledFlow.value = value }
         override suspend fun setIgnoredVersionCode(value: Int) {}
+        override suspend fun setBetaUpdatesEnabled(value: Boolean) {}
+        override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) {}
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())

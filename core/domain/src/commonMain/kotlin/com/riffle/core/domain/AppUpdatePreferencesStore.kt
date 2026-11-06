@@ -5,6 +5,10 @@ import kotlinx.coroutines.flow.Flow
 interface AppUpdatePreferencesStore {
     val autoUpdateEnabled: Flow<Boolean>
     val ignoredVersionCode: Flow<Int>
+    val betaUpdatesEnabled: Flow<Boolean>
+    val ignoredVersionWasPreRelease: Flow<Boolean>
     suspend fun setAutoUpdateEnabled(value: Boolean)
     suspend fun setIgnoredVersionCode(value: Int)
+    suspend fun setBetaUpdatesEnabled(value: Boolean)
+    suspend fun setIgnoredVersionWasPreRelease(value: Boolean)
 }

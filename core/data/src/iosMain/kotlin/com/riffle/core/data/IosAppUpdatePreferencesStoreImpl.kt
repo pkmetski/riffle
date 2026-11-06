@@ -8,14 +8,9 @@ import platform.Foundation.NSUserDefaults
 
 private const val KEY_AUTO_UPDATE_ENABLED = "app_update:auto_update_enabled"
 private const val KEY_IGNORED_VERSION_CODE = "app_update:ignored_version_code"
+private const val KEY_BETA_UPDATES_ENABLED = "app_update:beta_updates_enabled"
+private const val KEY_IGNORED_VERSION_WAS_PRE_RELEASE = "app_update:ignored_version_was_prerelease"
 
-/**
- * NSUserDefaults-backed [AppUpdatePreferencesStore] for iOS. Android's implementation is
- * DataStore-backed, which has no iOS equivalent, so this follows the same platform-store pattern
- * as [IosContentCacheAccessStoreImpl]: persist on write, and replay the current value through a
- * StateFlow so collectors update immediately rather than only after a restart (the previous stub
- * emitted a constant `false`/`0`, so the Settings toggles never reflected a change).
- */
 class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
 
     private val defaults = NSUserDefaults.standardUserDefaults
@@ -24,10 +19,17 @@ class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
         if (defaults.objectForKey(KEY_AUTO_UPDATE_ENABLED) != null) defaults.boolForKey(KEY_AUTO_UPDATE_ENABLED) else true
     )
     private val ignoredVersionState = MutableStateFlow(defaults.integerForKey(KEY_IGNORED_VERSION_CODE).toInt())
+    private val betaUpdatesState = MutableStateFlow(
+        if (defaults.objectForKey(KEY_BETA_UPDATES_ENABLED) != null) defaults.boolForKey(KEY_BETA_UPDATES_ENABLED) else false
+    )
+    private val ignoredVersionWasPreReleaseState = MutableStateFlow(
+        if (defaults.objectForKey(KEY_IGNORED_VERSION_WAS_PRE_RELEASE) != null) defaults.boolForKey(KEY_IGNORED_VERSION_WAS_PRE_RELEASE) else false
+    )
 
     override val autoUpdateEnabled: Flow<Boolean> = autoUpdateState.asStateFlow()
-
     override val ignoredVersionCode: Flow<Int> = ignoredVersionState.asStateFlow()
+    override val betaUpdatesEnabled: Flow<Boolean> = betaUpdatesState.asStateFlow()
+    override val ignoredVersionWasPreRelease: Flow<Boolean> = ignoredVersionWasPreReleaseState.asStateFlow()
 
     override suspend fun setAutoUpdateEnabled(value: Boolean) {
         defaults.setBool(value, forKey = KEY_AUTO_UPDATE_ENABLED)
@@ -37,5 +39,15 @@ class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
     override suspend fun setIgnoredVersionCode(value: Int) {
         defaults.setInteger(value.toLong(), forKey = KEY_IGNORED_VERSION_CODE)
         ignoredVersionState.value = value
+    }
+
+    override suspend fun setBetaUpdatesEnabled(value: Boolean) {
+        defaults.setBool(value, forKey = KEY_BETA_UPDATES_ENABLED)
+        betaUpdatesState.value = value
+    }
+
+    override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) {
+        defaults.setBool(value, forKey = KEY_IGNORED_VERSION_WAS_PRE_RELEASE)
+        ignoredVersionWasPreReleaseState.value = value
     }
 }

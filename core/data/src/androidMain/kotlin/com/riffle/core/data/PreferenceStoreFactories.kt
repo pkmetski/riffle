@@ -117,11 +117,17 @@ fun EmphasisPreferencesStore(dataStore: DataStore<Preferences>): EmphasisPrefere
 fun AppUpdatePreferencesStore(dataStore: DataStore<Preferences>): AppUpdatePreferencesStore {
     val autoUpdateStore = preferenceStore(dataStore, PrefCodecs.boolean("auto_update_enabled", default = true))
     val ignoredVersionStore = preferenceStore(dataStore, PrefCodecs.int("ignored_version_code", default = 0))
+    val betaUpdatesStore = preferenceStore(dataStore, PrefCodecs.boolean("beta_updates_enabled", default = false))
+    val ignoredVersionWasPreReleaseStore = preferenceStore(dataStore, PrefCodecs.boolean("ignored_version_was_prerelease", default = false))
     return object : AppUpdatePreferencesStore {
         override val autoUpdateEnabled = autoUpdateStore.flow
         override val ignoredVersionCode = ignoredVersionStore.flow
+        override val betaUpdatesEnabled = betaUpdatesStore.flow
+        override val ignoredVersionWasPreRelease = ignoredVersionWasPreReleaseStore.flow
         override suspend fun setAutoUpdateEnabled(value: Boolean) = autoUpdateStore.update(value)
         override suspend fun setIgnoredVersionCode(value: Int) = ignoredVersionStore.update(value)
+        override suspend fun setBetaUpdatesEnabled(value: Boolean) = betaUpdatesStore.update(value)
+        override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) = ignoredVersionWasPreReleaseStore.update(value)
     }
 }
 
