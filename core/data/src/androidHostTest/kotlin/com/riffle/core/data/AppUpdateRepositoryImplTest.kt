@@ -5,6 +5,7 @@ import com.riffle.core.data.AppUpdateRepositoryImpl.Companion.evaluate
 import com.riffle.core.data.AppUpdateRepositoryImpl.Companion.listReleasesSince
 import com.riffle.core.data.AppUpdateRepositoryImpl.Companion.versionCodeOf
 import com.riffle.core.domain.ApkInstaller
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.UpdateCheckResult
@@ -15,6 +16,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -50,6 +53,7 @@ class AppUpdateRepositoryImplTest {
             releaseApi = releaseApi,
             installer = installer,
             dispatchers = DefaultDispatcherProvider,
+            preferencesStore = NoOpAppUpdatePreferencesStore,
         )
 
         val states = repository.downloadAndInstall(update).toList()
@@ -78,7 +82,8 @@ class AppUpdateRepositoryImplTest {
     @Test
     fun `versionCodeOf rejects malformed tags`() {
         assertNull(versionCodeOf("1.4"))
-        assertNull(versionCodeOf("1.4.0-rc1"))
+        // Suffix is stripped before parsing, so "1.4.0-rc1" parses to 10400 (not null).
+        assertEquals(10400, versionCodeOf("1.4.0-rc1"))
         assertNull(versionCodeOf("v1.4.0"))
         assertNull(versionCodeOf("latest"))
         assertNull(versionCodeOf(""))
@@ -187,4 +192,15 @@ class AppUpdateRepositoryImplTest {
 
         assertTrue(result.isEmpty())
     }
+}
+
+private object NoOpAppUpdatePreferencesStore : AppUpdatePreferencesStore {
+    override val autoUpdateEnabled: Flow<Boolean> = flowOf(true)
+    override val ignoredVersionCode: Flow<Int> = flowOf(0)
+    override val betaUpdatesEnabled: Flow<Boolean> = flowOf(false)
+    override val ignoredVersionWasPreRelease: Flow<Boolean> = flowOf(false)
+    override suspend fun setAutoUpdateEnabled(value: Boolean) = Unit
+    override suspend fun setIgnoredVersionCode(value: Int) = Unit
+    override suspend fun setBetaUpdatesEnabled(value: Boolean) = Unit
+    override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) = Unit
 }

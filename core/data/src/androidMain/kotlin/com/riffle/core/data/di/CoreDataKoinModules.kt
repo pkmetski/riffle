@@ -1250,6 +1250,7 @@ private val coreDataMiscModule = module {
             releaseApi = get(),
             installer = get(),
             dispatchers = get(),
+            preferencesStore = get(),
         )
     }
 

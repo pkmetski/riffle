@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import android.content.Context
 import com.riffle.core.domain.ApkInstaller
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AppUpdateVersions
 import com.riffle.core.domain.AvailableUpdate
@@ -15,6 +16,7 @@ import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.GitHubReleaseResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import java.io.File
 
@@ -23,16 +25,20 @@ class AppUpdateRepositoryImpl constructor(
     private val releaseApi: GitHubReleaseApi,
     private val installer: ApkInstaller,
     private val dispatchers: DispatcherProvider,
+    private val preferencesStore: AppUpdatePreferencesStore,
 ) : AppUpdateRepository {
 
     private val updateDir: File
         get() = File(context.cacheDir, UPDATE_DIR_NAME)
 
-    override suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult =
-        when (val result = releaseApi.latestRelease(REPO)) {
+    override suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult {
+        val includePrereleases = preferencesStore.betaUpdatesEnabled.first()
+        return when (val result = releaseApi.latestRelease(REPO, includePrereleases)) {
             is GitHubReleaseResult.Failed -> UpdateCheckResult.Failed(result.message)
             is GitHubReleaseResult.Success -> evaluate(currentVersionCode, result.release)
+            is GitHubReleaseResult.NoApplicableRelease -> UpdateCheckResult.UpToDate
         }
+    }
 
     override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> = channelFlow {
         // Start clean: drop any half-finished APK from a prior attempt before downloading.
@@ -55,14 +61,15 @@ class AppUpdateRepositoryImpl constructor(
         updateDir.listFiles()?.forEach { it.delete() }
     }
 
-    override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> =
-        listReleasesSince(releaseApi.listReleases(REPO), sinceVersionCode)
+    override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> {
+        val includePrereleases = preferencesStore.betaUpdatesEnabled.first()
+        return listReleasesSince(releaseApi.listReleases(REPO, includePrereleases), sinceVersionCode)
+    }
 
     companion object {
         const val REPO = "pkmetski/riffle"
         const val UPDATE_DIR_NAME = "updates"
 
-        /** Maps core:network's release model onto the shared [ReleaseCandidate] shape. */
         private fun GitHubRelease.asCandidate() = ReleaseCandidate(
             tagName = tagName,
             downloadUrl = apkUrl,
@@ -70,6 +77,7 @@ class AppUpdateRepositoryImpl constructor(
             body = body,
             htmlUrl = htmlUrl,
             publishedAt = publishedAt,
+            prerelease = prerelease,
         )
 
         // Version arithmetic lives in core:domain's AppUpdateVersions so Android and iOS cannot

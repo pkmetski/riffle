@@ -26,11 +26,12 @@ class GitHubReleaseApi(
 ) {
 
     /**
-     * Fetches the repo's most recent non-prerelease, non-draft release whose assets include an APK.
+     * Fetches the repo's most recent applicable release whose assets include an APK.
+     * Drafts are always skipped. Prereleases are skipped unless [includePrereleases] is true.
      * Releases that exist but haven't finished their APK build yet are skipped so an in-flight release
      * doesn't stall the updater.
      */
-    suspend fun latestRelease(repo: String): GitHubReleaseResult {
+    suspend fun latestRelease(repo: String, includePrereleases: Boolean = false): GitHubReleaseResult {
         // no-cache on the request: the only caller is the manual Settings "Check for updates"
         // button whose contract is "check now". GitHub's response advertises `Cache-Control:
         // max-age=60`; without this override a re-tap within 60s would serve the previous cached
@@ -45,7 +46,8 @@ class GitHubReleaseApi(
             }
             val parsed = response.body<List<ReleaseResponse>>()
             for (release in parsed) {
-                if (release.draft || release.prerelease) continue
+                if (release.draft) continue
+                if (release.prerelease && !includePrereleases) continue
                 val apk = release.releaseApkAsset() ?: continue
                 return GitHubReleaseResult.Success(
                     GitHubRelease(
@@ -54,21 +56,30 @@ class GitHubReleaseApi(
                         apkSizeBytes = apk.size,
                         htmlUrl = release.htmlUrl,
                         publishedAt = release.publishedAt.orEmpty(),
+                        prerelease = release.prerelease,
                     )
                 )
             }
-            GitHubReleaseResult.Failed("No release with an APK asset")
+            // If there are no stable (non-draft, non-prerelease) releases and we were not
+            // including prereleases, the user is simply up to date on stable builds.
+            if (!includePrereleases && parsed.none { !it.draft && !it.prerelease }) {
+                GitHubReleaseResult.NoApplicableRelease
+            } else {
+                GitHubReleaseResult.Failed("No release with an APK asset")
+            }
         } catch (e: IOException) {
             GitHubReleaseResult.Failed(e.message ?: "Network error")
         }
     }
 
     /**
-     * Fetches up to 20 non-draft, non-prerelease releases for [repo], newest first. Releases without
-     * an APK asset are included (apkUrl = "", apkSizeBytes = 0) so changelogs remain visible even
-     * before the build workflow finishes. Returns an empty list on any network or HTTP error.
+     * Fetches up to 20 applicable releases for [repo], newest first. Drafts are always excluded.
+     * Prereleases are excluded unless [includePrereleases] is true. Releases without an APK asset
+     * are included (apkUrl = "", apkSizeBytes = 0) so changelogs remain visible even before the
+     * build workflow finishes. Returns an empty list on any network or HTTP error.
+     * TODO: per_page=20 fills faster once betas appear between every stable; consider raising if needed
      */
-    suspend fun listReleases(repo: String): List<GitHubRelease> =
+    suspend fun listReleases(repo: String, includePrereleases: Boolean = false): List<GitHubRelease> =
         try {
             val response = httpClient.get("$apiBaseUrl/repos/$repo/releases?per_page=20") {
                 header(HttpHeaders.Accept, "application/vnd.github+json")
@@ -77,7 +88,7 @@ class GitHubReleaseApi(
             if (!response.status.isSuccess()) return emptyList()
             val parsed = response.body<List<ReleaseResponse>>()
             parsed
-                .filter { !it.draft && !it.prerelease }
+                .filter { !it.draft && !(it.prerelease && !includePrereleases) }
                 .map { release ->
                     val apk = release.releaseApkAsset()
                     GitHubRelease(
@@ -87,6 +98,7 @@ class GitHubReleaseApi(
                         body = release.body,
                         htmlUrl = release.htmlUrl,
                         publishedAt = release.publishedAt.orEmpty(),
+                        prerelease = release.prerelease,
                     )
                 }
         } catch (e: IOException) {
@@ -146,6 +158,7 @@ class GitHubReleaseApi(
 sealed interface GitHubReleaseResult {
     data class Success(val release: GitHubRelease) : GitHubReleaseResult
     data class Failed(val message: String) : GitHubReleaseResult
+    data object NoApplicableRelease : GitHubReleaseResult
 }
 
 data class GitHubRelease(
@@ -155,6 +168,7 @@ data class GitHubRelease(
     val body: String = "",
     val htmlUrl: String = "",
     val publishedAt: String = "",
+    val prerelease: Boolean = false,
 )
 
 @Serializable

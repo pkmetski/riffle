@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.UpdateCheckResult
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -9,6 +10,8 @@ import io.ktor.client.engine.mock.respondError
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
@@ -173,19 +176,34 @@ class IosCrashAndUpdateTest {
             """"html_url":"https://example.test/$tag","published_at":"2026-01-01T00:00:00Z"}"""
     }
 
-    private fun updateRepo(body: String, status: HttpStatusCode = HttpStatusCode.OK) =
-        IosAppUpdateRepositoryImpl(
-            httpClient = HttpClient(
-                MockEngine {
-                    if (status == HttpStatusCode.OK) {
-                        respond(body, status, headersOf("Content-Type", "application/json"))
-                    } else {
-                        respondError(status)
-                    }
-                },
-            ),
-            apiBaseUrl = "https://api.test",
-        )
+    private fun updateRepo(
+        body: String,
+        status: HttpStatusCode = HttpStatusCode.OK,
+        betaEnabled: Boolean = false,
+    ) = IosAppUpdateRepositoryImpl(
+        httpClient = HttpClient(
+            MockEngine {
+                if (status == HttpStatusCode.OK) {
+                    respond(body, status, headersOf("Content-Type", "application/json"))
+                } else {
+                    respondError(status)
+                }
+            },
+        ),
+        preferencesStore = FakeUpdatePreferencesStore(betaEnabled),
+        apiBaseUrl = "https://api.test",
+    )
+
+    private class FakeUpdatePreferencesStore(betaEnabled: Boolean) : AppUpdatePreferencesStore {
+        override val autoUpdateEnabled: Flow<Boolean> = flowOf(true)
+        override val ignoredVersionCode: Flow<Int> = flowOf(0)
+        override val betaUpdatesEnabled: Flow<Boolean> = flowOf(betaEnabled)
+        override val ignoredVersionWasPreRelease: Flow<Boolean> = flowOf(false)
+        override suspend fun setAutoUpdateEnabled(value: Boolean) = Unit
+        override suspend fun setIgnoredVersionCode(value: Int) = Unit
+        override suspend fun setBetaUpdatesEnabled(value: Boolean) = Unit
+        override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) = Unit
+    }
 
     @Test
     fun `a newer published release is reported as available`() = runTest {
@@ -234,5 +252,40 @@ class IosCrashAndUpdateTest {
         // APK sweep is a no-op, which is the interface's documented non-Android behaviour.
         assertEquals(emptyList(), repo.downloadAndInstall(available).toList())
         repo.sweepStaleApks()
+    }
+
+    // ── Beta filtering ────────────────────────────────────────────────────────
+
+    private fun prereleaseReleasesJson(vararg tags: String) = tags.joinToString(prefix = "[", postfix = "]") { tag ->
+        """{"tag_name":"$tag","draft":false,"prerelease":true,"body":"prerelease notes",""" +
+            """"html_url":"https://example.test/$tag","published_at":null}"""
+    }
+
+    @Test
+    fun `checkForUpdate excludes prerelease when betaUpdatesEnabled is false`() = runTest {
+        val result = updateRepo(prereleaseReleasesJson("v1.5.0-beta1"), betaEnabled = false)
+            .checkForUpdate(currentVersionCode = 10400)
+
+        assertFalse(result is UpdateCheckResult.UpdateAvailable,
+            "A prerelease must not be offered when beta updates are disabled")
+    }
+
+    @Test
+    fun `checkForUpdate includes prerelease when betaUpdatesEnabled is true`() = runTest {
+        val result = updateRepo(prereleaseReleasesJson("v1.5.0-beta1"), betaEnabled = true)
+            .checkForUpdate(currentVersionCode = 10400)
+
+        assertTrue(result is UpdateCheckResult.UpdateAvailable,
+            "A prerelease must be offered when beta updates are enabled")
+        assertEquals(10500, (result as UpdateCheckResult.UpdateAvailable).update.versionCode)
+        assertTrue(result.update.prerelease, "ReleaseCandidate.prerelease must be true for a beta")
+    }
+
+    @Test
+    fun `listReleasesSince returns empty when all releases are prereleases and beta is off`() = runTest {
+        val results = updateRepo(prereleaseReleasesJson("v1.5.0-beta1"), betaEnabled = false)
+            .listReleasesSince(sinceVersionCode = 0)
+
+        assertEquals(emptyList(), results)
     }
 }
