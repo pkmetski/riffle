@@ -8,4 +8,5 @@ data class ReleaseInfo(
     val sizeBytes: Long,
     val releaseUrl: String = "",
     val publishedAt: String = "",
+    val prerelease: Boolean = false,
 )

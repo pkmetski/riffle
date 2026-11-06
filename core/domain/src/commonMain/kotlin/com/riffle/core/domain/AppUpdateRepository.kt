@@ -45,6 +45,7 @@ data class AvailableUpdate(
     val versionCode: Int,
     val downloadUrl: String,
     val sizeBytes: Long,
+    val prerelease: Boolean = false,
 )
 
 /** Progress of [AppUpdateRepository.downloadAndInstall]. */
