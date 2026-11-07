@@ -30,7 +30,8 @@ class AppUpdateRepositoryImplBetaTest {
     @Before
     fun setup() {
         cacheDir = Files.createTempDirectory("app-update-beta").toFile()
-        context = mockk<Context> { every { this@mockk.cacheDir } returns cacheDir }
+        context = mockk()
+        every { context.cacheDir } returns cacheDir
         installer = mockk(relaxed = true)
     }
 
