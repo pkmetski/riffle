@@ -145,4 +145,28 @@ class BrowseViewModelKoinResolutionTest {
         val vm = koin.get<OReillyBrowseViewModel> { parametersOf("lib-oreilly") }
         assertEquals("lib-oreilly", vm.rootId)
     }
+
+    /**
+     * Regression for search term being cleared on back-navigation from item detail to browse.
+     *
+     * Before the fix, UnboundedBrowseScreen created its own ViewModel internally. When the user
+     * navigated to item detail, the screen left the composition, its DisposableEffect cleared the
+     * ScreenScopedViewModelHost, and navigation back created a fresh ViewModel — resetting _query
+     * to "". The fix lifts ViewModel creation to LibraryHost (AppShell), giving the ViewModel the
+     * same lifetime as libraryItemsViewModel so it survives within-library navigation.
+     *
+     * This test asserts the invariant the fix relies on: the same ViewModel instance retains its
+     * query, while a new instance resets it. If this assertion fails, the in-memory query contract
+     * is broken regardless of which component holds the reference.
+     */
+    @Test
+    fun `ChitankaBrowseViewModel retains query on instance reuse and resets on new instance`() {
+        val koin = startKoin { modules(testModule()) }.koin
+        val vm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
+        vm.onQueryChange("tolkien")
+        assertEquals("tolkien", vm.query.value)
+
+        val freshVm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
+        assertEquals("", freshVm.query.value)
+    }
 }
