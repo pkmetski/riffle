@@ -11,6 +11,7 @@ data class ReleaseCandidate(
     val body: String = "",
     val htmlUrl: String = "",
     val publishedAt: String = "",
+    val prerelease: Boolean = false,
 )
 
 /**
@@ -37,6 +38,7 @@ object AppUpdateVersions {
                     versionCode = versionCode,
                     downloadUrl = release.downloadUrl,
                     sizeBytes = release.sizeBytes,
+                    prerelease = release.prerelease,
                 ),
             )
         }
@@ -55,6 +57,7 @@ object AppUpdateVersions {
                 sizeBytes = release.sizeBytes,
                 releaseUrl = release.htmlUrl,
                 publishedAt = release.publishedAt,
+                prerelease = release.prerelease,
             )
         }
 
@@ -71,7 +74,7 @@ object AppUpdateVersions {
      * three numeric dot-separated parts.
      */
     fun versionCodeOf(versionName: String): Int? {
-        val parts = versionName.trim().split(".")
+        val parts = versionName.trim().substringBefore("-").split(".")
         if (parts.size != 3) return null
         val (maj, min, pat) = parts.map { it.toIntOrNull() ?: return null }
         return maj * 10000 + min * 100 + pat

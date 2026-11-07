@@ -84,4 +84,33 @@ class AppUpdateVersionsTest {
         assertFalse(changelog.contains("[!["), "Badge line should have been stripped")
         assertTrue(changelog.contains("Fixed a crash"), "Real notes should be preserved")
     }
+
+    @Test
+    fun versionCodeOfStripsPreReleaseSuffix() {
+        assertEquals(10500, AppUpdateVersions.versionCodeOf("1.5.0-beta1"))
+        assertEquals(10500, AppUpdateVersions.versionCodeOf("1.5.0-rc2"))
+        assertEquals(10500, AppUpdateVersions.versionCodeOf("1.5.0"))
+    }
+
+    @Test
+    fun versionCodeOfReturnsNullForFourPartTagAfterStrip() {
+        assertNull(AppUpdateVersions.versionCodeOf("1.5.0.1-beta1"))
+    }
+
+    @Test
+    fun evaluateReturnsUpToDateWhenBetaMatchesInstalledVersionCode() {
+        val candidate = ReleaseCandidate(tagName = "v1.5.0-beta1", downloadUrl = "", sizeBytes = 0)
+        assertEquals(UpdateCheckResult.UpToDate, AppUpdateVersions.evaluate(10500, candidate))
+    }
+
+    @Test
+    fun listReleasesSinceCarriesPrereleaseFlag() {
+        val candidates = listOf(
+            ReleaseCandidate(tagName = "v1.5.0-beta1", downloadUrl = "", sizeBytes = 0, prerelease = true),
+            ReleaseCandidate(tagName = "v1.4.0", downloadUrl = "", sizeBytes = 0, prerelease = false),
+        )
+        val results = AppUpdateVersions.listReleasesSince(candidates, sinceVersionCode = 0)
+        assertTrue(results.first { it.versionCode == 10500 }.prerelease)
+        assertFalse(results.first { it.versionCode == 10400 }.prerelease)
+    }
 }

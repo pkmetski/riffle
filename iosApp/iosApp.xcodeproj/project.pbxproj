@@ -63,6 +63,7 @@
 		B1008016 /* ReaderHighlightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008026 /* ReaderHighlightsTests.swift */; };
 		B1008017 /* ReaderSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008027 /* ReaderSettingsTests.swift */; };
 		B1008019 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1008029 /* SettingsViewModelTests.swift */; };
+
 		B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1002030 /* ReadiumEpubNavigatorBridge.swift */; };
 		B100801C /* PageEdgeTapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100801B /* PageEdgeTapTests.swift */; };
 		B1008030 /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = B1008001 /* ReadiumShared */; };
@@ -174,6 +175,7 @@
 		B1008026 /* ReaderHighlightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlightsTests.swift; sourceTree = "<group>"; };
 		B1008027 /* ReaderSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSettingsTests.swift; sourceTree = "<group>"; };
 		B1008029 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
+
 		B1009020 /* LocalFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFilesTests.swift; sourceTree = "<group>"; };
 		B100B020 /* AddAbsSourceFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAbsSourceFlowTests.swift; sourceTree = "<group>"; };
 		B100C020 /* DownloadsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsTests.swift; sourceTree = "<group>"; };
@@ -325,6 +327,7 @@
 				B1008027 /* ReaderSettingsTests.swift */,
 				B1060021 /* OpenInDocumentStagingTests.swift */,
 				B1008029 /* SettingsViewModelTests.swift */,
+
 				B1012020 /* OReillyLazyPublicationTests.swift */,
 				B1013020 /* AddKomgaSourceFlowTests.swift */,
 				B1014020 /* SourcePickerTests.swift */,
@@ -626,6 +629,7 @@
 				B1060011 /* OpenInDocument.swift in Sources */,
 				B1060012 /* OpenInDocumentStagingTests.swift in Sources */,
 				B1008019 /* SettingsViewModelTests.swift in Sources */,
+
 				B100801A /* ReadiumEpubNavigatorBridge.swift in Sources */,
 				B1002022 /* ReadiumEpubNavigatorBridge+Delegate.swift in Sources */,
 				B101001A /* OReillyLazyContainer.swift in Sources */,

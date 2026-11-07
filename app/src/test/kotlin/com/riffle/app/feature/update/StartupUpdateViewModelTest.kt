@@ -52,14 +52,23 @@ class StartupUpdateViewModelTest {
         sizeBytes = 1000L,
     )
 
-    private fun fakePrefs(autoEnabled: Boolean = true, ignored: Int = 0): AppUpdatePreferencesStore {
+    private fun fakePrefs(
+        autoEnabled: Boolean = true,
+        ignored: Int = 0,
+        ignoredWasPreRelease: Boolean = false,
+    ): AppUpdatePreferencesStore {
         val autoFlow = MutableStateFlow(autoEnabled)
         val ignoredFlow = MutableStateFlow(ignored)
+        val wasPreReleaseFlow = MutableStateFlow(ignoredWasPreRelease)
         return object : AppUpdatePreferencesStore {
             override val autoUpdateEnabled: Flow<Boolean> = autoFlow
             override val ignoredVersionCode: Flow<Int> = ignoredFlow
+            override val betaUpdatesEnabled: Flow<Boolean> = MutableStateFlow(false)
+            override val ignoredVersionWasPreRelease: Flow<Boolean> = wasPreReleaseFlow
             override suspend fun setAutoUpdateEnabled(value: Boolean) { autoFlow.value = value }
             override suspend fun setIgnoredVersionCode(value: Int) { ignoredFlow.value = value }
+            override suspend fun setBetaUpdatesEnabled(value: Boolean) {}
+            override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) { wasPreReleaseFlow.value = value }
         }
     }
 
@@ -171,11 +180,43 @@ class StartupUpdateViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertNotNull(vm.dialogState.value)
 
-        vm.ignoreVersion(10600)
+        vm.ignoreVersion(10600, wasPreRelease = false)
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNull(vm.dialogState.value)
         assertEquals(10600, prefs.ignoredVersionCode.first())
+    }
+
+    @Test
+    fun `ignoreVersion writes both prefs when prerelease`() = runTest {
+        val prefs = fakePrefs()
+        val vm = viewModel(
+            repo = fakeRepo(listOf(releaseInfo("1.5.0-beta.1", 10500))),
+            prefs = prefs,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.ignoreVersion(10500, wasPreRelease = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(10500, prefs.ignoredVersionCode.first())
+        assertTrue(prefs.ignoredVersionWasPreRelease.first())
+    }
+
+    @Test
+    fun `ignoreVersion writes both prefs when stable`() = runTest {
+        val prefs = fakePrefs()
+        val vm = viewModel(
+            repo = fakeRepo(listOf(releaseInfo("1.4.0", 10400))),
+            prefs = prefs,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.ignoreVersion(10400, wasPreRelease = false)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(10400, prefs.ignoredVersionCode.first())
+        assertFalse(prefs.ignoredVersionWasPreRelease.first())
     }
 
     @Test
@@ -272,6 +313,31 @@ class StartupUpdateViewModelTest {
 
         assertNull(vm.dialogState.value)
         assertEquals(0, prefs.ignoredVersionCode.first())
+    }
+
+    @Test
+    fun `prerelease flag on ReleaseInfo is propagated to AvailableUpdate in dialog`() = runTest {
+        val prefs = fakePrefs()
+        val vm = viewModel(
+            repo = fakeRepo(
+                listOf(
+                    ReleaseInfo(
+                        versionName = "1.5.0-beta.1",
+                        versionCode = 10500,
+                        changelog = "",
+                        downloadUrl = "https://x/beta.apk",
+                        sizeBytes = 1000L,
+                        prerelease = true,
+                    )
+                )
+            ),
+            prefs = prefs,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.dialogState.value
+        assertNotNull(state)
+        assertTrue(state!!.update.prerelease)
     }
 
     @Test

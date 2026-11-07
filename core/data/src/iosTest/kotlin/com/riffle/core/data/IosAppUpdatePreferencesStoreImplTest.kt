@@ -7,16 +7,17 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Regression coverage for the stub this replaced (issue #1065): the previous
- * IosNoOpAppUpdatePreferencesStore emitted a constant `false`/`0` and dropped every write, so the
- * Settings auto-update toggle and "skip this version" choice silently did nothing.
- */
 class IosAppUpdatePreferencesStoreImplTest {
 
-    private val keys = listOf("app_update:auto_update_enabled", "app_update:ignored_version_code")
+    private val keys = listOf(
+        "app_update:auto_update_enabled",
+        "app_update:ignored_version_code",
+        "app_update:beta_updates_enabled",
+        "app_update:ignored_version_was_prerelease",
+    )
 
     @BeforeTest
     fun clear() = keys.forEach { NSUserDefaults.standardUserDefaults.removeObjectForKey(it) }
@@ -61,5 +62,49 @@ class IosAppUpdatePreferencesStoreImplTest {
 
         assertTrue(reopened.autoUpdateEnabled.first(), "auto-update must survive a new instance")
         assertEquals(7, reopened.ignoredVersionCode.first())
+    }
+
+    @Test
+    fun `betaUpdatesEnabled persists across store instances`() = runTest {
+        IosAppUpdatePreferencesStoreImpl().setBetaUpdatesEnabled(true)
+
+        val reopened = IosAppUpdatePreferencesStoreImpl()
+
+        assertTrue(reopened.betaUpdatesEnabled.first(), "betaUpdatesEnabled must survive a new instance")
+    }
+
+    @Test
+    fun `ignoredVersionWasPreRelease persists across store instances`() = runTest {
+        IosAppUpdatePreferencesStoreImpl().setIgnoredVersionWasPreRelease(true)
+
+        val reopened = IosAppUpdatePreferencesStoreImpl()
+
+        assertTrue(reopened.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease must survive a new instance")
+    }
+
+    @Test
+    fun `betaUpdatesEnabled defaults to false`() = runTest {
+        val store = IosAppUpdatePreferencesStoreImpl()
+        assertFalse(store.betaUpdatesEnabled.first(), "betaUpdatesEnabled should default to false")
+    }
+
+    @Test
+    fun `setBetaUpdatesEnabled is observable without a restart`() = runTest {
+        val store = IosAppUpdatePreferencesStoreImpl()
+        store.setBetaUpdatesEnabled(true)
+        assertTrue(store.betaUpdatesEnabled.first(), "the flow must replay the new value")
+    }
+
+    @Test
+    fun `ignoredVersionWasPreRelease defaults to false`() = runTest {
+        val store = IosAppUpdatePreferencesStoreImpl()
+        assertFalse(store.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease should default to false")
+    }
+
+    @Test
+    fun `setIgnoredVersionWasPreRelease is observable without a restart`() = runTest {
+        val store = IosAppUpdatePreferencesStoreImpl()
+        store.setIgnoredVersionWasPreRelease(true)
+        assertTrue(store.ignoredVersionWasPreRelease.first(), "the flow must replay the new value")
     }
 }

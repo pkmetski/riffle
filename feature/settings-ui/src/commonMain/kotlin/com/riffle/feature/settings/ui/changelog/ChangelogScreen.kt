@@ -1,7 +1,9 @@
 package com.riffle.feature.settings.ui.changelog
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -101,35 +103,47 @@ private fun ReleaseEntry(release: ReleaseInfo) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        if (release.releaseUrl.isNotBlank()) {
-            val linkColor = MaterialTheme.colorScheme.primary
-            val annotated = remember(release.releaseUrl, release.versionName, linkColor) {
-                buildAnnotatedString {
-                    withLink(
-                        LinkAnnotation.Clickable(
-                            tag = "release",
-                            styles = TextLinkStyles(
-                                style = SpanStyle(
-                                    color = linkColor,
-                                    textDecoration = TextDecoration.Underline,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (release.releaseUrl.isNotBlank()) {
+                val linkColor = MaterialTheme.colorScheme.primary
+                val annotated = remember(release.releaseUrl, release.versionName, linkColor) {
+                    buildAnnotatedString {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = "release",
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(
+                                        color = linkColor,
+                                        textDecoration = TextDecoration.Underline,
+                                    ),
                                 ),
-                            ),
-                            linkInteractionListener = { uriHandler.openUri(release.releaseUrl) },
-                        )
-                    ) {
-                        append("v${release.versionName}")
+                                linkInteractionListener = { uriHandler.openUri(release.releaseUrl) },
+                            )
+                        ) {
+                            append("v${release.versionName}")
+                        }
                     }
                 }
+                Text(
+                    text = annotated,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            } else {
+                Text(
+                    text = "v${release.versionName}",
+                    style = MaterialTheme.typography.titleSmall,
+                )
             }
-            Text(
-                text = annotated,
-                style = MaterialTheme.typography.titleSmall,
-            )
-        } else {
-            Text(
-                text = "v${release.versionName}",
-                style = MaterialTheme.typography.titleSmall,
-            )
+            if (release.prerelease) {
+                Text(
+                    text = "Beta",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
         ReleaseDateText(release.publishedAt)
         Spacer(modifier = Modifier.height(4.dp))

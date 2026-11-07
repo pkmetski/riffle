@@ -22,6 +22,8 @@ import com.riffle.feature.settings.ui.generated.resources.ui_app_name
 import com.riffle.feature.settings.ui.generated.resources.ui_app_version_section
 import com.riffle.feature.settings.ui.generated.resources.ui_check_for_updates
 import com.riffle.feature.settings.ui.generated.resources.ui_check_for_updates_automatically
+import com.riffle.feature.settings.ui.generated.resources.ui_include_beta_versions
+import com.riffle.feature.settings.ui.generated.resources.ui_include_beta_versions_sublabel
 import com.riffle.feature.settings.ui.generated.resources.ui_checking_for_updates
 import com.riffle.feature.settings.ui.generated.resources.ui_downloading_update_percent
 import com.riffle.feature.settings.ui.generated.resources.ui_installed_version
@@ -40,11 +42,13 @@ internal fun AppVersionSection(
     installedVersionName: String,
     state: AppUpdateUiState,
     autoUpdateEnabled: Boolean,
+    betaUpdatesEnabled: Boolean,
     canInstallUpdate: Boolean = true,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onViewReleaseUrl: (String) -> Unit,
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
+    onSetBetaUpdatesEnabled: (Boolean) -> Unit,
     onNavigateToChangelog: () -> Unit,
     onVersionTap: () -> Unit,
 ) {
@@ -104,6 +108,17 @@ internal fun AppVersionSection(
             Switch(
                 checked = autoUpdateEnabled,
                 onCheckedChange = onSetAutoUpdateEnabled,
+            )
+        },
+    )
+    ListItem(
+        headlineContent = { Text(stringResource(Res.string.ui_include_beta_versions)) },
+        supportingContent = { Text(stringResource(Res.string.ui_include_beta_versions_sublabel)) },
+        trailingContent = {
+            Switch(
+                checked = betaUpdatesEnabled,
+                onCheckedChange = onSetBetaUpdatesEnabled,
+                modifier = Modifier.testTag(TestTags.SETTINGS_BETA_UPDATES_TOGGLE),
             )
         },
     )

@@ -30,7 +30,7 @@ import com.riffle.feature.settings.ui.changelog.ReleaseDateText
 internal fun UpdateAvailableDialog(
     state: StartupUpdateDialogState,
     downloadState: UpdateDownloadState?,
-    onIgnore: (versionCode: Int) -> Unit,
+    onIgnore: (versionCode: Int, wasPreRelease: Boolean) -> Unit,
     onUpdate: (update: AvailableUpdate) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -46,10 +46,22 @@ internal fun UpdateAvailableDialog(
             LazyColumn {
                 items(state.releases) { release ->
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "v${release.versionName}",
-                            style = MaterialTheme.typography.titleSmall,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "v${release.versionName}",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            if (release.prerelease) {
+                                Text(
+                                    text = "Beta",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                )
+                            }
+                        }
                         ReleaseDateText(release.publishedAt)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -97,7 +109,7 @@ internal fun UpdateAvailableDialog(
         dismissButton = {
             if (!isDownloading) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { onIgnore(state.update.versionCode) }) {
+                    TextButton(onClick = { onIgnore(state.update.versionCode, state.update.prerelease) }) {
                         Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_ignore_this_version))
                     }
                     TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_later)) }

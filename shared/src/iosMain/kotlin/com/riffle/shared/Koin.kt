@@ -961,7 +961,7 @@ private fun iosLibraryModule(
     }
     single { IosCrashReportRepositoryImpl(get()) }
     single<CrashReportRepository> { get<IosCrashReportRepositoryImpl>() }
-    single<AppUpdateRepository> { IosAppUpdateRepositoryImpl(get()) }
+    single<AppUpdateRepository> { IosAppUpdateRepositoryImpl(get(), get()) }
     single<AppUpdatePreferencesStore> { IosAppUpdatePreferencesStoreImpl() }
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
     single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }

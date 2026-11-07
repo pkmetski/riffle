@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AppUpdateVersions
 import com.riffle.core.domain.AvailableUpdate
@@ -14,6 +15,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -36,6 +38,7 @@ private const val GITHUB_API_BASE = "https://api.github.com"
  */
 class IosAppUpdateRepositoryImpl(
     private val httpClient: HttpClient,
+    private val preferencesStore: AppUpdatePreferencesStore,
     private val apiBaseUrl: String = GITHUB_API_BASE,
     private val repo: String = GITHUB_REPO,
 ) : AppUpdateRepository {
@@ -43,17 +46,18 @@ class IosAppUpdateRepositoryImpl(
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult {
-        val releases = fetchReleases()
+        val includePrereleases = preferencesStore.betaUpdatesEnabled.first()
+        val releases = fetchReleases(includePrereleases)
             ?: return UpdateCheckResult.Failed("Could not reach GitHub to check for updates")
-        // Newest usable release first, matching Android's latestRelease(): skip drafts and
-        // prereleases, and pick the highest version tag we can parse.
         val latest = releases.maxByOrNull { AppUpdateVersions.versionCodeOf(it.tagName.removePrefix("v")) ?: -1 }
-            ?: return UpdateCheckResult.Failed("No published releases found")
+            ?: return UpdateCheckResult.UpToDate
         return AppUpdateVersions.evaluate(currentVersionCode, latest)
     }
 
-    override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> =
-        AppUpdateVersions.listReleasesSince(fetchReleases().orEmpty(), sinceVersionCode)
+    override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> {
+        val includePrereleases = preferencesStore.betaUpdatesEnabled.first()
+        return AppUpdateVersions.listReleasesSince(fetchReleases(includePrereleases).orEmpty(), sinceVersionCode)
+    }
 
     /** iOS cannot install another build of itself; see the class doc. */
     override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> = emptyFlow()
@@ -61,14 +65,14 @@ class IosAppUpdateRepositoryImpl(
     /** Nothing is ever downloaded on iOS, so there is nothing to sweep. */
     override fun sweepStaleApks() = Unit
 
-    private suspend fun fetchReleases(): List<ReleaseCandidate>? = runCatching {
+    private suspend fun fetchReleases(includePrereleases: Boolean): List<ReleaseCandidate>? = runCatching {
         val response = httpClient.get("$apiBaseUrl/repos/$repo/releases") {
             header("Accept", "application/vnd.github+json")
             header("Cache-Control", "no-cache")
         }
         if (!response.status.isSuccess()) return null
         json.decodeFromString<List<GitHubReleaseResponse>>(response.bodyAsText())
-            .filterNot { it.draft || it.prerelease }
+            .filterNot { it.draft || (it.prerelease && !includePrereleases) }
             .map { it.toCandidate() }
     }.getOrNull()
 
@@ -81,8 +85,6 @@ class IosAppUpdateRepositoryImpl(
         @SerialName("html_url") val htmlUrl: String = "",
         @SerialName("published_at") val publishedAt: String? = null,
     ) {
-        // There is no downloadable artifact for iOS, so the url/size an Android release carries for
-        // its APK are simply absent here; only the version, changelog and release page matter.
         fun toCandidate() = ReleaseCandidate(
             tagName = tagName,
             downloadUrl = htmlUrl,
@@ -90,6 +92,7 @@ class IosAppUpdateRepositoryImpl(
             body = body,
             htmlUrl = htmlUrl,
             publishedAt = publishedAt.orEmpty(),
+            prerelease = prerelease,
         )
     }
 }

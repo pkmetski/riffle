@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -152,6 +153,26 @@ class SettingsViewModel constructor(
         viewModelScope.launch { appUpdatePreferencesStore.setAutoUpdateEnabled(value) }
     }
 
+    val betaUpdatesEnabled: StateFlow<Boolean> =
+        appUpdatePreferencesStore.betaUpdatesEnabled
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setBetaUpdatesEnabled(value: Boolean) {
+        viewModelScope.launch {
+            appUpdatePreferencesStore.setBetaUpdatesEnabled(value)
+            if (!value) {
+                val available = _appUpdateState.value as? AppUpdateUiState.UpdateAvailable
+                if (available != null && available.update.prerelease) {
+                    _appUpdateState.value = AppUpdateUiState.Idle
+                }
+                if (appUpdatePreferencesStore.ignoredVersionWasPreRelease.first()) {
+                    appUpdatePreferencesStore.setIgnoredVersionCode(0)
+                    appUpdatePreferencesStore.setIgnoredVersionWasPreRelease(false)
+                }
+            }
+        }
+    }
+
     private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
 
@@ -168,7 +189,11 @@ class SettingsViewModel constructor(
                 is UpdateCheckResult.UpToDate -> AppUpdateUiState.UpToDate
                 is UpdateCheckResult.Failed -> AppUpdateUiState.Failed(result.message)
                 is UpdateCheckResult.UpdateAvailable ->
-                    AppUpdateUiState.UpdateAvailable(result.update.versionName, result.update)
+                    if (result.update.prerelease && !appUpdatePreferencesStore.betaUpdatesEnabled.first()) {
+                        AppUpdateUiState.UpToDate
+                    } else {
+                        AppUpdateUiState.UpdateAvailable(result.update.versionName, result.update)
+                    }
             }
         }
     }
