@@ -216,7 +216,7 @@ fun EpubReaderScreen(
     startReadaloudAtSec: Double = -1.0,
     /** Called when the user taps "Switch to audiobook" in the readaloud mini-player. */
     onSwitchToAudiobook: (() -> Unit)? = null,
-    onOpenInBook: ((locatorJson: String) -> Unit)? = null,
+    onOpenInBook: ((locatorJson: String, rawCfi: String, annotationId: String) -> Unit)? = null,
 ) {
     KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()
@@ -1955,7 +1955,7 @@ fun EpubReaderScreen(
                         ?: return@AnnotationActionsSheet
                     val locatorJson = annotationLocatorJson(annotation.chapterHref, annotation.cfi, annotation.progression)
                     annotationSession.forceCloseHighlightEditTarget()
-                    onOpenInBook?.invoke(locatorJson)
+                    onOpenInBook?.invoke(locatorJson, annotation.cfi, annotation.id)
                 },
                 modifier = annotationSheetModifier,
             )

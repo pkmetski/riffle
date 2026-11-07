@@ -24,6 +24,7 @@ internal fun ReaderHost(
             startReadaloudAtSec = destination.startReadaloudAtSec,
             source = destination.readerSource,
             onSwitchToAudiobook = if (destination.item.isListenable) readerActions.onSwitchToAudiobook else null,
+            onOpenInBook = readerActions.onOpenInBook,
         )
         is LibraryNav.PdfReader -> PdfReaderScreen(item = destination.item, onBack = readerActions.onBack)
         is LibraryNav.CbzReader -> CbzReaderScreen(item = destination.item, onBack = readerActions.onBack)

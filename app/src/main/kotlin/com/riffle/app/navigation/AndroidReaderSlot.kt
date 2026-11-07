@@ -147,6 +147,8 @@ private fun AndroidEpubReaderSlot(
                 is ReaderNavEvent.OpenInSourceBook -> {
                     readerActions.onOpenInBook?.invoke(
                         annotationLocatorJson(event.chapterHref, event.cfi, event.progression),
+                        event.cfi,
+                        event.annotationId,
                     )
                 }
                 ReaderNavEvent.CloseEmptyHighlights -> readerActions.onBack()

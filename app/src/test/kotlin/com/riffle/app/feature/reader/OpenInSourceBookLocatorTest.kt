@@ -11,6 +11,10 @@ import org.junit.Test
  * previously used buildLocatorJsonFromCfi which emitted an empty href, causing Readium to fall
  * back to the last reading position instead of the annotation's location.
  *
+ * A second regression pinned here: rawCfi and annotationId must flow through the event so that
+ * LibraryNav.Reader.openAtRawCfi is set, causing AndroidReaderSlot to prefer cfiStringToLocator
+ * (no stored progression) over the JSON locator, preventing a page-snap to the wrong page.
+ *
  * iOS counterpart: AnnotationLocatorJsonTest (commonTest) covers annotationLocatorJson with
  * chapterHref on the iOS simulator path.
  */
@@ -50,5 +54,25 @@ class OpenInSourceBookLocatorTest {
         val cfiInLocator = parsed.getJSONObject("locations").getString("cfi")
 
         assertEquals("/4/2/1:0)", cfiInLocator)
+    }
+
+    @Test
+    fun `open in book event carries raw cfi for openAtRawCfi navigation`() {
+        val rawCfi = "epubcfi(/6/8!/4/2[p5]/1:42)"
+        val event = ReaderNavEvent.OpenInSourceBook(
+            sourceId = "src",
+            itemId = "item",
+            cfi = rawCfi,
+            chapterHref = "EPUB/ch3.xhtml",
+            progression = 0.6,
+            annotationId = "ann-3",
+        )
+
+        // The raw CFI is what AndroidReaderSlot passes as the second arg to onOpenInBook,
+        // which AppShell puts into LibraryNav.Reader.openAtRawCfi. That field takes priority
+        // over initialLocatorJson in AndroidEpubReaderSlot, sending it through cfiStringToLocator
+        // instead of Locator.fromJSON — bypassing the stored page-progression.
+        assertEquals(rawCfi, event.cfi)
+        assertEquals("ann-3", event.annotationId)
     }
 }

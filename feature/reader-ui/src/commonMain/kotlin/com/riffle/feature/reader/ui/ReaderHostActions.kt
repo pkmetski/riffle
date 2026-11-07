@@ -3,7 +3,7 @@ package com.riffle.feature.reader.ui
 data class ReaderHostActions(
     val onBack: () -> Unit,
     val onSwitchToAudiobook: (() -> Unit)? = null,
-    val onOpenInBook: ((locatorJson: String) -> Unit)? = null,
+    val onOpenInBook: ((locatorJson: String, rawCfi: String, annotationId: String) -> Unit)? = null,
 )
 
 fun ReaderHostActions.probeFields(): List<Pair<String, Any>> = buildList {
