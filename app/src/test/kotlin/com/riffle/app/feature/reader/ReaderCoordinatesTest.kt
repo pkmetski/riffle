@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ReaderCoordinatesTest {
@@ -92,6 +93,39 @@ class ReaderCoordinatesTest {
         val anchor = IntRect(left = 40, top = 300, right = 60, bottom = 320)
         val result = position(provider(anchor, margin = 8), IntSize(100, 800), IntSize(150, 100))
         assertEquals(8, result.x)
+    }
+
+    // ── resolveReadiumAnnotationAnchorRect ───────────────────────────────────
+
+    @Test
+    fun `resolveReadiumAnnotationAnchorRect prefers action mode rect when available`() {
+        // Simulates vertical/scroll mode: selection rect has doc-relative y=13000 (off-screen),
+        // but lastActionModeWindowRect has the correct screen-space position from the interceptor.
+        val actionModeWindowRect = IntRect(50, 300, 250, 320)
+        // null selectionRect simulates the absence of a valid CSS fallback; the action mode rect wins.
+        val result = resolveReadiumAnnotationAnchorRect(actionModeWindowRect, null, 0, 0)
+        assertEquals(IntRect(50, 300, 250, 320), result)
+    }
+
+    @Test
+    fun `resolveReadiumAnnotationAnchorRect returns null when action mode rect absent and no selection`() {
+        // Both sources absent → null, which triggers the caller's early-exit (no anchor = no popup).
+        val result = resolveReadiumAnnotationAnchorRect(null, null, 100, 50)
+        assertNull(result)
+    }
+
+    @Test
+    fun `resolveReadiumAnnotationAnchorRect returns null when both sources absent`() {
+        val result = resolveReadiumAnnotationAnchorRect(null, null, 0, 0)
+        assertNull(result)
+    }
+
+    @Test
+    fun `resolveReadiumAnnotationAnchorRect action mode rect ignores view offset`() {
+        // Action mode rect is already in window/screen coords — view offset must not be re-applied.
+        val actionModeWindowRect = IntRect(100, 500, 300, 520)
+        val result = resolveReadiumAnnotationAnchorRect(actionModeWindowRect, null, 999, 999)
+        assertEquals(IntRect(100, 500, 300, 520), result)
     }
 
     @Test
