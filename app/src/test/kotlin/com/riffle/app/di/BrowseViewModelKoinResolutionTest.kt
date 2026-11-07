@@ -146,21 +146,10 @@ class BrowseViewModelKoinResolutionTest {
         assertEquals("lib-oreilly", vm.rootId)
     }
 
-    /**
-     * Regression for search term being cleared on back-navigation from item detail to browse.
-     *
-     * When the user navigates to item detail, UnboundedBrowseScreen leaves the composition and its
-     * DisposableEffect clears the ScreenScopedViewModelHost. Navigation back creates a fresh
-     * ViewModel — but UnboundedBrowseScreen restores the query via rememberSaveable and calls
-     * setInitialQuery() synchronously during the remember block, before the init coroutine's
-     * refresh() runs, so the initial fetch uses the restored term.
-     *
-     * This test pins the two invariants the fix relies on:
-     * 1. setInitialQuery seeds _query without launching a debounced refresh job.
-     * 2. A fresh ViewModel instance starts with the empty default; only setInitialQuery restores it.
-     */
+    // Regression: search term cleared on back-navigation (#1388). setInitialQuery seeds _query on
+    // a fresh VM; a second fresh VM starts empty until setInitialQuery is called on it.
     @Test
-    fun `setInitialQuery seeds query before init refresh without scheduling a debounced refresh`() {
+    fun `setInitialQuery seeds query on fresh ViewModel instance`() {
         val koin = startKoin { modules(testModule()) }.koin
         val vm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
         vm.setInitialQuery("tolkien")

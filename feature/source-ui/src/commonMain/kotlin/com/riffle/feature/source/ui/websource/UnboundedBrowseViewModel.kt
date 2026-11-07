@@ -440,8 +440,7 @@ abstract class UnboundedBrowseViewModel(
         }
     }
 
-    // Seeds _query before the init coroutine's refresh() runs, so a restored search term is
-    // picked up by the initial fetch without scheduling a redundant debounced refresh.
+    // Seeds _query synchronously (called from remember{}); init coroutine's refresh() runs after.
     fun setInitialQuery(q: String) {
         _query.value = q
     }

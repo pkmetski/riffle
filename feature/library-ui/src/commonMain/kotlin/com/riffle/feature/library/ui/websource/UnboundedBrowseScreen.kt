@@ -91,23 +91,21 @@ fun UnboundedBrowseScreen(
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
 ) {
-    // Persist the search term across in-library navigation (Items → ItemDetail → Items).
-    // SaveableStateProvider wrapping this call site preserves rememberSaveable state while
-    // the Items branch is not in the composition (while ItemDetail is on top).
-    var savedQuery by rememberSaveable { mutableStateOf("") }
+    // key ties both the ViewModel and the saved query to the same (sourceType, libraryId) pair
+    // so switching between root types on the same libraryId resets the saved term.
     val key = "$sourceType/$libraryId"
+    var savedQuery by rememberSaveable(key) { mutableStateOf("") }
     val host = remember(key) { ScreenScopedViewModelHost() }
     val viewModel = remember(key) {
         val vm = host.adopt(unboundedBrowseViewModel(sourceType, libraryId))
-        // Set _query synchronously before the init coroutine's refresh() runs so the initial
-        // fetch uses the restored term rather than the empty default.
+        // Synchronous inside remember{}: runs before the init coroutine body is dispatched.
         if (savedQuery.isNotEmpty()) vm.setInitialQuery(savedQuery)
         vm
     }
     DisposableEffect(key) { onDispose { host.clear() } }
 
     val query by viewModel.query.collectAsState()
-    LaunchedEffect(query) { savedQuery = query }
+    SideEffect { savedQuery = query }
 
     val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     SideEffect {
