@@ -48,4 +48,22 @@ final class OpenInSourceBookLocatorTests: XCTestCase {
         XCTAssertTrue(locator.href.string.isEmpty,
             "An empty-href locator must not silently acquire a chapter href")
     }
+
+    func testNoProgressionLocatorParsesWithoutProgressionField() throws {
+        // Counterpart of OpenInSourceBookLocatorTest.`iOS no-progression locator omits progression`.
+        // annotationLocatorJsonNoProg omits "progression" so iOS Readium navigates by CFI alone,
+        // avoiding a snap to the page-level progression stored at annotation-creation time.
+        let noProgLocatorJson = """
+        {"href":"EPUB/chapter02.xhtml","type":"application/xhtml+xml",\
+        "locations":{"cfi":"/4/4/1:12)"}}
+        """
+        let jsonValue = try XCTUnwrap(try? JSONValue(jsonString: noProgLocatorJson),
+            "annotationLocatorJsonNoProg output must parse as valid Readium JSONValue")
+        let locator = try XCTUnwrap(try? Locator(json: jsonValue),
+            "A no-progression locator must deserialise to a Readium Locator")
+        XCTAssertFalse(locator.href.string.isEmpty,
+            "No-progression locator must still carry the chapter href")
+        XCTAssertEqual(locator.locations.progression, nil,
+            "No-progression locator must not carry a progression value")
+    }
 }

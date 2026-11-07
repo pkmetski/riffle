@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.data.annotationLocatorJson
+import com.riffle.core.data.annotationLocatorJsonNoProg
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -74,5 +75,15 @@ class OpenInSourceBookLocatorTest {
         // instead of Locator.fromJSON — bypassing the stored page-progression.
         assertEquals(rawCfi, event.cfi)
         assertEquals("ann-3", event.annotationId)
+    }
+
+    @Test
+    fun `iOS no-progression locator omits progression and carries CFI fragment`() {
+        val locatorJson = annotationLocatorJsonNoProg("EPUB/chapter02.xhtml", "epubcfi(/6/6!/4/4/1:12)")
+        val parsed = JSONObject(locatorJson)
+
+        assertEquals("EPUB/chapter02.xhtml", parsed.getString("href"))
+        assertEquals("/4/4/1:12)", parsed.getJSONObject("locations").getString("cfi"))
+        assertEquals(false, parsed.getJSONObject("locations").has("progression"))
     }
 }

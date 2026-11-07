@@ -119,6 +119,27 @@ fun annotationDecorationLocatorJson(
 }
 
 /**
+ * Like [annotationLocatorJson] but omits `progression` so Readium navigates by CFI alone.
+ * Used when the caller also supplies a raw CFI for exact positioning (e.g. "open in book" on iOS)
+ * and the stored page-level progression would cause a snap to the wrong page.
+ */
+fun annotationLocatorJsonNoProg(chapterHref: String, cfi: String): String {
+    val cfiFragment = extractCfiFragment(cfi)
+    return buildString {
+        append("""{"href":""")
+        append('"')
+        append(chapterHref.escapeJson())
+        append('"')
+        append(""","type":"application/xhtml+xml"""")
+        append(""","locations":{"cfi":""")
+        append('"')
+        append(cfiFragment.escapeJson())
+        append('"')
+        append("}}")
+    }
+}
+
+/**
  * Minimal Readium locator JSON for opening at a specific EPUB chapter href.
  * Used when navigating from a TOC entry or external link. Unlike [annotationLocatorJson],
  * this carries no CFI — Readium opens at the beginning of the href.
