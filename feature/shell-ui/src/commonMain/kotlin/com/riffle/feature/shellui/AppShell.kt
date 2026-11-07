@@ -506,9 +506,9 @@ fun AppShell(
                         itemId = current.itemId,
                         sourceId = current.sourceId,
                         onBack = ::rifflePop,
-                        onOpenInBook = { openItem, locatorJson ->
+                        onOpenInBook = { openItem, locatorJson, rawCfi, annotationId ->
                             rifflePop()
-                            rifflePush(LibraryNav.Reader(openItem, locatorJson))
+                            rifflePush(LibraryNav.Reader(openItem, initialLocatorJson = locatorJson, openAtRawCfi = rawCfi, openAtAnnotationId = annotationId))
                         },
                         slots = slots,
                     )
@@ -883,9 +883,9 @@ internal fun LibraryHost(
             itemId = current.itemId,
             sourceId = current.sourceId,
             onBack = ::pop,
-            onOpenInBook = { openItem, locatorJson ->
+            onOpenInBook = { openItem, locatorJson, rawCfi, annotationId ->
                 pop()
-                push(LibraryNav.Reader(openItem, locatorJson))
+                push(LibraryNav.Reader(openItem, initialLocatorJson = locatorJson, openAtRawCfi = rawCfi, openAtAnnotationId = annotationId))
             },
             slots = slots,
         )
@@ -910,11 +910,13 @@ internal fun LibraryHost(
                         val readerDest = current as? LibraryNav.Reader ?: return@ReaderHostActions
                         onNavStackChange(navStack.dropLast(1) + LibraryNav.AudiobookPlayer(readerDest.item))
                     },
-                    onOpenInBook = { locatorJson ->
+                    onOpenInBook = { locatorJson, rawCfi, annotationId ->
                         onNavStackChange(
                             navStack.dropLast(1) + LibraryNav.Reader(
                                 item = current.item,
                                 initialLocatorJson = locatorJson,
+                                openAtRawCfi = rawCfi,
+                                openAtAnnotationId = annotationId,
                             )
                         )
                     },
@@ -972,7 +974,7 @@ internal fun ElidedReaderLoader(
     itemId: String,
     sourceId: String?,
     onBack: () -> Unit,
-    onOpenInBook: ((item: LibraryItem, locatorJson: String) -> Unit)? = null,
+    onOpenInBook: ((item: LibraryItem, locatorJson: String, rawCfi: String, annotationId: String) -> Unit)? = null,
     slots: AppShellSlots,
 ) {
     val libraryObserver = koinInject<LibraryObserver>()
@@ -988,7 +990,7 @@ internal fun ElidedReaderLoader(
             LibraryNav.Reader(loadedItem, readerSource = ReaderSource.Highlights),
             ReaderHostActions(
                 onBack = onBack,
-                onOpenInBook = onOpenInBook?.let { cb -> { locatorJson -> cb(loadedItem, locatorJson) } },
+                onOpenInBook = onOpenInBook?.let { cb -> { locatorJson, rawCfi, annotationId -> cb(loadedItem, locatorJson, rawCfi, annotationId) } },
             ),
             PlayerHostActions(
                 onBack = onBack,

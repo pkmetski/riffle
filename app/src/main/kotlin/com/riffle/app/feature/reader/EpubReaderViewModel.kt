@@ -3393,6 +3393,8 @@ class EpubReaderViewModel constructor(
                     sourceId = row.sourceId,
                     itemId = row.itemId,
                     cfi = row.cfi,
+                    chapterHref = row.chapterHref,
+                    progression = row.progression,
                     annotationId = row.id,
                 ),
             )

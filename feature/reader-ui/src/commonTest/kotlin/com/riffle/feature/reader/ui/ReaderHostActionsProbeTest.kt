@@ -11,7 +11,7 @@ class ReaderHostActionsProbeTest {
     private fun fullyWiredActions() = ReaderHostActions(
         onBack = {},
         onSwitchToAudiobook = {},
-        onOpenInBook = { _ -> },
+        onOpenInBook = { _, _, _ -> },
     )
 
     @Test

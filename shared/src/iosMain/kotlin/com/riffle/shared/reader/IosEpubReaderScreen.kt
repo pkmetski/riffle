@@ -50,6 +50,7 @@ import com.riffle.core.common.Clock
 import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.annotationLocatorJson
+import com.riffle.core.data.annotationLocatorJsonNoProg
 import com.riffle.core.data.hrefLocatorJson
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
@@ -216,7 +217,9 @@ fun EpubReaderScreen(
     startReadaloudAtSec: Double = -1.0,
     /** Called when the user taps "Switch to audiobook" in the readaloud mini-player. */
     onSwitchToAudiobook: (() -> Unit)? = null,
-    onOpenInBook: ((locatorJson: String) -> Unit)? = null,
+    onOpenInBook: ((locatorJson: String, rawCfi: String, annotationId: String) -> Unit)? = null,
+    openAtRawCfi: String? = null,
+    openAtAnnotationId: String? = null,
 ) {
     KeepReaderScreenOn()
     val bridgeFactory = koinInject<IosEpubNavigatorBridgeFactory>()
@@ -540,7 +543,21 @@ fun EpubReaderScreen(
         // that arrived as a bare `readingProgress` float is all we have. Resolve it through
         // Readium's locate(progression:) so the book opens where the other device left off
         // instead of at page one. The primary CFI path, when present, still wins.
-        val openAt = initialLocatorJson
+        // When openAtRawCfi is set, prefer a progression-free locator so Readium navigates by
+        // CFI alone rather than snapping to the page-level progression stored at annotation time.
+        val openAt = when {
+            openAtRawCfi != null && initialLocatorJson != null -> {
+                val hrefStart = initialLocatorJson.indexOf(""""href":"""") + 8
+                val hrefEnd = if (hrefStart >= 8) initialLocatorJson.indexOf('"', hrefStart) else -1
+                val href = if (hrefEnd > hrefStart) initialLocatorJson.substring(hrefStart, hrefEnd) else null
+                if (href != null) {
+                    annotationLocatorJsonNoProg(href, openAtRawCfi)
+                } else {
+                    initialLocatorJson
+                }
+            }
+            else -> initialLocatorJson
+        }
             ?: startHref?.let { href -> hrefLocatorJson(href) }
             ?: savedLocator
             ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
@@ -1955,7 +1972,7 @@ fun EpubReaderScreen(
                         ?: return@AnnotationActionsSheet
                     val locatorJson = annotationLocatorJson(annotation.chapterHref, annotation.cfi, annotation.progression)
                     annotationSession.forceCloseHighlightEditTarget()
-                    onOpenInBook?.invoke(locatorJson)
+                    onOpenInBook?.invoke(locatorJson, annotation.cfi, annotation.id)
                 },
                 modifier = annotationSheetModifier,
             )

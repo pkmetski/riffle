@@ -12,6 +12,8 @@ sealed interface ReaderNavEvent {
         val sourceId: String,
         val itemId: String,
         val cfi: String,
+        val chapterHref: String,
+        val progression: Double,
         val annotationId: String,
     ) : ReaderNavEvent
 
