@@ -41,6 +41,7 @@ class ContinuousDecorationControllerTest {
         override var onCrossReferenceTap: ((String) -> Unit)? = null
         override var onFigureTap: ((String) -> Unit)? = null
         override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
+        override val lastActionModeScreenRect: androidx.compose.ui.unit.IntRect? = null
     }
 
     private class FakePort : ContinuousDecorationController.Port {

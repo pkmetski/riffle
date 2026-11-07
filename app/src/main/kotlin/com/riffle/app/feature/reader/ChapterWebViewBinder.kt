@@ -27,7 +27,31 @@ internal interface ChapterWebViewLike {
     var onCrossReferenceTap: ((String) -> Unit)?
     var onFigureTap: ((String) -> Unit)?
     var onFigureLongPress: ((FigureLongPressPayload) -> Unit)?
+    /**
+     * Last text-selection action-mode rect converted to screen coordinates, captured in
+     * [ChapterWebView.onGetContentRect] after the native selection geometry is known and scroll
+     * has stabilised. Used by [ChapterWebViewBinder] to anchor the annotation popup at the
+     * correct screen position, bypassing the getBoundingClientRect one-frame lag (see
+     * ContinuousPositionTracker.chapterWebViewWindowOffset KDoc for the lag explanation).
+     * Null until the first action mode fires, or in test fakes.
+     */
+    val lastActionModeScreenRect: IntRect?
 }
+
+/**
+ * Returns the screen-space rect to anchor the annotation popup to.
+ *
+ * Prefers [ChapterWebViewLike.lastActionModeScreenRect] (captured from [android.view.ActionMode.Callback2.onGetContentRect]
+ * after Chromium's scroll stabilises) over the CSS-derived [screenRectOf] fallback, which lags by
+ * one Chromium frame relative to the sliding-window [android.view.View.setTranslationY] in
+ * continuous mode (see ContinuousPositionTracker.chapterWebViewWindowOffset KDoc).
+ */
+internal fun resolveHighlightAnchor(
+    wv: ChapterWebViewLike,
+    rect: Rect,
+    screenRectOf: (ChapterWebViewLike, Rect) -> Rect,
+): IntRect = wv.lastActionModeScreenRect
+    ?: screenRectOf(wv, rect).let { s -> IntRect(s.left, s.top, s.right, s.bottom) }
 
 /**
  * Wires every event callback on a [ChapterWebViewLike] to the three sink interfaces, folding the
@@ -57,14 +81,7 @@ internal class ChapterWebViewBinder(
     private val onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
     private val onSelectionActiveChanged: (Boolean) -> Unit,
     private val onFigureTap: (payload: String) -> Unit = {},
-    // Default no-op is only exercised by callers that don't care (e.g. some test doubles);
-    // the real handler is ContinuousReaderView.onFigureLongPress → EpubReaderViewModel.onFigureLongPress.
-    // anchorRect is already translated to screen coordinates (see the wv.onFigureLongPress wiring
-    // below), mirroring wv.onHighlight / wv.onAnnotationTap's screenRectOf(wv, rect) pattern.
     private val onFigureLongPress: (payload: FigureLongPressPayload, anchorRect: IntRect) -> Unit = { _, _ -> },
-    // Density used to convert the payload's CSS-px rect to WebView-relative device px before
-    // handing it to screenRectOf. Defaults to reading the live WebView's DisplayMetrics; overridable
-    // so tests can drive a fake ChapterWebViewLike that isn't a real android.view.View.
     private val densityOf: (ChapterWebViewLike) -> Float = {
         (it as? android.view.View)?.resources?.displayMetrics?.density ?: 1f
     },
@@ -78,7 +95,7 @@ internal class ChapterWebViewBinder(
         wv.annotationsAvailable = annotationsAvailable
         wv.onSelectionActiveChanged = onSelectionActiveChanged
         wv.onHighlight = { text, prog, rect, before, after ->
-            val screen = screenRectOf(wv, rect)
+            val anchorIntRect = resolveHighlightAnchor(wv, rect, screenRectOf)
             val locator = Locator.fromJSON(
                 JSONObject()
                     .put("href", wv.chapterHref)
@@ -90,10 +107,7 @@ internal class ChapterWebViewBinder(
                         .put("after", after)),
             )
             if (locator != null) {
-                annotations.onHighlight(
-                    locator,
-                    IntRect(screen.left, screen.top, screen.right, screen.bottom),
-                )
+                annotations.onHighlight(locator, anchorIntRect)
             }
         }
         wv.onAnnotationTap = { id, rect ->

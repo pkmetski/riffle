@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.annotation.SuppressLint
+import androidx.compose.ui.unit.IntRect
 import com.riffle.feature.reader.ContinuousScriptInjector
 import android.content.Context
 import android.webkit.JavascriptInterface
@@ -154,6 +155,15 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * chapter it renders is exactly the slice under the reader's viewport.
      */
     internal var windowOffsetPx: Int = 0
+
+    /**
+     * Last text-selection action-mode rect in screen coordinates, captured in
+     * [wrapSelectionCallback]'s [android.view.ActionMode.Callback2.onGetContentRect] after
+     * the native selection geometry is known and scroll has stabilised. Used by
+     * [ChapterWebViewBinder] to anchor the annotation popup at the correct position.
+     */
+    override var lastActionModeScreenRect: IntRect? = null
+        private set
 
     /** Uptime of the last managed content-height change; internal-scroll reports shortly after it
      *  are Chromium re-clamping, not gestures (see [ContinuousPositionTracker.internalScrollCorrection]). */
@@ -700,6 +710,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 )
                 outRect.top = clamped.first
                 outRect.bottom = clamped.second
+                // Convert view-local outRect to screen coords and stash for the popup anchor.
+                // This rect is accurate even for tall sliding-window chapters because it comes
+                // from the action mode's native selection geometry (not from getBoundingClientRect,
+                // which lags window.scrollY by one Chromium frame relative to translationY).
+                val locScreen = IntArray(2)
+                getLocationOnScreen(locScreen)
+                lastActionModeScreenRect = IntRect(
+                    left = locScreen[0] + outRect.left,
+                    top = locScreen[1] + outRect.top,
+                    right = locScreen[0] + outRect.right,
+                    bottom = locScreen[1] + outRect.bottom,
+                )
             }
 
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
