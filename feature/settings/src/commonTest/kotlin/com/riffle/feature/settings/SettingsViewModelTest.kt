@@ -1057,6 +1057,7 @@ class SettingsViewModelTest {
         )
         backgroundScope.launch { vm.appUpdateState.collect {} }
         backgroundScope.launch { vm.betaUpdatesEnabled.collect {} }
+        betaUpdatesEnabledFlow.value = true
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.checkForUpdate()
@@ -1084,5 +1085,71 @@ class SettingsViewModelTest {
 
         assertEquals(10400, ignoredVersionCodeFlow.value)
         assertFalse(ignoredVersionWasPreReleaseFlow.value)
+    }
+
+    @Test
+    fun checkForUpdateDiscardsPreReleaseResultWhenBetaToggledOffDuringFlight() = runTest {
+        val betaUpdate = AvailableUpdate(
+            versionName = "1.5.0-beta.1",
+            versionCode = 10500,
+            downloadUrl = "https://x/beta.apk",
+            sizeBytes = 1000L,
+            prerelease = true,
+        )
+        // Repo that simulates beta being toggled off while the network request is in flight
+        val repoTogglesBeforeReturn = object : AppUpdateRepository {
+            override suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult {
+                betaUpdatesEnabledFlow.value = false
+                return UpdateCheckResult.UpdateAvailable(betaUpdate)
+            }
+            override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> = emptyFlow()
+            override fun sweepStaleApks() = Unit
+            override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> = emptyList()
+        }
+        betaUpdatesEnabledFlow.value = true
+        val vm = SettingsViewModel(
+            appVersion = AppVersion("1.0.0-test", 1),
+            crashReportRepository = object : CrashReportRepository {
+                override fun listCrashReports(): List<CrashReport> = emptyList()
+                override fun resolveReportFilePaths(ids: List<String>) = emptyList<String>()
+                override fun clearAllCrashReports() = Unit
+            },
+            formattingPreferencesStore = noOpFormattingStore,
+            sourceRepository = fakeServerRepo(),
+            libraryObserver = fakeLibraryRepo(),
+            visibilityStore = fakeVisibilityStore(),
+            orderStore = fakeOrderStore(),
+            wakeLockPreferencesStore = noOpWakeLockStore,
+            volumeKeyPreferencesStore = fakeVolumeKeyStore,
+            listeningPreferencesStore = fakeListeningPreferencesStore,
+            appThemeStore = fakeAppThemeStore,
+            readaloudReviewRepository = fakeReviewRepo,
+            connectivityObserver = fakeConnectivity,
+            appUpdateRepository = repoTogglesBeforeReturn,
+            appUpdatePreferencesStore = fakeAppUpdatePreferencesStore,
+            readaloudPreferencesStore = fakeReadaloudStore,
+            annotationSyncConfigStore = object : AnnotationSyncConfigStore {
+                override fun observe() = MutableStateFlow<AnnotationSyncConfig?>(null)
+                override suspend fun save(config: AnnotationSyncConfig) = Unit
+                override suspend fun clear() = Unit
+            },
+            annotationSyncStatusStore = AnnotationSyncStatusStore(),
+            annotationDao = stubAnnotationDao(pendingBookCount = 0),
+            localFilesFolderDao = noOpLocalFilesFolderDao,
+            localFilesFolderRepository = noOpLocalFilesFolderRepository,
+            localFilesScanner = noOpLocalFilesScanner,
+            localFilesFolderHealthChecker = noOpLocalFilesFolderHealthChecker,
+            comicFormattingPreferencesStore = noOpComicFormattingStore,
+            developerOptionsRepository = fakeDeveloperOptionsRepository,
+        )
+        backgroundScope.launch { vm.appUpdateState.collect {} }
+        backgroundScope.launch { vm.betaUpdatesEnabled.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.checkForUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertIs<AppUpdateUiState.UpToDate>(vm.appUpdateState.value,
+            "A prerelease update arriving after beta opt-out must be discarded, not shown")
     }
 }

@@ -266,8 +266,8 @@ class IosCrashAndUpdateTest {
         val result = updateRepo(prereleaseReleasesJson("v1.5.0-beta1"), betaEnabled = false)
             .checkForUpdate(currentVersionCode = 10400)
 
-        assertFalse(result is UpdateCheckResult.UpdateAvailable,
-            "A prerelease must not be offered when beta updates are disabled")
+        assertEquals(UpdateCheckResult.UpToDate, result,
+            "A prerelease-only repo must report UpToDate when beta updates are disabled")
     }
 
     @Test

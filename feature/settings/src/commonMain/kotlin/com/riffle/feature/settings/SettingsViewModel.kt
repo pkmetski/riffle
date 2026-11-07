@@ -189,7 +189,11 @@ class SettingsViewModel constructor(
                 is UpdateCheckResult.UpToDate -> AppUpdateUiState.UpToDate
                 is UpdateCheckResult.Failed -> AppUpdateUiState.Failed(result.message)
                 is UpdateCheckResult.UpdateAvailable ->
-                    AppUpdateUiState.UpdateAvailable(result.update.versionName, result.update)
+                    if (result.update.prerelease && !appUpdatePreferencesStore.betaUpdatesEnabled.first()) {
+                        AppUpdateUiState.UpToDate
+                    } else {
+                        AppUpdateUiState.UpdateAvailable(result.update.versionName, result.update)
+                    }
             }
         }
     }

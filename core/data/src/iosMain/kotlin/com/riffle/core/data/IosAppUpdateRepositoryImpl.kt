@@ -50,7 +50,7 @@ class IosAppUpdateRepositoryImpl(
         val releases = fetchReleases(includePrereleases)
             ?: return UpdateCheckResult.Failed("Could not reach GitHub to check for updates")
         val latest = releases.maxByOrNull { AppUpdateVersions.versionCodeOf(it.tagName.removePrefix("v")) ?: -1 }
-            ?: return UpdateCheckResult.Failed("No published releases found")
+            ?: return UpdateCheckResult.UpToDate
         return AppUpdateVersions.evaluate(currentVersionCode, latest)
     }
 
