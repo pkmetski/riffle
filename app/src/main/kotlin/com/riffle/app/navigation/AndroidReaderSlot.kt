@@ -22,6 +22,7 @@ import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.PdfReaderViewModel
+import com.riffle.core.data.annotationLocatorJson
 import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.ui.ReaderHostActions
 import org.koin.core.parameter.parametersOf
@@ -145,7 +146,7 @@ private fun AndroidEpubReaderSlot(
             when (event) {
                 is ReaderNavEvent.OpenInSourceBook -> {
                     readerActions.onOpenInBook?.invoke(
-                        buildLocatorJsonFromCfi(event.cfi),
+                        annotationLocatorJson(event.chapterHref, event.cfi, event.progression),
                     )
                 }
                 ReaderNavEvent.CloseEmptyHighlights -> readerActions.onBack()
@@ -172,7 +173,3 @@ private fun AndroidEpubReaderSlot(
     )
 }
 
-private fun buildLocatorJsonFromCfi(cfi: String): String {
-    val escaped = cfi.replace("\\", "\\\\").replace("\"", "\\\"")
-    return """{"href":"","type":"application/xhtml+xml","locations":{"cfi":"$escaped"}}"""
-}
