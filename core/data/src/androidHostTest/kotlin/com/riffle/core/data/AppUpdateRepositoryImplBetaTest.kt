@@ -16,14 +16,23 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.nio.file.Files
 
 class AppUpdateRepositoryImplBetaTest {
 
-    private val cacheDir = Files.createTempDirectory("app-update-beta").toFile()
-    private val context = mockk<Context> { every { this@mockk.cacheDir } returns cacheDir }
-    private val installer = mockk<ApkInstaller>(relaxed = true)
+    private lateinit var cacheDir: File
+    private lateinit var context: Context
+    private lateinit var installer: ApkInstaller
+
+    @Before
+    fun setup() {
+        cacheDir = Files.createTempDirectory("app-update-beta").toFile()
+        context = mockk<Context> { every { this@mockk.cacheDir } returns cacheDir }
+        installer = mockk(relaxed = true)
+    }
 
     private fun prefsStore(betaEnabled: Boolean): AppUpdatePreferencesStore =
         object : AppUpdatePreferencesStore {
