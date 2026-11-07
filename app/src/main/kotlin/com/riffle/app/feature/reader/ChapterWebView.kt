@@ -159,11 +159,11 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     /**
      * Last text-selection action-mode rect in screen coordinates, captured in
      * [wrapSelectionCallback]'s [android.view.ActionMode.Callback2.onGetContentRect] after
-     * the native selection geometry is known and scroll has stabilised. Used by
-     * [ChapterWebViewBinder] to anchor the annotation popup at the correct position.
+     * the native selection geometry is known and scroll has stabilised. Snapshotted synchronously
+     * in [onActionItemClicked] before the async JS call, so the popup anchor is never racing with
+     * action-mode teardown that may call [android.view.ActionMode.Callback2.onGetContentRect] again.
      */
-    override var lastActionModeScreenRect: IntRect? = null
-        private set
+    private var lastActionModeScreenRect: IntRect? = null
 
     /** Uptime of the last managed content-height change; internal-scroll reports shortly after it
      *  are Chromium re-clamping, not gestures (see [ContinuousPositionTracker.internalScrollCorrection]). */
@@ -194,7 +194,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * `before` / `after` document-text context windows used to disambiguate which occurrence
      * the user picked when the selected text repeats in the chapter.
      */
-    override var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
+    override var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String, anchorHint: IntRect?) -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps an injected annotation mark (`<mark
@@ -746,7 +746,16 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
                     MENU_COPY -> withSelectionText { copyToClipboard(it) }
-                    MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog, rect, before, after -> onHighlight?.invoke(text, prog, rect, before, after) }
+                    MENU_HIGHLIGHT -> {
+                        // Snapshot synchronously before withSelectionTextAndProgression posts its
+                        // async evaluateJavascript call. Action-mode teardown (triggered by
+                        // mode.finish() below) can invoke onGetContentRect again with a collapsed
+                        // rect, overwriting lastActionModeScreenRect before the JS callback fires.
+                        val anchorSnapshot = lastActionModeScreenRect
+                        withSelectionTextAndProgression { text, prog, rect, before, after ->
+                            onHighlight?.invoke(text, prog, rect, before, after, anchorSnapshot)
+                        }
+                    }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
                     MENU_PLAY -> withSelectionText { text ->

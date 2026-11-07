@@ -20,37 +20,37 @@ internal interface ChapterWebViewLike {
     var annotationsAvailable: Boolean
     var readaloudAvailable: Boolean
     var onSelectionActiveChanged: ((Boolean) -> Unit)?
-    var onHighlight: ((String, Double, Rect, String, String) -> Unit)?
+    /**
+     * Fired when the user confirms a text selection as a highlight. The last parameter is the
+     * screen-space anchor rect for the annotation popup, snapshotted synchronously from
+     * [android.view.ActionMode.Callback2.onGetContentRect] at the moment the menu item is tapped,
+     * before [android.webkit.WebView.evaluateJavascript] is posted asynchronously. Null when the
+     * action mode rect was not available (e.g. in tests that don't wire an action mode).
+     */
+    var onHighlight: ((String, Double, Rect, String, String, IntRect?) -> Unit)?
     var onAnnotationTap: ((String, Rect) -> Unit)?
     var onAnnotationNoteTap: ((String, Rect) -> Unit)?
     var onFootnoteContent: ((FootnoteContent) -> Unit)?
     var onCrossReferenceTap: ((String) -> Unit)?
     var onFigureTap: ((String) -> Unit)?
     var onFigureLongPress: ((FigureLongPressPayload) -> Unit)?
-    /**
-     * Last text-selection action-mode rect converted to screen coordinates, captured in
-     * [ChapterWebView.onGetContentRect] after the native selection geometry is known and scroll
-     * has stabilised. Used by [ChapterWebViewBinder] to anchor the annotation popup at the
-     * correct screen position, bypassing the getBoundingClientRect one-frame lag (see
-     * ContinuousPositionTracker.chapterWebViewWindowOffset KDoc for the lag explanation).
-     * Null until the first action mode fires, or in test fakes.
-     */
-    val lastActionModeScreenRect: IntRect?
 }
 
 /**
  * Returns the screen-space rect to anchor the annotation popup to.
  *
- * Prefers [ChapterWebViewLike.lastActionModeScreenRect] (captured from [android.view.ActionMode.Callback2.onGetContentRect]
- * after Chromium's scroll stabilises) over the CSS-derived [screenRectOf] fallback, which lags by
- * one Chromium frame relative to the sliding-window [android.view.View.setTranslationY] in
- * continuous mode (see ContinuousPositionTracker.chapterWebViewWindowOffset KDoc).
+ * Prefers [anchorHint] (the action-mode rect snapshotted synchronously at click time, before the
+ * async [android.webkit.WebView.evaluateJavascript] call that could race with action-mode teardown)
+ * over the CSS-derived [screenRectOf] fallback, which lags by one Chromium frame relative to the
+ * sliding-window [android.view.View.setTranslationY] in continuous mode (see
+ * ContinuousPositionTracker.chapterWebViewWindowOffset KDoc).
  */
 internal fun resolveHighlightAnchor(
+    anchorHint: IntRect?,
     wv: ChapterWebViewLike,
     rect: Rect,
     screenRectOf: (ChapterWebViewLike, Rect) -> Rect,
-): IntRect = wv.lastActionModeScreenRect
+): IntRect = anchorHint
     ?: screenRectOf(wv, rect).let { s -> IntRect(s.left, s.top, s.right, s.bottom) }
 
 /**
@@ -94,8 +94,8 @@ internal class ChapterWebViewBinder(
         wv.onExternalLink = { links.onExternalLink(it) }
         wv.annotationsAvailable = annotationsAvailable
         wv.onSelectionActiveChanged = onSelectionActiveChanged
-        wv.onHighlight = { text, prog, rect, before, after ->
-            val anchorIntRect = resolveHighlightAnchor(wv, rect, screenRectOf)
+        wv.onHighlight = { text, prog, rect, before, after, anchorHint ->
+            val anchorIntRect = resolveHighlightAnchor(anchorHint, wv, rect, screenRectOf)
             val locator = Locator.fromJSON(
                 JSONObject()
                     .put("href", wv.chapterHref)

@@ -29,18 +29,17 @@ class ChapterWebViewBinderTest {
         override var annotationsAvailable: Boolean = false
         override var readaloudAvailable: Boolean = false
         override var onSelectionActiveChanged: ((Boolean) -> Unit)? = null
-        override var onHighlight: ((String, Double, Rect, String, String) -> Unit)? = null
+        override var onHighlight: ((String, Double, Rect, String, String, IntRect?) -> Unit)? = null
         override var onAnnotationTap: ((String, Rect) -> Unit)? = null
         override var onAnnotationNoteTap: ((String, Rect) -> Unit)? = null
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
         override var onCrossReferenceTap: ((String) -> Unit)? = null
         override var onFigureTap: ((String) -> Unit)? = null
         override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
-        override var lastActionModeScreenRect: IntRect? = null
 
         fun emitTap() = onTap?.invoke()
-        fun emitHighlight(text: String, prog: Double, rect: Rect, before: String = "", after: String = "") =
-            onHighlight?.invoke(text, prog, rect, before, after)
+        fun emitHighlight(text: String, prog: Double, rect: Rect, before: String = "", after: String = "", anchorHint: IntRect? = null) =
+            onHighlight?.invoke(text, prog, rect, before, after, anchorHint)
         fun emitAnnotationTap(id: String, rect: Rect) = onAnnotationTap?.invoke(id, rect)
         fun emitAnnotationNoteTap(id: String, rect: Rect) = onAnnotationNoteTap?.invoke(id, rect)
         fun emitFootnoteContent(content: FootnoteContent) = onFootnoteContent?.invoke(content)
@@ -196,23 +195,22 @@ class ChapterWebViewBinderTest {
     }
 
     @Test
-    fun `resolveHighlightAnchor prefers lastActionModeScreenRect over screenRectOf`() {
+    fun `resolveHighlightAnchor prefers anchorHint over screenRectOf`() {
         // Regression: in tall chapters the sliding-window translationY and window.scrollY diverge
-        // by one Chromium frame, shifting the popup anchor by windowOffsetPx. Using the action-mode
-        // rect (captured after scroll stabilises) bypasses this lag.
+        // by one Chromium frame, shifting the popup anchor by windowOffsetPx. The anchorHint is
+        // snapshotted synchronously in onActionItemClicked before the async JS call; using it
+        // bypasses both the CSS lag and the action-mode teardown race.
         val fake = FakeChapterWebView(chapterHref = "chapter-1.xhtml")
-        fake.lastActionModeScreenRect = IntRect(50, 300, 250, 320)
-        // screenRectOf returns something completely different — must NOT be used when the
-        // action-mode rect is available.
-        val result = resolveHighlightAnchor(fake, rectOf(0, 0, 100, 20)) { _, _ -> rectOf(0, 9999, 100, 10019) }
+        val anchorHint = IntRect(50, 300, 250, 320)
+        // screenRectOf returns something completely different — must NOT be used when anchorHint is available.
+        val result = resolveHighlightAnchor(anchorHint, fake, rectOf(0, 0, 100, 20)) { _, _ -> rectOf(0, 9999, 100, 10019) }
         assertEquals(IntRect(50, 300, 250, 320), result)
     }
 
     @Test
-    fun `resolveHighlightAnchor falls back to screenRectOf when lastActionModeScreenRect is null`() {
+    fun `resolveHighlightAnchor falls back to screenRectOf when anchorHint is null`() {
         val fake = FakeChapterWebView(chapterHref = "chapter-1.xhtml")
-        // No action-mode rect — screenRectOf fallback must fire.
-        val result = resolveHighlightAnchor(fake, rectOf(0, 0, 100, 20)) { _, r ->
+        val result = resolveHighlightAnchor(null, fake, rectOf(0, 0, 100, 20)) { _, r ->
             rectOf(r.left + 10, r.top + 20, r.right + 10, r.bottom + 20)
         }
         assertEquals(IntRect(10, 20, 110, 40), result)

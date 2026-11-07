@@ -34,14 +34,13 @@ class ContinuousDecorationControllerTest {
         override var annotationsAvailable: Boolean = false
         override var readaloudAvailable: Boolean = false
         override var onSelectionActiveChanged: ((Boolean) -> Unit)? = null
-        override var onHighlight: ((String, Double, android.graphics.Rect, String, String) -> Unit)? = null
+        override var onHighlight: ((String, Double, android.graphics.Rect, String, String, androidx.compose.ui.unit.IntRect?) -> Unit)? = null
         override var onAnnotationTap: ((String, android.graphics.Rect) -> Unit)? = null
         override var onAnnotationNoteTap: ((String, android.graphics.Rect) -> Unit)? = null
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
         override var onCrossReferenceTap: ((String) -> Unit)? = null
         override var onFigureTap: ((String) -> Unit)? = null
         override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
-        override val lastActionModeScreenRect: androidx.compose.ui.unit.IntRect? = null
     }
 
     private class FakePort : ContinuousDecorationController.Port {
