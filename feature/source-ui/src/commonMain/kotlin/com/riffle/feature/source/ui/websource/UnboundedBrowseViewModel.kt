@@ -440,6 +440,12 @@ abstract class UnboundedBrowseViewModel(
         }
     }
 
+    // Seeds _query before the init coroutine's refresh() runs, so a restored search term is
+    // picked up by the initial fetch without scheduling a redundant debounced refresh.
+    fun setInitialQuery(q: String) {
+        _query.value = q
+    }
+
     fun refresh() {
         // Cancel any in-flight refresh before starting a new one. Without this a slow response
         // from a previous facet/query can arrive after a newer one and overwrite _items with

@@ -149,24 +149,26 @@ class BrowseViewModelKoinResolutionTest {
     /**
      * Regression for search term being cleared on back-navigation from item detail to browse.
      *
-     * Before the fix, UnboundedBrowseScreen created its own ViewModel internally. When the user
-     * navigated to item detail, the screen left the composition, its DisposableEffect cleared the
-     * ScreenScopedViewModelHost, and navigation back created a fresh ViewModel — resetting _query
-     * to "". The fix lifts ViewModel creation to LibraryHost (AppShell), giving the ViewModel the
-     * same lifetime as libraryItemsViewModel so it survives within-library navigation.
+     * When the user navigates to item detail, UnboundedBrowseScreen leaves the composition and its
+     * DisposableEffect clears the ScreenScopedViewModelHost. Navigation back creates a fresh
+     * ViewModel — but UnboundedBrowseScreen restores the query via rememberSaveable and calls
+     * setInitialQuery() synchronously during the remember block, before the init coroutine's
+     * refresh() runs, so the initial fetch uses the restored term.
      *
-     * This test asserts the invariant the fix relies on: the same ViewModel instance retains its
-     * query, while a new instance resets it. If this assertion fails, the in-memory query contract
-     * is broken regardless of which component holds the reference.
+     * This test pins the two invariants the fix relies on:
+     * 1. setInitialQuery seeds _query without launching a debounced refresh job.
+     * 2. A fresh ViewModel instance starts with the empty default; only setInitialQuery restores it.
      */
     @Test
-    fun `ChitankaBrowseViewModel retains query on instance reuse and resets on new instance`() {
+    fun `setInitialQuery seeds query before init refresh without scheduling a debounced refresh`() {
         val koin = startKoin { modules(testModule()) }.koin
         val vm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
-        vm.onQueryChange("tolkien")
+        vm.setInitialQuery("tolkien")
         assertEquals("tolkien", vm.query.value)
 
         val freshVm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
         assertEquals("", freshVm.query.value)
+        freshVm.setInitialQuery("hobbit")
+        assertEquals("hobbit", freshVm.query.value)
     }
 }

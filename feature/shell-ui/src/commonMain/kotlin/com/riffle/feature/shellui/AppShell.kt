@@ -96,11 +96,6 @@ import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesScreen
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudSettingsScreen
 import com.riffle.feature.source.ui.AddSourceBackend
-import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
-import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
-import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
-import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
-import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
 import com.riffle.feature.source.ui.websource.shouldRenderUnboundedBrowse
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -676,17 +671,10 @@ internal fun LibraryHost(
     val annotationsViewModel = remember(libraryId) {
         annotationsHost.adopt(koin.get<AnnotationsListViewModel> { parametersOf(libraryId) })
     }
-    val unboundedBrowseHost = remember(libraryId) { ScreenScopedViewModelHost() }
-    val unboundedBrowseViewModel = remember(libraryId) {
-        unboundedType?.let { type ->
-            unboundedBrowseHost.adopt(createUnboundedBrowseViewModel(koin, type, libraryId))
-        }
-    }
     DisposableEffect(libraryId) {
         onDispose {
             libraryItemsHost.clear()
             annotationsHost.clear()
-            unboundedBrowseHost.clear()
         }
     }
 
@@ -727,7 +715,6 @@ internal fun LibraryHost(
                     sourceType = unboundedType,
                     libraryId = libraryId,
                     libraryName = libraryName,
-                    viewModel = unboundedBrowseViewModel!!,
                     libraryVm = libraryItemsViewModel,
                     annotationsVm = annotationsViewModel,
                     onOpenDrawer = onOpenDrawer,
@@ -1136,18 +1123,6 @@ internal fun AnnotationSearchHost(
             onOpenAudiobookBookmark(result.bookmark.sourceId, result.bookmark.itemId, result.bookmark.positionSec)
         },
     )
-}
-
-private fun createUnboundedBrowseViewModel(
-    koin: org.koin.core.Koin,
-    sourceType: SourceType,
-    libraryId: String,
-): UnboundedBrowseViewModel = when (sourceType) {
-    SourceType.CHITANKA -> koin.get<ChitankaBrowseViewModel> { parametersOf(libraryId) }
-    SourceType.GUTENBERG -> koin.get<GutenbergBrowseViewModel> { parametersOf(libraryId) }
-    SourceType.OREILLY -> koin.get<OReillyBrowseViewModel> { parametersOf(libraryId) }
-    SourceType.RADIO_ES -> koin.get<RadioEsBrowseViewModel> { parametersOf(libraryId) }
-    else -> error("No browse ViewModel for $sourceType")
 }
 
 @Composable

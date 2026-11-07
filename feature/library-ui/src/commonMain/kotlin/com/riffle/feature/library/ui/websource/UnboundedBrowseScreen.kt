@@ -8,11 +8,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -29,6 +32,7 @@ import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.ui.CircleNavItem
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
+import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.SearchResultsContent
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_annotations
@@ -37,6 +41,10 @@ import com.riffle.feature.library.ui.generated.resources.ui_library
 import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
+import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
+import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
+import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
+import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.TAB_ANNOTATIONS
 import com.riffle.feature.source.ui.websource.TAB_HOME
 import com.riffle.feature.source.ui.websource.TAB_LIBRARY
@@ -47,6 +55,8 @@ import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
 import com.riffle.feature.source.ui.websource.isAudioRoot
 import com.riffle.feature.source.ui.websource.unboundedLocalTabToLibraryTabIndex
 import org.jetbrains.compose.resources.stringResource
+import org.koin.core.parameter.parametersOf
+import org.koin.mp.KoinPlatform
 
 /**
  * Browse surface for an unbounded catalogue (`SourceType.isUnboundedCatalog`), shared by both
@@ -75,13 +85,30 @@ fun UnboundedBrowseScreen(
     sourceType: SourceType,
     libraryId: String,
     libraryName: String,
-    viewModel: UnboundedBrowseViewModel,
     libraryVm: LibraryItemsViewModel,
     annotationsVm: AnnotationsListViewModel,
     onOpenDrawer: () -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
 ) {
+    // Persist the search term across in-library navigation (Items → ItemDetail → Items).
+    // SaveableStateProvider wrapping this call site preserves rememberSaveable state while
+    // the Items branch is not in the composition (while ItemDetail is on top).
+    var savedQuery by rememberSaveable { mutableStateOf("") }
+    val key = "$sourceType/$libraryId"
+    val host = remember(key) { ScreenScopedViewModelHost() }
+    val viewModel = remember(key) {
+        val vm = host.adopt(unboundedBrowseViewModel(sourceType, libraryId))
+        // Set _query synchronously before the init coroutine's refresh() runs so the initial
+        // fetch uses the restored term rather than the empty default.
+        if (savedQuery.isNotEmpty()) vm.setInitialQuery(savedQuery)
+        vm
+    }
+    DisposableEffect(key) { onDispose { host.clear() } }
+
+    val query by viewModel.query.collectAsState()
+    LaunchedEffect(query) { savedQuery = query }
+
     val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     SideEffect {
         viewModel.setScreenDimensionBucket(
@@ -103,7 +130,6 @@ fun UnboundedBrowseScreen(
         viewModel.openDetailEvents.collect { event -> currentOnOpenDetail(event.itemId) }
     }
 
-    val query by viewModel.query.collectAsState()
     val librarySearchQuery by libraryVm.searchQuery.collectAsState()
 
     val projection by libraryVm.projection.collectAsState()
@@ -287,3 +313,17 @@ internal fun unboundedBrowseHeaderQueryFor(
     catalogQuery: String,
     libraryQuery: String,
 ): String = if (selectedLocalTab == TAB_LIBRARY) catalogQuery else libraryQuery
+
+private fun unboundedBrowseViewModel(
+    sourceType: SourceType,
+    libraryId: String,
+): UnboundedBrowseViewModel {
+    val koin = KoinPlatform.getKoin()
+    return when (sourceType) {
+        SourceType.CHITANKA -> koin.get<ChitankaBrowseViewModel> { parametersOf(libraryId) }
+        SourceType.GUTENBERG -> koin.get<GutenbergBrowseViewModel> { parametersOf(libraryId) }
+        SourceType.OREILLY -> koin.get<OReillyBrowseViewModel> { parametersOf(libraryId) }
+        SourceType.RADIO_ES -> koin.get<RadioEsBrowseViewModel> { parametersOf(libraryId) }
+        else -> error("No browse ViewModel for $sourceType")
+    }
+}
