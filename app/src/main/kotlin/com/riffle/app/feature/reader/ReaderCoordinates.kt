@@ -28,6 +28,28 @@ internal fun toWindowIntRect(
     bottom = viewTop  + rectBottom.roundToInt(),
 )
 
+/**
+ * Returns the best anchor rect for the annotation popup in Readium (paginated/vertical) mode.
+ *
+ * [lastActionModeWindowRect] — if non-null, the action-mode toolbar's content rect already
+ * converted to window/screen coordinates. This is correct for both paginated and vertical/scroll
+ * modes because the action-mode interception layer already applies the right coordinate path:
+ * CSS rect × DPR for paginated, Readium's native scroll-aware callback for vertical. Using the
+ * same rect for the annotation popup gives it the same position as the toolbar anchor.
+ *
+ * [selectionRect] + ([viewLeft], [viewTop]) — fallback when no action-mode rect is available
+ * (e.g. the action mode was dismissed before onGetContentRect fired). In paginated mode this path
+ * is correct; in vertical/scroll mode it may place the popup off-screen but that is the
+ * pre-existing behaviour, not a regression.
+ */
+internal fun resolveReadiumAnnotationAnchorRect(
+    lastActionModeWindowRect: IntRect?,
+    selectionRect: RectF?,
+    viewLeft: Int,
+    viewTop: Int,
+): IntRect? = lastActionModeWindowRect
+    ?: selectionRect?.let { r -> toWindowIntRect(r.left, r.top, r.right, r.bottom, viewLeft, viewTop) }
+
 internal class HighlightPopupPositionProvider(
     private val anchorRect: IntRect,
     private val margin: Int,
