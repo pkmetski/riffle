@@ -2386,6 +2386,12 @@ class EpubReaderViewModel constructor(
             // Dismiss path — close the sheet outright. The row is persisted with the preset
             // colour + emphasis; no follow-up edit target is needed.
             annotationSession.forceCloseHighlightEditTarget()
+            // Wait for Room to emit the committed annotation before consuming the draft.
+            // Without this, consumeDraft() clears _draftAnnotation before Room's Flow
+            // emits the new row, leaving the chapter with an empty decoration list for
+            // one frame — the highlight mark flashes away and then reappears.
+            annotationStore.observeAnnotations(draft.sourceId, draft.itemId)
+                .first { annotations -> annotations.any { it.id == created.id } }
         }
         // Clear the draft last — the [beginAnnotationDraft] path set both draft and edit target;
         // openHighlightActions above (or forceClose in the dismiss branch) already reset the
