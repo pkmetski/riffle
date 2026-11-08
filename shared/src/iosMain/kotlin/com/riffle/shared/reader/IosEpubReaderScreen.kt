@@ -105,6 +105,8 @@ import com.riffle.feature.reader.AutoScrollStall
 import com.riffle.feature.reader.BoundaryAdvance
 import com.riffle.feature.reader.ChapterMapUiState
 import com.riffle.feature.reader.ContinuousBoundaryAdvancePolicy
+import com.riffle.feature.reader.DECORATION_GROUP_CADENCE
+import com.riffle.feature.reader.DECORATION_GROUP_READALOUD
 import com.riffle.feature.reader.FigureLongPressMessageParser
 import com.riffle.feature.reader.FigureTapMessageParser
 import com.riffle.feature.reader.FigureZoomState
@@ -125,7 +127,13 @@ import com.riffle.feature.reader.NavigatorSearchMatch
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.PullBoundaryGestureState
 import com.riffle.feature.reader.ReadaloudSession
+import com.riffle.feature.reader.ReaderDecorationGroups
 import com.riffle.feature.reader.activeTocHref
+import com.riffle.feature.reader.annotationDecorationLocator
+import com.riffle.feature.reader.annotationToBookmarkDecoration
+import com.riffle.feature.reader.annotationToEmphasisDecoration
+import com.riffle.feature.reader.annotationToHighlightDecoration
+import com.riffle.feature.reader.annotationToNoteGlyphDecoration
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
@@ -134,6 +142,7 @@ import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.feature.reader.cadence.CadenceInjector
 import com.riffle.feature.reader.cadence.CadenceSession
+import com.riffle.feature.reader.cadenceDecoration
 import com.riffle.feature.reader.chapterMapUiState
 import com.riffle.feature.reader.chapterMapVisible
 import com.riffle.feature.reader.highlights.ChapterElision
@@ -149,6 +158,7 @@ import com.riffle.feature.reader.highlights.mimeForHref
 import com.riffle.feature.reader.highlights.parseAnnotationTapUrl
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.feature.reader.highlights.shouldShowShareHighlights
+import com.riffle.feature.reader.readaloudDecoration
 import com.riffle.feature.reader.readiumFontFamilyName
 import com.riffle.feature.reader.resolveAnnotationSheetColor
 import com.riffle.feature.reader.spineIndexOfHref
@@ -176,16 +186,6 @@ import com.riffle.feature.reader.ui.readerPalette
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.reader.weightedRailCursorPosition
-import com.riffle.feature.reader.DECORATION_GROUP_CADENCE
-import com.riffle.feature.reader.DECORATION_GROUP_READALOUD
-import com.riffle.feature.reader.annotationDecorationLocator
-import com.riffle.feature.reader.annotationToBookmarkDecoration
-import com.riffle.feature.reader.annotationToEmphasisDecoration
-import com.riffle.feature.reader.annotationToHighlightDecoration
-import com.riffle.feature.reader.annotationToNoteGlyphDecoration
-import com.riffle.feature.reader.cadenceDecoration
-import com.riffle.feature.reader.readaloudDecoration
-import com.riffle.feature.reader.ReaderDecorationGroups
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.shared.generated.resources.Res
