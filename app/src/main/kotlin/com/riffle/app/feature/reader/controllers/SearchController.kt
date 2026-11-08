@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.controllers
 
-import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -29,7 +28,7 @@ import org.readium.r2.shared.publication.services.search.SearchService
  * MUST NOT import android.webkit.* or ContinuousReaderView.
  */
 class SearchController constructor(
-    private val scope: OrchestratorScope,
+    private val scope: CoroutineScope,
     private val dispatchers: DispatcherProvider,
 ) {
 

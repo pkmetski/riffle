@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import android.webkit.JavascriptInterface
+import com.riffle.feature.reader.FigureLongPressMessageParser
+import com.riffle.feature.reader.FigureLongPressPayload
 import com.riffle.feature.reader.FigureTapScript
 
 /**

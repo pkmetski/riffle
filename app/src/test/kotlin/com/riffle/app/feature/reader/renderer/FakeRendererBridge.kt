@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.renderer
 
+import com.riffle.feature.reader.highlights.HighlightsDomPatch
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 
@@ -163,11 +164,11 @@ internal class FakeRendererBridge(
         return cadenceStartSpanIdResult
     }
 
-    val appliedHighlightPatches: MutableList<com.riffle.app.feature.reader.highlights.HighlightsDomPatch> =
+    val appliedHighlightPatches: MutableList<HighlightsDomPatch> =
         mutableListOf()
 
     override suspend fun applyHighlightDomPatch(
-        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+        patch: HighlightsDomPatch,
     ) {
         calls += "applyHighlightDomPatch"
         appliedHighlightPatches += patch

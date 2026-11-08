@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.renderer
 
-import com.riffle.app.feature.reader.ColumnSnap
+import com.riffle.feature.reader.ColumnSnap
 import com.riffle.app.feature.reader.FigureTapBridge
 import com.riffle.feature.reader.FigureTapScript
 import com.riffle.feature.reader.PaginatedLayoutLock
@@ -246,12 +246,12 @@ internal class DefaultRendererBridge(
 
     override suspend fun evaluateCadenceFeatureDetect(): String? =
         fragment?.evaluateJavascript(
-            com.riffle.app.feature.reader.cadence.CadenceDomScript.FEATURE_DETECT_JS,
+            com.riffle.feature.reader.cadence.CadenceDomScript.FEATURE_DETECT_JS,
         )
 
     override suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String? =
         fragment?.evaluateJavascript(
-            com.riffle.app.feature.reader.cadence.CadenceDomScript.tokeniseChapterJs(
+            com.riffle.feature.reader.cadence.CadenceDomScript.tokeniseChapterJs(
                 chapterHref,
                 localeTag,
             ),
@@ -262,13 +262,13 @@ internal class DefaultRendererBridge(
         // where the WebView owns its scroll. See CadenceDomScript.parseCadenceStartId for the
         // JSON diagnostic payload the JS returns.
         val raw = fragment?.evaluateJavascript(
-            com.riffle.app.feature.reader.cadence.CadenceDomScript.cadenceStartSpanIdJs(),
+            com.riffle.feature.reader.cadence.CadenceDomScript.cadenceStartSpanIdJs(),
         )
-        return com.riffle.app.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw)
+        return com.riffle.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw)
     }
 
     override suspend fun applyHighlightDomPatch(
-        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+        patch: com.riffle.feature.reader.highlights.HighlightsDomPatch,
     ) {
         fragment?.evaluateJavascript(patch.applyJs())
     }

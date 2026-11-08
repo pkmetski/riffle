@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.session
 
 import com.riffle.feature.reader.AnchorRect
+import com.riffle.feature.reader.AnnotationSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl

@@ -3,6 +3,7 @@ package com.riffle.shared.reader
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.reader.resolveItemEndpoint
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet

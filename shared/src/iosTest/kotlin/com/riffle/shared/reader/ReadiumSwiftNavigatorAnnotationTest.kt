@@ -3,6 +3,7 @@ package com.riffle.shared.reader
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.feature.reader.NavigatorDecoration
+import com.riffle.feature.reader.ReaderDecorationGroups
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

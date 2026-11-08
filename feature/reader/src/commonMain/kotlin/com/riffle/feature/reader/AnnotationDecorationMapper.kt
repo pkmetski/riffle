@@ -1,11 +1,10 @@
-package com.riffle.shared.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.data.annotationDecorationLocatorJson
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
-import com.riffle.feature.reader.NavigatorDecoration
 
 /**
  * `AnnotationEntity.color` persists a [HighlightColor] *token* — `"yellow"`, `"green"`, `"blue"`,
@@ -18,13 +17,13 @@ import com.riffle.feature.reader.NavigatorDecoration
  * alpha is carried across rather than left at the old hardcoded 0.4f — that is what makes the iOS
  * highlight the same pixel value as the Android one and as the settings swatch.
  */
-internal fun highlightColorHex(token: String): String {
+fun highlightColorHex(token: String): String {
     val argb = HighlightColor.fromToken(token).argb
     return "#" + (argb and 0xFFFFFF).toString(16).padStart(6, '0').uppercase()
 }
 
 /** Baked-in alpha of [HighlightColor.argb], as the 0..1 fraction the navigator bridge expects. */
-internal fun highlightColorAlpha(token: String): Float =
+fun highlightColorAlpha(token: String): Float =
     ((HighlightColor.fromToken(token).argb ushr 24) and 0xFF) / 255f
 
 /**
@@ -34,7 +33,7 @@ internal fun highlightColorAlpha(token: String): Float =
  * for a text range — see [annotationDecorationLocatorJson] for why the previous cfi-only locator
  * placed nothing at all.
  */
-internal fun annotationDecorationLocator(a: Annotation): String =
+fun annotationDecorationLocator(a: Annotation): String =
     annotationDecorationLocatorJson(
         chapterHref = a.chapterHref,
         cfi = a.cfi,
@@ -46,7 +45,7 @@ internal fun annotationDecorationLocator(a: Annotation): String =
     )
 
 /** Maps a stored [Annotation] to a [NavigatorDecoration.Highlight], or null if not a highlight type. */
-internal fun annotationToHighlightDecoration(a: Annotation): NavigatorDecoration.Highlight? {
+fun annotationToHighlightDecoration(a: Annotation): NavigatorDecoration.Highlight? {
     if (a.type != AnnotationEntity.TYPE_HIGHLIGHT) return null
     // ADR 0056 §4: a highlight whose colour was cleared with the `∅` swatch persists with an
     // EMPTY token so its note and its sibling emphasis rows survive. Android emits a
@@ -74,13 +73,13 @@ private const val TRANSPARENT_HEX = "#000000"
  * tapping the wash opens the full actions sheet. iOS had no producer at all, which is why a
  * highlight-with-note was indistinguishable from a plain one.
  */
-internal fun annotationToNoteGlyphDecoration(a: Annotation): NavigatorDecoration.NoteGlyph? {
+fun annotationToNoteGlyphDecoration(a: Annotation): NavigatorDecoration.NoteGlyph? {
     if (a.note.isNullOrBlank()) return null
     return NavigatorDecoration.NoteGlyph(id = a.id, locatorJson = annotationDecorationLocator(a))
 }
 
 /** Maps a stored [Annotation] bookmark to a [NavigatorDecoration.Bookmark]. */
-internal fun annotationToBookmarkDecoration(a: Annotation): NavigatorDecoration.Bookmark =
+fun annotationToBookmarkDecoration(a: Annotation): NavigatorDecoration.Bookmark =
     NavigatorDecoration.Bookmark(
         id = a.id,
         locatorJson = annotationDecorationLocator(a),
@@ -93,7 +92,7 @@ internal fun annotationToBookmarkDecoration(a: Annotation): NavigatorDecoration.
  * `ITALIC` — those reflow text and are applied by DOM injection instead, so emitting a
  * decoration for them would add an invisible, un-tappable overlay.
  */
-internal fun annotationToEmphasisDecoration(a: Annotation): NavigatorDecoration.Emphasis? {
+fun annotationToEmphasisDecoration(a: Annotation): NavigatorDecoration.Emphasis? {
     if (a.type != AnnotationEntity.TYPE_EMPHASIS) return null
     val styles = a.emphasisStyles?.filter { it in DECORATION_RENDERED_EMPHASIS }?.toSet().orEmpty()
     if (styles.isEmpty()) return null

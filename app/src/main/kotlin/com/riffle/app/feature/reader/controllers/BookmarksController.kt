@@ -1,7 +1,6 @@
 package com.riffle.app.feature.reader.controllers
 
 import com.riffle.core.domain.normalizeEpubHref
-import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.ReaderOrientation
 import kotlinx.coroutines.CoroutineScope
@@ -27,7 +26,7 @@ import com.riffle.feature.reader.bookmarkEpsFor
  * MUST NOT import android.webkit.* or ContinuousReaderView.
  */
 class BookmarksController constructor(
-    private val scope: OrchestratorScope,
+    private val scope: CoroutineScope,
     private val annotationStore: AnnotationStore,
     private val onScheduleSync: () -> Unit,
 ) {

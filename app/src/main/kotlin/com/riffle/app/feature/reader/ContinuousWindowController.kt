@@ -286,7 +286,7 @@ internal class ContinuousWindowController(
      * through [com.riffle.app.feature.reader.renderer.RendererBridge]; continuous mode must fan
      * out here because the Readium fragment is parked at height=0 and holds no elided DOM.
      */
-    override fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch) {
+    override fun applyHighlightDomPatch(patch: com.riffle.feature.reader.highlights.HighlightsDomPatch) {
         val js = patch.applyJs()
         for (wv in webViews) {
             wv.evaluateJavascript(js, null as ((String?) -> Unit)?)
@@ -1254,14 +1254,14 @@ internal class ContinuousWindowController(
         }
         val viewportTop = port.currentScrollY - slot.top
         val viewportHeight = port.viewportHeightPx
-        val js = com.riffle.app.feature.reader.cadence.CadenceDomScript.cadenceStartSpanIdJs(
+        val js = com.riffle.feature.reader.cadence.CadenceDomScript.cadenceStartSpanIdJs(
             viewportTopDocPx = viewportTop,
             viewportHeightPx = viewportHeight,
             viewportLeftDocPx = 0,
             viewportWidthPx = null,
         )
         wv.evaluateJavascript(js) { raw ->
-            callback(com.riffle.app.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw))
+            callback(com.riffle.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw))
         }
     }
 

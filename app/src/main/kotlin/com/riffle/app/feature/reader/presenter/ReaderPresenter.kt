@@ -124,7 +124,7 @@ internal interface ReaderPresenter {
     suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int)
 
     /**
-     * Apply one [com.riffle.app.feature.reader.highlights.HighlightsDomPatch] to the currently
+     * Apply one [com.riffle.feature.reader.highlights.HighlightsDomPatch] to the currently
      * loaded elided-reader chapter. Idempotent by design: an unrecognised `data-ann-id` is a
      * no-op, so it's safe to invoke against any live document.
      *
@@ -137,7 +137,7 @@ internal interface ReaderPresenter {
      *   bridge would silently drop the patch — which is exactly why the Annotations View stopped
      *   live-updating in continuous mode.
      */
-    suspend fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch)
+    suspend fun applyHighlightDomPatch(patch: com.riffle.feature.reader.highlights.HighlightsDomPatch)
 
     /**
      * Current native-scroll boundary state for the rendered content. Used by the vertical-mode

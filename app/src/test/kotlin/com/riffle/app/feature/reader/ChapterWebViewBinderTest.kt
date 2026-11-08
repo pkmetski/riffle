@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader
 
 import android.graphics.Rect
 import androidx.compose.ui.unit.IntRect
+import com.riffle.feature.reader.FigureLongPressPayload
+import com.riffle.feature.reader.FootnoteContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -1,4 +1,4 @@
-package com.riffle.shared.reader
+package com.riffle.feature.reader
 
 /**
  * Escapes a string for safe embedding inside a JSON string literal (between the surrounding
@@ -13,7 +13,7 @@ package com.riffle.shared.reader
  * Not a full JSON serialiser — use a proper library for arbitrary values.  Purpose-built for
  * the slim hand-rolled JSON that the bridge protocol uses for locator/decoration/TOC wires.
  */
-internal fun String.jsonEscaped(): String =
+fun String.jsonEscaped(): String =
     replace("\\", "\\\\")
         .replace("\"", "\\\"")
         .replace("\n", "\\n")

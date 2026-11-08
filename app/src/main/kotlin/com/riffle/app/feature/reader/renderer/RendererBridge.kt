@@ -141,7 +141,7 @@ internal interface RendererBridge {
     // ── Highlights-mode (elided reader) live DOM patches (ADR 0048) ───────────────────────────
 
     /**
-     * Apply one [com.riffle.app.feature.reader.highlights.HighlightsDomPatch] to the currently
+     * Apply one [com.riffle.feature.reader.highlights.HighlightsDomPatch] to the currently
      * loaded elided-reader chapter. Each patch is a targeted `document.querySelector(...)`
      * mutation on the synthesised chapter's baked HTML — recolour a paragraph's accent bar, add/
      * update/remove a note aside, or delete a highlight paragraph — so the Annotations View
@@ -150,7 +150,7 @@ internal interface RendererBridge {
      * `data-ann-id` is a no-op, so it's safe to invoke against any chapter without checking
      * "is this the current one?" first.
      */
-    suspend fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch)
+    suspend fun applyHighlightDomPatch(patch: com.riffle.feature.reader.highlights.HighlightsDomPatch)
 
     // ── Selection / readaloud probes ────────────────────────────────────────────────────────
 

@@ -22,6 +22,7 @@ import com.riffle.feature.reader.NavigatorSelection
 import com.riffle.feature.reader.ScrollProbes
 import com.riffle.feature.reader.cadence.CadenceDomScript
 import com.riffle.feature.reader.cadence.CadenceInjector
+import com.riffle.feature.reader.jsonEscaped
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf

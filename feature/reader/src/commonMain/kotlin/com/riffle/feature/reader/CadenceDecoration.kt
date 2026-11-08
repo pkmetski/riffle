@@ -1,18 +1,16 @@
-package com.riffle.shared.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.models.HighlightColor
-import com.riffle.feature.reader.NavigatorDecoration
-import com.riffle.feature.reader.sentenceLocatorJson
 
 /** Readium decoration group for Cadence's "currently reading" sentence. */
-internal const val DECORATION_GROUP_CADENCE = "cadence"
+const val DECORATION_GROUP_CADENCE = "cadence"
 
 /**
  * The single decoration id Cadence ever applies. Replacing the whole group on each sentence is
  * what makes the highlight move rather than accumulate, so the id is constant by design.
  */
-internal const val CADENCE_DECORATION_ID = "cadence_active"
+const val CADENCE_DECORATION_ID = "cadence_active"
 
 /**
  * Build the "currently reading" highlight for Cadence's `href#cd-N` fragment.
@@ -27,7 +25,7 @@ internal const val CADENCE_DECORATION_ID = "cadence_active"
  * and [HighlightColor.argb] carries the baked-in 0x80 alpha, so the sentence highlight is the
  * same pixel value as the swatch in the Settings picker.
  */
-internal fun cadenceDecoration(
+fun cadenceDecoration(
     fragmentRef: String,
     quote: SentenceQuote?,
     color: HighlightColor,

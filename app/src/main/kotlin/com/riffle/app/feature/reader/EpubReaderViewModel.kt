@@ -3,8 +3,11 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.feature.navigation.EPUB_READER
+import com.riffle.feature.reader.FigureLongPressPayload
 import com.riffle.feature.reader.FigureTapMessageParser
 import com.riffle.feature.reader.FigureZoomState
+import com.riffle.feature.reader.FootnoteContent
+import com.riffle.feature.reader.FootnotePopupState
 import com.riffle.feature.reader.PositionSaveCoordinator
 import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.RailSegment
@@ -79,7 +82,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
-import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.highlights.ChapterElision
 import com.riffle.feature.reader.highlights.GENERIC_CSS_FONT_KEYWORDS
 import com.riffle.feature.reader.highlights.realCapturedFontOrNull
@@ -465,7 +468,7 @@ class EpubReaderViewModel constructor(
     // sync lifecycle (syncOnOpen, live-pull loop, syncOnClose). Publication-dependent operations
     // (createHighlight, toggleBookmark, CFI build, annotationToRender) stay in the VM and are
     // injected as resolver lambdas at bind() time so the session stays Readium-import-free.
-    private val annotationSession: com.riffle.app.feature.reader.session.AnnotationSession =
+    private val annotationSession: AnnotationSession =
         annotationSessionFactory.create(
             scope = viewModelScope,
             startLiveSync = { sid, ns, iid ->
@@ -1054,7 +1057,7 @@ class EpubReaderViewModel constructor(
      */
     fun dismissHighlightActions() {
         val target = annotationSession.highlightToEdit.value
-        if (target?.id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+        if (target?.id == com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID) {
             val presetColorIsNone = annotationSession.lastUsedColorIsNone.value
             val presetEmphasis = annotationSession.lastUsedEmphasisStyles.value
             if (shouldAutoCommitDraftOnDismiss(presetColorIsNone, presetEmphasis)) {
@@ -2960,7 +2963,7 @@ class EpubReaderViewModel constructor(
         viewModelScope.launch {
             // ADR 0056 §4: sheet action on a pending draft → commit now with the tapped colour
             // and (optionally) any last-used emphasis pre-selection.
-            if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+            if (id == com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID) {
                 commitDraft(initialColor = color.token)
                 return@launch
             }
@@ -2998,7 +3001,7 @@ class EpubReaderViewModel constructor(
         // when the user toggled a chip on the draft popup ("clearing the font formatting also
         // cleared the colour"). Preserves any last-used emphasis pre-selection as the base, then
         // adds the tapped chip on top.
-        if (highlightId == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+        if (highlightId == com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID) {
             val presetColor = if (annotationSession.lastUsedColorIsNone.value) ""
                 else annotationSession.lastUsedHighlightColor.value.token
             viewModelScope.launch { commitDraft(initialColor = presetColor, addEmphasisStyle = style) }
@@ -3307,7 +3310,7 @@ class EpubReaderViewModel constructor(
      *  (or, if the chapter empties, falls back to reloadOrCloseHighlightsAfterDelete). */
     fun deleteHighlight(id: String) {
         // ADR 0056 §4: draft trash tap → discard the pending selection without persisting.
-        if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+        if (id == com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID) {
             annotationSession.discardDraft()
             return
         }
@@ -3330,7 +3333,7 @@ class EpubReaderViewModel constructor(
      *  painting while the row (and every layered emphasis at the same CFI) survives. */
     fun removeHighlightColor(id: String) {
         viewModelScope.launch {
-            if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+            if (id == com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID) {
                 // Draft ∅ pick → commit with empty color.
                 commitDraft(initialColor = "")
                 return@launch

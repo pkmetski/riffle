@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.presenter
 
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.reader.highlights.HighlightsDomPatch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -92,10 +93,10 @@ internal class FakeReaderPresenter : ReaderPresenter {
     var scrollBoundaryResult: ScrollBoundary = ScrollBoundary.None
     override suspend fun scrollBoundary(): ScrollBoundary = scrollBoundaryResult
 
-    val recordedHighlightDomPatches: MutableList<com.riffle.app.feature.reader.highlights.HighlightsDomPatch> =
+    val recordedHighlightDomPatches: MutableList<HighlightsDomPatch> =
         mutableListOf()
     override suspend fun applyHighlightDomPatch(
-        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+        patch: HighlightsDomPatch,
     ) {
         recordedHighlightDomPatches += patch
     }

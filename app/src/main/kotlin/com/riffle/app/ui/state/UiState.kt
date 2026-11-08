@@ -1,20 +1,10 @@
 package com.riffle.app.ui.state
 
-/**
- * Unified screen state taxonomy. Screens that need extra discriminators (e.g. a Downloading
- * sub-state inside a player) parameterise [T] with their own sealed type instead of nesting
- * variants into this wrapper.
- */
 sealed interface UiState<out T> {
     data object Loading : UiState<Nothing>
 
     data class Success<T>(val value: T) : UiState<T>
 
-    /**
-     * An error worth showing the user. [retry] is optional — when non-null the scaffold shows a
-     * retry affordance that invokes it. [code] is for downstream logging / analytics; the [message]
-     * is the human-readable string the scaffold renders.
-     */
     data class Error(
         val message: String,
         val code: String? = null,
