@@ -87,8 +87,10 @@ import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
+import com.riffle.feature.reader.FigureLongPressPayload
+import com.riffle.feature.reader.FootnoteContent
 import com.riffle.feature.reader.decorations.FigureBorderDecoration
-import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.feature.reader.highlights.shouldShowReadaloudUi
 import com.riffle.feature.reader.highlights.shouldShowShareHighlights
@@ -636,7 +638,7 @@ fun EpubReaderScreen(
                             { wv ->
                                 val locale = s.publication.metadata.languages.firstOrNull()
                                 wv.evaluateJavascript(
-                                    com.riffle.app.feature.reader.cadence.CadenceDomScript
+                                    com.riffle.feature.reader.cadence.CadenceDomScript
                                         .FEATURE_DETECT_JS,
                                 ) { supportedRaw ->
                                     val normalized = supportedRaw?.trim()?.trim('"')
@@ -649,7 +651,7 @@ fun EpubReaderScreen(
                                     else if (explicitlyTrue) viewModel.setCadencePlatformSupported(true)
                                     if (!explicitlyTrue) return@evaluateJavascript
                                     wv.evaluateJavascript(
-                                        com.riffle.app.feature.reader.cadence.CadenceDomScript
+                                        com.riffle.feature.reader.cadence.CadenceDomScript
                                             .tokeniseChapterJs(wv.chapterHref, locale),
                                     ) { rawJson ->
                                         android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous tokenise rawLen=${rawJson?.length}")
@@ -1266,7 +1268,7 @@ private fun EpubNavigatorView(
      *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
      *  from the per-book preset must visually match the text). */
     draftAnnotation: AnnotationSession.DraftAnnotation? = null,
-    highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
+    highlightDomPatches: Flow<com.riffle.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
     autoScrollDeltas: Flow<Int>,
@@ -1486,7 +1488,7 @@ private fun EpubNavigatorView(
                                 it == com.riffle.core.models.EmphasisStyle.ITALIC
                         }) {
                         EmphasisDomInjector.EmphasisRange(
-                            id = com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID,
+                            id = com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID,
                             textSnippet = draft.textSnippet,
                             textBefore = draft.textBefore,
                             styles = draftStyles,
@@ -3232,7 +3234,7 @@ private fun EpubNavigatorView(
             // (pure helper — see its KDoc for the persisted-vs-draft rules; the draft case pre-
             // selects the per-book last-used state so a dismiss-without-explicit-pick auto-commits
             // in the user's remembered colour/emphasis).
-            val isDraft = editTarget.id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID
+            val isDraft = editTarget.id == com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID
             val persistedEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = run {
                 val hlCfi = currentAnnotation?.cfi
                 if (hlCfi.isNullOrEmpty()) emptySet()

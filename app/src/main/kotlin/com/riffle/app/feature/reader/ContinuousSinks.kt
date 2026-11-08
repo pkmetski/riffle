@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.ui.unit.IntRect
+import com.riffle.feature.reader.FootnoteContent
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 

@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.controllers
 
-import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.cadence.CadenceState
@@ -20,7 +19,7 @@ import kotlinx.coroutines.launch
  * MUST NOT import org.readium.*, android.webkit.*, or ContinuousReaderView.
  */
 class WakeLockController constructor(
-    private val scope: OrchestratorScope,
+    private val scope: CoroutineScope,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val autoScrollState: StateFlow<AutoScrollState>,
 ) {

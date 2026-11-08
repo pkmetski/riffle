@@ -12,7 +12,10 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.feature.reader.FigureLongPressMessageParser
+import com.riffle.feature.reader.FigureLongPressPayload
 import com.riffle.feature.reader.FigureTapScript
+import com.riffle.feature.reader.FootnoteContent
 import com.riffle.feature.reader.ContinuousPositionTracker
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger

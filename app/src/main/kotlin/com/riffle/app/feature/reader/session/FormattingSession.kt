@@ -40,7 +40,7 @@ import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FormattingSession constructor(
-    private val scope: OrchestratorScope,
+    private val scope: CoroutineScope,
     private val formattingPreferencesStoreProvider: FormattingPreferencesStoreProvider,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,

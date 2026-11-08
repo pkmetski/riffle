@@ -165,7 +165,7 @@ internal class ContinuousPresenter : ReaderPresenter {
     override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) = Unit
 
     override suspend fun applyHighlightDomPatch(
-        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+        patch: com.riffle.feature.reader.highlights.HighlightsDomPatch,
     ) {
         // Fan out to every loaded chapter WebView. The patch's `querySelector('[data-ann-id=…]')`
         // is a no-op on chapters that don't contain the annotation, so an untargeted broadcast is

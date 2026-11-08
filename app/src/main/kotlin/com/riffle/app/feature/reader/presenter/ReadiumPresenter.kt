@@ -295,7 +295,7 @@ internal class ReadiumPresenter(
     }
 
     override suspend fun applyHighlightDomPatch(
-        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+        patch: com.riffle.feature.reader.highlights.HighlightsDomPatch,
     ) {
         if (fragment == null) return
         bridge.applyHighlightDomPatch(patch)

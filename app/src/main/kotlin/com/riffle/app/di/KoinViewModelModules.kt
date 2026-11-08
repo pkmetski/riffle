@@ -20,7 +20,6 @@ import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
 import com.riffle.feature.library.LibraryTabVisibilityCache
 import com.riffle.feature.library.LibraryTabVisibilityObserver
-import com.riffle.app.feature.library.LibraryTabVisibilityViewModel
 import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.HomeViewModel
@@ -58,7 +57,6 @@ import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyHomeViewModel
 import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel
-import com.riffle.app.feature.source.websource.WebSourceLibraryViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.app.feature.update.StartupUpdateViewModel
 import com.riffle.core.catalog.CatalogRegistry
@@ -280,12 +278,6 @@ private val libraryViewModelModule = module {
             libraryObserver = get(),
             sourceRepository = get(),
             tokenStorage = get(),
-        )
-    }
-    viewModel {
-        LibraryTabVisibilityViewModel(
-            savedStateHandle = get(),
-            observer = get(),
         )
     }
 }
@@ -519,18 +511,6 @@ private val sourceViewModelModule = module {
         )
     }
     viewModel { AddLocalFilesViewModel(installer = get()) }
-    viewModel {
-        WebSourceLibraryViewModel(
-            savedStateHandle = get(),
-            libraryObserver = get(),
-            toReadRepository = get(),
-            libraryMutator = get(),
-            positionTombstoneWriter = get(),
-            remoteItemFreshness = get(),
-            connectivityObserver = get(),
-            offlineAvailability = get(),
-        )
-    }
     viewModel { OReillyLoginViewModel(repository = get()) }
     factory { params ->
         OReillyHomeViewModel(
