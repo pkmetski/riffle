@@ -90,4 +90,48 @@ class ContinuousAnnotationHighlightsJsTest {
             assertTrue("a2 present, got $c2", c2 == "1")
         }
     }
+
+    // Regression: when an annotation mark for a different word sits between two occurrences of the
+    // target word, the bef context (computed by SELECTION_SPAN_TRACKER_JS) must exclude the annotated
+    // word's text — matching flatIdx.fullText's representation — so findIdx can disambiguate the
+    // right occurrence. Before the fix, bef included the annotated word (via Range.toString()),
+    // causing beforeWin ≠ bef for both occurrences and findIdx falling back to firstIdx (wrong word).
+    @Test
+    fun disambiguates_second_occurrence_when_another_annotation_sits_between_them() {
+        val twoFoxHtml = """
+            <!doctype html>
+            <html><head><meta charset="utf-8"></head>
+            <body>
+              <p id="p1">fox dog fox</p>
+            </body></html>
+        """.trimIndent()
+        withWebViewFixture(twoFoxHtml) { wv ->
+            // Apply an existing annotation on "dog" (between the two "fox" occurrences).
+            val dogAnn = AnnotationHighlight("ann-dog", "dog", "rgba(255,235,59,0.45)", false, "fox ", " fox")
+            wv.evalSync(ContinuousStyleInjector.applyAnnotationHighlightsJs(listOf(dogAnn)))
+            assertEquals(
+                "pre-condition: 'dog' must be annotated",
+                "1",
+                wv.evalSync("document.querySelectorAll('[data-riffle-ann=\"ann-dog\"]').length").trim('"'),
+            )
+            // The second "fox" was selected after "dog" was annotated, so bef is computed by the
+            // updated SELECTION_SPAN_TRACKER_JS which walks text nodes while skipping [data-riffle-ann]
+            // marks — identical to buildFlat. Result: before="fox  " (double-space where "dog" was,
+            // 4 chars from "fox " + 1 space-prefix from " fox"). findIdx("fox","fox  ","",0) in
+            // flatIdx.fullText="fox  fox" matches at offset 5 (second "fox"), not offset 0 (first).
+            val secondFoxAnn = AnnotationHighlight("ann-fox", "fox", "rgba(76,175,80,0.45)", false, "fox  ", "")
+            wv.evalSync(ContinuousStyleInjector.applyAnnotationHighlightsJs(listOf(dogAnn, secondFoxAnn)))
+            assertEquals(
+                "second 'fox' must be annotated",
+                "1",
+                wv.evalSync("document.querySelectorAll('[data-riffle-ann=\"ann-fox\"]').length").trim('"'),
+            )
+            // ann-fox must follow ann-dog in document order (it is the SECOND "fox").
+            val order = wv.evalSync(
+                "(function(){var ms=document.querySelectorAll('[data-riffle-ann]');" +
+                    "return Array.prototype.map.call(ms,function(m){return m.getAttribute('data-riffle-ann');}).join(',');})()",
+            ).trim('"')
+            assertEquals("ann-dog,ann-fox", order)
+        }
+    }
 }

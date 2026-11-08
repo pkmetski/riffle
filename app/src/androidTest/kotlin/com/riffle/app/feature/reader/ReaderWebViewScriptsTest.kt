@@ -4,6 +4,7 @@ import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -141,6 +142,50 @@ class ReaderWebViewScriptsTest {
             assertEquals("true", webView.evalSync("String(window.__riffleSelTrackerInstalled)").trim('"'))
             webView.selectWordIn("c007-s2")
             assertEquals("c007-s2", webView.awaitSelSpan())
+        }
+    }
+
+    // The stash bef/aft context must exclude text inside [data-riffle-ann] marks so it matches
+    // flatIdx.fullText's representation. Without this, selecting the second occurrence of a word
+    // when an annotation mark sits between them produces a bef that includes the annotated text —
+    // causing beforeWin ≠ bef for both occurrences, findIdx falls back to firstIdx, wrong word.
+    @Test
+    fun selectionTrackerStashBefExcludesAnnotationMarkTextBetweenOccurrences() {
+        val annotatedHtml = """
+            <!DOCTYPE html>
+            <html><body>
+              <p>fox <mark data-riffle-ann="a1">dog</mark> fox</p>
+            </body></html>
+        """.trimIndent()
+        withWebViewFixture(annotatedHtml) { wv ->
+            wv.evalSync(SELECTION_SPAN_TRACKER_JS)
+            // Select the second "fox" — the text node after the annotation mark (not inside it)
+            wv.evalSync(
+                """
+                (function(){
+                  var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, last = null;
+                  while ((n = w.nextNode())) {
+                    if (n.parentNode && n.parentNode.closest && n.parentNode.closest('[data-riffle-ann]')) continue;
+                    if (n.nodeValue.indexOf('fox') >= 0) last = n;
+                  }
+                  if (!last) return 'notfound';
+                  var i = last.nodeValue.indexOf('fox');
+                  var r = document.createRange(); r.setStart(last, i); r.setEnd(last, i + 3);
+                  window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+                  return 'ok';
+                })()
+                """.trimIndent(),
+            )
+            // Poll until the tracker writes the stash (selectionchange is async)
+            val deadline = System.currentTimeMillis() + 3_000
+            var bef = ""
+            while (System.currentTimeMillis() < deadline) {
+                val raw = wv.evalSync("window.__riffleSelData ? (window.__riffleSelData.bef||'') : '__none__'").trim('"')
+                if (raw != "__none__") { bef = raw; break }
+                Thread.sleep(30)
+            }
+            assertFalse("stash bef must not include annotated word 'dog', was: '$bef'", bef.contains("dog"))
+            assertTrue("stash bef must include non-annotated text before the selection, was: '$bef'", bef.contains("fox"))
         }
     }
 

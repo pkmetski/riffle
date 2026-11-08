@@ -259,17 +259,30 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
             l = rect.left; t = rect.top; r = rect.right; b = rect.bottom;
             var body = document.body;
             if (body) {
+                // Walk text nodes like buildFlat — skip [data-riffle-ann] — so bef/aft
+                // matches flatIdx.fullText and annotation disambiguation works when
+                // pre-existing marks are already in the DOM.
                 try {
-                    var beforeR = document.createRange();
-                    beforeR.selectNodeContents(body);
-                    beforeR.setEnd(range.startContainer, range.startOffset);
-                    bef = beforeR.toString().slice(-60);
+                    var acc = '', tw = document.createTreeWalker(body, 4, null, false), nb;
+                    while ((nb = tw.nextNode())) {
+                        if (nb.parentNode && nb.parentNode.closest && nb.parentNode.closest('[data-riffle-ann]')) continue;
+                        if (nb === range.startContainer) { acc += (nb.nodeValue || '').slice(0, range.startOffset); break; }
+                        var tr = document.createRange(); tr.setStart(nb, 0); tr.collapse(true);
+                        if (tr.compareBoundaryPoints(Range.START_TO_START, range) >= 0) break;
+                        acc += nb.nodeValue || '';
+                    }
+                    bef = acc.slice(-60);
                 } catch (e) { bef = ''; }
                 try {
-                    var afterR = document.createRange();
-                    afterR.selectNodeContents(body);
-                    afterR.setStart(range.endContainer, range.endOffset);
-                    aft = afterR.toString().slice(0, 60);
+                    var acc2 = '', tw2 = document.createTreeWalker(body, 4, null, false), na, past = false;
+                    while ((na = tw2.nextNode())) {
+                        if (na.parentNode && na.parentNode.closest && na.parentNode.closest('[data-riffle-ann]')) continue;
+                        if (!past) {
+                            if (na === range.endContainer) { acc2 += (na.nodeValue || '').slice(range.endOffset); past = true; }
+                            else { var tr2 = document.createRange(); tr2.setStart(na, 0); tr2.collapse(true); if (tr2.compareBoundaryPoints(Range.START_TO_END, range) > 0) { acc2 += na.nodeValue || ''; past = true; } }
+                        } else { acc2 += na.nodeValue || ''; if (acc2.length >= 60) break; }
+                    }
+                    aft = acc2.slice(0, 60);
                 } catch (e) { aft = ''; }
             }
             // Skip the capture entirely while a user font override is active — the computed
@@ -443,17 +456,30 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             var bef = '', aft = '';
             var body = document.body;
             if (body) {
+              // Walk text nodes like buildFlat — skip [data-riffle-ann] — so bef/aft
+              // matches flatIdx.fullText and annotation disambiguation works when
+              // pre-existing marks are already in the DOM.
               try {
-                var beforeR = document.createRange();
-                beforeR.selectNodeContents(body);
-                beforeR.setEnd(rng.startContainer, rng.startOffset);
-                bef = beforeR.toString().slice(-60);
+                var acc = '', tw = document.createTreeWalker(body, 4, null, false), nb;
+                while ((nb = tw.nextNode())) {
+                  if (nb.parentNode && nb.parentNode.closest && nb.parentNode.closest('[data-riffle-ann]')) continue;
+                  if (nb === rng.startContainer) { acc += (nb.nodeValue || '').slice(0, rng.startOffset); break; }
+                  var tr = document.createRange(); tr.setStart(nb, 0); tr.collapse(true);
+                  if (tr.compareBoundaryPoints(Range.START_TO_START, rng) >= 0) break;
+                  acc += nb.nodeValue || '';
+                }
+                bef = acc.slice(-60);
               } catch (e) { bef = ''; }
               try {
-                var afterR = document.createRange();
-                afterR.selectNodeContents(body);
-                afterR.setStart(rng.endContainer, rng.endOffset);
-                aft = afterR.toString().slice(0, 60);
+                var acc2 = '', tw2 = document.createTreeWalker(body, 4, null, false), na, past = false;
+                while ((na = tw2.nextNode())) {
+                  if (na.parentNode && na.parentNode.closest && na.parentNode.closest('[data-riffle-ann]')) continue;
+                  if (!past) {
+                    if (na === rng.endContainer) { acc2 += (na.nodeValue || '').slice(rng.endOffset); past = true; }
+                    else { var tr2 = document.createRange(); tr2.setStart(na, 0); tr2.collapse(true); if (tr2.compareBoundaryPoints(Range.START_TO_END, rng) > 0) { acc2 += na.nodeValue || ''; past = true; } }
+                  } else { acc2 += na.nodeValue || ''; if (acc2.length >= 60) break; }
+                }
+                aft = acc2.slice(0, 60);
               } catch (e) { aft = ''; }
             }
             // Figures enclosed by the selection range (item 5 of the figure-annotations feature).

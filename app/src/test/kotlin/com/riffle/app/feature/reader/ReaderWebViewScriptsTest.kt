@@ -491,9 +491,17 @@ class ReaderWebViewScriptsTest {
             "filters candidates by range.intersectsNode",
             js.contains("rng2.intersectsNode(fnode)"),
         )
+        // The figure-scanning section specifically must NOT use TreeWalker — TreeWalker's
+        // acceptNode callback silently skips enclosed figures in Readium's paginated WebView.
+        // (Note: TreeWalker IS used elsewhere in the script for bef/aft text-node walking.)
+        val figuresSection = run {
+            val start = js.indexOf("var figures = []")
+            val end = js.indexOf("window.__riffleSelData =", start).takeIf { it >= 0 } ?: js.length
+            js.substring(start, end)
+        }
         assertTrue(
-            "does NOT use TreeWalker (the failed approach)",
-            !js.contains("createTreeWalker"),
+            "figure-scanning section must NOT use TreeWalker (the approach that silently skips figures in paginated WebView)",
+            !figuresSection.contains("createTreeWalker"),
         )
     }
 
