@@ -49,6 +49,21 @@ extension ReadiumEpubNavigatorBridge {
                 viewWidth: viewW, viewHeight: viewH
             ))
         }
+        csv.selectionCallback = { [weak self] text in
+            self?.selectionCallback?(text)
+        }
+        csv.footnoteCallback = { [weak self] href in
+            self?.footnoteCallback?(href)
+        }
+        csv.urlOpener = { [weak self] url in
+            self?.urlOpener(url)
+        }
+        csv.figureTapCallback = { [weak self] payload in
+            self?.figureTapCallback?(payload)
+        }
+        csv.figureLongPressCallback = { [weak self] payload in
+            self?.figureLongPressCallback?(payload)
+        }
 
         csv.initialize(
             publication: pub,

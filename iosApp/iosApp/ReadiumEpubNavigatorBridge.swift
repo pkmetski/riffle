@@ -400,12 +400,15 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         _lastAppliedDecorationsJson = decorationsJson
         _lastAppliedGroup = group
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                let script = "window.__riffleDecorations_\(group.replacingOccurrences(of: "-", with: "_")) = \(decorationsJson);"
+                csv.applyDecorationsJs(group: group, script: script)
+                return
+            }
             guard let nav = epubNavigator else { return }
             let decorations = parseDecorations(decorationsJson)
             nav.apply(decorations: decorations, in: group)
             if group == ReaderDecorationGroups.shared.noteGlyphs, !decorations.isEmpty {
-                // Readium lays decorations out on its own animation frame, so the clamp has to
-                // run after — it retries for a bounded number of frames on its own.
                 _ = await nav.evaluateJavaScript(RiffleDecorationTemplates.noteGlyphClampJs())
             }
         }
@@ -745,6 +748,10 @@ extension ReadiumEpubNavigatorBridge {
     /// ticker instead of spinning.
     func scrollByPx(pixels: Int32, onResult: @escaping (KotlinBoolean) -> Void) {
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                onResult(KotlinBoolean(bool: csv.scrollByPx(pixels: Int(pixels))))
+                return
+            }
             guard let nav = self.epubNavigator else {
                 onResult(KotlinBoolean(bool: false))
                 return
@@ -781,6 +788,12 @@ extension ReadiumEpubNavigatorBridge {
     /// rather than crashing.
     func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                csv.evaluateJavaScript(script: script) { value, _ in
+                    onResult(Self.stringifyJavaScriptResult(value))
+                }
+                return
+            }
             guard let nav = self.epubNavigator else { onResult(nil); return }
             let result = await nav.evaluateJavaScript(script)
             switch result {
@@ -845,6 +858,11 @@ extension ReadiumEpubNavigatorBridge {
 
     func clearSelection() {
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                csv.clearSelection()
+                selectionCallback?(nil)
+                return
+            }
             epubNavigator?.clearSelection()
             selectionCallback?(nil)
         }

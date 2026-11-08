@@ -22,6 +22,15 @@ final class IosContinuousScrollView: UIView {
     var onPageLoad: (() -> Void)?
     var onScrollStart: (() -> Void)?
     var onTap: ((CGPoint) -> Void)?
+    var selectionCallback: ((String?) -> Void)?
+    var footnoteCallback: ((String) -> Void)?
+    var urlOpener: ((URL) -> Void)?
+    var figureTapCallback: ((String) -> Void)?
+    var figureLongPressCallback: ((String) -> Void)?
+
+    // Stored decorations per group applied before a slot WebView finishes loading.
+    // Re-applied in didFinish so slots that load after applyDecorationsJs is called pick them up.
+    private var pendingDecorationScripts: [String: String] = [:]
 
     // MARK: - Private state
 
@@ -298,16 +307,78 @@ final class IosContinuousScrollView: UIView {
         outerScrollView.contentSize = CGSize(width: bounds.width, height: total)
     }
 
+    // MARK: - Feature seams
+
+    func scrollByPx(pixels: Int) -> Bool {
+        let before = outerScrollView.contentOffset.y
+        let after = max(0, min(before + CGFloat(pixels), outerScrollView.contentSize.height - outerScrollView.bounds.height))
+        guard after != before else { return false }
+        outerScrollView.setContentOffset(CGPoint(x: 0, y: after), animated: false)
+        return true
+    }
+
+    func clearSelection() {
+        let js = "window.getSelection().removeAllRanges();"
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
+    func applyDecorationsJs(group: String, script: String) {
+        pendingDecorationScripts[group] = script
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    func evaluateJavaScript(script: String, completionHandler: ((Any?, Error?) -> Void)?) {
+        let midY = outerScrollView.contentOffset.y + outerScrollView.bounds.height * 0.5
+        let idx = slotIndexAt(yPos: midY)
+        guard let webView = loadedWebViews[idx] else {
+            completionHandler?(nil, nil)
+            return
+        }
+        webView.evaluateJavaScript(script, completionHandler: completionHandler)
+    }
+
     // MARK: - WebView creation
 
     private func makeWebView() -> WKWebView {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(schemeHandler, forURLScheme: IosContinuousEpubSchemeHandler.scheme)
-        let heightHandler = WeakScriptMessageHandler(target: self)
-        config.userContentController.add(heightHandler, name: "riffleChapterHeight")
+        let handler = WeakScriptMessageHandler(target: self)
+        config.userContentController.add(handler, name: "riffleChapterHeight")
+        config.userContentController.add(handler, name: "RiffleFigureBridge")
+        config.userContentController.add(handler, name: "RiffleFigureBridgeLongPress")
+        config.userContentController.add(handler, name: "riffleSelection")
+        let figureBridgeShim = """
+        window.RiffleFigureBridge = {
+            onFigureTap: function(p) {
+                window.webkit.messageHandlers.RiffleFigureBridge.postMessage(p);
+            },
+            onFigureLongPress: function(p) {
+                window.webkit.messageHandlers.RiffleFigureBridgeLongPress.postMessage(p);
+            }
+        };
+        """
+        let selectionShim = """
+        document.addEventListener('selectionchange', function() {
+            var sel = window.getSelection();
+            if (sel && sel.toString().length > 0) {
+                window.webkit.messageHandlers.riffleSelection.postMessage(sel.toString());
+            }
+        });
+        """
+        config.userContentController.addUserScript(WKUserScript(
+            source: figureBridgeShim, injectionTime: .atDocumentStart, forMainFrameOnly: false
+        ))
+        config.userContentController.addUserScript(WKUserScript(
+            source: selectionShim, injectionTime: .atDocumentEnd, forMainFrameOnly: false
+        ))
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
+        webView.scrollView.scrollsToTop = false
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.navigationDelegate = self
@@ -486,11 +557,27 @@ extension IosContinuousScrollView: UIScrollViewDelegate {
 
 extension IosContinuousScrollView: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "riffleChapterHeight",
-           let body = message.body as? [String: Any],
-           let href = body["href"] as? String,
-           let height = body["height"] as? Double {
-            onHeightMeasured(href: href, height: CGFloat(height))
+        switch message.name {
+        case "riffleChapterHeight":
+            if let body = message.body as? [String: Any],
+               let href = body["href"] as? String,
+               let height = body["height"] as? Double {
+                onHeightMeasured(href: href, height: CGFloat(height))
+            }
+        case "RiffleFigureBridge":
+            if let payload = message.body as? String {
+                figureTapCallback?(payload)
+            }
+        case "RiffleFigureBridgeLongPress":
+            if let payload = message.body as? String {
+                figureLongPressCallback?(payload)
+            }
+        case "riffleSelection":
+            if let text = message.body as? String {
+                selectionCallback?(text)
+            }
+        default:
+            break
         }
     }
 }
@@ -498,6 +585,36 @@ extension IosContinuousScrollView: WKScriptMessageHandler {
 // MARK: - WKNavigationDelegate
 
 extension IosContinuousScrollView: WKNavigationDelegate {
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard navigationAction.navigationType != .other,
+              let url = navigationAction.request.url else {
+            decisionHandler(.allow)
+            return
+        }
+        let urlString = url.absoluteString
+        if urlString.hasPrefix("\(IosContinuousEpubSchemeHandler.scheme)://pub/") {
+            let href = urlString.replacingOccurrences(of: "\(IosContinuousEpubSchemeHandler.scheme)://pub", with: "")
+            navigateTo(href: href, progression: 0)
+            decisionHandler(.cancel)
+            return
+        }
+        if url.scheme == "http" || url.scheme == "https" {
+            urlOpener?(url)
+            decisionHandler(.cancel)
+            return
+        }
+        if urlString.contains("noteref") {
+            footnoteCallback?(urlString)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let rawPath = webView.url?.path.removingPercentEncoding ?? ""
         let escapedPath = rawPath
@@ -545,6 +662,9 @@ extension IosContinuousScrollView: WKNavigationDelegate {
         })();
         """
         webView.evaluateJavaScript(heightJs, completionHandler: nil)
+        for (_, script) in pendingDecorationScripts {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
     }
 }
 
