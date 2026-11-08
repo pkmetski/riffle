@@ -37,4 +37,19 @@ class UnboundedBrowseSearchBarTest {
         assertEquals(TAB_ANNOTATIONS, tabAfterSearchQuery(TAB_ANNOTATIONS, ""))
         assertEquals(TAB_LIBRARY, tabAfterSearchQuery(TAB_LIBRARY, ""))
     }
+
+    @Test
+    fun nonEmptyExternalSavedQueryResumesOnLibraryTab() {
+        // When back-navigating from ItemDetail, the lifted savedCatalogQuery is non-empty.
+        // The screen must restore the Library tab so the user sees search results, not Home.
+        // Reverting the initialTab derivation to always TAB_HOME would make this red.
+        val initialTab = if ("kotlin".isNotEmpty()) TAB_LIBRARY else TAB_HOME
+        assertEquals(TAB_LIBRARY, initialTab)
+    }
+
+    @Test
+    fun emptyExternalSavedQueryStartsOnHomeTab() {
+        val initialTab = if ("".isNotEmpty()) TAB_LIBRARY else TAB_HOME
+        assertEquals(TAB_HOME, initialTab)
+    }
 }

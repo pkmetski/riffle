@@ -671,6 +671,10 @@ internal fun LibraryHost(
     val annotationsViewModel = remember(libraryId) {
         annotationsHost.adopt(koin.get<AnnotationsListViewModel> { parametersOf(libraryId) })
     }
+    // Hoisted here (not inside SaveableStateProvider) so the catalog search term survives
+    // back navigation from ItemDetail — the host stays in composition throughout all
+    // within-library navigation while SaveableStateProvider exits/re-enters.
+    var savedCatalogQuery by rememberSaveable(libraryId) { mutableStateOf("") }
     DisposableEffect(libraryId) {
         onDispose {
             libraryItemsHost.clear()
@@ -718,6 +722,8 @@ internal fun LibraryHost(
                     libraryVm = libraryItemsViewModel,
                     annotationsVm = annotationsViewModel,
                     onOpenDrawer = onOpenDrawer,
+                    externalSavedQuery = savedCatalogQuery,
+                    onQuerySaved = { savedCatalogQuery = it },
                     onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
                     onAnnotatedBookSelected = { sourceId, itemId ->
                         push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))

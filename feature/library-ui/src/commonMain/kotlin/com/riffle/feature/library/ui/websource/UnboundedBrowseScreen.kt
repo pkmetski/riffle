@@ -14,7 +14,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -89,22 +88,21 @@ fun UnboundedBrowseScreen(
     onOpenDrawer: () -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
+    externalSavedQuery: String = "",
+    onQuerySaved: (String) -> Unit = {},
 ) {
-    // key ties both the ViewModel and the saved query to the same (sourceType, libraryId) pair
-    // so switching between root types on the same libraryId resets the saved term.
     val key = "$sourceType/$libraryId"
-    var savedQuery by rememberSaveable(key) { mutableStateOf("") }
     val host = remember(key) { ScreenScopedViewModelHost() }
     val viewModel = remember(key) {
         val vm = host.adopt(unboundedBrowseViewModel(sourceType, libraryId))
         // Synchronous inside remember{}: runs before the init coroutine body is dispatched.
-        if (savedQuery.isNotEmpty()) vm.setInitialQuery(savedQuery)
+        if (externalSavedQuery.isNotEmpty()) vm.setInitialQuery(externalSavedQuery)
         vm
     }
     DisposableEffect(key) { onDispose { host.clear() } }
 
     val query by viewModel.query.collectAsState()
-    SideEffect { savedQuery = query }
+    SideEffect { onQuerySaved(query) }
 
     val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     SideEffect {
@@ -135,7 +133,7 @@ fun UnboundedBrowseScreen(
     val seriesCoverUrls by libraryVm.seriesCoverUrls.collectAsState()
     val coversAreSquare = isAudioRoot(sourceType, viewModel.rootId)
 
-    var selectedLocalTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
+    var selectedLocalTab by rememberSaveable { mutableIntStateOf(if (externalSavedQuery.isNotEmpty()) TAB_LIBRARY else TAB_HOME) }
 
     Scaffold(
         topBar = {
