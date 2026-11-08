@@ -187,6 +187,16 @@ import com.riffle.feature.reader.ui.readerPalette
 import com.riffle.feature.reader.ui.readerSwatchBackdropColor
 import com.riffle.feature.reader.ui.speedHudLabels
 import com.riffle.feature.reader.weightedRailCursorPosition
+import com.riffle.feature.reader.DECORATION_GROUP_CADENCE
+import com.riffle.feature.reader.DECORATION_GROUP_READALOUD
+import com.riffle.feature.reader.annotationDecorationLocator
+import com.riffle.feature.reader.annotationToBookmarkDecoration
+import com.riffle.feature.reader.annotationToEmphasisDecoration
+import com.riffle.feature.reader.annotationToHighlightDecoration
+import com.riffle.feature.reader.annotationToNoteGlyphDecoration
+import com.riffle.feature.reader.cadenceDecoration
+import com.riffle.feature.reader.readaloudDecoration
+import com.riffle.feature.reader.ReaderDecorationGroups
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.shared.generated.resources.Res
