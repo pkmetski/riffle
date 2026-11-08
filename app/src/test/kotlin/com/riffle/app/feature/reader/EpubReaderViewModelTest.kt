@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi

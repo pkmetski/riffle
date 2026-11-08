@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.net.FakeUri
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
-import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.highlights.ReaderSource
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.TocEntry

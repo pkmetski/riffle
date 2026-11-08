@@ -1,4 +1,4 @@
-package com.riffle.shared.reader
+package com.riffle.feature.reader
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,4 +1,4 @@
-package com.riffle.shared.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.models.HighlightColor

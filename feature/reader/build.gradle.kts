@@ -11,6 +11,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":core:domain"))
             api(project(":core:models"))
+            api(project(":core:data"))
             // TimeRemaining — the chapter-map time estimates in ChapterMapDerivations return it.
             api(project(":core:common"))
             // AnnotationEntity's TYPE_* constants: the highlight merge/overlap logic and the

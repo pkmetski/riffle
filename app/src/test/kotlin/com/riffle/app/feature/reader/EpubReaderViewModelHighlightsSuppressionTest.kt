@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.feature.reader.highlights.ReaderSource
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -1,6 +1,4 @@
-package com.riffle.shared.reader
-
-import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
+package com.riffle.feature.reader
 
 /**
  * The decoration group names the reader applies decorations under, in one place both languages

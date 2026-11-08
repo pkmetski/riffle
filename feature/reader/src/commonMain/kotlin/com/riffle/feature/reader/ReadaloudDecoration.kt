@@ -1,12 +1,10 @@
-package com.riffle.shared.reader
+package com.riffle.feature.reader
 
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.models.HighlightColor
-import com.riffle.feature.reader.NavigatorDecoration
-import com.riffle.feature.reader.sentenceLocatorJson
 
 /** Readium decoration group for the readaloud "currently narrated" sentence. */
-internal const val DECORATION_GROUP_READALOUD = "readaloud"
+const val DECORATION_GROUP_READALOUD = "readaloud"
 
 /** Decoration id — constant so the group replaces atomically on each sentence change. */
 private const val READALOUD_DECORATION_ID = "readaloud_active"
@@ -18,7 +16,7 @@ private const val READALOUD_DECORATION_ID = "readaloud_active"
  * that survives Readium's id-stripping when serving the EPUB, and [HighlightColor.argb] carries
  * the baked-in 0x80 alpha so the tint matches the user-chosen colour swatch exactly.
  */
-internal fun readaloudDecoration(
+fun readaloudDecoration(
     fragmentRef: String,
     quote: SentenceQuote?,
     color: HighlightColor,

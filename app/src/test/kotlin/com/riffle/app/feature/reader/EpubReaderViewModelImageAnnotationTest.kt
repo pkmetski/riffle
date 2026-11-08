@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.CaptionRange
+import com.riffle.feature.reader.FigureLongPressPayload
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.DirtySourceItem

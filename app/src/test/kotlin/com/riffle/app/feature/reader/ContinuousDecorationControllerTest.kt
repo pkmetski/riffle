@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.RecordingLogger
+import com.riffle.feature.reader.FigureLongPressPayload
+import com.riffle.feature.reader.FootnoteContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
