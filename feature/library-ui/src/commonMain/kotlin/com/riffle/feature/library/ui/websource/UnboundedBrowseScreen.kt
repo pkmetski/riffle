@@ -102,7 +102,9 @@ fun UnboundedBrowseScreen(
     DisposableEffect(key) { onDispose { host.clear() } }
 
     val query by viewModel.query.collectAsState()
-    SideEffect { onQuerySaved(query) }
+    // Key-read in LaunchedEffect creates the subscription at this scope; SideEffect { onQuerySaved(query) }
+    // would not work because query is only read inside the topBar slot lambda, not at this scope.
+    LaunchedEffect(query) { onQuerySaved(query) }
 
     val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     SideEffect {
