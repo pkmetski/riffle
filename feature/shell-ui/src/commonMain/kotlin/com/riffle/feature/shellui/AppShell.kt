@@ -715,6 +715,8 @@ internal fun LibraryHost(
                     sourceType = unboundedType,
                     libraryId = libraryId,
                     libraryName = libraryName,
+                    libraryVm = libraryItemsViewModel,
+                    annotationsVm = annotationsViewModel,
                     onOpenDrawer = onOpenDrawer,
                     onOpenDetail = { itemId -> push(LibraryNav.ItemDetail(itemId, null)) },
                     onAnnotatedBookSelected = { sourceId, itemId ->

@@ -14,6 +14,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,7 +55,6 @@ import com.riffle.feature.source.ui.websource.UnboundedCoverGridZoomProvider
 import com.riffle.feature.source.ui.websource.isAudioRoot
 import com.riffle.feature.source.ui.websource.unboundedLocalTabToLibraryTabIndex
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
 
@@ -85,16 +85,27 @@ fun UnboundedBrowseScreen(
     sourceType: SourceType,
     libraryId: String,
     libraryName: String,
+    libraryVm: LibraryItemsViewModel,
+    annotationsVm: AnnotationsListViewModel,
     onOpenDrawer: () -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
 ) {
+    // key ties both the ViewModel and the saved query to the same (sourceType, libraryId) pair
+    // so switching between root types on the same libraryId resets the saved term.
     val key = "$sourceType/$libraryId"
+    var savedQuery by rememberSaveable(key) { mutableStateOf("") }
     val host = remember(key) { ScreenScopedViewModelHost() }
-    val viewModel = remember(key) { host.adopt(unboundedBrowseViewModel(sourceType, libraryId)) }
-    val libraryVm: LibraryItemsViewModel = koinInject { parametersOf(libraryId) }
-    val annotationsVm: AnnotationsListViewModel = koinInject { parametersOf(libraryId) }
+    val viewModel = remember(key) {
+        val vm = host.adopt(unboundedBrowseViewModel(sourceType, libraryId))
+        // Synchronous inside remember{}: runs before the init coroutine body is dispatched.
+        if (savedQuery.isNotEmpty()) vm.setInitialQuery(savedQuery)
+        vm
+    }
     DisposableEffect(key) { onDispose { host.clear() } }
+
+    val query by viewModel.query.collectAsState()
+    SideEffect { savedQuery = query }
 
     val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     SideEffect {
@@ -117,7 +128,6 @@ fun UnboundedBrowseScreen(
         viewModel.openDetailEvents.collect { event -> currentOnOpenDetail(event.itemId) }
     }
 
-    val query by viewModel.query.collectAsState()
     val librarySearchQuery by libraryVm.searchQuery.collectAsState()
 
     val projection by libraryVm.projection.collectAsState()

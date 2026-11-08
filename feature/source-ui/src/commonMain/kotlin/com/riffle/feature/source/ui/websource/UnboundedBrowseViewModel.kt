@@ -440,6 +440,11 @@ abstract class UnboundedBrowseViewModel(
         }
     }
 
+    // Seeds _query synchronously (called from remember{}); init coroutine's refresh() runs after.
+    fun setInitialQuery(q: String) {
+        _query.value = q
+    }
+
     fun refresh() {
         // Cancel any in-flight refresh before starting a new one. Without this a slow response
         // from a previous facet/query can arrive after a newer one and overwrite _items with

@@ -145,4 +145,19 @@ class BrowseViewModelKoinResolutionTest {
         val vm = koin.get<OReillyBrowseViewModel> { parametersOf("lib-oreilly") }
         assertEquals("lib-oreilly", vm.rootId)
     }
+
+    // Regression: search term cleared on back-navigation (#1388). setInitialQuery seeds _query on
+    // a fresh VM; a second fresh VM starts empty until setInitialQuery is called on it.
+    @Test
+    fun `setInitialQuery seeds query on fresh ViewModel instance`() {
+        val koin = startKoin { modules(testModule()) }.koin
+        val vm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
+        vm.setInitialQuery("tolkien")
+        assertEquals("tolkien", vm.query.value)
+
+        val freshVm = koin.get<ChitankaBrowseViewModel> { parametersOf("lib-chitanka") }
+        assertEquals("", freshVm.query.value)
+        freshVm.setInitialQuery("hobbit")
+        assertEquals("hobbit", freshVm.query.value)
+    }
 }
