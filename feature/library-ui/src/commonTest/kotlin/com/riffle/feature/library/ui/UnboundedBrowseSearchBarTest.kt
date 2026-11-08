@@ -1,6 +1,7 @@
 package com.riffle.feature.library.ui
 
-import com.riffle.feature.library.ui.websource.unboundedBrowseHeaderQueryFor
+import com.riffle.feature.library.ui.websource.initialTabFor
+import com.riffle.feature.library.ui.websource.tabAfterSearchQuery
 import com.riffle.feature.source.ui.websource.TAB_ANNOTATIONS
 import com.riffle.feature.source.ui.websource.TAB_HOME
 import com.riffle.feature.source.ui.websource.TAB_LIBRARY
@@ -11,34 +12,43 @@ import kotlin.test.assertEquals
 class UnboundedBrowseSearchBarTest {
 
     @Test
-    fun homeTabUsesLibrarySearchQuery() {
-        assertEquals(
-            "library",
-            unboundedBrowseHeaderQueryFor(TAB_HOME, catalogQuery = "catalog", libraryQuery = "library"),
-        )
+    fun typingOnHomeTabSwitchesToLibrary() {
+        assertEquals(TAB_LIBRARY, tabAfterSearchQuery(TAB_HOME, "kotlin"))
     }
 
     @Test
-    fun toReadTabUsesLibrarySearchQuery() {
-        assertEquals(
-            "library",
-            unboundedBrowseHeaderQueryFor(TAB_TO_READ, catalogQuery = "catalog", libraryQuery = "library"),
-        )
+    fun typingOnToReadTabSwitchesToLibrary() {
+        assertEquals(TAB_LIBRARY, tabAfterSearchQuery(TAB_TO_READ, "kotlin"))
     }
 
     @Test
-    fun annotationsTabUsesLibrarySearchQuery() {
-        assertEquals(
-            "library",
-            unboundedBrowseHeaderQueryFor(TAB_ANNOTATIONS, catalogQuery = "catalog", libraryQuery = "library"),
-        )
+    fun typingOnAnnotationsTabSwitchesToLibrary() {
+        assertEquals(TAB_LIBRARY, tabAfterSearchQuery(TAB_ANNOTATIONS, "kotlin"))
     }
 
     @Test
-    fun libraryTabUsesCatalogQuery() {
-        assertEquals(
-            "catalog",
-            unboundedBrowseHeaderQueryFor(TAB_LIBRARY, catalogQuery = "catalog", libraryQuery = "library"),
-        )
+    fun typingOnLibraryTabStaysOnLibrary() {
+        assertEquals(TAB_LIBRARY, tabAfterSearchQuery(TAB_LIBRARY, "kotlin"))
+    }
+
+    @Test
+    fun clearingQueryOnAnyTabDoesNotSwitchTab() {
+        assertEquals(TAB_HOME, tabAfterSearchQuery(TAB_HOME, ""))
+        assertEquals(TAB_TO_READ, tabAfterSearchQuery(TAB_TO_READ, ""))
+        assertEquals(TAB_ANNOTATIONS, tabAfterSearchQuery(TAB_ANNOTATIONS, ""))
+        assertEquals(TAB_LIBRARY, tabAfterSearchQuery(TAB_LIBRARY, ""))
+    }
+
+    @Test
+    fun nonEmptyExternalSavedQueryResumesOnLibraryTab() {
+        // Reverting the initialTab derivation to always TAB_HOME would make this red.
+        val initialTab = initialTabFor(externalSavedQuery = "kotlin")
+        assertEquals(TAB_LIBRARY, initialTab)
+    }
+
+    @Test
+    fun emptyExternalSavedQueryStartsOnHomeTab() {
+        val initialTab = initialTabFor(externalSavedQuery = "")
+        assertEquals(TAB_HOME, initialTab)
     }
 }
