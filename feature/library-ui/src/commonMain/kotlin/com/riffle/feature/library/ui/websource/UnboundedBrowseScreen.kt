@@ -102,8 +102,7 @@ fun UnboundedBrowseScreen(
     DisposableEffect(key) { onDispose { host.clear() } }
 
     val query by viewModel.query.collectAsState()
-    // Key-read in LaunchedEffect creates the subscription at this scope; SideEffect { onQuerySaved(query) }
-    // would not work because query is only read inside the topBar slot lambda, not at this scope.
+    // LaunchedEffect key-read subscribes at this scope; SideEffect would not because query is only read inside the topBar lambda.
     LaunchedEffect(query) { onQuerySaved(query) }
 
     val containerWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
@@ -135,7 +134,7 @@ fun UnboundedBrowseScreen(
     val seriesCoverUrls by libraryVm.seriesCoverUrls.collectAsState()
     val coversAreSquare = isAudioRoot(sourceType, viewModel.rootId)
 
-    var selectedLocalTab by rememberSaveable { mutableIntStateOf(if (externalSavedQuery.isNotEmpty()) TAB_LIBRARY else TAB_HOME) }
+    var selectedLocalTab by rememberSaveable { mutableIntStateOf(initialTabFor(externalSavedQuery)) }
 
     Scaffold(
         topBar = {
@@ -285,6 +284,10 @@ fun UnboundedBrowseScreen(
 /** Returns TAB_LIBRARY when a non-empty query is typed on any other tab; otherwise the current tab. */
 internal fun tabAfterSearchQuery(currentTab: Int, query: String): Int =
     if (query.isNotEmpty() && currentTab != TAB_LIBRARY) TAB_LIBRARY else currentTab
+
+/** Returns the initial tab index for a fresh composition given the restored catalog query. */
+internal fun initialTabFor(externalSavedQuery: String): Int =
+    if (externalSavedQuery.isNotEmpty()) TAB_LIBRARY else TAB_HOME
 
 private fun unboundedBrowseViewModel(
     sourceType: SourceType,

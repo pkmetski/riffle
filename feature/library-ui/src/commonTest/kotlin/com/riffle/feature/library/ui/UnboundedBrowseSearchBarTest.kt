@@ -1,5 +1,6 @@
 package com.riffle.feature.library.ui
 
+import com.riffle.feature.library.ui.websource.initialTabFor
 import com.riffle.feature.library.ui.websource.tabAfterSearchQuery
 import com.riffle.feature.source.ui.websource.TAB_ANNOTATIONS
 import com.riffle.feature.source.ui.websource.TAB_HOME
@@ -40,16 +41,14 @@ class UnboundedBrowseSearchBarTest {
 
     @Test
     fun nonEmptyExternalSavedQueryResumesOnLibraryTab() {
-        // When back-navigating from ItemDetail, the lifted savedCatalogQuery is non-empty.
-        // The screen must restore the Library tab so the user sees search results, not Home.
         // Reverting the initialTab derivation to always TAB_HOME would make this red.
-        val initialTab = if ("kotlin".isNotEmpty()) TAB_LIBRARY else TAB_HOME
+        val initialTab = initialTabFor(externalSavedQuery = "kotlin")
         assertEquals(TAB_LIBRARY, initialTab)
     }
 
     @Test
     fun emptyExternalSavedQueryStartsOnHomeTab() {
-        val initialTab = if ("".isNotEmpty()) TAB_LIBRARY else TAB_HOME
+        val initialTab = initialTabFor(externalSavedQuery = "")
         assertEquals(TAB_HOME, initialTab)
     }
 }
