@@ -134,4 +134,66 @@ class ContinuousAnnotationHighlightsJsTest {
             assertEquals("ann-dog,ann-fox", order)
         }
     }
+
+    // Regression: when the draft mark ("__draft__") is in the DOM while the committed annotation is
+    // being located (a race where Room emits before consumeDraft removes the draft mark), buildFlat
+    // must NOT skip the draft mark's text. Before the fix, buildFlat skipped all [data-riffle-ann]
+    // marks including the draft, so the target word was absent from flatIdx.fullText and findIdx fell
+    // back to the first occurrence (wrong word). After the fix, the committed mark is nested inside
+    // the draft mark; the next applyAnnotationHighlights call (after consumeDraft cleans up the
+    // draft) promotes the committed mark via outerHTML = innerHTML.
+    @Test
+    fun committed_annotation_placed_on_correct_word_while_draft_mark_is_in_dom() {
+        val html = """
+            <!doctype html>
+            <html><head><meta charset="utf-8"></head>
+            <body>
+              <p id="p1">word word</p>
+            </body></html>
+        """.trimIndent()
+        withWebViewFixture(html) { wv ->
+            // Simulate the draft mark being in the DOM (placed by the prior applyAnnotationHighlights
+            // call that rendered the draft). The user selected the SECOND "word".
+            wv.evalSync(
+                "(function(){" +
+                    "var p=document.getElementById('p1');" +
+                    "var t=p.firstChild;" + // text node "word word"
+                    "var r=document.createRange();" +
+                    "r.setStart(t,5);r.setEnd(t,9);" + // "word" at offset 5..9 (second "word")
+                    "var m=document.createElement('mark');" +
+                    "m.setAttribute('data-riffle-ann','__draft__');" +
+                    "r.surroundContents(m);" +
+                "})()",
+            )
+            assertEquals(
+                "pre-condition: draft mark wraps second 'word'",
+                "1",
+                wv.evalSync("document.querySelectorAll('[data-riffle-ann=\"__draft__\"]').length").trim('"'),
+            )
+            // The committed annotation targets the second "word". bef = "word " (first "word" + space).
+            // buildFlat must include the draft mark text so findIdx locates the word at the right index.
+            val committedAnn = AnnotationHighlight("ann-committed", "word", "rgba(76,175,80,0.45)", false, "word ", "")
+            wv.evalSync(ContinuousStyleInjector.applyAnnotationHighlightsJs(listOf(committedAnn)))
+            // Now simulate consumeDraft cleanup: applyAnnotationHighlightsJs without the draft in
+            // the valid-id set removes the draft mark (outerHTML = innerHTML), unveiling the nested
+            // committed mark. Call again without the draft in the list to trigger cleanup.
+            // (In production this happens on the next applyAnnotationHighlights after consumeDraft.)
+            wv.evalSync(ContinuousStyleInjector.applyAnnotationHighlightsJs(listOf(committedAnn)))
+            assertEquals(
+                "committed mark must be present after draft cleanup",
+                "1",
+                wv.evalSync("document.querySelectorAll('[data-riffle-ann=\"ann-committed\"]').length").trim('"'),
+            )
+            // The committed mark must be on the SECOND "word" — it must follow the first "word" text.
+            val firstWordText = wv.evalSync(
+                "(function(){" +
+                    "var p=document.getElementById('p1');" +
+                    "var mark=p.querySelector('[data-riffle-ann=\"ann-committed\"]');" +
+                    "var prev=mark.previousSibling;" +
+                    "return prev ? prev.nodeValue || '' : '';" +
+                "})()",
+            ).trim('"')
+            assertEquals("word ", firstWordText)
+        }
+    }
 }

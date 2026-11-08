@@ -265,7 +265,7 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
                 try {
                     var acc = '', tw = document.createTreeWalker(body, 4, null, false), nb;
                     while ((nb = tw.nextNode())) {
-                        if (nb.parentNode && nb.parentNode.closest && nb.parentNode.closest('[data-riffle-ann]')) continue;
+                        if (nb.parentNode && nb.parentNode.closest && nb.parentNode.closest('[data-riffle-ann]:not([data-riffle-ann="__draft__"])')) continue;
                         if (nb === range.startContainer) { acc += (nb.nodeValue || '').slice(0, range.startOffset); break; }
                         var tr = document.createRange(); tr.setStart(nb, 0); tr.collapse(true);
                         if (tr.compareBoundaryPoints(Range.START_TO_START, range) >= 0) break;
@@ -276,7 +276,7 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
                 try {
                     var acc2 = '', tw2 = document.createTreeWalker(body, 4, null, false), na, past = false;
                     while ((na = tw2.nextNode())) {
-                        if (na.parentNode && na.parentNode.closest && na.parentNode.closest('[data-riffle-ann]')) continue;
+                        if (na.parentNode && na.parentNode.closest && na.parentNode.closest('[data-riffle-ann]:not([data-riffle-ann="__draft__"])')) continue;
                         if (!past) {
                             if (na === range.endContainer) { acc2 += (na.nodeValue || '').slice(range.endOffset); past = true; }
                             else { var tr2 = document.createRange(); tr2.setStart(na, 0); tr2.collapse(true); if (tr2.compareBoundaryPoints(Range.START_TO_END, range) > 0) { acc2 += na.nodeValue || ''; past = true; } }
@@ -462,7 +462,7 @@ internal val SELECTION_SPAN_TRACKER_JS = """
               try {
                 var acc = '', tw = document.createTreeWalker(body, 4, null, false), nb;
                 while ((nb = tw.nextNode())) {
-                  if (nb.parentNode && nb.parentNode.closest && nb.parentNode.closest('[data-riffle-ann]')) continue;
+                  if (nb.parentNode && nb.parentNode.closest && nb.parentNode.closest('[data-riffle-ann]:not([data-riffle-ann="__draft__"])')) continue;
                   if (nb === rng.startContainer) { acc += (nb.nodeValue || '').slice(0, rng.startOffset); break; }
                   var tr = document.createRange(); tr.setStart(nb, 0); tr.collapse(true);
                   if (tr.compareBoundaryPoints(Range.START_TO_START, rng) >= 0) break;
@@ -473,7 +473,7 @@ internal val SELECTION_SPAN_TRACKER_JS = """
               try {
                 var acc2 = '', tw2 = document.createTreeWalker(body, 4, null, false), na, past = false;
                 while ((na = tw2.nextNode())) {
-                  if (na.parentNode && na.parentNode.closest && na.parentNode.closest('[data-riffle-ann]')) continue;
+                  if (na.parentNode && na.parentNode.closest && na.parentNode.closest('[data-riffle-ann]:not([data-riffle-ann="__draft__"])')) continue;
                   if (!past) {
                     if (na === rng.endContainer) { acc2 += (na.nodeValue || '').slice(rng.endOffset); past = true; }
                     else { var tr2 = document.createRange(); tr2.setStart(na, 0); tr2.collapse(true); if (tr2.compareBoundaryPoints(Range.START_TO_END, rng) > 0) { acc2 += na.nodeValue || ''; past = true; } }
