@@ -509,6 +509,7 @@ private val sourceViewModelModule = module {
             dispatchers = get(),
         )
     }
+
     viewModel { OReillyLoginViewModel(repository = get()) }
     factory { params ->
         OReillyHomeViewModel(
