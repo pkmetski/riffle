@@ -171,7 +171,6 @@ import com.riffle.feature.reader.HighlightRender
 import com.riffle.feature.reader.EmphasisDomInjector
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.roundToInt
 
@@ -1530,12 +1529,15 @@ private fun EpubNavigatorView(
     // handler so a tap that only dismisses the text-selection popup does not also toggle
     // immersive mode. Written on the JS background thread; consumed on the main thread.
     val pagedSelectionActiveAtDown = remember { AtomicBoolean(false) }
-    // Timestamp (System.nanoTime()) of the most recent HighlightActionsPopup dismissal. The popup
-    // is non-focusable (see HighlightActionsSheet), so an outside tap that dismisses it also
-    // propagates to the reader and would otherwise flip immersive mode. Recording the dismiss time
-    // lets the paged/continuous tap listeners swallow that immediate follow-up tap only, without
-    // suppressing genuine taps that happen after the dismiss window closes.
-    val highlightPopupDismissedAtNs = remember { AtomicLong(0L) }
+    // True while HighlightActionsPopup is visible. The popup is non-focusable (see
+    // HighlightActionsSheet), so an outside tap that dismisses it also propagates to the reader
+    // and would otherwise flip immersive mode. Checking visibility at the moment of the tap is
+    // the right gate: Compose fires onDismissRequest AFTER the WebView receives the same touch,
+    // so a timestamp written in onDismissRequest is always too late to protect against that tap.
+    // SideEffect runs synchronously after every recomposition so the flag is up-to-date before
+    // any touch event that follows the composition that made the popup visible.
+    val highlightPopupVisible = remember { AtomicBoolean(false) }
+    SideEffect { highlightPopupVisible.set(highlightToEdit != null) }
     val pagedSelectionRectBridge = remember {
         RiffleSelectionRectBridge(
             store = pagedSelectionRectCss,
@@ -1634,7 +1636,7 @@ private fun EpubNavigatorView(
             ensureSentenceQuotesReady = { currentEnsureSentenceQuotesReady() },
             navigation = object : ContinuousNavigationSink {
                 override fun onTap() {
-                    if (consumePopupDismissedTap(highlightPopupDismissedAtNs)) return
+                    if (highlightPopupVisible.get()) return
                     currentOnTap()
                 }
                 override fun onLocator(locator: Locator) = onPositionChanged(locator)
@@ -1859,7 +1861,7 @@ private fun EpubNavigatorView(
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 if (consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)) return false
-                if (consumePopupDismissedTap(highlightPopupDismissedAtNs)) return false
+                if (highlightPopupVisible.get()) return false
                 if (currentEffectiveOrientation.value == ReaderOrientation.Horizontal) {
                     val container = containerRef.value
                     if (container != null) {
@@ -3296,13 +3298,7 @@ private fun EpubNavigatorView(
                 onToggleEmphasis = { style -> onToggleEmphasis(editTarget.id, style) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect.toIntRect()) },
-                onDismiss = {
-                    // Record the dismiss time so the tap that dismissed the popup (Compose fires
-                    // onDismissRequest at ACTION_OUTSIDE but the same touch still reaches the
-                    // reader) doesn't also toggle immersive mode. See [highlightPopupDismissedAtNs].
-                    highlightPopupDismissedAtNs.set(System.nanoTime())
-                    onDismissHighlightActions()
-                },
+                onDismiss = { onDismissHighlightActions() },
                 noteOnly = editTarget.noteOnly,
                 showOpenInBook = showOpenInBook,
                 onOpenInBook = { onOpenInBook(editTarget.id) },
@@ -3490,27 +3486,6 @@ internal fun clampReaderSelectionRectBottomYs(
 // Compose closure that can't be exercised without a live Readium fragment.
 internal fun consumeSelectionSuppressedTap(activeAtDown: AtomicBoolean): Boolean =
     activeAtDown.getAndSet(false)
-
-// Window (ms) after a HighlightActionsPopup dismissal during which the very next tap is treated
-// as the dismissing tap and swallowed. Sized generously enough to cover the gap between Compose's
-// ACTION_OUTSIDE-driven onDismissRequest and the follow-up tap fired from the WebView / continuous
-// gesture detector, but small enough that a genuine tap a moment later still toggles immersive.
-internal const val POPUP_DISMISS_TAP_WINDOW_MS: Long = 300L
-
-// Returns true if the tap that just fired should be swallowed because a HighlightActionsPopup
-// dismissed within the recent window. Consumes the timestamp so only the first follow-up tap is
-// suppressed. Extracted for JVM unit-testing — the paged/continuous callsites wrap Compose
-// closures that can't be exercised without a live Readium fragment.
-internal fun consumePopupDismissedTap(
-    dismissedAtNs: AtomicLong,
-    nowNs: Long = System.nanoTime(),
-    windowMs: Long = POPUP_DISMISS_TAP_WINDOW_MS,
-): Boolean {
-    val at = dismissedAtNs.getAndSet(0L)
-    if (at == 0L) return false
-    val elapsedNs = nowNs - at
-    return elapsedNs in 0..(windowMs * 1_000_000L)
-}
 
 // Builds the DirectionalNavigationAdapter Riffle attaches to paged/vertical mode. Extracted so a
 // JVM test can pin the tap-navigation config: tapEdges MUST stay empty so screen taps toggle

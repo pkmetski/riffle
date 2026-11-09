@@ -1,69 +1,46 @@
 package com.riffle.app.feature.reader
 
-import java.util.concurrent.atomic.AtomicLong
-import org.junit.Assert.assertEquals
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Regression coverage for "tap that dismissed the HighlightActionsPopup also toggled immersive
- * mode". [HighlightActionsPopup] is deliberately non-focusable so the popup Window doesn't steal
- * input focus (any focus transfer causes the OS to reveal the system bars), but that means the
- * outside tap that dismisses the popup also propagates to the reader's tap listener. Recording
- * the dismiss timestamp and consuming the very next tap keeps immersive mode intact.
+ * Pins the [HighlightActionsPopup] visibility-flag contract used by paged/continuous tap listeners
+ * to avoid toggling immersive mode when the user taps to dismiss the popup.
  *
- * These assertions fail if the timestamp is not consumed (so a later tap is also swallowed) or
- * if the suppression window stops honouring the dismiss time.
+ * The popup is non-focusable so the dismissing touch propagates to the reader. The tap listeners
+ * check [highlightPopupVisible] (synced by SideEffect from highlightToEdit) to suppress immersive
+ * flips while the popup is on screen.
  */
 class PopupDismissedTapTest {
 
     @Test
-    fun `no dismiss recorded means tap passes through`() {
-        val at = AtomicLong(0L)
+    fun `popup not visible means tap passes through`() {
+        val popupVisible = AtomicBoolean(false)
 
-        val consumed = consumePopupDismissedTap(at, nowNs = 1_000_000_000L)
+        val suppressed = popupVisible.get()
 
-        assertFalse("no popup dismissal → tap must toggle immersive normally", consumed)
+        assertFalse("no popup on screen → tap must toggle immersive normally", suppressed)
     }
 
     @Test
-    fun `tap within window after dismiss is swallowed and timestamp cleared`() {
-        val at = AtomicLong(500_000_000L)
+    fun `popup visible means tap is suppressed`() {
+        val popupVisible = AtomicBoolean(true)
 
-        val consumed = consumePopupDismissedTap(
-            dismissedAtNs = at,
-            nowNs = 500_000_000L + 10_000_000L, // 10ms after dismiss
-        )
+        val suppressed = popupVisible.get()
 
-        assertTrue("first tap after popup dismissal must be swallowed", consumed)
-        assertEquals(
-            "timestamp must be cleared so the next tap is not also swallowed",
-            0L,
-            at.get(),
-        )
+        assertTrue("popup on screen → tap must not toggle immersive", suppressed)
     }
 
     @Test
-    fun `tap outside window is not swallowed`() {
-        val at = AtomicLong(500_000_000L)
-        val windowMs = 300L
-        val nowNs = 500_000_000L + (windowMs + 50) * 1_000_000L
+    fun `flag cleared when popup dismissed allows next tap through`() {
+        val popupVisible = AtomicBoolean(true)
 
-        val consumed = consumePopupDismissedTap(at, nowNs = nowNs, windowMs = windowMs)
+        // SideEffect runs after recomposition where highlightToEdit becomes null
+        popupVisible.set(false)
+        val suppressed = popupVisible.get()
 
-        assertFalse("tap after the window closes must toggle immersive normally", consumed)
+        assertFalse("after popup dismissed, tap must toggle immersive normally", suppressed)
     }
-
-    @Test
-    fun `second tap after a suppressed one is not swallowed`() {
-        val at = AtomicLong(500_000_000L)
-
-        val first = consumePopupDismissedTap(at, nowNs = 501_000_000L)
-        val second = consumePopupDismissedTap(at, nowNs = 502_000_000L)
-
-        assertTrue(first)
-        assertFalse("only the tap that dismissed the popup is swallowed", second)
-    }
-
 }
