@@ -15,6 +15,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
@@ -3280,15 +3281,13 @@ private fun EpubNavigatorView(
             // The popup lives in a separate Android window (non-focusable). Taps outside it pass
             // directly to the Activity window and can reach the WebView's onTap — toggling
             // immersive mode before onDismissRequest fires. This scrim sits in the Activity window
-            // and intercepts those taps first, dismissing the popup without reaching the WebView.
+            // and intercepts those taps first; detectTapGestures CONSUMES the gesture so the
+            // WebView never receives it, preventing the immersive-mode toggle.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            awaitPointerEvent()
-                            onDismissHighlightActions()
-                        }
+                        detectTapGestures { onDismissHighlightActions() }
                     },
             )
             HighlightActionsPopup(
