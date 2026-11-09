@@ -17,7 +17,7 @@ final class ReadiumEpubNavigatorBridgeOpenErrorTests: XCTestCase {
             expectation.fulfill()
         }
 
-        bridge.openEpub(filePath: "/nonexistent/path/book.epub", locatorJson: nil, itemId: "id")
+        bridge.openEpub(filePath: "/nonexistent/path/book.epub", locatorJson: nil)
 
         await fulfillment(of: [expectation], timeout: 5)
         XCTAssertNotNil(receivedMessage, "error callback should deliver a non-nil message")

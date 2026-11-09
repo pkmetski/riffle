@@ -201,12 +201,12 @@ private func writeSilentWav(seconds: Double, to url: URL) throws {
     var data = Data()
     func appendAscii(_ text: String) { data.append(text.data(using: .ascii)!) }
     func append32(_ value: UInt32) {
-        var le = value.littleEndian
-        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+        var leValue = value.littleEndian
+        withUnsafeBytes(of: &leValue) { data.append(contentsOf: $0) }
     }
     func append16(_ value: UInt16) {
-        var le = value.littleEndian
-        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+        var leValue = value.littleEndian
+        withUnsafeBytes(of: &leValue) { data.append(contentsOf: $0) }
     }
     appendAscii("RIFF")
     append32(UInt32(36 + dataSize))
