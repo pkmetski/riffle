@@ -323,40 +323,6 @@ final class IosContinuousScrollView: UIView {
         outerScrollView.contentSize = CGSize(width: bounds.width, height: total)
     }
 
-    // MARK: - Feature seams
-
-    func scrollByPx(pixels: Int) -> Bool {
-        let before = outerScrollView.contentOffset.y
-        let after = max(0, min(before + CGFloat(pixels), outerScrollView.contentSize.height - outerScrollView.bounds.height))
-        guard after != before else { return false }
-        outerScrollView.setContentOffset(CGPoint(x: 0, y: after), animated: false)
-        return true
-    }
-
-    func clearSelection() {
-        let js = "window.getSelection().removeAllRanges();"
-        for (_, webView) in loadedWebViews {
-            webView.evaluateJavaScript(js, completionHandler: nil)
-        }
-    }
-
-    func applyDecorationsJs(group: String, script: String) {
-        pendingDecorationScripts[group] = script
-        for (_, webView) in loadedWebViews {
-            webView.evaluateJavaScript(script, completionHandler: nil)
-        }
-    }
-
-    func evaluateJavaScript(script: String, completionHandler: ((Any?, Error?) -> Void)?) {
-        let midY = outerScrollView.contentOffset.y + outerScrollView.bounds.height * 0.5
-        let idx = slotIndexAt(yPos: midY)
-        guard let webView = loadedWebViews[idx] else {
-            completionHandler?(nil, nil)
-            return
-        }
-        webView.evaluateJavaScript(script, completionHandler: completionHandler)
-    }
-
     // MARK: - WebView creation
 
     private func makeWebView() -> WKWebView {
@@ -542,6 +508,44 @@ final class IosContinuousScrollView: UIView {
         "locations":{"progression":\(progression),"totalProgression":\(totalProgression),"position":null},"text":{}}
         """
     }
+}
+
+// MARK: - Feature seams
+
+extension IosContinuousScrollView {
+
+    func scrollByPx(pixels: Int) -> Bool {
+        let before = outerScrollView.contentOffset.y
+        let after = max(0, min(before + CGFloat(pixels), outerScrollView.contentSize.height - outerScrollView.bounds.height))
+        guard after != before else { return false }
+        outerScrollView.setContentOffset(CGPoint(x: 0, y: after), animated: false)
+        return true
+    }
+
+    func clearSelection() {
+        let script = "window.getSelection().removeAllRanges();"
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    func applyDecorationsJs(group: String, script: String) {
+        pendingDecorationScripts[group] = script
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    func evaluateJavaScript(script: String, completionHandler: ((Any?, Error?) -> Void)?) {
+        let midY = outerScrollView.contentOffset.y + outerScrollView.bounds.height * 0.5
+        let idx = slotIndexAt(yPos: midY)
+        guard let webView = loadedWebViews[idx] else {
+            completionHandler?(nil, nil)
+            return
+        }
+        webView.evaluateJavaScript(script, completionHandler: completionHandler)
+    }
+
 }
 
 // MARK: - UIGestureRecognizerDelegate

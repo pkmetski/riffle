@@ -423,6 +423,14 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
+    // MARK: - Bundled font registration
+
+}
+
+// MARK: - Search
+
+extension ReadiumEpubNavigatorBridge {
+
     func startSearch(
         query: String,
         onBatch: ((String) -> Void)?,
@@ -472,8 +480,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }.joined(separator: ",")
         return "[\(items)]"
     }
-
-    // MARK: - Bundled font registration
 
 }
 
@@ -739,13 +745,6 @@ extension UIColor {
 extension ReadiumEpubNavigatorBridge {
     func getSpineJson() -> String { cachedSpineJson }
 
-    /// Scroll the visible resource by `pixels` device pixels, reporting whether the document moved.
-    ///
-    /// Readium owns the scrolling element inside its WKWebView, so auto-scroll drives it through
-    /// `window.scrollBy` rather than the hosting view — the same reason Android's vertical mode
-    /// scrolls via JS instead of `View.scrollBy`. The script compares scrollTop before and after
-    /// so the caller can tell "moved" from "already at the bottom of this resource" and stop the
-    /// ticker instead of spinning.
     func scrollByPx(pixels: Int32, onResult: @escaping (KotlinBoolean) -> Void) {
         Task { @MainActor in
             if let csv = continuousScrollView {
@@ -773,19 +772,6 @@ extension ReadiumEpubNavigatorBridge {
         }
     }
 
-    /// Evaluate arbitrary JavaScript in the visible resource and return its result as a string.
-    ///
-    /// The generic twin of Android's `RendererBridge.evaluateJavascript`. Cadence needs four
-    /// different scripts — the `Intl.Segmenter` feature detect, the per-chapter sentence-span
-    /// tokenisation, the start-position probe and the paginated column measure/snap — and every
-    /// one of them is authored in shared Kotlin, so the only thing missing on iOS was somewhere
-    /// to run them.
-    ///
-    /// Marshalling: a JS string comes back as `NSString` and is passed through verbatim; a
-    /// boolean (the feature detect) is stringified to `"true"`/`"false"` so the Kotlin side sees
-    /// the same token Android's JSON-encoded `evaluateJavascript` produces. `nil`, a JS `null`
-    /// and a thrown script all return nil, which every shared parser treats as "unsupported"
-    /// rather than crashing.
     func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
         Task { @MainActor in
             if let csv = continuousScrollView {

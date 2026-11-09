@@ -136,7 +136,7 @@ final class IosContinuousScrollViewSeamTests: XCTestCase {
         view.webView(
             WKWebView(),
             decidePolicyFor: mockAction
-        ) { p in policy = p }
+        ) { pol in policy = pol }
 
         XCTAssertEqual(policy, .cancel, "External https link should be cancelled")
         XCTAssertEqual(openedUrl, url, "urlOpener should receive the external URL")
@@ -151,7 +151,7 @@ final class IosContinuousScrollViewSeamTests: XCTestCase {
         let request = URLRequest(url: url)
         let mockAction = MockNavigationAction(request: request, navigationType: .linkActivated)
         var policy: WKNavigationActionPolicy?
-        view.webView(WKWebView(), decidePolicyFor: mockAction) { p in policy = p }
+        view.webView(WKWebView(), decidePolicyFor: mockAction) { pol in policy = pol }
         XCTAssertEqual(policy, .cancel, "Internal epub link should be cancelled (handled by navigateTo)")
     }
 }
