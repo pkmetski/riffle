@@ -28,7 +28,8 @@ import com.riffle.feature.source.ui.AddSourceBackend
  * @param platformSettingsHooks Platform-specific hooks for the Settings screen (language picker,
  *   volume-key toggle visibility, update-install capability).
  * @param updateDialog Platform-specific update-available dialog, shown by the shell after the
- *   startup check. Null on iOS (iOS uses TestFlight / App Store updates, not in-app prompts).
+ *   startup check. Both platforms show a dialog — Android with download/install, iOS with a
+ *   "View release" link to GitHub Releases (the distribution channel on both platforms).
  * @param languageChangeDialog Platform-specific dialog shown after a language switch that
  *   requires the app to restart. Null on Android (recreate() handles it inline).
  * @param appVersion Version string shown in the navigation drawer and Settings, e.g. "1.4.2".
@@ -67,4 +68,5 @@ data class AppShellSlots(
     val onShareSingleCrashReport: ((report: CrashReport, subject: String, chooserTitle: String) -> Unit)? = null,
     val onShareDebugLog: ((channels: Set<LogChannel>?, chooserTitle: String) -> Unit)? = null,
     val editLocalFileMetadataDialog: (@Composable (itemId: String, sourceId: String?, onDismiss: () -> Unit) -> Unit)? = null,
+    val crashNoticeDialog: (@Composable () -> Unit)? = null,
 )

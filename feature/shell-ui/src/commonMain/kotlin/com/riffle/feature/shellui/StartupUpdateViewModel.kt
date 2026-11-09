@@ -1,4 +1,4 @@
-package com.riffle.app.feature.update
+package com.riffle.feature.shellui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,24 +14,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-// Dev builds produced outside the release pipeline carry a "-dev" suffix and never need an update
-// prompt — the developer is already running the latest code they built themselves.
-internal fun isDevVersionName(versionName: String): Boolean = versionName.endsWith("-dev")
+fun isDevVersionName(versionName: String): Boolean = versionName.endsWith("-dev")
 
 data class StartupUpdateDialogState(
     val releases: List<ReleaseInfo>,
     val update: AvailableUpdate,
 )
 
-class StartupUpdateViewModel constructor(
+class StartupUpdateViewModel(
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdatePreferencesStore: AppUpdatePreferencesStore,
     private val clock: Clock,
     private val isDevBuild: Boolean,
+    private val currentVersionCode: Int,
 ) : ViewModel() {
-
-    // Read directly like SettingsViewModel does — avoids injecting a bare Int into Hilt.
-    private val currentVersionCode: Int get() = com.riffle.app.BuildConfig.VERSION_CODE
 
     private var lastCheckAtMs: Long? = null
 
@@ -97,6 +93,6 @@ class StartupUpdateViewModel constructor(
     }
 
     companion object {
-        internal const val AUTO_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000L
+        const val AUTO_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000L
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.feature.settings.ui.changelog.ReleaseDateText
+import com.riffle.feature.shellui.StartupUpdateDialogState
 
 @Composable
 internal fun UpdateAvailableDialog(

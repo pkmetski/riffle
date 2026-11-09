@@ -64,7 +64,7 @@ import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.feature.source.ui.WebDavTargetConnectionTester
 import com.riffle.feature.source.ui.WebdavConnectionTester
-import com.riffle.app.feature.update.isDevVersionName
+import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.app.sync.AnnotationSweepEnqueuerImpl
 import com.riffle.app.sync.ProgressSyncScheduler
