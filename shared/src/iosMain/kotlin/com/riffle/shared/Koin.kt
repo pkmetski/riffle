@@ -301,6 +301,7 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 import platform.Foundation.NSBundle
+import platform.Foundation.NSProcessInfo
 import org.koin.core.context.startKoin as koinStartKoin
 
 private const val IOS_DEFAULT_USER_AGENT =
@@ -1064,11 +1065,12 @@ private fun iosLibraryModule(
         val bundle = NSBundle.mainBundle
         val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
         val buildNumber = (bundle.infoDictionary?.get("CFBundleVersion") as? String)?.toIntOrNull() ?: 0
+        val isHarnessRun = NSProcessInfo.processInfo.arguments.any { it.toString() == "--RIFFLE_RESET_FOR_TESTS" }
         StartupUpdateViewModel(
             appUpdateRepository = get(),
             appUpdatePreferencesStore = get(),
             clock = get(),
-            isDevBuild = isDevVersionName(versionName),
+            isDevBuild = isDevVersionName(versionName) || isHarnessRun,
             currentVersionCode = buildNumber,
         )
     }
