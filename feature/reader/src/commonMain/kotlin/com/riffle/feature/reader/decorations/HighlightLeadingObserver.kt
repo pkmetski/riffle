@@ -2,7 +2,18 @@ package com.riffle.feature.reader.decorations
 
 const val HIGHLIGHT_TINT_CLASS = "riffle-highlight-tint"
 
-private val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
+/** Inline `style` suffix for every Riffle highlight `<mark>`. ReadiumCSS night mode injects
+ * `background-color: transparent !important` on `:not(a)` descendants — the inline `!important`
+ * beats the night selector (specificity 0,2,1) so the highlight survives dark themes.
+ * `color:inherit` mirrors the same rule's `color` clobber so highlighted text keeps the foreground. */
+const val HIGHLIGHT_INLINE_STYLE_SUFFIX = " !important;color:inherit;"
+
+/** Inline `style` block for a Riffle highlight background. */
+fun highlightInlineStyle(cssColor: String): String = "background:$cssColor$HIGHLIGHT_INLINE_STYLE_SUFFIX"
+
+/** JS that installs `window.__riffleFillInlineHighlightLeading` and `window.__riffleFillReadiumHighlightLeading`.
+ * Shared by continuous-mode (ContinuousAnnotationJs) and paginated/vertical Readium decoration paths. */
+internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
     (function() {
       var lineHeightOf = function(element) {
         var target = element || document.body || document.documentElement;

@@ -404,3 +404,99 @@ final class IosContinuousScrollViewSlotTests: XCTestCase {
             "otherwise onHeightMeasured never fires and the view is stuck at the beginning of the book")
     }
 }
+
+// MARK: - ContinuousAnnotationJsTests
+
+/// Tests for `ContinuousAnnotationJs` — the shared Kotlin JS helpers for continuous-mode
+/// annotation/search/readaloud highlights. These exercise the JS string generators in isolation
+/// (pure string output — no WebKit dependency). This is the iOS counterpart to the Android
+/// `ContinuousStyleInjectorTest` and `ContinuousAnnotationHighlightsJsTest`.
+final class ContinuousAnnotationJsTests: XCTestCase {
+
+    func testClearAnnotationHighlightsJsContainsExpectedSelectors() {
+        let js = ContinuousAnnotationJs.shared.CLEAR_ANNOTATION_HIGHLIGHTS_JS
+        XCTAssertTrue(js.contains("data-riffle-ann"), "clear JS must remove [data-riffle-ann] marks")
+        XCTAssertTrue(js.contains("data-riffle-note-glyph"), "clear JS must remove note-glyph spans")
+    }
+
+    func testClearSearchHighlightsJsContainsExpectedSelectors() {
+        let js = ContinuousAnnotationJs.shared.CLEAR_SEARCH_HIGHLIGHTS_JS
+        XCTAssertTrue(js.contains("data-riffle-si"), "clear search JS must remove inactive marks")
+        XCTAssertTrue(js.contains("data-riffle-sa"), "clear search JS must remove active marks")
+    }
+
+    func testClearHighlightJsTargetsReadaloudMark() {
+        let js = ContinuousAnnotationJs.shared.CLEAR_HIGHLIGHT_JS
+        XCTAssertTrue(js.contains("_riffle_hl"), "clear readaloud JS must target the _riffle_hl id")
+    }
+
+    func testApplyAnnotationsFromInputsEmptyListProducesClearJs() {
+        let js = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: [])
+        XCTAssertTrue(js.contains("data-riffle-ann"), "empty list should produce the CLEAR JS, not an apply")
+        XCTAssertFalse(js.contains("locateRanges"), "empty list must not produce a locate-ranges block")
+    }
+
+    func testApplyAnnotationsFromInputsSingleAnnotation() {
+        let input = ContinuousAnnotationInput(
+            id: "ann-1", text: "quick brown fox",
+            cssColor: "rgba(255,235,59,0.45)",
+            hasNote: false, before: "The ", after: " jumps",
+            suppressMarkClick: false, emphasisTokens: ""
+        )
+        let js = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: [input])
+        XCTAssertTrue(js.contains("ann-1"), "JS must reference the annotation id")
+        XCTAssertTrue(js.contains("quick brown fox"), "JS must include the annotation text")
+        XCTAssertTrue(js.contains("rgba(255,235,59,0.45)"), "JS must carry the CSS colour")
+        XCTAssertTrue(js.contains("data-riffle-ann"), "JS must inject data-riffle-ann marks")
+    }
+
+    func testApplyAnnotationsFromInputsWithNote() {
+        let input = ContinuousAnnotationInput(
+            id: "ann-note", text: "lazy dog",
+            cssColor: "rgba(33,150,243,0.45)",
+            hasNote: true, before: "", after: "",
+            suppressMarkClick: false, emphasisTokens: ""
+        )
+        let js = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: [input])
+        XCTAssertTrue(js.contains("data-riffle-note-glyph"), "JS must include glyph code when hasNote is true")
+    }
+
+    func testApplyAnnotationsFromInputsEmphasisTokensEncoded() {
+        let input = ContinuousAnnotationInput(
+            id: "ann-em", text: "bold text",
+            cssColor: "rgba(255,0,0,0.45)",
+            hasNote: false, before: "", after: "",
+            suppressMarkClick: false, emphasisTokens: "bold,italic"
+        )
+        let js = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: [input])
+        XCTAssertTrue(js.contains("bold"), "JS must carry bold emphasis token")
+    }
+
+    func testHighlightIdJsContainsFragmentId() {
+        let js = ContinuousAnnotationJs.shared.highlightIdJs(fragmentId: "cd-42", cssColor: "rgba(255,152,0,0.5)")
+        XCTAssertTrue(js.contains("cd-42"), "highlightIdJs must reference the fragment id")
+        XCTAssertTrue(js.contains("_riffle_hl"), "highlightIdJs must set the _riffle_hl id on the mark")
+    }
+
+    func testHighlightTextJsContainsText() {
+        let js = ContinuousAnnotationJs.shared.highlightTextJs(text: "example sentence", cssColor: "rgba(255,152,0,0.5)")
+        XCTAssertTrue(js.contains("example sentence"), "highlightTextJs must include the target text")
+        XCTAssertTrue(js.contains("_riffle_hl"), "highlightTextJs must set the _riffle_hl id on the mark")
+    }
+
+    func testApplyAnnotationsFromInputsTwoAnnotationsProducesJsForBoth() {
+        let a1 = ContinuousAnnotationInput(
+            id: "a1", text: "quick brown fox", cssColor: "rgba(255,235,59,0.45)",
+            hasNote: false, before: "The ", after: " jumps", suppressMarkClick: false, emphasisTokens: ""
+        )
+        let a2 = ContinuousAnnotationInput(
+            id: "a2", text: "Another paragraph", cssColor: "rgba(76,175,80,0.45)",
+            hasNote: false, before: "", after: " with", suppressMarkClick: false, emphasisTokens: ""
+        )
+        let js = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: [a1, a2])
+        XCTAssertTrue(js.contains("a1"), "JS must reference first annotation id")
+        XCTAssertTrue(js.contains("a2"), "JS must reference second annotation id")
+        XCTAssertTrue(js.contains("quick brown fox"), "JS must include first annotation text")
+        XCTAssertTrue(js.contains("Another paragraph"), "JS must include second annotation text")
+    }
+}

@@ -6,6 +6,7 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.feature.settings.ui.readersettings.DARK_DIM_TEXT
 import com.riffle.feature.reader.TableFit
+import com.riffle.feature.reader.AnnotationHighlight
 
 /**
  * Produces the CSS injection for Continuous-mode chapters.

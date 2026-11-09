@@ -7,6 +7,7 @@ import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 import com.riffle.feature.reader.toCssRgbaWithAlpha
 import com.riffle.feature.reader.toCssRgba
+import com.riffle.feature.reader.AnnotationHighlight
 
 /**
  * [HighlightRenderer] for continuous mode.

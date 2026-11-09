@@ -16,6 +16,7 @@ import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.mediatype.MediaType
 import com.riffle.feature.reader.toCssRgba
 import com.riffle.feature.reader.toCssRgbaWithAlpha
+import com.riffle.feature.reader.AnnotationHighlight
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContinuousHighlightRendererTest {

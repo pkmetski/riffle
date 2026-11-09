@@ -45,6 +45,7 @@ class ReadiumSwiftNavigatorContinuousCursorTest {
         override fun setFootnoteCallback(callback: ((String) -> Unit)?) = Unit
         override fun disposeNavigator() = Unit
         override fun applyDecorations(decorationsJson: String, group: String) = Unit
+        override fun applyContinuousDecorations(decorationsJson: String, group: String) = Unit
         override fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher) = Unit
         override fun applyReaderPreferences(preferences: IosReaderPreferences) = Unit
         override fun getTocJson(): String = "[]"

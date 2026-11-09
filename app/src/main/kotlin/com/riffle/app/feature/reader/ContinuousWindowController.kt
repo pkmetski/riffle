@@ -12,6 +12,7 @@ import com.riffle.core.logging.NoopLogger
 import com.riffle.feature.reader.AboveSlotCompensationGate
 import com.riffle.feature.reader.ContinuousPositionTracker
 import org.readium.r2.shared.publication.Publication
+import com.riffle.feature.reader.AnnotationHighlight
 
 /**
  * The sliding-window state machine behind [ContinuousReaderView].
