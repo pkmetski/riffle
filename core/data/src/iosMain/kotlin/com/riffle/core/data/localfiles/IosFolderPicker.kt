@@ -10,11 +10,11 @@ import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
 import platform.Foundation.NSError
-import platform.Foundation.create
 import platform.Foundation.NSFileCoordinator
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLBookmarkCreationMinimalBookmark
 import platform.Foundation.NSURLBookmarkResolutionWithoutUI
+import platform.Foundation.create
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
@@ -45,13 +45,12 @@ class IosFolderPicker : FolderPickerInterface {
         rootVc.presentViewController(picker, animated = true, completion = null)
     }
 
-    private fun keyWindow(): UIWindow? {
-        return UIApplication.sharedApplication.connectedScenes
+    private fun keyWindow(): UIWindow? =
+        UIApplication.sharedApplication.connectedScenes
             .mapNotNull { it as? platform.UIKit.UIWindowScene }
             .flatMap { it.windows as List<UIWindow> }
             .firstOrNull { it.isKeyWindow() }
             ?: UIApplication.sharedApplication.windows.filterIsInstance<UIWindow>().firstOrNull { it.isKeyWindow() }
-    }
 
     companion object {
 
@@ -73,8 +72,12 @@ class IosFolderPicker : FolderPickerInterface {
             }
             val base64 = treeUri.removePrefix("bookmark:")
             val bytes = runCatching { Base64.decode(base64) }.getOrNull() ?: return null
-            val data: NSData = if (bytes.isEmpty()) NSData() else bytes.usePinned { pinned ->
-                NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
+            val data: NSData = if (bytes.isEmpty()) {
+                NSData()
+            } else {
+                bytes.usePinned { pinned ->
+                    NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong())
+                }
             }
             return memScoped {
                 val stale = alloc<BooleanVar>()
@@ -102,7 +105,9 @@ class IosFolderPicker : FolderPickerInterface {
             ) ?: return@memScoped null
             val length = data.length.toInt()
             val bytes = ByteArray(length).also { buf ->
-                if (length > 0) buf.usePinned { pinned -> memcpy(pinned.addressOf(0), data.bytes, data.length) }
+                if (length > 0) {
+                    buf.usePinned { pinned -> memcpy(pinned.addressOf(0), data.bytes, data.length) }
+                }
             }
             "bookmark:${Base64.encode(bytes)}"
         }
