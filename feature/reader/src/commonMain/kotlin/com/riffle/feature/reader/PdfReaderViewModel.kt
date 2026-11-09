@@ -274,6 +274,10 @@ class PdfReaderViewModel constructor(
         }
     }
 
+    fun onNavigatorOpenFailed(message: String) {
+        _state.value = PdfReaderState.Error(message)
+    }
+
     /**
      * Called by the screen once the platform navigator has opened the PDF and can report metadata.
      */

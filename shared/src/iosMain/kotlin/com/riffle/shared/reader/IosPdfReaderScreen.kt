@@ -47,7 +47,7 @@ import com.riffle.feature.source.ui.RiffleSnackbarHost
 import com.riffle.feature.source.ui.rememberTransientMessages
 import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.ui_could_not_download_pdf
+import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.shared.generated.resources.ui_could_not_sync_reading_progress
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -103,7 +103,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val bridge = remember { bridgeFactory.create() }
     val messages = rememberTransientMessages()
 
-    val couldNotDownloadPdf = stringResource(Res.string.ui_could_not_download_pdf)
+    val bookNotFound = stringResource(Res.string.ui_book_not_found)
     val syncErrorText = stringResource(Res.string.ui_could_not_sync_reading_progress)
 
     LaunchedEffect(state) {
@@ -123,7 +123,11 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         bridge.setTapCallback(handler = object : IosPdfTapCallback {
             override fun onTap() { immersiveState.toggle() }
         })
-        bridge.openPdf(path, awaiting.initialPage)
+        val opened = bridge.openPdf(path, awaiting.initialPage)
+        if (!opened) {
+            vm.onNavigatorOpenFailed("Failed to open PDF")
+            return@LaunchedEffect
+        }
         val outline = bridge.outline()
         val count = bridge.pageCount()
         vm.onNavigatorReady(totalPages = count, outline = outline)
@@ -140,12 +144,13 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     }
 
     LaunchedEffect(formattingPrefs.margins) {
-        val spacing = if (formattingPrefs.margins > FormattingPreferences.DEFAULT_MARGINS) {
+        val extraPts = if (formattingPrefs.margins > FormattingPreferences.DEFAULT_MARGINS) {
             (formattingPrefs.margins - FormattingPreferences.DEFAULT_MARGINS).toDouble() * MARGIN_STEP_PTS
         } else {
             0.0
         }
-        bridge.setPageSpacing(spacing)
+        bridge.setPageSpacing(extraPts)
+        bridge.setHorizontalInsets(extraPts / 2.0)
     }
 
     LaunchedEffect(appActiveEvents) {
@@ -189,7 +194,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 Modifier.fillMaxSize().testTag(TestTags.PDF_READER_ERROR),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(couldNotDownloadPdf)
+                Text(bookNotFound)
             }
             PdfReaderState.Loading -> Box(
                 Modifier.fillMaxSize().testTag(TestTags.PDF_READER_LOADING),
@@ -260,7 +265,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             title = title,
             isReady = isReady,
             onBack = onBack,
-            onSearch = {},
+            onSearch = null,
             onToc = { vm.openToc(); vm.closeAnnotationsPanel() },
             onAnnotations = { vm.openAnnotationsPanel(); vm.closeToc() },
             onFormat = { settingsVisible = true },

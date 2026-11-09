@@ -89,6 +89,45 @@ final class PdfBridgeUnitTests: XCTestCase {
                        "setPageSpacing(0) must clear the top page-break margin")
     }
 
+    // R-P1: horizontal insets must mirror Android's (margins-1)*step/2 horizontal padding.
+    func testSetHorizontalInsetsUpdatesLeadingConstraint() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        bridge.setHorizontalInsets(insetPts: 16.0)
+        XCTAssertEqual(bridge.currentLeadingInset(), 16.0,
+                       "setHorizontalInsets must propagate the inset to the PDFView leading constraint")
+    }
+
+    func testSetHorizontalInsetsZeroClearsInset() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        bridge.setHorizontalInsets(insetPts: 16.0)
+        bridge.setHorizontalInsets(insetPts: 0.0)
+        XCTAssertEqual(bridge.currentLeadingInset(), 0.0,
+                       "setHorizontalInsets(0) must clear the leading inset")
+    }
+
+    // R-P2: openPdf must return false when the file cannot be opened, not silently succeed.
+    func testOpenPdfReturnsFalseForMissingFile() {
+        let bridge = PdfKitNavigatorBridgeImpl()
+        let opened = bridge.openPdf(filePath: "/nonexistent/path/to.pdf", initialPage: 0)
+        XCTAssertFalse(opened, "openPdf must return false when PDFDocument cannot open the file")
+    }
+
+    func testOpenPdfReturnsTrueForValidDocument() throws {
+        let document = PDFDocument()
+        let page = PDFPage()
+        document.insert(page, at: 0)
+        let tempUrl = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        XCTAssertTrue(document.write(to: tempUrl))
+        defer { try? FileManager.default.removeItem(at: tempUrl) }
+
+        let bridge = PdfKitNavigatorBridgeImpl()
+        let opened = bridge.openPdf(filePath: tempUrl.path, initialPage: 0)
+        XCTAssertTrue(opened, "openPdf must return true when the PDF document opens successfully")
+        bridge.disposePdf()
+    }
+
     func testOutlineReturnsEmptyForDocumentWithoutOutline() {
         let bridge = PdfKitNavigatorBridgeImpl()
         // No document opened — bridge should return an empty outline, not crash.

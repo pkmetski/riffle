@@ -22,8 +22,11 @@ interface IosPdfNavigatorBridge {
     /** UIViewController that hosts PDFKit's PDFView. Embed via UIKitViewController. */
     fun viewController(): UIViewController
 
-    /** Open the PDF at [filePath], optionally restoring [initialPage] (0-based). */
-    fun openPdf(filePath: String, initialPage: Int)
+    /**
+     * Open the PDF at [filePath], optionally restoring [initialPage] (0-based).
+     * Returns true if the document was opened successfully, false if it could not be opened.
+     */
+    fun openPdf(filePath: String, initialPage: Int): Boolean
 
     /** Returns the current 0-based page index, or 0 if the document is not open. */
     fun currentPage(): Int
@@ -36,6 +39,13 @@ interface IosPdfNavigatorBridge {
 
     /** Set the vertical gap in points between pages in continuous scroll mode. 0 = no gap. */
     fun setPageSpacing(spacingPts: Double)
+
+    /**
+     * Set the horizontal inset in points applied to both the leading and trailing edges of the
+     * PDF view. Mirrors Android's horizontal padding that narrows the page width to enforce the
+     * user's margin preference.
+     */
+    fun setHorizontalInsets(insetPts: Double)
 
     /** Register a callback invoked on every page change. Pass null to clear. */
     fun setPageChangeCallback(callback: IosPdfPageChangeCallback?)

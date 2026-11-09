@@ -63,12 +63,10 @@ final class PdfReaderTests: AbsHarnessTestCase {
         XCTAssertTrue(waitForLibraryTile(pdfTile, in: app, timeout: 10), "PDF tile must be visible")
 
         _ = openReader(from: pdfTile, in: app)
-        // Wait for reader_ready tag which appears once the VM transitions to Ready state.
-        let ready = app.otherElements["reader_ready"]
-        XCTAssertTrue(ready.waitForExistence(timeout: 15), "PDF reader must reach Ready state")
-
+        // pdf_reader_bookmark only appears once the VM reaches Ready state (CornerBookmarkIndicator
+        // returns early when isVisible=false). Waiting for it directly is the correct gate.
         let bookmark = app.buttons["pdf_reader_bookmark"]
-        XCTAssertTrue(bookmark.waitForExistence(timeout: 5), "Bookmark ribbon button must be present")
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 30), "Bookmark ribbon button must be present once PDF reader is ready")
         bookmark.tap()
         // After toggle the button still exists (not a one-shot action).
         XCTAssertTrue(bookmark.exists, "Bookmark ribbon must remain after toggle")

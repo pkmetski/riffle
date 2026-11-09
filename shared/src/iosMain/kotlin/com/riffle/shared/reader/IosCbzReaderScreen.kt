@@ -50,6 +50,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.skia.SamplingMode
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSNotificationCenter
@@ -57,7 +58,13 @@ import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIAccessibilityIsReduceMotionEnabled
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import com.riffle.feature.reader.ui.generated.resources.Res as ReaderRes
+import org.jetbrains.skia.Bitmap as SkiaBitmap
 import org.jetbrains.skia.Image as SkiaImage
+
+private const val MAX_PAGE_DIMENSION = 4096
+private const val MAX_THUMB_DIMENSION = 256
+private const val THUMBNAIL_CACHE_SIZE = 50
+private const val PREWARM_DELAY_MS = 2_000L
 
 @Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,7 +90,22 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val isImmersive by immersiveState.isImmersive.collectAsState()
     val ready by vm.state.collectAsState()
     val readyState = ready as? CbzReaderState.Ready
+    val effectiveThumbnailSource = readyState?.thumbnailSource ?: readyState?.imageSource
     val pageCache = remember(readyState?.imageSource) { mutableMapOf<Int, ImageBitmap>() }
+    val thumbnailCache = remember(effectiveThumbnailSource) { IosLruCache<Int, ImageBitmap>(THUMBNAIL_CACHE_SIZE) }
+
+    LaunchedEffect(effectiveThumbnailSource) {
+        if (effectiveThumbnailSource == null) return@LaunchedEffect
+        delay(PREWARM_DELAY_MS)
+        val startPage = currentPage
+        val source = effectiveThumbnailSource
+        val pageCount = readyState?.pageCount ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            iosPrewarmThumbnailCache(startPage, pageCount, thumbnailCache) { index ->
+                iosDecodeDownsampled(source.imageBytes(index), MAX_THUMB_DIMENSION)
+            }
+        }
+    }
 
     LaunchedEffect(currentPage, readyState) {
         if (readyState == null) return@LaunchedEffect
@@ -92,7 +114,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             withContext(Dispatchers.IO) {
                 iosDecodeWithRetry(attempts = readyState.imageSource.decodeRetries) {
                     runCatching {
-                        SkiaImage.makeFromEncoded(readyState.imageSource.imageBytes(next)).toComposeImageBitmap()
+                        iosDecodeDownsampled(readyState.imageSource.imageBytes(next), MAX_PAGE_DIMENSION)
                     }.getOrNull()
                 }
             }?.let { pageCache[next] = it }
@@ -138,13 +160,20 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
         }
     }
 
+    val thumbnailContent: @Composable (Modifier, Int) -> Unit = { modifier, page ->
+        val source = effectiveThumbnailSource
+        if (source != null) {
+            IosComicThumbnailContent(modifier = modifier, imageSource = source, pageIndex = page, cache = thumbnailCache)
+        }
+    }
+
     CbzReaderScreen(
         viewModel = vm,
         onNavigateBack = onBack,
         isImmersive = isImmersive,
         onToggleImmersive = immersiveState::toggle,
         pageContent = pageContent,
-        thumbnailContent = pageContent,
+        thumbnailContent = thumbnailContent,
         extraTopBarActions = {
             if (developerModeEnabled && ready is CbzReaderState.Ready) {
                 var menuOpen by remember { mutableStateOf(false) }
@@ -239,7 +268,7 @@ private fun IosComicPageContent(
         val result = withContext(Dispatchers.IO) {
             iosDecodeWithRetry(attempts = imageSource.decodeRetries) {
                 runCatching {
-                    SkiaImage.makeFromEncoded(imageSource.imageBytes(pageIndex)).toComposeImageBitmap()
+                    iosDecodeDownsampled(imageSource.imageBytes(pageIndex), MAX_PAGE_DIMENSION)
                 }.getOrNull()
             }
         }
@@ -272,6 +301,46 @@ private fun IosComicPageContent(
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
+@Composable
+private fun IosComicThumbnailContent(
+    imageSource: com.riffle.core.domain.comic.ComicPageSource,
+    pageIndex: Int,
+    cache: IosLruCache<Int, ImageBitmap>,
+    modifier: Modifier = Modifier,
+) {
+    var bitmap by remember(imageSource, pageIndex) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(imageSource, pageIndex) {
+        val cached = cache[pageIndex]
+        if (cached != null) {
+            bitmap = cached
+            return@LaunchedEffect
+        }
+        val result = withContext(Dispatchers.IO) {
+            iosDecodeWithRetry(attempts = imageSource.decodeRetries) {
+                runCatching {
+                    iosDecodeDownsampled(imageSource.imageBytes(pageIndex), MAX_THUMB_DIMENSION)
+                }.getOrNull()
+            }
+        }
+        if (result != null) {
+            cache[pageIndex] = result
+            bitmap = result
+        }
+    }
+
+    val b = bitmap
+    if (b != null) {
+        Image(
+            bitmap = b,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.fillMaxSize(),
+        )
+    }
+}
+
 internal suspend fun <T : Any> iosDecodeWithRetry(
     attempts: Int = 3,
     retryDelayMs: Long = 2_000,
@@ -282,4 +351,53 @@ internal suspend fun <T : Any> iosDecodeWithRetry(
         delay(retryDelayMs)
     }
     return decode()
+}
+
+internal fun iosDecodeDownsampled(bytes: ByteArray, maxDimension: Int): ImageBitmap? {
+    val full = SkiaImage.makeFromEncoded(bytes) ?: return null
+    val maxSrc = maxOf(full.width, full.height)
+    if (maxSrc <= maxDimension) return full.toComposeImageBitmap()
+    val scale = maxDimension.toFloat() / maxSrc
+    val w = (full.width * scale).toInt().coerceAtLeast(1)
+    val h = (full.height * scale).toInt().coerceAtLeast(1)
+    val dst = SkiaBitmap()
+    dst.allocN32Pixels(w, h)
+    val pixmap = dst.peekPixels() ?: return full.toComposeImageBitmap()
+    return if (full.scalePixels(pixmap, SamplingMode.LINEAR, true)) {
+        SkiaImage.makeFromBitmap(dst).toComposeImageBitmap()
+    } else {
+        full.toComposeImageBitmap()
+    }
+}
+
+internal class IosLruCache<K, V>(private val maxSize: Int) {
+    private val map = LinkedHashMap<K, V>()
+
+    operator fun get(key: K): V? = map[key]
+
+    operator fun set(key: K, value: V) {
+        map[key] = value
+        while (map.size > maxSize) map.remove(map.keys.first())
+    }
+}
+
+internal fun iosPrewarmThumbnailCache(
+    startPage: Int,
+    pageCount: Int,
+    cache: IosLruCache<Int, ImageBitmap>,
+    decode: (Int) -> ImageBitmap?,
+) {
+    var loaded = 0
+    for (offset in 0..pageCount) {
+        if (loaded >= THUMBNAIL_CACHE_SIZE) break
+        for (candidate in listOf(startPage + offset, startPage - offset).distinct()) {
+            if (loaded >= THUMBNAIL_CACHE_SIZE) break
+            if (candidate in 0 until pageCount && cache[candidate] == null) {
+                decode(candidate)?.let {
+                    cache[candidate] = it
+                    loaded++
+                }
+            }
+        }
+    }
 }

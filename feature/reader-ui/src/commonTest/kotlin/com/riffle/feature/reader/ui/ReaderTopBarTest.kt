@@ -127,6 +127,26 @@ class ReaderTopBarTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun searchButtonAbsentWhenOnSearchIsNull() = runComposeUiTest {
+        setContent {
+            ReaderTopBar(
+                visible = true,
+                title = "Chapter 1",
+                isReady = true,
+                onBack = {},
+                onSearch = null,
+                onToc = {},
+                onAnnotations = {},
+                onFormat = {},
+                extraActions = {},
+            )
+        }
+        onNodeWithTag(TestTags.READER_SEARCH).assertDoesNotExist()
+        onNodeWithTag(TestTags.READER_TOC).assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun extraActionsAppearToRightOfFormatButton() = runComposeUiTest {
         setContent {
             ReaderTopBar(

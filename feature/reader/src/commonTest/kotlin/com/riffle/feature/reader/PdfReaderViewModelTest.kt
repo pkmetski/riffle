@@ -206,6 +206,21 @@ class PdfReaderViewModelTest {
     }
 
     @Test
+    fun onNavigatorOpenFailedTransitionsStateToError() = runTest(testDispatcher) {
+        val vm = buildVm()
+        runCurrent()
+        assertIs<PdfReaderState.AwaitingNavigator>(vm.state.value)
+
+        vm.onNavigatorOpenFailed("Failed to open PDF")
+        runCurrent()
+
+        val error = assertIs<PdfReaderState.Error>(vm.state.value,
+            "onNavigatorOpenFailed must transition state to Error so the reader shows an error UI")
+        assertEquals("Failed to open PDF", error.message)
+        vm.onReaderClosed()
+    }
+
+    @Test
     fun onReaderClosedSyncsProgressViaSurvivableScope() = runTest(testDispatcher) {
         val sessionRepo = PdfFakeReadingSessionRepository()
         val vm = buildVm(navSourceId = "src1", readingSessionRepository = sessionRepo)
