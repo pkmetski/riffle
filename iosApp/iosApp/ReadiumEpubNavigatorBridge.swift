@@ -17,13 +17,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     let hostViewController = UIViewController()
     var epubNavigator: EPUBNavigatorViewController?
     var publication: Publication?
-    // Cached on main thread by the delegate; read from snapshotLocatorJson() on any thread.
     var cachedLocatorJson: String?
-    // TOC fetched asynchronously after open; getTocJson() returns from this cache.
     private var cachedTocJson: String = "[]"
-    // Reading order + per-resource position counts, fetched asynchronously after open;
-    // getSpineJson() returns from this cache. Readium computes positions off the main actor and
-    // it can take a moment on a large EPUB, so the reader re-reads this until it stops being empty.
     private var cachedSpineJson: String = emptySpineJson
 
     // Callbacks registered by ReadiumSwiftNavigator
@@ -44,44 +39,23 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var pullGestureEnabled = false
     private var lastPanTranslationY: Float = 0
     private var publicationOpenErrorCallback: ((String) -> Void)?
-    /// WKUserContentControllers that have had the RiffleFigureBridge message handler registered.
-    /// Held weakly so the WKWebView lifecycle is not extended; cleared on disposeNavigator to
-    /// remove the handler and break the retain cycle that WKUserContentController's strong
-    /// reference to a WKScriptMessageHandler would otherwise create.
     var figureHandlerControllers: NSHashTable<WKUserContentController> = .weakObjects()
-    /// Decoration groups the Kotlin side asked to make tappable. Re-registered on every open,
-    /// because `observeDecorationInteractions` lives on the navigator instance, not on us.
     private var activableGroups: Set<String> = []
-    /// Seam for `presentExternalURL`. Production opens the URL in Safari; tests swap it to observe.
+    // Seam for `presentExternalURL`. Production opens the URL in Safari; tests swap it to observe.
     var urlOpener: (URL) -> Void = { UIApplication.shared.open($0) }
-    // Track the last-loaded resource href so pageLoadCallback fires only on resource
-    // boundary crossings (chapter/spread loads), not on every intra-resource scroll event.
     var lastLoadedHref: String?
-
-    // Pending preferences — stored before the navigator exists so openEpub can use them.
     var pendingPreferences: EPUBPreferences = EPUBPreferences()
-    // Direct Locator cache set from locationDidChange before JSON serialization; used by
-    // captureCurrentLocator() for mode switches so a serialization failure cannot silently
-    // drop the reading position (mirrors Android's PositionOrchestrator.lastLocator).
     var cachedLocator: Locator?
-
-    // Native Continuous mode (multi-WebView sliding window, iOS-only).
     var continuousScrollView: IosContinuousScrollView?
     var pendingIsContinuousMode = false
-
-    // Chapter cache for cold-open fast path.
     var chapterCache = IosReaderChapterCache(cacheDir: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0])
     var cachedItemId: String = ""
-
-    // Publication warm cache — survives reader close so the next open of the same book
-    // skips the EPUB asset retrieval + Readium parse (1-3 s bottleneck).
     private let warmCache: IosPublicationWarmCache
 
     init(warmCache: IosPublicationWarmCache = IosPublicationWarmCache()) {
         self.warmCache = warmCache
     }
 
-    // Active search task — cancelled on cancelSearch() and on each new startSearch() call.
     private var activeSearchTask: Task<Void, Never>?
 
     // Test observation properties
@@ -113,21 +87,36 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
                 }
 
                 // Cold path: retrieve the EPUB asset and parse the publication.
-                guard let fileURL = FileURL(path: filePath, isDirectory: false) else { return }
+                guard let fileURL = FileURL(path: filePath, isDirectory: false) else {
+                    publicationOpenErrorCallback?("openEpub: invalid file path: \(filePath)")
+                    return
+                }
                 let httpClient = DefaultHTTPClient()
                 let assetRetriever = AssetRetriever(httpClient: httpClient)
                 let assetResult = await assetRetriever.retrieve(url: fileURL)
-                guard case .success(let asset) = assetResult else { return }
+                guard case .success(let asset) = assetResult else {
+                    let msg = "openEpub: asset retrieval failed for \(filePath): \(assetResult)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
 
                 let opener = PublicationOpener(parser: CompositePublicationParser([EPUBParser()]))
                 let pubResult = await opener.open(asset: asset, allowUserInteraction: false)
-                guard case .success(let pub) = pubResult else { return }
+                guard case .success(let pub) = pubResult else {
+                    let msg = "openEpub: publication parsing failed for \(filePath): \(pubResult)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
                 self.publication = pub
                 self.prefetchToc(pub)
                 self.prefetchSpine(pub)
                 try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
-                // Ignore open errors — reader shows blank state
+                let msg = "openEpub: navigator attach failed: \(error)"
+                NSLog("[Riffle] %@", msg)
+                publicationOpenErrorCallback?(msg)
             }
         }
     }
@@ -360,7 +349,9 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
                 try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
-                // Ignore open errors — reader shows blank state
+                let msg = "openLazyEpub: navigator attach failed: \(error)"
+                NSLog("[Riffle] %@", msg)
+                publicationOpenErrorCallback?(msg)
             }
         }
     }

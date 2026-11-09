@@ -1,4 +1,5 @@
 import AVFoundation
+import MediaPlayer
 import Riffle
 import XCTest
 
@@ -128,6 +129,52 @@ final class ReadaloudBridgeTests: XCTestCase {
         XCTAssertFalse(bridge.isPlaying())
         XCTAssertEqual(bridge.currentOffsetSec(), 0)
     }
+
+    // R-25: Lock-screen controls are registered after prepareAudioSrcs and cleared after dispose.
+    @MainActor
+    func testRemoteCommandCenterCommandsRegisteredAfterPrepare() {
+        let bridge = IosReadaloudBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.prepareAudioSrcs(
+            audioFileUrls: srcUrlStrings,
+            startSrcIndex: 0,
+            startOffsetSec: 0
+        )
+        let center = MPRemoteCommandCenter.shared()
+        XCTAssertTrue(center.playCommand.isEnabled, "play command should be enabled after prepare")
+        XCTAssertTrue(center.skipForwardCommand.preferredIntervals.first.map { $0.doubleValue > 0 } ?? false,
+            "skip-forward interval should be set after prepare")
+        XCTAssertTrue(center.skipBackwardCommand.preferredIntervals.first.map { $0.doubleValue > 0 } ?? false,
+            "skip-backward interval should be set after prepare")
+    }
+
+    // R-25: Now Playing info is populated after prepareAudioSrcs.
+    @MainActor
+    func testNowPlayingInfoPopulatedAfterPrepare() {
+        let bridge = IosReadaloudBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.prepareAudioSrcs(
+            audioFileUrls: srcUrlStrings,
+            startSrcIndex: 0,
+            startOffsetSec: 0
+        )
+        XCTAssertNotNil(MPNowPlayingInfoCenter.default().nowPlayingInfo,
+            "nowPlayingInfo should be populated after prepare")
+    }
+
+    // R-25: Now Playing info is cleared after dispose.
+    @MainActor
+    func testNowPlayingInfoClearedAfterDispose() {
+        let bridge = IosReadaloudBridgeImpl()
+        bridge.prepareAudioSrcs(
+            audioFileUrls: srcUrlStrings,
+            startSrcIndex: 0,
+            startOffsetSec: 0
+        )
+        bridge.dispose()
+        XCTAssertNil(MPNowPlayingInfoCenter.default().nowPlayingInfo,
+            "nowPlayingInfo should be nil after dispose")
+    }
 }
 
 // MARK: - Helpers
@@ -151,12 +198,12 @@ private func writeSilentWav(seconds: Double, to url: URL) throws {
     var data = Data()
     func appendAscii(_ text: String) { data.append(text.data(using: .ascii)!) }
     func append32(_ value: UInt32) {
-        var le = value.littleEndian
-        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+        var leValue = value.littleEndian
+        withUnsafeBytes(of: &leValue) { data.append(contentsOf: $0) }
     }
     func append16(_ value: UInt16) {
-        var le = value.littleEndian
-        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+        var leValue = value.littleEndian
+        withUnsafeBytes(of: &leValue) { data.append(contentsOf: $0) }
     }
     appendAscii("RIFF")
     append32(UInt32(36 + dataSize))

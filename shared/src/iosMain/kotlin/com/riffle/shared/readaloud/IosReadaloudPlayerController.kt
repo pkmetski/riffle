@@ -15,8 +15,6 @@ import kotlinx.coroutines.flow.stateIn
  * Adapts [IosReadaloudController] to the platform-neutral [ReadaloudPlayerController] interface
  * so the shared [com.riffle.feature.reader.ReadaloudSession] can drive iOS audio without knowing
  * about iOS-specific AVFoundation internals.
- *
- * Streaming sessions are not yet supported on iOS — [openStreaming] is a no-op.
  */
 internal class IosReadaloudPlayerController(
     private val controller: IosReadaloudController,
@@ -69,10 +67,15 @@ internal class IosReadaloudPlayerController(
         controller.prepareStreaming(track, session.items)
     }
 
-    override fun playFromHere(fragmentRef: String) = controller.playFromFragment(fragmentRef)
+    override fun playFromHere(fragmentRef: String) {
+        val href = fragmentRef.substringBefore('#')
+        val fragmentId = fragmentRef.substringAfter('#', "").ifEmpty { null }
+        playFromReaderPosition(href, fragmentId)
+    }
 
     override fun playFromReaderPosition(href: String, fragmentId: String?) {
-        if (fragmentId != null) controller.playFromFragment(fragmentId)
+        val clip = track?.resolveStartClip(href, fragmentId) ?: return
+        controller.playFromFragment(clip.textFragmentRef)
     }
 
     override fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)

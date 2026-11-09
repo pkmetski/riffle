@@ -40,6 +40,8 @@ kotlin {
             api(project(":core:common"))
             api(project(":core:domain"))
             api(project(":feature:reader"))
+            api(project(":core:dictionary"))
+            api(project(":feature:downloads"))
             // RiffleTheme — the same MaterialTheme both hosts wrap their chrome in.
             api(project(":feature:source-ui"))
             implementation(libs.kotlinx.coroutines.core)

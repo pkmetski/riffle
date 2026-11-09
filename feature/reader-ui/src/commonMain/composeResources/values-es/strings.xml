@@ -132,4 +132,15 @@
     <string name="ui_panel_failure_fell_back_to_full_page">Retrocedió a página completa</string>
     <string name="ui_panel_failure_cut_panel_cut_off">Panel recortado</string>
     <string name="ui_panel_failure_wrong_panel_order">Orden de paneles incorrecto</string>
+
+    <!-- Word lookup sheet -->
+    <string name="ui_no_dictionary_installed">No hay ningún diccionario instalado para este idioma.</string>
+    <string name="ui_download_dictionary_pack_with_size">Descarga el paquete de diccionario de %1$s (%2$s) para buscar palabras sin conexión.</string>
+    <string name="ui_download_dictionary_pack">Descarga el paquete de diccionario de %1$s para buscar palabras sin conexión.</string>
+    <string name="ui_downloading_dictionary">Descargando diccionario…</string>
+    <string name="ui_download_failed_retry">Error en la descarga. Comprueba tu conexión e inténtalo de nuevo.</string>
+    <string name="ui_download">Descargar</string>
+    <string name="ui_retry">Reintentar</string>
+    <string name="ui_no_results_for">No hay resultados para \'%1$s\'</string>
+    <string name="ui_look_up_in_system_dictionary">Buscar en el diccionario del sistema</string>
 </resources>

@@ -134,4 +134,15 @@
     <string name="ui_panel_failure_fell_back_to_full_page">Fell back to full page</string>
     <string name="ui_panel_failure_cut_panel_cut_off">Panel cut off</string>
     <string name="ui_panel_failure_wrong_panel_order">Wrong panel order</string>
+
+    <!-- Word lookup sheet -->
+    <string name="ui_no_dictionary_installed">No dictionary installed for this language.</string>
+    <string name="ui_download_dictionary_pack_with_size">Download the %1$s dictionary pack (%2$s) to look up words offline.</string>
+    <string name="ui_download_dictionary_pack">Download the %1$s dictionary pack to look up words offline.</string>
+    <string name="ui_downloading_dictionary">Downloading dictionary…</string>
+    <string name="ui_download_failed_retry">Download failed. Check your connection and try again.</string>
+    <string name="ui_download">Download</string>
+    <string name="ui_retry">Retry</string>
+    <string name="ui_no_results_for">No results for \'%1$s\'</string>
+    <string name="ui_look_up_in_system_dictionary">Look up in system dictionary</string>
 </resources>

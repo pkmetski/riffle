@@ -1,15 +1,19 @@
 import AVFoundation
+import MediaPlayer
 import Riffle
 
 /// Swift implementation of IosReadaloudBridge, backed by AVQueuePlayer.
 ///
 /// One instance per reader open — created by IosReadaloudBridgeFactoryImpl.
 ///
-/// Unlike the audiobook bridge there are no lock-screen (Now Playing / MPRemoteCommandCenter)
-/// controls: Readaloud is an in-app-only feature; the OS audio controls are reserved for the
-/// audiobook player. The bridge still configures AVAudioSession so playback uses the `.playback`
-/// category (headphone un-plug pauses, silent-mode is respected) and handles interruptions
-/// (phone calls pause narration).
+/// Lock-screen / Now Playing controls (play, pause, skip forward/back ±10 s) are registered on
+/// MPRemoteCommandCenter so users can control narration from the lock screen and from headphone
+/// remotes. The audiobook player unregisters its own commands before readaloud opens (and vice
+/// versa) via NowPlayingSceneGate, so the two sets of commands never coexist.
+///
+/// The bridge also configures AVAudioSession so playback uses the `.playback` category (headphone
+/// un-plug pauses, silent-mode is respected) and handles interruptions (phone calls pause
+/// narration).
 ///
 /// Index tracking uses the same object-identity trick as IosAudioPlayerBridgeImpl: AVQueuePlayer
 /// drops consumed items from its `items()` array, so we retain every item we ever queued and
@@ -30,6 +34,8 @@ import Riffle
 
     private var isDisposed = false
     private var pendingRate: Float = 1.0
+
+    private static let skipIntervalSec: Double = 10
 
     // MARK: - IosReadaloudBridge
 
@@ -53,7 +59,10 @@ import Riffle
         let rateObs = queuePlayer.observe(\.rate, options: [.new]) { [weak self] player, _ in
             guard let self, !self.isDisposed else { return }
             let playing = player.rate > 0
-            DispatchQueue.main.async { self.playingCallback?.onPlaying(isPlaying: playing) }
+            DispatchQueue.main.async {
+                self.playingCallback?.onPlaying(isPlaying: playing)
+                self.updateNowPlayingPlaybackState(isPlaying: playing)
+            }
         }
         statusObservations.append(rateObs)
 
@@ -67,6 +76,8 @@ import Riffle
         }
 
         loadQueue(fromIndex: Int(startSrcIndex), offsetSec: max(startOffsetSec, 0), resumePlaying: false)
+        setupRemoteCommands()
+        updateNowPlayingInfo()
     }
 
     func play() {
@@ -143,6 +154,8 @@ import Riffle
 
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        removeRemoteCommands()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
 
         player?.pause()
         player?.removeAllItems()
@@ -213,6 +226,65 @@ import Riffle
                 if self.pendingRate != 1.0 { self.player?.rate = self.pendingRate }
             }
         }
+    }
+
+    private func setupRemoteCommands() {
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.addTarget { [weak self] _ in
+            self?.play()
+            return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            self?.pause()
+            return .success
+        }
+        let skip = Self.skipIntervalSec
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skip)]
+        center.skipForwardCommand.addTarget { [weak self] _ in
+            self?.seekRelative(deltaSec: skip)
+            return .success
+        }
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skip)]
+        center.skipBackwardCommand.addTarget { [weak self] _ in
+            self?.seekRelative(deltaSec: -skip)
+            return .success
+        }
+    }
+
+    private func seekRelative(deltaSec: Double) {
+        guard let player, let currentItem = player.currentItem else { return }
+        let currentSec = currentOffsetSec()
+        let targetSec = max(0, currentSec + deltaSec)
+        let duration = currentItem.duration.seconds
+        if duration.isFinite && targetSec >= duration {
+            seekToSrc(srcIndex: Int32(currentSrcIndexInt() + 1), offsetSec: 0)
+        } else {
+            let cmTime = CMTime(seconds: targetSec, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+            player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                self?.emitPosition()
+            }
+        }
+    }
+
+    private func removeRemoteCommands() {
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.removeTarget(nil)
+        center.pauseCommand.removeTarget(nil)
+        center.skipForwardCommand.removeTarget(nil)
+        center.skipBackwardCommand.removeTarget(nil)
+    }
+
+    private func updateNowPlayingInfo() {
+        var info: [String: Any] = [:]
+        info[MPMediaItemPropertyMediaType] = MPMediaType.audioBook.rawValue
+        info[MPNowPlayingInfoPropertyPlaybackRate] = pendingRate
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private func updateNowPlayingPlaybackState(isPlaying: Bool) {
+        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? pendingRate : 0
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
     private func configureAudioSession() {
