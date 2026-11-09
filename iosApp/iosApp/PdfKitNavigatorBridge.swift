@@ -212,6 +212,7 @@ final class PdfKitViewController: UIViewController {
     }
 
     func setHorizontalInsets(_ insetPts: CGFloat) {
+        loadViewIfNeeded()
         leadingConstraint?.constant = insetPts
         trailingConstraint?.constant = -insetPts
         view.layoutIfNeeded()
