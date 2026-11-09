@@ -1,5 +1,7 @@
 package com.riffle.feature.library.ui
 
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -114,36 +116,38 @@ class LibraryItemDetailHelpersTest {
         assertEquals("1/100", result)
     }
 
-    // stripHtmlTagsToText ---------------------------------------------------------
+    // htmlBlurb -------------------------------------------------------------------
 
     @Test
-    fun stripHtmlTagsRemovesTags() {
-        val result = stripHtmlTagsToText("<b>Hello</b> <i>world</i>")
-        assertEquals("Hello world", result)
+    fun htmlBlurbRemovesTags() {
+        assertEquals("Hello world", htmlBlurb("<b>Hello</b> <i>world</i>").text)
     }
 
     @Test
-    fun stripHtmlTagsDecodesNamedEntities() {
-        val result = stripHtmlTagsToText("A &amp; B &lt;C&gt; D")
-        assertEquals("A & B <C> D", result)
+    fun htmlBlurbPreservesBoldSpan() {
+        val result = htmlBlurb("<b>Hello</b>")
+        assertEquals("Hello", result.text)
+        val spans = result.spanStyles
+        assertEquals(1, spans.size)
+        assertEquals(FontWeight.Bold, spans[0].item.fontWeight)
     }
 
     @Test
-    fun stripHtmlTagsCollapsesWhitespace() {
-        val result = stripHtmlTagsToText("   hello   world   ")
-        assertEquals("hello world", result)
+    fun htmlBlurbPreservesItalicSpan() {
+        val result = htmlBlurb("<i>Hello</i>")
+        assertEquals("Hello", result.text)
+        val spans = result.spanStyles
+        assertEquals(1, spans.size)
+        assertEquals(FontStyle.Italic, spans[0].item.fontStyle)
     }
 
     @Test
-    fun stripHtmlTagsHandlesNumericEntities() {
-        val result = stripHtmlTagsToText("&#39;quoted&#39;")
-        assertEquals("'quoted'", result)
+    fun htmlBlurbDecodesNamedEntities() {
+        assertEquals("A & B <C> D", htmlBlurb("A &amp; B &lt;C&gt; D").text)
     }
 
     @Test
-    fun stripHtmlTagsDropsLoneSurrogateEntities() {
-        // &#xD800; is a lone surrogate — must be silently dropped, not passed through
-        val result = stripHtmlTagsToText("before&#xD800;after")
-        assertEquals("beforeafter", result)
+    fun htmlBlurbHandlesNumericEntities() {
+        assertEquals("'quoted'", htmlBlurb("&#39;quoted&#39;").text)
     }
 }

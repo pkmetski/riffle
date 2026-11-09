@@ -2,6 +2,7 @@ package com.riffle.core.logging
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InMemoryLogBufferTest {
@@ -79,5 +80,53 @@ class InMemoryLogBufferTest {
         val snap = buf.snapshot()
         buf.append(entry(2))
         assertEquals(1, snap.size)
+    }
+
+    @Test
+    fun formatEntriesRendersTimestampAndMessage() {
+        val e = InMemoryLogBuffer.Entry(
+            timestampMs = 3_661_042L,
+            level = InMemoryLogBuffer.Entry.Level.D,
+            channel = LogChannel.ReaderDecoration,
+            message = "hello",
+            throwableSummary = null,
+        )
+        val text = InMemoryLogBuffer.formatEntries(listOf(e), channels = null)
+        assertTrue(text.contains("01:01:01.042"))
+        assertTrue(text.contains("hello"))
+    }
+
+    @Test
+    fun formatEntriesFiltersChannels() {
+        val keep = InMemoryLogBuffer.Entry(
+            timestampMs = 0L,
+            level = InMemoryLogBuffer.Entry.Level.D,
+            channel = LogChannel.ReaderDecoration,
+            message = "keep",
+            throwableSummary = null,
+        )
+        val drop = InMemoryLogBuffer.Entry(
+            timestampMs = 1L,
+            level = InMemoryLogBuffer.Entry.Level.D,
+            channel = LogChannel.Audiobook,
+            message = "drop",
+            throwableSummary = null,
+        )
+        val text = InMemoryLogBuffer.formatEntries(listOf(keep, drop), channels = setOf(LogChannel.ReaderDecoration))
+        assertTrue(text.contains("keep"))
+        assertFalse(text.contains("drop"))
+    }
+
+    @Test
+    fun formatEntriesIncludesThrowableSummary() {
+        val e = InMemoryLogBuffer.Entry(
+            timestampMs = 0L,
+            level = InMemoryLogBuffer.Entry.Level.E,
+            channel = LogChannel.ReaderDecoration,
+            message = "failed",
+            throwableSummary = "NullPointerException",
+        )
+        val text = InMemoryLogBuffer.formatEntries(listOf(e), channels = null)
+        assertTrue(text.contains("NullPointerException"))
     }
 }

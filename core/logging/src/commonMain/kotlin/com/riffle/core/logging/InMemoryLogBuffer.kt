@@ -63,5 +63,28 @@ class InMemoryLogBuffer constructor() {
 
     companion object {
         const val CAPACITY: Int = 2000
+
+        /**
+         * Formats a snapshot of log [entries] as a human-readable text block suitable for sharing
+         * via email or a file attachment. Each line is `HH:MM:SS.mmm LEVEL [TAG] message`.
+         *
+         * This function lives in commonMain so both Android and iOS share the same output format.
+         * Android's [DebugLogViewModel.buildShareIntent] uses this instead of its own formatter.
+         */
+        fun formatEntries(entries: List<Entry>, channels: Set<LogChannel>?): String {
+            val filtered = if (channels.isNullOrEmpty()) entries else entries.filter { it.channel in channels }
+            return buildString {
+                for (e in filtered) {
+                    val ms = e.timestampMs
+                    val hh = (ms / 3_600_000 % 24).toString().padStart(2, '0')
+                    val mm = (ms / 60_000 % 60).toString().padStart(2, '0')
+                    val ss = (ms / 1_000 % 60).toString().padStart(2, '0')
+                    val mmm = (ms % 1_000).toString().padStart(3, '0')
+                    append("$hh:$mm:$ss.$mmm ${e.level.name} [${e.channel.tag}] ${e.message}")
+                    e.throwableSummary?.let { append(" | $it") }
+                    append('\n')
+                }
+            }
+        }
     }
 }

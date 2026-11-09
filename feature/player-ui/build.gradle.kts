@@ -54,6 +54,7 @@ kotlin {
             // (OkHttp on Android, Ktor/Darwin on iOS) when it builds the ImageLoader.
             implementation(libs.coil.network.core)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ksoup)
             api(libs.androidx.lifecycle.viewmodel)
             implementation(compose.components.resources)
         }

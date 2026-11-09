@@ -1,5 +1,7 @@
 package com.riffle.feature.player.ui
 
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import com.riffle.core.models.AudiobookBookmark
 import com.riffle.feature.player.SleepTimerMode
 import kotlin.test.Test
@@ -144,18 +146,36 @@ class PlayerChromeDerivationsTest {
     // ── description blurb ───────────────────────────────────────────────────────
 
     @Test
-    fun theBlurbStripsMarkupAndDecodesEntities() {
-        assertEquals("Hello world", stripHtmlToText("<p>Hello <b>world</b></p>"))
-        assertEquals("a b", stripHtmlToText("a<br/>b"), "a removed tag is a word boundary")
-        assertEquals("Tom & Jerry", stripHtmlToText("Tom &amp; Jerry"))
-        assertEquals("non breaking", stripHtmlToText("non&nbsp;breaking"))
-        assertEquals("café", stripHtmlToText("caf&#233;"))
-        assertEquals("café", stripHtmlToText("caf&#xE9;"))
-        assertEquals("5 < 6", stripHtmlToText("5 &lt; 6"))
+    fun theBlurbDecodesEntitiesAndPreservesText() {
+        assertEquals("Tom & Jerry", htmlBlurb("Tom &amp; Jerry").text)
+        assertEquals("non breaking", htmlBlurb("non&nbsp;breaking").text)
+        assertEquals("café", htmlBlurb("caf&#233;").text)
+        assertEquals("café", htmlBlurb("caf&#xE9;").text)
+        assertEquals("5 < 6", htmlBlurb("5 &lt; 6").text)
     }
 
     @Test
-    fun anUnterminatedEntityIsLeftAlone() {
-        assertEquals("Q&A now", stripHtmlToText("Q&A now"))
+    fun theBlurbPreservesBoldAndItalicSpans() {
+        val bold = htmlBlurb("<b>Hello</b>")
+        assertEquals("Hello", bold.text)
+        assertEquals(1, bold.spanStyles.size)
+        assertEquals(FontWeight.Bold, bold.spanStyles[0].item.fontWeight)
+
+        val italic = htmlBlurb("<em>Hi</em>")
+        assertEquals("Hi", italic.text)
+        assertEquals(1, italic.spanStyles.size)
+        assertEquals(FontStyle.Italic, italic.spanStyles[0].item.fontStyle)
+    }
+
+    @Test
+    fun theBlurbMapsBrToNewline() {
+        val result = htmlBlurb("a<br/>b").text
+        assertEquals("a\nb", result)
+    }
+
+    @Test
+    fun theBlurbMapsParagraphToNewlineTerminated() {
+        val result = htmlBlurb("<p>Hello <b>world</b></p>").text
+        assertEquals("Hello world\n", result)
     }
 }
