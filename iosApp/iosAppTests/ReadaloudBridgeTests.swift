@@ -141,10 +141,7 @@ final class ReadaloudBridgeTests: XCTestCase {
             startOffsetSec: 0
         )
         let center = MPRemoteCommandCenter.shared()
-        // Commands must have at least one registered handler; enabled state is implied by registration.
-        XCTAssertTrue(center.playCommand.handlers(forControlEvents: .primaryActionTriggered)?.isEmpty == false
-            || center.playCommand.isEnabled,
-            "play command should have a registered target after prepare")
+        XCTAssertTrue(center.playCommand.isEnabled, "play command should be enabled after prepare")
         XCTAssertTrue(center.skipForwardCommand.preferredIntervals.first.map { $0.doubleValue > 0 } ?? false,
             "skip-forward interval should be set after prepare")
         XCTAssertTrue(center.skipBackwardCommand.preferredIntervals.first.map { $0.doubleValue > 0 } ?? false,
