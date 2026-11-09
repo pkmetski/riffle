@@ -302,16 +302,14 @@ import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 import platform.Foundation.NSBundle
 import org.koin.core.context.startKoin as koinStartKoin
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.CoreGraphics.CGRectMake
 import platform.WebKit.WKWebView
 
-/**
- * The default WKWebView user-agent string, obtained once and cached.
- * WKWebView must be instantiated on the main thread; this lazy property is initialised
- * during Koin setup (which runs on the main thread from RiffleApp.init).
- */
+@OptIn(ExperimentalForeignApi::class)
 private val iosWebViewUserAgent: String by lazy {
-    WKWebView(frame = platform.CoreGraphics.CGRectZero)
-        .value(forKey = "userAgent") as? String
+    WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0))
+        .valueForKey("userAgent") as? String
         ?: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 }
 
