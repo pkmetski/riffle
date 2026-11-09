@@ -6,41 +6,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the [HighlightActionsPopup] visibility-flag contract used by paged/continuous tap listeners
- * to avoid toggling immersive mode when the user taps to dismiss the popup.
+ * Pins the popup-dismiss → no-immersive-toggle contract.
  *
- * The popup is non-focusable so the dismissing touch propagates to the reader. The tap listeners
- * check [highlightPopupVisible] (synced by SideEffect from highlightToEdit) to suppress immersive
- * flips while the popup is on screen.
+ * Mechanism: a full-screen transparent scrim [Box] sits in the Activity window behind the popup
+ * (which lives in its own separate, non-focusable Android window). Any tap outside the popup
+ * is caught by the scrim BEFORE it propagates to the WebView, so the reader's onTap handler
+ * never fires for a dismiss tap. The tap listeners therefore carry no popup-visibility guard.
  */
 class PopupDismissedTapTest {
 
     @Test
-    fun `popup not visible means tap passes through`() {
-        val popupVisible = AtomicBoolean(false)
-
-        val suppressed = popupVisible.get()
-
-        assertFalse("no popup on screen → tap must toggle immersive normally", suppressed)
+    fun `tap listener passes through when no selection race is active`() {
+        // The only guard left in the tap listeners is consumeSelectionSuppressedTap.
+        // With no selection active at down, it returns false → tap proceeds normally.
+        val pagedSelectionActiveAtDown = AtomicBoolean(false)
+        val suppressed = consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)
+        assertFalse("no selection race → tap reaches the immersive-toggle logic normally", suppressed)
     }
 
     @Test
-    fun `popup visible means tap is suppressed`() {
-        val popupVisible = AtomicBoolean(true)
-
-        val suppressed = popupVisible.get()
-
-        assertTrue("popup on screen → tap must not toggle immersive", suppressed)
-    }
-
-    @Test
-    fun `flag cleared when popup dismissed allows next tap through`() {
-        val popupVisible = AtomicBoolean(true)
-
-        // SideEffect runs after recomposition where highlightToEdit becomes null
-        popupVisible.set(false)
-        val suppressed = popupVisible.get()
-
-        assertFalse("after popup dismissed, tap must toggle immersive normally", suppressed)
+    fun `tap listener is suppressed only by selection race, not by popup visibility`() {
+        // consumeSelectionSuppressedTap returns true when a text selection was active at the
+        // moment of the down event — that is the sole gate remaining in the tap listeners.
+        // Popup visibility is handled exclusively by the scrim.
+        val pagedSelectionActiveAtDown = AtomicBoolean(true)
+        val suppressed = consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)
+        assertTrue("selection-race guard still fires independently of popup state", suppressed)
     }
 }

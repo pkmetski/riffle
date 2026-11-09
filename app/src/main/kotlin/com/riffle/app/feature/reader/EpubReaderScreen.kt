@@ -16,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -1529,15 +1530,6 @@ private fun EpubNavigatorView(
     // handler so a tap that only dismisses the text-selection popup does not also toggle
     // immersive mode. Written on the JS background thread; consumed on the main thread.
     val pagedSelectionActiveAtDown = remember { AtomicBoolean(false) }
-    // True while HighlightActionsPopup is visible. The popup is non-focusable (see
-    // HighlightActionsSheet), so an outside tap that dismisses it also propagates to the reader
-    // and would otherwise flip immersive mode. Checking visibility at the moment of the tap is
-    // the right gate: Compose fires onDismissRequest AFTER the WebView receives the same touch,
-    // so a timestamp written in onDismissRequest is always too late to protect against that tap.
-    // SideEffect runs synchronously after every recomposition so the flag is up-to-date before
-    // any touch event that follows the composition that made the popup visible.
-    val highlightPopupVisible = remember { AtomicBoolean(false) }
-    SideEffect { highlightPopupVisible.set(highlightToEdit != null) }
     val pagedSelectionRectBridge = remember {
         RiffleSelectionRectBridge(
             store = pagedSelectionRectCss,
@@ -1636,7 +1628,6 @@ private fun EpubNavigatorView(
             ensureSentenceQuotesReady = { currentEnsureSentenceQuotesReady() },
             navigation = object : ContinuousNavigationSink {
                 override fun onTap() {
-                    if (highlightPopupVisible.get()) return
                     currentOnTap()
                 }
                 override fun onLocator(locator: Locator) = onPositionChanged(locator)
@@ -1861,7 +1852,6 @@ private fun EpubNavigatorView(
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 if (consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)) return false
-                if (highlightPopupVisible.get()) return false
                 if (currentEffectiveOrientation.value == ReaderOrientation.Horizontal) {
                     val container = containerRef.value
                     if (container != null) {
@@ -3287,6 +3277,20 @@ private fun EpubNavigatorView(
             )
             val selectedColor = popupSelection.selectedColor
             val currentEmphasisStyles = popupSelection.emphasisStyles
+            // The popup lives in a separate Android window (non-focusable). Taps outside it pass
+            // directly to the Activity window and can reach the WebView's onTap — toggling
+            // immersive mode before onDismissRequest fires. This scrim sits in the Activity window
+            // and intercepts those taps first, dismissing the popup without reaching the WebView.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            awaitPointerEvent()
+                            onDismissHighlightActions()
+                        }
+                    },
+            )
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect.toIntRect(),
                 selected = selectedColor,
