@@ -640,8 +640,11 @@ fun EpubReaderScreen(
         }
             ?: startHref?.let { href -> hrefLocatorJson(href) }
             ?: savedLocator
-            ?: if (com.riffle.core.domain.isFinishedReadingProgress(item.readingProgress)) null
-               else locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
+            ?: if (com.riffle.core.domain.isFinishedReadingProgress(item.readingProgress)) {
+                null
+            } else {
+                locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
+            }
         navigator.open(path, openAt)
         annotationSession.bind(
             sourceId = item.sourceId,
