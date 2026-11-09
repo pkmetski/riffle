@@ -39,9 +39,6 @@ class ReadaloudMatchesViewModel constructor(
 
     private val sourceId: String = savedStateHandle.get<String>("sourceId") ?: ""
 
-    /** Set when the screen was opened from a readaloud's "Pair manually" footer link. */
-    val pairBookId: String? = savedStateHandle.get<String>("pairBookId")?.takeIf { it.isNotEmpty() }
-
     /**
      * The ABS Source the user is currently matching against — the one whose library is shown
      * in the manual picker and whose candidate suggestions appear in "Suggested". Picked as:

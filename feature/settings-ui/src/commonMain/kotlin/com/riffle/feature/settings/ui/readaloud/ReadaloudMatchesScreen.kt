@@ -76,8 +76,7 @@ fun ReadaloudMatchesScreen(
     val review by viewModel.review.collectAsState()
     val tokens by viewModel.tokensByServer.collectAsState()
 
-    // When opened from a readaloud's "Pair manually" footer, hold the book id whose picker is open.
-    var pairingBookId by remember { mutableStateOf(viewModel.pairBookId) }
+    var pairingBookId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {

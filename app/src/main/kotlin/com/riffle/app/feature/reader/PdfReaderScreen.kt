@@ -4,7 +4,6 @@ package com.riffle.app.feature.reader
 
 import android.view.View
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,6 +72,8 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.SideEffect
 import com.riffle.app.ui.toScreenDimensionBucket
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
+import com.riffle.feature.source.ui.RiffleSnackbarHost
+import com.riffle.feature.source.ui.TransientMessages
 
 // TODO(figure-zoom): PDF figure-zoom follow-up. The EPUB reader supports single-tap-on-figure
 // opening a fullscreen zoom overlay (see FigureZoomOverlay + FigureTapScript). For PDF, the
@@ -142,11 +143,10 @@ fun PdfReaderScreen(
     }
 
     val syncProgressError = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_could_not_sync_reading_progress)
+    val messages = remember { TransientMessages() }
 
     LaunchedEffect(viewModel) {
-        viewModel.syncErrorEvents.collect {
-            Toast.makeText(context, syncProgressError, Toast.LENGTH_SHORT).show()
-        }
+        viewModel.syncErrorEvents.collect { messages.show(syncProgressError) }
     }
 
     val title = (state as? PdfReaderState.Ready)?.title
@@ -309,6 +309,7 @@ fun PdfReaderScreen(
                     .fillMaxWidth(),
             )
         }
+        RiffleSnackbarHost(messages)
     }
 }
 

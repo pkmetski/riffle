@@ -62,8 +62,12 @@ fun AndroidOnboardingSlot(
     }
     var step by remember(initialBackend) { mutableStateOf(startStep) }
 
+    val isEditRouting = initialBackend != null
     val isSubStep = step != AndroidOnboardingStep.Picker
-    BackHandler(enabled = isSubStep) { step = AndroidOnboardingStep.Picker }
+    BackHandler(enabled = isSubStep) {
+        if (isEditRouting && step is AndroidOnboardingStep.Credentials) onCancelled()
+        else step = AndroidOnboardingStep.Picker
+    }
 
     when (val current = step) {
         AndroidOnboardingStep.Picker -> {
@@ -98,11 +102,10 @@ fun AndroidOnboardingSlot(
                 key = routeType + (editId.orEmpty()),
                 parameters = { parametersOf(routeType, editId.orEmpty()) },
             )
-            val isEditRouting = initialBackend != null
             AddSourceScreen(
                 isExpandedWidth = isExpandedWidth,
                 showNavigationIcon = canNavigateBack || isEditRouting,
-                onNavigateBack = { step = AndroidOnboardingStep.Picker },
+                onNavigateBack = { if (isEditRouting) onCancelled() else step = AndroidOnboardingStep.Picker },
                 onAuthenticated = { pending -> step = AndroidOnboardingStep.SelectLibraries(pending) },
                 onAutoCompleted = onFinished,
                 viewModel = viewModel,

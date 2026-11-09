@@ -25,7 +25,7 @@ import org.koin.androidx.compose.koinViewModel
 fun AudiobookPlayerScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onSwitchToReadaloud: (ebookItemId: String, atSec: Double) -> Unit = { _, _ -> },
+    onSwitchToReadaloud: ((ebookItemId: String, atSec: Double) -> Unit)? = null,
     /** Called on end-of-book when the player was opened inside a playlist context (via
      *  [PlaylistDetailScreen]) and there IS a next item. Callers navigate to the next item's
      *  audiobook player, preserving the playlist context so auto-advance chains through. */
