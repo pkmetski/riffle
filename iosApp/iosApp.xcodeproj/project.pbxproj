@@ -10,7 +10,6 @@
 		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
 		B1SSH0002 /* IosShareSheetHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1SSH0001 /* IosShareSheetHelper.swift */; };
 		B1SHR0002 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1SHR0001 /* ShareViewController.swift */; };
-		B1SHR0004 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B1SHR0003 /* Info.plist */; };
 		B1SHR000C /* RiffleShareExtension.appex in Plugins */ = {isa = PBXBuildFile; fileRef = B1SHR000B /* RiffleShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */; };
 		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
@@ -771,7 +770,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B1SHR0004 /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
