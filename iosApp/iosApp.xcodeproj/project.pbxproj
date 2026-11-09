@@ -46,6 +46,7 @@
 		B1CA0084 /* IosPublicationWarmCache.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0080 /* IosPublicationWarmCache.swift */; };
 		B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0020 /* IosContinuousEpubSchemeHandler.swift */; };
 		B1CA0031 /* IosContinuousReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0032 /* IosContinuousReaderTests.swift */; };
+		B1CA0091 /* IosContinuousScrollViewSeamTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0090 /* IosContinuousScrollViewSeamTests.swift */; };
 		B1CA0071 /* IosReaderChapterCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0072 /* IosReaderChapterCacheTests.swift */; };
 		B1CA0083 /* PublicationWarmCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA0082 /* PublicationWarmCacheTests.swift */; };
 		B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */ = {isa = PBXBuildFile; fileRef = B1CA0021 /* IosContinuousScrollView.swift */; };
@@ -161,6 +162,7 @@
 		B1CA0060 /* IosReaderChapterCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReaderChapterCache.swift; sourceTree = "<group>"; };
 		B1CA0080 /* IosPublicationWarmCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosPublicationWarmCache.swift; sourceTree = "<group>"; };
 		B1CA0032 /* IosContinuousReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosContinuousReaderTests.swift; sourceTree = "<group>"; };
+		B1CA0090 /* IosContinuousScrollViewSeamTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosContinuousScrollViewSeamTests.swift; sourceTree = "<group>"; };
 		B1CA0072 /* IosReaderChapterCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosReaderChapterCacheTests.swift; sourceTree = "<group>"; };
 		B1CA0082 /* PublicationWarmCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicationWarmCacheTests.swift; sourceTree = "<group>"; };
 		B1004020 /* AudiobookPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudiobookPlayerTests.swift; sourceTree = "<group>"; };
@@ -338,6 +340,7 @@
 				B101901B /* PdfBridgeUnitTests.swift */,
 				B1055020 /* FootnoteBridgeTests.swift */,
 				B1CA0032 /* IosContinuousReaderTests.swift */,
+				B1CA0090 /* IosContinuousScrollViewSeamTests.swift */,
 				B1CA0072 /* IosReaderChapterCacheTests.swift */,
 				B1CA0082 /* PublicationWarmCacheTests.swift */,
 				E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */,
@@ -669,6 +672,7 @@
 				C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */,
 				B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */,
 				B1CA0031 /* IosContinuousReaderTests.swift in Sources */,
+				B1CA0091 /* IosContinuousScrollViewSeamTests.swift in Sources */,
 				B1CA0071 /* IosReaderChapterCacheTests.swift in Sources */,
 				B1CA0083 /* PublicationWarmCacheTests.swift in Sources */,
 				B1CA0033 /* IosContinuousScrollView.swift in Sources (unit tests) */,

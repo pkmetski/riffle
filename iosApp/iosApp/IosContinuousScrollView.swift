@@ -22,6 +22,23 @@ final class IosContinuousScrollView: UIView {
     var onPageLoad: (() -> Void)?
     var onScrollStart: (() -> Void)?
     var onTap: ((CGPoint) -> Void)?
+    var selectionCallback: ((String?) -> Void)?
+    var footnoteCallback: ((String) -> Void)?
+    var urlOpener: ((URL) -> Void)?
+    var figureTapCallback: ((String) -> Void)?
+    var figureLongPressCallback: ((String) -> Void)?
+
+    // Stored decorations per group applied before a slot WebView finishes loading.
+    // Re-applied in didFinish so slots that load after applyDecorationsJs is called pick them up.
+    private var pendingDecorationScripts: [String: String] = [:]
+
+    // Sequences external navigateTo calls against pending above-viewport height compensations.
+    // Mirrors Android's AboveSlotCompensationGate (feature:reader commonMain): when a chapter
+    // above the viewport reports a new height measurement, the slot geometry is updated and the
+    // scroll is compensated — but that measurement arrives asynchronously (JS message handler).
+    // If navigateTo is called between chapter load and measurement, it uses stale slotOffsets.
+    // The gate defers external navigations until all pending above-viewport measurements land.
+    private let compensationGate = IosAboveSlotCompensationGate()
 
     // MARK: - Private state
 
@@ -165,6 +182,7 @@ final class IosContinuousScrollView: UIView {
         self.spineHrefs = spineHrefs
         self.currentPrefs = prefs
         applyThemeBackground(theme: prefs.theme)
+        compensationGate.reset()
 
         let initialIndex = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(initialHref) }) ?? 0
         pendingInitialIndex = initialIndex
@@ -181,7 +199,12 @@ final class IosContinuousScrollView: UIView {
 
     func navigateTo(href: String, progression: Float) {
         let index = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(href) }) ?? 0
-        scrollTo(index: index, progression: progression)
+        // Defer until all pending above-viewport slot compensations are settled so the navigation
+        // uses up-to-date slotOffsets. Mirrors Android's AboveSlotCompensationGate usage in
+        // ContinuousWindowController.landOnAnnotationOffset (feature:reader commonMain, #1109).
+        compensationGate.runWhenSettled { [weak self] in
+            self?.scrollTo(index: index, progression: progression)
+        }
     }
 
     // MARK: - Cache integration
@@ -256,6 +279,8 @@ final class IosContinuousScrollView: UIView {
         for key in keysToEvict {
             loadedWebViews[key]?.removeFromSuperview()
             loadedWebViews.removeValue(forKey: key)
+            // Release any pending gate lock for the evicted slot so the gate can't deadlock.
+            compensationGate.end(key)
         }
 
         for idx in low...high {
@@ -303,11 +328,39 @@ final class IosContinuousScrollView: UIView {
     private func makeWebView() -> WKWebView {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(schemeHandler, forURLScheme: IosContinuousEpubSchemeHandler.scheme)
-        let heightHandler = WeakScriptMessageHandler(target: self)
-        config.userContentController.add(heightHandler, name: "riffleChapterHeight")
+        let handler = WeakScriptMessageHandler(target: self)
+        config.userContentController.add(handler, name: "riffleChapterHeight")
+        config.userContentController.add(handler, name: "RiffleFigureBridge")
+        config.userContentController.add(handler, name: "RiffleFigureBridgeLongPress")
+        config.userContentController.add(handler, name: "riffleSelection")
+        let figureBridgeShim = """
+        window.RiffleFigureBridge = {
+            onFigureTap: function(p) {
+                window.webkit.messageHandlers.RiffleFigureBridge.postMessage(p);
+            },
+            onFigureLongPress: function(p) {
+                window.webkit.messageHandlers.RiffleFigureBridgeLongPress.postMessage(p);
+            }
+        };
+        """
+        let selectionShim = """
+        document.addEventListener('selectionchange', function() {
+            var sel = window.getSelection();
+            if (sel && sel.toString().length > 0) {
+                window.webkit.messageHandlers.riffleSelection.postMessage(sel.toString());
+            }
+        });
+        """
+        config.userContentController.addUserScript(WKUserScript(
+            source: figureBridgeShim, injectionTime: .atDocumentStart, forMainFrameOnly: false
+        ))
+        config.userContentController.addUserScript(WKUserScript(
+            source: selectionShim, injectionTime: .atDocumentEnd, forMainFrameOnly: false
+        ))
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
+        webView.scrollView.scrollsToTop = false
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.navigationDelegate = self
@@ -316,6 +369,9 @@ final class IosContinuousScrollView: UIView {
 
     private func loadChapter(index: Int, in webView: WKWebView) {
         guard index < spineHrefs.count else { return }
+        // Gate this slot: it may report a height that shifts above-viewport content.
+        // onHeightMeasured will call compensationGate.end(index) once measured.
+        compensationGate.begin(index)
         let href = spineHrefs[index]
         let encodedHref = href.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? href
         let urlString = "\(IosContinuousEpubSchemeHandler.scheme)://pub/\(encodedHref)"
@@ -337,6 +393,8 @@ final class IosContinuousScrollView: UIView {
         updateContentHeight()
 
         // Compensate scroll offset so content above the viewport doesn't shift visible content.
+        // Only compensate when the chapter is entirely above the viewport: if its bottom is within
+        // the viewport the user is reading this chapter and should see it reflow naturally.
         let delta = newHeight - oldHeight
         if delta != 0 {
             let viewportY = outerScrollView.contentOffset.y
@@ -346,6 +404,10 @@ final class IosContinuousScrollView: UIView {
                 outerScrollView.setContentOffset(CGPoint(x: 0, y: compensated), animated: false)
             }
         }
+
+        // Release the gate for this slot: its height is settled and any above-viewport scroll
+        // compensation has been applied. External navigateTo calls held by the gate can now fire.
+        compensationGate.end(index)
 
         if !initialScrollApplied, heightMeasured[pendingInitialIndex] == true {
             initialScrollApplied = true
@@ -448,6 +510,44 @@ final class IosContinuousScrollView: UIView {
     }
 }
 
+// MARK: - Feature seams
+
+extension IosContinuousScrollView {
+
+    func scrollByPx(pixels: Int) -> Bool {
+        let before = outerScrollView.contentOffset.y
+        let after = max(0, min(before + CGFloat(pixels), outerScrollView.contentSize.height - outerScrollView.bounds.height))
+        guard after != before else { return false }
+        outerScrollView.setContentOffset(CGPoint(x: 0, y: after), animated: false)
+        return true
+    }
+
+    func clearSelection() {
+        let script = "window.getSelection().removeAllRanges();"
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    func applyDecorationsJs(group: String, script: String) {
+        pendingDecorationScripts[group] = script
+        for (_, webView) in loadedWebViews {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    func evaluateJavaScript(script: String, completionHandler: ((Any?, Error?) -> Void)?) {
+        let midY = outerScrollView.contentOffset.y + outerScrollView.bounds.height * 0.5
+        let idx = slotIndexAt(yPos: midY)
+        guard let webView = loadedWebViews[idx] else {
+            completionHandler?(nil, nil)
+            return
+        }
+        webView.evaluateJavaScript(script, completionHandler: completionHandler)
+    }
+
+}
+
 // MARK: - UIGestureRecognizerDelegate
 
 extension IosContinuousScrollView: UIGestureRecognizerDelegate {
@@ -486,11 +586,27 @@ extension IosContinuousScrollView: UIScrollViewDelegate {
 
 extension IosContinuousScrollView: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "riffleChapterHeight",
-           let body = message.body as? [String: Any],
-           let href = body["href"] as? String,
-           let height = body["height"] as? Double {
-            onHeightMeasured(href: href, height: CGFloat(height))
+        switch message.name {
+        case "riffleChapterHeight":
+            if let body = message.body as? [String: Any],
+               let href = body["href"] as? String,
+               let height = body["height"] as? Double {
+                onHeightMeasured(href: href, height: CGFloat(height))
+            }
+        case "RiffleFigureBridge":
+            if let payload = message.body as? String {
+                figureTapCallback?(payload)
+            }
+        case "RiffleFigureBridgeLongPress":
+            if let payload = message.body as? String {
+                figureLongPressCallback?(payload)
+            }
+        case "riffleSelection":
+            if let text = message.body as? String {
+                selectionCallback?(text)
+            }
+        default:
+            break
         }
     }
 }
@@ -498,6 +614,36 @@ extension IosContinuousScrollView: WKScriptMessageHandler {
 // MARK: - WKNavigationDelegate
 
 extension IosContinuousScrollView: WKNavigationDelegate {
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard navigationAction.navigationType != .other,
+              let url = navigationAction.request.url else {
+            decisionHandler(.allow)
+            return
+        }
+        let urlString = url.absoluteString
+        if urlString.hasPrefix("\(IosContinuousEpubSchemeHandler.scheme)://pub/") {
+            let href = urlString.replacingOccurrences(of: "\(IosContinuousEpubSchemeHandler.scheme)://pub", with: "")
+            navigateTo(href: href, progression: 0)
+            decisionHandler(.cancel)
+            return
+        }
+        if url.scheme == "http" || url.scheme == "https" {
+            urlOpener?(url)
+            decisionHandler(.cancel)
+            return
+        }
+        if urlString.contains("noteref") {
+            footnoteCallback?(urlString)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let rawPath = webView.url?.path.removingPercentEncoding ?? ""
         let escapedPath = rawPath
@@ -545,6 +691,9 @@ extension IosContinuousScrollView: WKNavigationDelegate {
         })();
         """
         webView.evaluateJavaScript(heightJs, completionHandler: nil)
+        for (_, script) in pendingDecorationScripts {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
     }
 }
 
@@ -557,6 +706,50 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         target?.userContentController(ucc, didReceive: message)
+    }
+}
+
+// MARK: - IosAboveSlotCompensationGate
+
+/// Swift port of `AboveSlotCompensationGate` (feature:reader commonMain).
+/// Sequences external `navigateTo` calls against pending above-viewport slot height measurements.
+/// When a chapter above the viewport reports a new height asynchronously (JS message handler),
+/// any `navigateTo` call that arrives in the window between chapter load and height measurement
+/// would use stale `slotOffsets`. The gate defers those navigations until the slot is settled.
+///
+/// Each `loadChapter` call opens a gate with `begin(index)`; `onHeightMeasured` closes it with
+/// `end(index)`. Eviction also calls `end(index)` so evicted slots can't deadlock the gate.
+/// `navigateTo(href:progression:)` goes through `runWhenSettled`; the scroll fires immediately
+/// when no compensation is pending, or once the last slot reports its height.
+///
+/// Design rules (mirror the Kotlin class): only the LATEST `runWhenSettled` block is kept;
+/// older deferred calls are dropped because they were computed for stale geometry.
+final class IosAboveSlotCompensationGate {
+    private var pendingIndices = Set<Int>()
+    private var deferred: (() -> Void)?
+
+    var pending: Int { pendingIndices.count }
+
+    func begin(_ index: Int) {
+        pendingIndices.insert(index)
+    }
+
+    func end(_ index: Int) {
+        guard pendingIndices.remove(index) != nil, pendingIndices.isEmpty else { return }
+        let block = deferred
+        deferred = nil
+        block?()
+    }
+
+    func runWhenSettled(_ block: @escaping () -> Void) {
+        if !pendingIndices.isEmpty { deferred = block } else { block() }
+    }
+
+    func cancelDeferred() { deferred = nil }
+
+    func reset() {
+        pendingIndices.removeAll()
+        deferred = nil
     }
 }
 

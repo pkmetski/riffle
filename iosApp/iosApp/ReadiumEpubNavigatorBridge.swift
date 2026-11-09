@@ -33,8 +33,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var errorCallback: ((String) -> Void)?
     var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
-    private var figureTapCallback: ((String) -> Void)?
-    private var figureLongPressCallback: ((String) -> Void)?
+    var figureTapCallback: ((String) -> Void)?
+    var figureLongPressCallback: ((String) -> Void)?
     var footnoteCallback: ((String) -> Void)?
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?
@@ -400,12 +400,15 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         _lastAppliedDecorationsJson = decorationsJson
         _lastAppliedGroup = group
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                let script = "window.__riffleDecorations_\(group.replacingOccurrences(of: "-", with: "_")) = \(decorationsJson);"
+                csv.applyDecorationsJs(group: group, script: script)
+                return
+            }
             guard let nav = epubNavigator else { return }
             let decorations = parseDecorations(decorationsJson)
             nav.apply(decorations: decorations, in: group)
             if group == ReaderDecorationGroups.shared.noteGlyphs, !decorations.isEmpty {
-                // Readium lays decorations out on its own animation frame, so the clamp has to
-                // run after — it retries for a bounded number of frames on its own.
                 _ = await nav.evaluateJavaScript(RiffleDecorationTemplates.noteGlyphClampJs())
             }
         }
@@ -419,6 +422,14 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
             self.cachedTocJson = self.serializeTocLinks(links)
         }
     }
+
+    // MARK: - Bundled font registration
+
+}
+
+// MARK: - Search
+
+extension ReadiumEpubNavigatorBridge {
 
     func startSearch(
         query: String,
@@ -469,8 +480,6 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }.joined(separator: ",")
         return "[\(items)]"
     }
-
-    // MARK: - Bundled font registration
 
 }
 
@@ -736,15 +745,12 @@ extension UIColor {
 extension ReadiumEpubNavigatorBridge {
     func getSpineJson() -> String { cachedSpineJson }
 
-    /// Scroll the visible resource by `pixels` device pixels, reporting whether the document moved.
-    ///
-    /// Readium owns the scrolling element inside its WKWebView, so auto-scroll drives it through
-    /// `window.scrollBy` rather than the hosting view — the same reason Android's vertical mode
-    /// scrolls via JS instead of `View.scrollBy`. The script compares scrollTop before and after
-    /// so the caller can tell "moved" from "already at the bottom of this resource" and stop the
-    /// ticker instead of spinning.
     func scrollByPx(pixels: Int32, onResult: @escaping (KotlinBoolean) -> Void) {
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                onResult(KotlinBoolean(bool: csv.scrollByPx(pixels: Int(pixels))))
+                return
+            }
             guard let nav = self.epubNavigator else {
                 onResult(KotlinBoolean(bool: false))
                 return
@@ -766,21 +772,14 @@ extension ReadiumEpubNavigatorBridge {
         }
     }
 
-    /// Evaluate arbitrary JavaScript in the visible resource and return its result as a string.
-    ///
-    /// The generic twin of Android's `RendererBridge.evaluateJavascript`. Cadence needs four
-    /// different scripts — the `Intl.Segmenter` feature detect, the per-chapter sentence-span
-    /// tokenisation, the start-position probe and the paginated column measure/snap — and every
-    /// one of them is authored in shared Kotlin, so the only thing missing on iOS was somewhere
-    /// to run them.
-    ///
-    /// Marshalling: a JS string comes back as `NSString` and is passed through verbatim; a
-    /// boolean (the feature detect) is stringified to `"true"`/`"false"` so the Kotlin side sees
-    /// the same token Android's JSON-encoded `evaluateJavascript` produces. `nil`, a JS `null`
-    /// and a thrown script all return nil, which every shared parser treats as "unsupported"
-    /// rather than crashing.
     func evaluateJavaScript(script: String, onResult: @escaping (String?) -> Void) {
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                csv.evaluateJavaScript(script: script) { value, _ in
+                    onResult(Self.stringifyJavaScriptResult(value))
+                }
+                return
+            }
             guard let nav = self.epubNavigator else { onResult(nil); return }
             let result = await nav.evaluateJavaScript(script)
             switch result {
@@ -845,6 +844,11 @@ extension ReadiumEpubNavigatorBridge {
 
     func clearSelection() {
         Task { @MainActor in
+            if let csv = continuousScrollView {
+                csv.clearSelection()
+                selectionCallback?(nil)
+                return
+            }
             epubNavigator?.clearSelection()
             selectionCallback?(nil)
         }
