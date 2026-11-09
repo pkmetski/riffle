@@ -50,7 +50,7 @@ object IosCrashReportRecorder {
     private var previousHook: ReportUnhandledExceptionHook? = null
 
     @OptIn(ExperimentalForeignApi::class)
-    internal fun report(throwable: Throwable, timestampMillis: Long): String = buildString {
+    fun report(throwable: Throwable, timestampMillis: Long): String = buildString {
         appendLine("Riffle iOS crash report")
         appendLine("timestamp: $timestampMillis")
         appendLine("app_version: ${NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "?"}")

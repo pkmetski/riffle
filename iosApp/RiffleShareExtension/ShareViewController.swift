@@ -10,9 +10,9 @@ private let inboxSubdirectory = "ShareInbox"
 ///
 /// The extension runs in a separate process and therefore cannot call the Kotlin framework. Its
 /// only job is to copy bytes into a location the main app can read.
-final class ShareViewController: UIViewController, NSExtensionRequestHandling {
+final class ShareViewController: UIViewController {
 
-    func beginRequest(with context: NSExtensionContext) {
+    override func beginRequest(with context: NSExtensionContext) {
         guard let items = context.inputItems as? [NSExtensionItem] else {
             context.completeRequest(returningItems: nil)
             return
