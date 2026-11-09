@@ -1,4 +1,5 @@
 import AVFoundation
+import MediaPlayer
 import Riffle
 import XCTest
 
@@ -127,6 +128,55 @@ final class ReadaloudBridgeTests: XCTestCase {
         bridge.dispose()
         XCTAssertFalse(bridge.isPlaying())
         XCTAssertEqual(bridge.currentOffsetSec(), 0)
+    }
+
+    // R-25: Lock-screen controls are registered after prepareAudioSrcs and cleared after dispose.
+    @MainActor
+    func testRemoteCommandCenterCommandsRegisteredAfterPrepare() {
+        let bridge = IosReadaloudBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.prepareAudioSrcs(
+            audioFileUrls: srcUrlStrings,
+            startSrcIndex: 0,
+            startOffsetSec: 0
+        )
+        let center = MPRemoteCommandCenter.shared()
+        // Commands must have at least one registered handler; enabled state is implied by registration.
+        XCTAssertTrue(center.playCommand.handlers(forControlEvents: .primaryActionTriggered)?.isEmpty == false
+            || center.playCommand.isEnabled,
+            "play command should have a registered target after prepare")
+        XCTAssertTrue(center.skipForwardCommand.preferredIntervals.first.map { $0.doubleValue > 0 } ?? false,
+            "skip-forward interval should be set after prepare")
+        XCTAssertTrue(center.skipBackwardCommand.preferredIntervals.first.map { $0.doubleValue > 0 } ?? false,
+            "skip-backward interval should be set after prepare")
+    }
+
+    // R-25: Now Playing info is populated after prepareAudioSrcs.
+    @MainActor
+    func testNowPlayingInfoPopulatedAfterPrepare() {
+        let bridge = IosReadaloudBridgeImpl()
+        defer { bridge.dispose() }
+        bridge.prepareAudioSrcs(
+            audioFileUrls: srcUrlStrings,
+            startSrcIndex: 0,
+            startOffsetSec: 0
+        )
+        XCTAssertNotNil(MPNowPlayingInfoCenter.default().nowPlayingInfo,
+            "nowPlayingInfo should be populated after prepare")
+    }
+
+    // R-25: Now Playing info is cleared after dispose.
+    @MainActor
+    func testNowPlayingInfoClearedAfterDispose() {
+        let bridge = IosReadaloudBridgeImpl()
+        bridge.prepareAudioSrcs(
+            audioFileUrls: srcUrlStrings,
+            startSrcIndex: 0,
+            startOffsetSec: 0
+        )
+        bridge.dispose()
+        XCTAssertNil(MPNowPlayingInfoCenter.default().nowPlayingInfo,
+            "nowPlayingInfo should be nil after dispose")
     }
 }
 

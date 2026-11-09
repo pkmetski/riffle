@@ -40,3 +40,12 @@ internal fun resolveLookupUiState(
     DictionaryPackState.FAILED -> LookupUiState.DownloadFailed(languageTag, catalogEntry)
     DictionaryPackState.NOT_INSTALLED -> LookupUiState.NoPackInstalled(languageTag, catalogEntry)
 }
+
+internal fun LookupUiState.toShared(): com.riffle.feature.reader.LookupUiState = when (this) {
+    LookupUiState.Loading -> com.riffle.feature.reader.LookupUiState.Loading
+    is LookupUiState.NoPackInstalled -> com.riffle.feature.reader.LookupUiState.NoPackInstalled(languageTag, entry)
+    LookupUiState.Downloading -> com.riffle.feature.reader.LookupUiState.Downloading
+    is LookupUiState.DownloadFailed -> com.riffle.feature.reader.LookupUiState.DownloadFailed(languageTag, entry)
+    is LookupUiState.Loaded -> com.riffle.feature.reader.LookupUiState.Loaded(word, entries, recentLookups)
+    is LookupUiState.NoResults -> com.riffle.feature.reader.LookupUiState.NoResults(word, languageTag)
+}

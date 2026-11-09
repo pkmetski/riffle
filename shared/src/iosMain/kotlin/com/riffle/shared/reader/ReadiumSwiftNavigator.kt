@@ -370,10 +370,11 @@ class ReadiumSwiftNavigator(
     }
 
     override suspend fun followReadaloudSentence(text: String): NavigatorFollowResult {
-        val columns = measureReadaloudColumns(text)
-        if (columns.isEmpty()) return NavigatorFollowResult.Unavailable
-        snapReadaloudColumn(text, 0)
-        return NavigatorFollowResult.Snapped
+        return when (evaluateJs(ColumnSnap.autoFollowSnapJs(text))?.trim('"')) {
+            "on" -> NavigatorFollowResult.Snapped
+            "off" -> NavigatorFollowResult.OffPage
+            else -> NavigatorFollowResult.Unavailable
+        }
     }
 
     /**

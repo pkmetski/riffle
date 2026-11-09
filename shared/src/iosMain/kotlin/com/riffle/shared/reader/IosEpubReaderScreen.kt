@@ -93,6 +93,7 @@ import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.TocEntry
+import com.riffle.core.models.isStorytellerService
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.downloads.formatBytesOrUnknown
@@ -248,6 +249,8 @@ fun EpubReaderScreen(
     val logger = koinInject<Logger>()
     val readaloudSessionFactory = koinInject<ReadaloudSession.Factory>()
     val readaloudLinkRepository = koinInject<ReadaloudLinkRepository>()
+    val sourceRepository = koinInject<com.riffle.core.domain.SourceRepository>()
+    val readerSyncFactory = koinInject<com.riffle.feature.reader.ReaderSyncFactoryInterface>()
     val listeningPreferencesStore = koinInject<ListeningPreferencesStore>()
     val annotationSessionFactory = koinInject<AnnotationSession.Factory>()
     val annotationSyncController = koinInject<AnnotationSyncController>()
@@ -303,6 +306,7 @@ fun EpubReaderScreen(
     val scope = rememberCoroutineScope()
     val bridge = remember { bridgeFactory.create().also { it.setItemId(item.id) } }
     val navigator = remember(bridge) { ReadiumSwiftNavigator(bridge) }
+    val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
     val annotationSession = remember(navigator) {
         annotationSessionFactory.create(
             scope = scope,
@@ -310,7 +314,41 @@ fun EpubReaderScreen(
             scheduleSync = { sid, ns, iid -> annotationSyncController.scheduleDebounce(sid, ns, iid) },
             syncOnOpen = { sid, ns, iid -> annotationSyncController.syncOnOpen(sid, ns, iid) },
             syncOnClose = { sid, ns, iid -> annotationSyncController.syncOnClose(sid, ns, iid) },
-            mergeAfterEdit = { _, _, _ -> },
+            mergeAfterEdit = mergeAfterEdit@{ id, color, _ ->
+                val allAnnotations = annotationStore.observeAnnotations(item.sourceId, item.id).first()
+                val annotation = allAnnotations.firstOrNull { it.id == id } ?: return@mergeAfterEdit
+                val html = navigator.readChapterHtml(annotation.chapterHref) ?: return@mergeAfterEdit
+                val spineHrefs = spineRef.value.hrefs
+                val spineIndex = com.riffle.feature.reader.spineIndexOfHref(spineHrefs, annotation.chapterHref).takeIf { it >= 0 } ?: return@mergeAfterEdit
+                val chapterNorm = com.riffle.core.domain.normalizeEpubHref(annotation.chapterHref)
+                val chapterAnnotations = allAnnotations.filter { com.riffle.core.domain.normalizeEpubHref(it.chapterHref) == chapterNorm }
+                val emphasisAnnotations = annotationStore.observeEmphasis(item.sourceId, item.id).first()
+                    .filter { com.riffle.core.domain.normalizeEpubHref(it.chapterHref) == chapterNorm }
+                val plan = com.riffle.feature.reader.planHighlightCommit(
+                    html = html,
+                    draftFields = com.riffle.feature.reader.draftFieldsOf(
+                        cfiRange = annotation.cfi,
+                        textSnippet = annotation.textSnippet,
+                        textBefore = annotation.textBefore,
+                        textAfter = annotation.textAfter,
+                        progression = annotation.progression,
+                        embeddedFigures = annotation.embeddedFigures,
+                    ),
+                    draftSpineIndex = spineIndex,
+                    draftChapterHref = annotation.chapterHref,
+                    draftColor = color,
+                    draftEmphasisStyles = emptySet(),
+                    candidates = chapterAnnotations.filter {
+                        it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT && it.id != id
+                    },
+                    emphasisPool = emphasisAnnotations,
+                    imageAnnotations = chapterAnnotations.filter {
+                        it.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE
+                    },
+                )
+                plan.deleteEmphasisIds.forEach { annotationStore.delete(it) }
+                plan.deleteHighlightIds.forEach { annotationStore.delete(it) }
+            },
             commitDraftWithNote = { _ -> },
         )
     }
@@ -318,12 +356,20 @@ fun EpubReaderScreen(
     val lastUsedHighlightColor by annotationSession.lastUsedHighlightColor.collectAsState()
     val lastUsedColorIsNone by annotationSession.lastUsedColorIsNone.collectAsState()
     val highlightToEdit by annotationSession.highlightToEdit.collectAsState()
-    val spineRef = remember { mutableStateOf(SpinePositions.Empty) }
     val orientationRef = remember { mutableStateOf(ReaderOrientation.Horizontal) }
     val viewportFractionRef = remember { mutableStateOf(emptyMap<String, Double>()) }
     val tocEntriesRef = remember { mutableStateOf<List<TocEntry>>(emptyList()) }
     // selectionFlow is collected in the overlay Box below (not here) so that only the small
     // overlay subtree recomposes on every selection drag event, not the entire reader screen.
+    val readerSyncRef = remember(item.sourceId, item.id) {
+        androidx.compose.runtime.mutableStateOf<com.riffle.feature.reader.ReaderSyncCoordinatorInterface?>(null)
+    }
+    val audiobookFollowRef = remember(item.sourceId, item.id) {
+        androidx.compose.runtime.mutableStateOf<com.riffle.feature.reader.AudiobookFollowInterface?>(null)
+    }
+    val effectivePrefsFlow = remember(item.sourceId, item.id) {
+        kotlinx.coroutines.flow.MutableStateFlow(FormattingPreferences())
+    }
     val readaloudSession = remember(item.sourceId, item.id) {
         readaloudSessionFactory.create(scope) { null }.also { session ->
             session.bind(
@@ -334,9 +380,9 @@ fun EpubReaderScreen(
                 audioServerId = item.sourceId,
                 audioSettingsIdentity = com.riffle.core.models.AudioIdentity(item.sourceId, item.id),
                 audiobookItemId = if (item.isListenable) item.id else null,
-                effectiveFormattingPreferencesFlow = kotlinx.coroutines.flow.MutableStateFlow(FormattingPreferences()),
-                readerSyncProvider = { null },
-                audiobookFollowProvider = { null },
+                effectiveFormattingPreferencesFlow = effectivePrefsFlow,
+                readerSyncProvider = { readerSyncRef.value as? com.riffle.feature.reader.ReaderSyncCoordinator },
+                audiobookFollowProvider = { audiobookFollowRef.value as? com.riffle.feature.reader.AudiobookFollow },
             )
         }
     }
@@ -344,6 +390,29 @@ fun EpubReaderScreen(
         onDispose { readaloudSession.onBookClosed() }
     }
     LaunchedEffect(item.sourceId, item.id) {
+        val source = sourceRepository.getById(item.sourceId)
+        val isStoryteller = source?.isStorytellerService == true
+        if (isStoryteller) {
+            readerSyncRef.value = readerSyncFactory.createIfApplicable(item.id)
+            audiobookFollowRef.value = readerSyncFactory.createAudiobookFollowIfApplicable(item.id)
+            readaloudSession.bind(
+                sourceId = item.sourceId,
+                itemId = item.id,
+                isStorytellerService = true,
+                audioBookId = item.id,
+                audioServerId = item.sourceId,
+                audioSettingsIdentity = com.riffle.core.models.AudioIdentity(item.sourceId, item.id),
+                audiobookItemId = if (item.isListenable) item.id else null,
+                effectiveFormattingPreferencesFlow = effectivePrefsFlow,
+                readerSyncProvider = { readerSyncRef.value as? com.riffle.feature.reader.ReaderSyncCoordinator },
+                audiobookFollowProvider = { audiobookFollowRef.value as? com.riffle.feature.reader.AudiobookFollow },
+            )
+            readaloudSession.storytellerServerLocatorCallback = { locatorJson ->
+                scope.launch {
+                    navigator.navigateTo(NavigatorNavigationTarget.ToLocatorJson(locatorJson))
+                }
+            }
+        }
         val link = readaloudLinkRepository.findByAbsItem(item.sourceId, item.id)
         if (link != null) {
             val audiobookItemId = if (item.isListenable) item.id else null
@@ -378,6 +447,7 @@ fun EpubReaderScreen(
     // Non-null while the note editor is up; the value is the annotation id, or "" for a note
     // being written on a selection that has not been persisted yet.
     var noteEditorFor by remember { mutableStateOf<String?>(null) }
+    var lookupTarget by remember { mutableStateOf<com.riffle.feature.reader.LookupTarget?>(null) }
     // True after the user taps "Annotate" in the selection strip. Gates the AnnotationActionsSheet
     // so it only appears on an explicit user intent, matching Android's two-step ActionMode flow.
     var annotateSheetOpen by remember { mutableStateOf(false) }
@@ -570,7 +640,8 @@ fun EpubReaderScreen(
         }
             ?: startHref?.let { href -> hrefLocatorJson(href) }
             ?: savedLocator
-            ?: locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
+            ?: if (com.riffle.core.domain.isFinishedReadingProgress(item.readingProgress)) null
+               else locatorForProgression(publicationInspector, path, item.readingProgress.toDouble())
         navigator.open(path, openAt)
         annotationSession.bind(
             sourceId = item.sourceId,
@@ -731,6 +802,9 @@ fun EpubReaderScreen(
     val goTo: suspend (NavigatorNavigationTarget) -> Unit = { target ->
         boundaryPolicy.suppressUntilTheReaderLeavesTheBoundary()
         navigator.navigateTo(target)
+    }
+    LaunchedEffect(resolvedPrefs) {
+        effectivePrefsFlow.value = resolvedPrefs ?: FormattingPreferences()
     }
     LaunchedEffect(navigator, localPath, resolvedPrefs?.effectiveOrientation(isLandscape)) {
         val orientation = resolvedPrefs?.effectiveOrientation(isLandscape) ?: return@LaunchedEffect
@@ -932,6 +1006,9 @@ fun EpubReaderScreen(
 
     DisposableEffect(immersiveState) {
         onDispose { immersiveState.show() }
+    }
+    LaunchedEffect(readaloudPlayback.isPlaying) {
+        if (readaloudPlayback.isPlaying) immersiveState.hide()
     }
 
     // Keep the corner ribbon in step with the page. Recomputed on every position change and
@@ -1777,7 +1854,7 @@ fun EpubReaderScreen(
                     navigator.clearSelection()
                 },
                 onLookUp = {
-                    com.riffle.shared.reader.IosSystemActions.lookUp(selText)
+                    lookupTarget = com.riffle.feature.reader.LookupTarget(selText, item.language ?: "")
                     navigator.clearSelection()
                 },
                 onSearchWeb = {
@@ -2268,6 +2345,17 @@ fun EpubReaderScreen(
             positionFlow = navigator.positionFlow,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        // Word lookup sheet.
+        lookupTarget?.let { target ->
+            com.riffle.feature.reader.ui.WordLookupSheet(
+                target = target,
+                resultFlow = kotlinx.coroutines.flow.flowOf(com.riffle.feature.reader.LookupUiState.NoPackInstalled(target.languageTag)),
+                onDismiss = { lookupTarget = null },
+                onEnqueueDownload = {},
+                onSystemDictionary = { IosSystemActions.lookUp(target.text) },
+            )
+        }
 
         // Reader settings sheet ("Aa" button).
         if (settingsOpen) {

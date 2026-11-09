@@ -113,21 +113,36 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
                 }
 
                 // Cold path: retrieve the EPUB asset and parse the publication.
-                guard let fileURL = FileURL(path: filePath, isDirectory: false) else { return }
+                guard let fileURL = FileURL(path: filePath, isDirectory: false) else {
+                    publicationOpenErrorCallback?("openEpub: invalid file path: \(filePath)")
+                    return
+                }
                 let httpClient = DefaultHTTPClient()
                 let assetRetriever = AssetRetriever(httpClient: httpClient)
                 let assetResult = await assetRetriever.retrieve(url: fileURL)
-                guard case .success(let asset) = assetResult else { return }
+                guard case .success(let asset) = assetResult else {
+                    let msg = "openEpub: asset retrieval failed for \(filePath): \(assetResult)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
 
                 let opener = PublicationOpener(parser: CompositePublicationParser([EPUBParser()]))
                 let pubResult = await opener.open(asset: asset, allowUserInteraction: false)
-                guard case .success(let pub) = pubResult else { return }
+                guard case .success(let pub) = pubResult else {
+                    let msg = "openEpub: publication parsing failed for \(filePath): \(pubResult)"
+                    NSLog("[Riffle] %@", msg)
+                    publicationOpenErrorCallback?(msg)
+                    return
+                }
                 self.publication = pub
                 self.prefetchToc(pub)
                 self.prefetchSpine(pub)
                 try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
-                // Ignore open errors — reader shows blank state
+                let msg = "openEpub: navigator attach failed: \(error)"
+                NSLog("[Riffle] %@", msg)
+                publicationOpenErrorCallback?(msg)
             }
         }
     }
@@ -360,7 +375,9 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
 
                 try self.attach(publication: pub, initialLocator: initialLocator)
             } catch {
-                // Ignore open errors — reader shows blank state
+                let msg = "openLazyEpub: navigator attach failed: \(error)"
+                NSLog("[Riffle] %@", msg)
+                publicationOpenErrorCallback?(msg)
             }
         }
     }

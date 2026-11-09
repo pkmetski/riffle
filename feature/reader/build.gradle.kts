@@ -23,6 +23,7 @@ kotlin {
             // catalog progress-peer capabilities and log through the typed Logger channels.
             api(project(":core:catalog"))
             api(project(":core:logging"))
+            api(project(":core:dictionary"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.androidx.lifecycle.viewmodel)

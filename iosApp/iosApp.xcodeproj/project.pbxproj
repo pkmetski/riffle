@@ -110,6 +110,7 @@
 		B106501A /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
 		B1065020 /* NowPlayingSceneGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1065030 /* NowPlayingSceneGate.swift */; };
 		B1066010 /* NowPlayingSceneGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1066020 /* NowPlayingSceneGateTests.swift */; };
+		B1067010 /* ReadiumEpubNavigatorBridgeOpenErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1067020 /* ReadiumEpubNavigatorBridgeOpenErrorTests.swift */; };
 		B1070010 /* AppShellSmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1070020 /* AppShellSmokeTest.swift */; };
 		B1072010 /* AnnotationSearchFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1072020 /* AnnotationSearchFlowTests.swift */; };
 		B1080010 /* RiffleTestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1080020 /* RiffleTestTags.swift */; };
@@ -213,6 +214,7 @@
 		B1061031 /* ReadaloudBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadaloudBridgeTests.swift; sourceTree = "<group>"; };
 		B1065030 /* NowPlayingSceneGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGate.swift; sourceTree = "<group>"; };
 		B1066020 /* NowPlayingSceneGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingSceneGateTests.swift; sourceTree = "<group>"; };
+		B1067020 /* ReadiumEpubNavigatorBridgeOpenErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadiumEpubNavigatorBridgeOpenErrorTests.swift; sourceTree = "<group>"; };
 		B1070020 /* AppShellSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellSmokeTest.swift; sourceTree = "<group>"; };
 		B1072020 /* AnnotationSearchFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationSearchFlowTests.swift; sourceTree = "<group>"; };
 		B1080020 /* RiffleTestTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiffleTestTags.swift; sourceTree = "<group>"; };
@@ -354,6 +356,7 @@
 				B1057020 /* IosPlatformSettingsHooksTests.swift */,
 				A1BG0020 /* AppLocalizationUnitTests.swift */,
 				B1066020 /* NowPlayingSceneGateTests.swift */,
+				B1067020 /* ReadiumEpubNavigatorBridgeOpenErrorTests.swift */,
 				B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */,
 				BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */,
 				B1070020 /* AppShellSmokeTest.swift */,
@@ -668,6 +671,7 @@
 				B1099011 /* Sqlite3LoadExtensionStub.swift in Sources */,
 				B106501A /* NowPlayingSceneGate.swift in Sources */,
 				B1066010 /* NowPlayingSceneGateTests.swift in Sources */,
+				B1067010 /* ReadiumEpubNavigatorBridgeOpenErrorTests.swift in Sources */,
 				3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */,
 				C8DFE2134F4B4C59B75096EF /* InternalLinkBridgeTests.swift in Sources */,
 				B1CA0030 /* IosContinuousEpubSchemeHandler.swift in Sources (unit tests) */,
