@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -32,6 +31,7 @@ import kotlin.test.assertTrue
 class StartupUpdateViewModelTest {
 
     @BeforeTest fun setUp() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
+
     @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     private class MutableClock(var timeMs: Long = 0L) : Clock {

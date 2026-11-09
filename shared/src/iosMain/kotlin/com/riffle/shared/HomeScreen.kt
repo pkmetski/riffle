@@ -17,6 +17,8 @@ import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.feature.shellui.AppShell
 import com.riffle.feature.shellui.AppShellSlots
 import com.riffle.feature.shellui.StartupUpdateViewModel
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
@@ -25,14 +27,12 @@ import com.riffle.shared.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.ui_update_available_message
 import com.riffle.shared.generated.resources.ui_update_dismiss
 import com.riffle.shared.generated.resources.ui_update_view_release
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
-import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import com.riffle.shared.library.IosEditMetadataDialogHost
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
 import com.riffle.shared.source.SourceOnboardingHost
 import com.riffle.shared.source.WebdavOnboardingHost
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import platform.Foundation.NSBundle

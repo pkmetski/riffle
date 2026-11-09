@@ -1,14 +1,14 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.Clock
-import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlin.native.ReportUnhandledExceptionHook
-import kotlin.native.setUnhandledExceptionHook
-import kotlin.native.terminateWithUnhandledException
 import platform.Foundation.NSBundle
 import platform.Foundation.NSProcessInfo
 import platform.UIKit.UIDevice
+import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.ReportUnhandledExceptionHook
+import kotlin.native.setUnhandledExceptionHook
+import kotlin.native.terminateWithUnhandledException
 
 /**
  * Writes a crash report when an unhandled Kotlin exception reaches the top of a coroutine or

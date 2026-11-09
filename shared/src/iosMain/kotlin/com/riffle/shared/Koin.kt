@@ -45,7 +45,6 @@ import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
-import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
@@ -122,6 +121,7 @@ import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.IosReadaloudEpubTextOps
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfRepository
@@ -234,12 +234,12 @@ import com.riffle.feature.reader.SharedPdfRepository
 import com.riffle.feature.reader.VolumeKeyDispatcher
 import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
-import com.riffle.feature.shellui.StartupUpdateViewModel
-import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
+import com.riffle.feature.shellui.StartupUpdateViewModel
+import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
@@ -289,6 +289,7 @@ import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
 import io.ktor.client.HttpClient
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -300,12 +301,11 @@ import org.koin.compose.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
-import platform.Foundation.NSBundle
-import org.koin.core.context.startKoin as koinStartKoin
-import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreGraphics.CGRectMake
+import platform.Foundation.NSBundle
 import platform.Foundation.NSObject
 import platform.WebKit.WKWebView
+import org.koin.core.context.startKoin as koinStartKoin
 
 @OptIn(ExperimentalForeignApi::class)
 private val iosWebViewUserAgent: String by lazy {
