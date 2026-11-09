@@ -274,7 +274,6 @@ class PdfReaderViewModel constructor(
         }
     }
 
-    /** Called by the screen when the platform navigator fails to open the PDF document. */
     fun onNavigatorOpenFailed(message: String) {
         _state.value = PdfReaderState.Error(message)
     }
