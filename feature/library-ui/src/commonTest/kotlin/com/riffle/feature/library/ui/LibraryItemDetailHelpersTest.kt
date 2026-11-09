@@ -151,5 +151,10 @@ class LibraryItemDetailHelpersTest {
         assertEquals("'quoted'", htmlBlurb("&#39;quoted&#39;").text)
     }
 
+    @Test
+    fun htmlBlurbCollapsesWhitespace() {
+        assertEquals("Hello world", htmlBlurb("Hello   world").text.trim())
+    }
+
     // Lone-surrogate handling (&#xD800; etc.) is Ksoup-implementation-defined; not tested.
 }
