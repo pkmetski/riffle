@@ -289,7 +289,6 @@ import com.riffle.shared.reader.IosPublicationInspector
 import com.riffle.shared.source.iosOReillySessionStore
 import com.riffle.shared.sync.IosAnnotationSweepEnqueuer
 import io.ktor.client.HttpClient
-import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -301,18 +300,11 @@ import org.koin.compose.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
-import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSBundle
-import platform.Foundation.NSObject
-import platform.WebKit.WKWebView
 import org.koin.core.context.startKoin as koinStartKoin
 
-@OptIn(ExperimentalForeignApi::class)
-private val iosWebViewUserAgent: String by lazy {
-    (WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0)) as NSObject)
-        .valueForKey("userAgent") as? String
-        ?: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
-}
+private const val IOS_DEFAULT_USER_AGENT =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
 
 private fun iosLibraryModule(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
@@ -1236,7 +1228,7 @@ private fun iosLibraryModule(
             SourceType.OREILLY to OReillyCatalogFactory(
                 httpClient = get(named("streamingHttpClient")),
                 cookieProvider = { iosOReillySessionStore.cookieHeader },
-                userAgentProvider = { iosWebViewUserAgent },
+                userAgentProvider = { IOS_DEFAULT_USER_AGENT },
             ),
         )
     }
