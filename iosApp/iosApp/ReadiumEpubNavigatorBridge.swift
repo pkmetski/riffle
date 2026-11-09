@@ -33,8 +33,8 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
     var errorCallback: ((String) -> Void)?
     var selectionCallback: ((String?) -> Void)?
     private var decorationActivatedCallback: ((String) -> Void)?
-    private var figureTapCallback: ((String) -> Void)?
-    private var figureLongPressCallback: ((String) -> Void)?
+    var figureTapCallback: ((String) -> Void)?
+    var figureLongPressCallback: ((String) -> Void)?
     var footnoteCallback: ((String) -> Void)?
     var internalLinkCallback: ((String, String) -> Void)?
     var riffleUrlCallback: ((String) -> Void)?

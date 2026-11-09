@@ -1,4 +1,5 @@
 import XCTest
+import WebKit
 @testable import Riffle
 
 // MARK: - IosContinuousScrollViewSeamTests
@@ -6,6 +7,7 @@ import XCTest
 /// Unit tests for the feature seams added to `IosContinuousScrollView` for issue #1379.
 /// These are the iOS counterparts for the Android harness tests that cover continuous mode
 /// decorations, selection, auto-scroll, links, footnotes, and figures.
+@MainActor
 final class IosContinuousScrollViewSeamTests: XCTestCase {
 
     private func makePrefs() -> IosReaderPreferences {
