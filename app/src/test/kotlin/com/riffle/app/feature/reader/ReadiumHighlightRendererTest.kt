@@ -273,6 +273,60 @@ class ReadiumHighlightRendererTest {
         )
     }
 
+    // Regression: when emphasis (bold/italic/underline/strike) is added to an annotation, Readium's
+    // decoration diff sees an identical (id, locator, style) list and skips re-measuring tap-target
+    // rects. After EmphasisDomInjector wraps the text in <span>, the visual area shifts (especially
+    // for short annotations where bold doesn't cause paragraph reflow, so Readium's ResizeObserver
+    // never fires). The annotation becomes untappable until the book is closed and reopened.
+    // Fix: when emphasisStyles change, force clear+re-apply so Readium re-measures from the
+    // already-reflowed DOM. For unchanged emphasis the no-op diff path is preserved (no flash).
+    @Test
+    fun `applyAnnotations uses clear+apply when emphasis changes so Readium re-measures tap rects`() = runTest {
+        val renderNoEmphasis = HighlightRender(
+            id = "h1",
+            locatorJson = makeLocatorJson("c.xhtml"),
+            color = "yellow",
+            note = null,
+            emphasisStyles = emptySet(),
+        )
+        renderer.applyAnnotations(listOf(renderNoEmphasis))
+        applied.clear()
+
+        val renderWithBold = renderNoEmphasis.copy(emphasisStyles = setOf(EmphasisStyle.BOLD))
+        renderer.applyAnnotations(listOf(renderWithBold))
+
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        assertEquals(
+            "emphasis change must produce clear+re-apply (2 calls) so Readium re-measures rects",
+            2,
+            annotationCalls.size,
+        )
+        assertEquals("first call must clear decorations", emptyList<Decoration>(), annotationCalls[0].first)
+        assertEquals("second call must re-apply the decoration", 1, annotationCalls[1].first.size)
+    }
+
+    @Test
+    fun `applyAnnotations uses direct apply when emphasis unchanged so no flash on page reload`() = runTest {
+        val renderWithBold = HighlightRender(
+            id = "h1",
+            locatorJson = makeLocatorJson("c.xhtml"),
+            color = "yellow",
+            note = null,
+            emphasisStyles = setOf(EmphasisStyle.BOLD),
+        )
+        renderer.applyAnnotations(listOf(renderWithBold))
+        applied.clear()
+
+        renderer.applyAnnotations(listOf(renderWithBold))
+
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        assertEquals(
+            "same emphasis on second call must produce one direct apply (no clear flash)",
+            1,
+            annotationCalls.size,
+        )
+    }
+
     // Regression: the settle loop MUST stay out. Its return would re-introduce the cold-open
     // sluggishness. If someone re-adds a loop here, this test will flip red.
     @Test
