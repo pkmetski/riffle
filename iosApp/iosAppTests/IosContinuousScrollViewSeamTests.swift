@@ -154,6 +154,77 @@ final class IosContinuousScrollViewSeamTests: XCTestCase {
     }
 }
 
+// MARK: - R-08: IosAboveSlotCompensationGate unit tests
+
+/// Mirror of AboveSlotCompensationGateTest (feature:reader commonTest) for the Swift port.
+/// These tests ensure the iOS implementation has identical sequencing semantics to the Kotlin class.
+final class IosAboveSlotCompensationGateTests: XCTestCase {
+
+    func testRunsImmediatelyWhenNothingIsPending() {
+        let gate = IosAboveSlotCompensationGate()
+        var runs: [String] = []
+        gate.runWhenSettled { runs.append("land") }
+        XCTAssertEqual(runs, ["land"])
+    }
+
+    func testHoldsLandingUntilPendingCompensationEnds() {
+        let gate = IosAboveSlotCompensationGate()
+        var runs: [String] = []
+        gate.begin(0)
+        gate.runWhenSettled { runs.append("land") }
+        XCTAssertEqual(runs, [], "must not scroll against stale slot tops")
+        gate.end(0)
+        XCTAssertEqual(runs, ["land"])
+    }
+
+    func testWaitsForEveryPendingSlotAndKeepsOnlyLatestRequest() {
+        let gate = IosAboveSlotCompensationGate()
+        var runs: [String] = []
+        gate.begin(0)
+        gate.begin(1)
+        gate.runWhenSettled { runs.append("stale") }
+        gate.runWhenSettled { runs.append("latest") }
+        gate.end(0)
+        XCTAssertEqual(runs, [], "one slot still pending")
+        gate.end(1)
+        XCTAssertEqual(runs, ["latest"], "older request superseded")
+    }
+
+    func testEndingEvictedOrUnknownSlotCannotDeadlock() {
+        let gate = IosAboveSlotCompensationGate()
+        var runs: [String] = []
+        gate.begin(5)
+        gate.runWhenSettled { runs.append("land") }
+        gate.end(99)
+        XCTAssertEqual(runs, [])
+        gate.end(5)
+        gate.end(5)
+        XCTAssertEqual(runs, ["land"])
+        XCTAssertEqual(gate.pending, 0)
+    }
+
+    func testCancelDeferredDropsLandingButKeepsPendingSet() {
+        let gate = IosAboveSlotCompensationGate()
+        var runs: [String] = []
+        gate.begin(0)
+        gate.runWhenSettled { runs.append("land") }
+        gate.cancelDeferred()
+        gate.end(0)
+        XCTAssertEqual(runs, [], "user took over: stale landing must not fire later")
+    }
+
+    func testResetForgetsPendingSlotsAndHeldRequest() {
+        let gate = IosAboveSlotCompensationGate()
+        var runs: [String] = []
+        gate.begin(0)
+        gate.runWhenSettled { runs.append("old") }
+        gate.reset()
+        gate.runWhenSettled { runs.append("new") }
+        XCTAssertEqual(runs, ["new"])
+        XCTAssertEqual(gate.pending, 0)
+    }
+}
+
 // MARK: - MockNavigationAction
 
 private final class MockNavigationAction: WKNavigationAction {

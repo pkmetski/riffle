@@ -32,6 +32,14 @@ final class IosContinuousScrollView: UIView {
     // Re-applied in didFinish so slots that load after applyDecorationsJs is called pick them up.
     private var pendingDecorationScripts: [String: String] = [:]
 
+    // Sequences external navigateTo calls against pending above-viewport height compensations.
+    // Mirrors Android's AboveSlotCompensationGate (feature:reader commonMain): when a chapter
+    // above the viewport reports a new height measurement, the slot geometry is updated and the
+    // scroll is compensated — but that measurement arrives asynchronously (JS message handler).
+    // If navigateTo is called between chapter load and measurement, it uses stale slotOffsets.
+    // The gate defers external navigations until all pending above-viewport measurements land.
+    private let compensationGate = IosAboveSlotCompensationGate()
+
     // MARK: - Private state
 
     private let outerScrollView = UIScrollView()
@@ -174,6 +182,7 @@ final class IosContinuousScrollView: UIView {
         self.spineHrefs = spineHrefs
         self.currentPrefs = prefs
         applyThemeBackground(theme: prefs.theme)
+        compensationGate.reset()
 
         let initialIndex = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(initialHref) }) ?? 0
         pendingInitialIndex = initialIndex
@@ -190,7 +199,12 @@ final class IosContinuousScrollView: UIView {
 
     func navigateTo(href: String, progression: Float) {
         let index = spineHrefs.firstIndex(where: { normalizeHref($0) == normalizeHref(href) }) ?? 0
-        scrollTo(index: index, progression: progression)
+        // Defer until all pending above-viewport slot compensations are settled so the navigation
+        // uses up-to-date slotOffsets. Mirrors Android's AboveSlotCompensationGate usage in
+        // ContinuousWindowController.landOnAnnotationOffset (feature:reader commonMain, #1109).
+        compensationGate.runWhenSettled { [weak self] in
+            self?.scrollTo(index: index, progression: progression)
+        }
     }
 
     // MARK: - Cache integration
@@ -265,6 +279,8 @@ final class IosContinuousScrollView: UIView {
         for key in keysToEvict {
             loadedWebViews[key]?.removeFromSuperview()
             loadedWebViews.removeValue(forKey: key)
+            // Release any pending gate lock for the evicted slot so the gate can't deadlock.
+            compensationGate.end(key)
         }
 
         for idx in low...high {
@@ -387,6 +403,9 @@ final class IosContinuousScrollView: UIView {
 
     private func loadChapter(index: Int, in webView: WKWebView) {
         guard index < spineHrefs.count else { return }
+        // Gate this slot: it may report a height that shifts above-viewport content.
+        // onHeightMeasured will call compensationGate.end(index) once measured.
+        compensationGate.begin(index)
         let href = spineHrefs[index]
         let encodedHref = href.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? href
         let urlString = "\(IosContinuousEpubSchemeHandler.scheme)://pub/\(encodedHref)"
@@ -408,6 +427,8 @@ final class IosContinuousScrollView: UIView {
         updateContentHeight()
 
         // Compensate scroll offset so content above the viewport doesn't shift visible content.
+        // Only compensate when the chapter is entirely above the viewport: if its bottom is within
+        // the viewport the user is reading this chapter and should see it reflow naturally.
         let delta = newHeight - oldHeight
         if delta != 0 {
             let viewportY = outerScrollView.contentOffset.y
@@ -417,6 +438,10 @@ final class IosContinuousScrollView: UIView {
                 outerScrollView.setContentOffset(CGPoint(x: 0, y: compensated), animated: false)
             }
         }
+
+        // Release the gate for this slot: its height is settled and any above-viewport scroll
+        // compensation has been applied. External navigateTo calls held by the gate can now fire.
+        compensationGate.end(index)
 
         if !initialScrollApplied, heightMeasured[pendingInitialIndex] == true {
             initialScrollApplied = true
@@ -677,6 +702,50 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         target?.userContentController(ucc, didReceive: message)
+    }
+}
+
+// MARK: - IosAboveSlotCompensationGate
+
+/// Swift port of `AboveSlotCompensationGate` (feature:reader commonMain).
+/// Sequences external `navigateTo` calls against pending above-viewport slot height measurements.
+/// When a chapter above the viewport reports a new height asynchronously (JS message handler),
+/// any `navigateTo` call that arrives in the window between chapter load and height measurement
+/// would use stale `slotOffsets`. The gate defers those navigations until the slot is settled.
+///
+/// Each `loadChapter` call opens a gate with `begin(index)`; `onHeightMeasured` closes it with
+/// `end(index)`. Eviction also calls `end(index)` so evicted slots can't deadlock the gate.
+/// `navigateTo(href:progression:)` goes through `runWhenSettled`; the scroll fires immediately
+/// when no compensation is pending, or once the last slot reports its height.
+///
+/// Design rules (mirror the Kotlin class): only the LATEST `runWhenSettled` block is kept;
+/// older deferred calls are dropped because they were computed for stale geometry.
+final class IosAboveSlotCompensationGate {
+    private var pendingIndices = Set<Int>()
+    private var deferred: (() -> Void)?
+
+    var pending: Int { pendingIndices.count }
+
+    func begin(_ index: Int) {
+        pendingIndices.insert(index)
+    }
+
+    func end(_ index: Int) {
+        guard pendingIndices.remove(index) != nil, pendingIndices.isEmpty else { return }
+        let block = deferred
+        deferred = nil
+        block?()
+    }
+
+    func runWhenSettled(_ block: @escaping () -> Void) {
+        if !pendingIndices.isEmpty { deferred = block } else { block() }
+    }
+
+    func cancelDeferred() { deferred = nil }
+
+    func reset() {
+        pendingIndices.removeAll()
+        deferred = nil
     }
 }
 
