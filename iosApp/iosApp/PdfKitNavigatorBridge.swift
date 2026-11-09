@@ -16,9 +16,10 @@ import Riffle
         pdfViewController
     }
 
-    func openPdf(filePath: String, initialPage: Int32) {
+    @discardableResult
+    func openPdf(filePath: String, initialPage: Int32) -> Bool {
         let url = URL(fileURLWithPath: filePath)
-        guard let document = PDFDocument(url: url) else { return }
+        guard let document = PDFDocument(url: url) else { return false }
         pdfViewController.load(document: document, initialPage: Int(initialPage))
         pdfViewController.onPageChanged = { [weak self] page in
             self?.pageChangeCallback?.onPageChanged(page: Int32(page))
@@ -26,6 +27,7 @@ import Riffle
         pdfViewController.onTap = { [weak self] in
             self?.tapCallback?.onTap()
         }
+        return true
     }
 
     func currentPage() -> Int32 {
@@ -42,6 +44,10 @@ import Riffle
 
     func setPageSpacing(spacingPts: Double) {
         pdfViewController.setPageSpacing(CGFloat(spacingPts))
+    }
+
+    func setHorizontalInsets(insetPts: Double) {
+        pdfViewController.setHorizontalInsets(CGFloat(insetPts))
     }
 
     func setPageChangeCallback(callback: (any IosPdfPageChangeCallback)?) {
@@ -110,6 +116,11 @@ extension PdfKitNavigatorBridgeImpl {
     @objc func currentPageSpacingTop() -> CGFloat {
         pdfViewController.currentPageBreakMarginTop
     }
+
+    /// Returns the leading inset currently set on the PDF view. Used in unit tests only.
+    @objc func currentLeadingInset() -> CGFloat {
+        pdfViewController.currentLeadingInset
+    }
 }
 
 // MARK: - Factory
@@ -138,13 +149,21 @@ final class PdfKitViewController: UIViewController {
 
     var pdfDocument: PDFDocument? { pdfView.document }
 
+    private var leadingConstraint: NSLayoutConstraint?
+    private var trailingConstraint: NSLayoutConstraint?
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .white
         view.addSubview(pdfView)
+        pdfView.backgroundColor = .white
+        let leading = pdfView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        let trailing = pdfView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        leadingConstraint = leading
+        trailingConstraint = trailing
         NSLayoutConstraint.activate([
-            pdfView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            pdfView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            leading,
+            trailing,
             pdfView.topAnchor.constraint(equalTo: view.topAnchor),
             pdfView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
@@ -192,6 +211,12 @@ final class PdfKitViewController: UIViewController {
         pdfView.pageBreakMargins = UIEdgeInsets(top: spacingPts, left: 0, bottom: spacingPts, right: 0)
     }
 
+    func setHorizontalInsets(_ insetPts: CGFloat) {
+        leadingConstraint?.constant = insetPts
+        trailingConstraint?.constant = -insetPts
+        view.layoutIfNeeded()
+    }
+
     func documentOutline() -> PDFOutline? {
         pdfView.document?.outlineRoot
     }
@@ -220,5 +245,9 @@ final class PdfKitViewController: UIViewController {
 
     @objc var currentPageBreakMarginTop: CGFloat {
         pdfView.pageBreakMargins.top
+    }
+
+    @objc var currentLeadingInset: CGFloat {
+        leadingConstraint?.constant ?? 0
     }
 }

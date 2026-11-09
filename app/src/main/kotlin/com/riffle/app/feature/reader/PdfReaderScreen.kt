@@ -278,7 +278,7 @@ fun PdfReaderScreen(
             title = title,
             isReady = state is PdfReaderState.Ready,
             onBack = onNavigateBack,
-            onSearch = {},
+            onSearch = null,
             onToc = viewModel::openToc,
             onAnnotations = viewModel::openAnnotationsPanel,
             onFormat = { showFormattingPanel = true },

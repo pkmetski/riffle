@@ -48,7 +48,7 @@ fun ReaderTopBar(
     title: String,
     isReady: Boolean,
     onBack: () -> Unit,
-    onSearch: () -> Unit,
+    onSearch: (() -> Unit)?,
     onToc: () -> Unit,
     onAnnotations: () -> Unit,
     onFormat: () -> Unit,
@@ -83,14 +83,16 @@ fun ReaderTopBar(
             },
             actions = {
                 if (isReady) {
-                    IconButton(
-                        onClick = onSearch,
-                        modifier = Modifier.testTag(TestTags.READER_SEARCH),
-                    ) {
-                        Icon(
-                            RiffleIcons.Search,
-                            contentDescription = stringResource(Res.string.ui_search),
-                        )
+                    if (onSearch != null) {
+                        IconButton(
+                            onClick = onSearch,
+                            modifier = Modifier.testTag(TestTags.READER_SEARCH),
+                        ) {
+                            Icon(
+                                RiffleIcons.Search,
+                                contentDescription = stringResource(Res.string.ui_search),
+                            )
+                        }
                     }
                     IconButton(
                         onClick = onToc,
