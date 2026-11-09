@@ -28,22 +28,7 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
-import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.jvm.javaio.toByteReadChannel
-import java.io.File
-import java.io.FileInputStream
 
-/**
- * The LocalFiles-backed [Catalog]. Each configured folder is its own root, named after the
- * folder's `displayName`. Items in a root are the files whose `local_files_file_folders`
- * membership row points at that folder's `treeUri` — a book present in two folders appears
- * under both roots, backed by a single `library_items` row (identity-hashed).
- *
- * The catalog never uses `library_items.libraryId` directly for browse — the source of truth for
- * folder membership is the junction table. `library_items.libraryId` is written for compatibility
- * with the rest of the codebase (it names *some* folder that currently contains the book) but is
- * a hint, not the query key.
- */
 class LocalFilesCatalog(
     private val sourceId: String,
     private val folderDao: LocalFilesFolderDao,
@@ -51,6 +36,7 @@ class LocalFilesCatalog(
     private val fileFolderDao: LocalFilesFileFolderDao,
     private val itemDao: LibraryItemDao,
     private val overrideDao: LocalFileMetadataOverrideDao,
+    private val fileReader: LocalFilesFileReader,
 ) : Catalog,
     SeriesCapability,
     OfflineBrowseCapability,
@@ -72,7 +58,6 @@ class LocalFilesCatalog(
         pageSize: Int,
         facet: FacetSelection?,
     ): List<CatalogItem> {
-        // LocalFiles has no server-side facets — `facet` is ignored.
         val items = itemsInFolderLibraryWithOverrides(rootId)
             .map { it.toCatalogItem() }
             .sortedWith(comparatorFor(sort))
@@ -100,12 +85,12 @@ class LocalFilesCatalog(
         val entity = itemDao.getById(sourceId, itemId) ?: return null
         val override = overrideDao.getForItem(sourceId, itemId)
         val file = fileDao.findById(sourceId, itemId)
-        val originalCoverUrl = if (file == null) entity.coverUrl else file.coverPath?.toFileUrl()
+        val originalCoverUrl = if (file == null) entity.coverUrl else file.coverPath?.let { fileReader.toFileUrl(it) }
         return entity.toCatalogItem(override, originalCoverUrl)
     }
 
     override suspend fun originalCoverUrl(itemId: String): String? =
-        fileDao.findById(sourceId, itemId)?.coverPath?.toFileUrl()
+        fileDao.findById(sourceId, itemId)?.coverPath?.let { fileReader.toFileUrl(it) }
 
     override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle {
         val file = requireFile(itemId, format)
@@ -123,24 +108,7 @@ class LocalFilesCatalog(
         block: suspend (CatalogFileStream) -> T,
     ): T {
         val file = requireFile(itemId, format)
-        val f = File(file.copiedPath)
-        if (!f.exists()) {
-            throw CatalogException.UnsupportedFormat(
-                "LocalFiles copied path missing for itemId=$itemId path=${file.copiedPath}",
-            )
-        }
-        val length = f.length()
-        val input = FileInputStream(f)
-        return try {
-            block(
-                object : CatalogFileStream {
-                    override val contentLength: Long = length
-                    override val channel: ByteReadChannel = input.toByteReadChannel()
-                },
-            )
-        } finally {
-            input.close()
-        }
+        return fileReader.withFileStream(file.copiedPath, file.sizeBytes, block)
     }
 
     override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(
@@ -149,8 +117,6 @@ class LocalFilesCatalog(
         latencyMs = 0L,
     )
 
-    // region SeriesCapability
-
     override suspend fun listSeries(rootId: String): List<CatalogSeries> {
         val rows = itemsInFolderLibraryWithOverrides(rootId)
         val withSeries = rows.filter { row ->
@@ -158,7 +124,7 @@ class LocalFilesCatalog(
         }
         if (withSeries.isEmpty()) return emptyList()
         return withSeries.groupBy { row -> row.override?.seriesName ?: row.entity.seriesName!! }
-            .toSortedMap()
+            .entries.sortedBy { it.key }
             .map { (name, rowsForSeries) ->
                 val sorted = rowsForSeries.sortedWith(
                     Comparator { a, b -> entityOrdering.compare(a.entity, b.entity) },
@@ -185,23 +151,13 @@ class LocalFilesCatalog(
             .sortedWith(Comparator { a, b -> entityOrdering.compare(a.entity, b.entity) })
             .map { it.toCatalogItem() }
 
-    // endregion
-
     private suspend fun itemsInFolderLibrary(libraryId: String): List<LibraryItemEntity> {
         val folder = folderDao.getByLibraryId(sourceId, libraryId) ?: return emptyList()
         val ids = fileFolderDao.itemIdsInFolder(sourceId, folder.treeUri)
         if (ids.isEmpty()) return emptyList()
-        // Chunk to stay under SQLite's SQLITE_MAX_VARIABLE_NUMBER (999 on pre-Android 12 devices).
-        // A single folder library over 999 books would otherwise crash on browse/search.
         return ids.chunked(BIND_VAR_CHUNK).flatMap { itemDao.listByIds(sourceId, it) }
     }
 
-    /**
-     * Like [itemsInFolderLibrary] but also bulk-loads any metadata overrides for the result set
-     * and the scanner-owned cover path. The latter is deliberately read from
-     * `local_files_files`, not `library_items`: a library refresh writes override-applied catalog
-     * metadata back to `library_items`, so that row cannot reliably identify the original cover.
-     */
     private suspend fun itemsInFolderLibraryWithOverrides(
         libraryId: String,
     ): List<LocalItemRow> {
@@ -221,7 +177,7 @@ class LocalFilesCatalog(
                 originalCoverUrl = if (file == null) {
                     entity.coverUrl
                 } else {
-                    file.coverPath?.toFileUrl()
+                    file.coverPath?.let { fileReader.toFileUrl(it) }
                 },
             )
         }
@@ -286,8 +242,6 @@ class LocalFilesCatalog(
     private fun LocalItemRow.toCatalogItem(): CatalogItem =
         entity.toCatalogItem(override, originalCoverUrl)
 
-    private fun String.toFileUrl(): String = File(this).toURI().toString()
-
     private data class LocalItemRow(
         val entity: LibraryItemEntity,
         val override: LocalFileMetadataOverrideEntity?,
@@ -315,8 +269,6 @@ class LocalFilesCatalog(
     }
 
     companion object {
-        // Below SQLITE_MAX_VARIABLE_NUMBER=999 on pre-Android-12 devices, with headroom for the
-        // WHERE clause's non-bind-var operands.
         private const val BIND_VAR_CHUNK: Int = 900
     }
 }

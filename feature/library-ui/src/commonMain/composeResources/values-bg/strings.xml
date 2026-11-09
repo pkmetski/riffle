@@ -73,6 +73,13 @@
     <string name="ui_progress_listened">%1$s изслушано</string>
     <string name="ui_nothing_to_read_or_listen">Няма какво да се чете или слуша</string>
     <string name="ui_edit_metadata">Редактирай метаданни</string>
+    <string name="ui_title">Заглавие</string>
+    <string name="ui_author">Автор</string>
+    <string name="ui_series">Серия</string>
+    <string name="ui_series_number">Номер в серията</string>
+    <string name="ui_save">Запази</string>
+    <string name="ui_pick_cover_image">Изберете изображение на корицата</string>
+    <string name="ui_restore_from_file_metadata">Възстановяване от метаданни на файла</string>
     <string name="ui_upload_to">Качи в</string>
     <string name="ui_show_all_readalouds">Покажи всички readalouds</string>
     <string name="ui_add_to_playlist">Добави към списък</string>

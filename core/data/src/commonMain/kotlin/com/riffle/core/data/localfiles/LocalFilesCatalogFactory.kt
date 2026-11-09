@@ -10,17 +10,13 @@ import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 
-/**
- * Builds a [LocalFilesCatalog] per LocalFiles Source row. Unlike [AbsCatalogFactory] there is no
- * per-Source auth to resolve — the DAOs are singletons and the Catalog just carries the sourceId
- * so its queries scope correctly.
- */
-class LocalFilesCatalogFactory constructor(
+class LocalFilesCatalogFactory(
     private val folderDao: LocalFilesFolderDao,
     private val fileDao: LocalFilesFileDao,
     private val fileFolderDao: LocalFilesFileFolderDao,
     private val itemDao: LibraryItemDao,
     private val overrideDao: LocalFileMetadataOverrideDao,
+    private val fileReader: LocalFilesFileReader,
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.LOCAL_FILES
@@ -32,5 +28,6 @@ class LocalFilesCatalogFactory constructor(
         fileFolderDao = fileFolderDao,
         itemDao = itemDao,
         overrideDao = overrideDao,
+        fileReader = fileReader,
     )
 }

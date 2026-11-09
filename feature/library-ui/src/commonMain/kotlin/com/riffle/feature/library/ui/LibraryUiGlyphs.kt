@@ -127,6 +127,14 @@ internal object LibraryUiGlyphs {
         listOf("M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")
     }
 
+    /** `Icons.Filled.Edit` */
+    val Edit: ImageVector = glyph("Edit") {
+        listOf(
+            "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39" +
+                "-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+        )
+    }
+
     /** `Icons.Default.MoreVert` */
     val MoreVert: ImageVector = glyph("MoreVert") {
         listOf(

@@ -17,9 +17,17 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
 import com.riffle.app.BuildConfig
-import com.riffle.app.feature.library.EditLocalFileMetadataDialog
-import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
+import com.riffle.app.feature.source.localfiles.PickFolderContract
+import com.riffle.core.data.localfiles.FolderUri
+import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.feature.library.ui.EditLocalFileMetadataDialog
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
+import org.koin.compose.koinInject
 import com.riffle.app.feature.update.StartupUpdateViewModel
 import com.riffle.app.feature.update.UpdateAvailableDialog
 import com.riffle.app.i18n.AppLocaleController
@@ -105,12 +113,19 @@ fun MainScreen(
     // "Add Local Files" in Settings. It cannot be a plain (() -> Unit) launch because
     // Android's folder picker is integrated into a full Compose screen.
     var showLocalFilePicker by remember { mutableStateOf(false) }
+    val localFilesInstaller: LocalFilesInstallerInterface = koinInject()
+    val addLocalFilesScope = rememberCoroutineScope()
+    val addLocalFilesViewModel = remember { AddLocalFilesCommonViewModel(localFilesInstaller, addLocalFilesScope) }
+    val folderLauncher = rememberLauncherForActivityResult(PickFolderContract()) { uri ->
+        addLocalFilesViewModel.onFolderPicked(uri?.let { FolderUri(it.toString()) })
+    }
 
     if (showLocalFilePicker) {
         AddLocalFilesScreen(
-            windowSizeClass = windowSizeClass,
             onDone = { showLocalFilePicker = false },
             onNavigateBack = { showLocalFilePicker = false },
+            onPickFolder = { folderLauncher.launch(Unit) },
+            viewModel = addLocalFilesViewModel,
         )
     } else {
         AppShell(
@@ -220,10 +235,21 @@ private fun AndroidEditMetadataDialogHost(
     val vm: LibraryItemDetailViewModel = koinViewModel(parameters = { parametersOf(itemId, sourceId) })
     val uiState by vm.uiState.collectAsState()
     val readyState = uiState as? LibraryItemDetailUiState.Ready
+
+    var pendingCoverCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) pendingCoverCallback?.invoke(uri.toString())
+        pendingCoverCallback = null
+    }
+
     if (readyState != null) {
         EditLocalFileMetadataDialog(
             item = readyState.item,
             originalItem = readyState.originalItem,
+            onPickCover = { onResult ->
+                pendingCoverCallback = onResult
+                galleryLauncher.launch("image/*")
+            },
             onSave = { title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride ->
                 vm.saveMetadataOverride(title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride)
                 onDismiss()

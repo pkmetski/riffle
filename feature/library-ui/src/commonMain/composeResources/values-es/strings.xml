@@ -73,6 +73,13 @@
     <string name="ui_progress_listened">%1$s escuchado</string>
     <string name="ui_nothing_to_read_or_listen">No hay nada para leer o escuchar</string>
     <string name="ui_edit_metadata">Editar metadatos</string>
+    <string name="ui_title">Título</string>
+    <string name="ui_author">Autor</string>
+    <string name="ui_series">Serie</string>
+    <string name="ui_series_number">Número de serie</string>
+    <string name="ui_save">Guardar</string>
+    <string name="ui_pick_cover_image">Seleccionar imagen de portada</string>
+    <string name="ui_restore_from_file_metadata">Restaurar desde metadatos del archivo</string>
     <string name="ui_upload_to">Subir a</string>
     <string name="ui_show_all_readalouds">Mostrar todos los readalouds</string>
     <string name="ui_add_to_playlist">Añadir a lista</string>

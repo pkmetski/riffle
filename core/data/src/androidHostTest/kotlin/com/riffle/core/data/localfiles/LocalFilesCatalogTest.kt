@@ -513,6 +513,7 @@ class LocalFilesCatalogTest {
         fileFolderDao = fileFolderDao,
         itemDao = items,
         overrideDao = overrideDao,
+        fileReader = AndroidLocalFilesFileReader(),
     )
 
     private fun epubItem(

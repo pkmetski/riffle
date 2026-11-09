@@ -3,7 +3,6 @@
     <string name="export_pdf_error">No se pudo generar el PDF</string>
     <string name="reader_book_not_found">Libro no encontrado</string>
     <string name="ui_add_chitanka">Añadir Chitanka</string>
-    <string name="ui_add_local_folder">Añadir carpeta local</string>
     <string name="ui_add_project_gutenberg">Añadir Project Gutenberg</string>
     <string name="ui_add_radio_es">Añadir radio.es</string>
     <string name="ui_author">Autor</string>
@@ -19,7 +18,6 @@
     <string name="ui_content_is_provided_by_gutenberg_org_via_the_gutendex_com_api">El contenido lo proporciona gutenberg.org a través de la API de gutendex.com.</string>
     <string name="ui_content_is_provided_by_radio_es">El contenido lo proporciona radio.es a través de prod.radio-api.net.</string>
     <string name="ui_could_not_load_book_details">No se pudieron cargar los detalles del libro.</string>
-    <string name="ui_couldn_t_add_that_folder">No se pudo añadir esa carpeta.</string>
     <string name="ui_each_device_using_this_account_writes_its_own_annotation_file_per_book_to_webdav">Cada dispositivo que usa esta cuenta escribe su propio fichero de anotaciones por libro en WebDAV.</string>
     <string name="ui_edge_case_if_this_device_went_offline_before_any_other_device_synced_its_last_ed">Caso límite: si este dispositivo se quedó sin conexión antes de que otro dispositivo sincronizara sus últimas ediciones,</string>
     <string name="ui_edit_the_schedule_in_settings_display">Edita el horario en Ajustes → Pantalla</string>
@@ -29,21 +27,17 @@
     <string name="ui_later">Más tarde</string>
     <string name="ui_loading_3">Cargando</string>
     <string name="ui_more_options">Más opciones</string>
-    <string name="ui_no_folder_picked">No se seleccionó ninguna carpeta.</string>
     <string name="ui_no_libraries_configured">No hay bibliotecas configuradas</string>
     <string name="ui_notes_optional">Notas (opcional)</string>
     <string name="ui_nothing_to_read_or_listen_to_for_this_item_on_the_source">No hay nada que leer ni escuchar para este elemento en la fuente.</string>
     <string name="ui_only_do_this_if_you_re_sure_no_device_is_still_using_this_account_usually">Hazlo solo si tienes claro que ningún dispositivo sigue usando esta cuenta — normalmente</string>
     <string name="ui_open_drawer">Abrir panel de navegación</string>
     <string name="ui_open_in_book">Abrir en libro</string>
-    <string name="ui_opening_folder_picker">Abriendo selector de carpetas...</string>
-    <string name="ui_pick_a_folder">Elige una carpeta</string>
     <string name="ui_pick_cover_image">Elige la imagen de portada</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Elimina los archivos de este dispositivo del servidor WebDAV. Otros dispositivos todavía tienen copias de</string>
     <string name="ui_report_panel_detection_issue">Informar de un problema de detección de paneles</string>
     <string name="ui_restore_from_file_metadata">Restaurar desde metadatos de archivos</string>
     <string name="ui_restore_global_defaults">Restaurar valores globales predeterminados</string>
-    <string name="ui_scanning_your_folder">Escaneando tu carpeta…</string>
     <string name="ui_search_chitanka">Buscar en Chitanka…</string>
     <string name="ui_search_project_gutenberg">Buscar Project Gutenberg…</string>
     <string name="ui_search_radio_es">Buscar en radio.es…</string>
@@ -85,9 +79,6 @@
     <string name="ui_uploaded_applying_metadata">Subido — aplicando metadatos…</string>
     <string name="ui_uploaded_finishing">Subido — finalizando…</string>
     <string name="ui_no_source">Sin fuente</string>
-    <string name="ui_added_books_count">Libros añadidos: %1$d.</string>
-    <string name="ui_items_could_not_be_read_count">No se han podido leer %1$d elemento(s).</string>
-    <string name="ui_no_supported_books_found_in_folder">No se han encontrado libros compatibles en esa carpeta.</string>
     <string name="ui_duration_minutes_short">%1$d min</string>
     <string name="ui_duration_hours_short">%1$d h</string>
     <string name="ui_duration_hours_minutes_short">%1$d h %2$d min</string>

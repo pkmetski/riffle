@@ -52,7 +52,6 @@ import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
 import com.riffle.feature.source.ui.websource.UnboundedBrowseViewModel
-import com.riffle.app.feature.source.localfiles.AddLocalFilesViewModel
 import com.riffle.feature.source.ui.websource.RadioEsBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyHomeViewModel
@@ -510,7 +509,6 @@ private val sourceViewModelModule = module {
             dispatchers = get(),
         )
     }
-    viewModel { AddLocalFilesViewModel(installer = get()) }
     viewModel { OReillyLoginViewModel(repository = get()) }
     factory { params ->
         OReillyHomeViewModel(

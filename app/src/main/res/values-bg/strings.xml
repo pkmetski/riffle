@@ -3,7 +3,6 @@
     <string name="export_pdf_error">Не можа да се генерира PDF</string>
     <string name="reader_book_not_found">Книгата не е намерена</string>
     <string name="ui_add_chitanka">Добавете Chitanka</string>
-    <string name="ui_add_local_folder">Добавете локална папка</string>
     <string name="ui_add_project_gutenberg">Добавяне на Project Gutenberg</string>
     <string name="ui_add_radio_es">Добавете radio.es</string>
     <string name="ui_author">Автор</string>
@@ -19,7 +18,6 @@
     <string name="ui_content_is_provided_by_gutenberg_org_via_the_gutendex_com_api">Съдържанието се предоставя от gutenberg.org чрез API на gutendex.com.</string>
     <string name="ui_content_is_provided_by_radio_es">Съдържанието се предоставя от radio.es чрез prod.radio-api.net.</string>
     <string name="ui_could_not_load_book_details">Подробностите за книгата не можаха да се заредят.</string>
-    <string name="ui_couldn_t_add_that_folder">Тази папка не можа да се добави.</string>
     <string name="ui_each_device_using_this_account_writes_its_own_annotation_file_per_book_to_webdav">Всяко устройство, използващо този акаунт, записва свой собствен файл с пояснения за всяка книга в WebDAV.</string>
     <string name="ui_edge_case_if_this_device_went_offline_before_any_other_device_synced_its_last_ed">Граничен случай: ако това устройство е било офлайн, преди друго устройство да синхронизира последните му редакции,</string>
     <string name="ui_edit_the_schedule_in_settings_display">Редактирайте графика в Настройки → Дисплей</string>
@@ -29,21 +27,17 @@
     <string name="ui_later">По-късно</string>
     <string name="ui_loading_3">Зареждане</string>
     <string name="ui_more_options">Още опции</string>
-    <string name="ui_no_folder_picked">Не е избрана папка.</string>
     <string name="ui_no_libraries_configured">Няма настроени библиотеки</string>
     <string name="ui_notes_optional">Бележки (по избор)</string>
     <string name="ui_nothing_to_read_or_listen_to_for_this_item_on_the_source">Няма нищо за четене или слушане за този елемент в източника.</string>
     <string name="ui_only_do_this_if_you_re_sure_no_device_is_still_using_this_account_usually">Направете това само ако сте сигурни, че никое устройство все още не използва този акаунт - обикновено</string>
     <string name="ui_open_drawer">Отваряне на навигацията</string>
     <string name="ui_open_in_book">Отваряне в книгата</string>
-    <string name="ui_opening_folder_picker">Инструментът за избор на папка се отваря...</string>
-    <string name="ui_pick_a_folder">Изберете папка</string>
     <string name="ui_pick_cover_image">Изберете изображение на корицата</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Премахва файловете на това устройство от сървъра WebDAV. Други устройства все още имат копия на</string>
     <string name="ui_report_panel_detection_issue">Докладвайте за проблем с откриването на панела</string>
     <string name="ui_restore_from_file_metadata">Възстановяване от метаданни на файла</string>
     <string name="ui_restore_global_defaults">Възстановете глобалните настройки по подразбиране</string>
-    <string name="ui_scanning_your_folder">Сканиране на папката…</string>
     <string name="ui_search_chitanka">Търсене в Chitanka…</string>
     <string name="ui_search_project_gutenberg">Търсене в Project Gutenberg…</string>
     <string name="ui_search_radio_es">Търсене в radio.es…</string>
@@ -85,9 +79,6 @@
     <string name="ui_uploaded_applying_metadata">Качено — прилагане на метаданни…</string>
     <string name="ui_uploaded_finishing">Качено — завършване…</string>
     <string name="ui_no_source">Няма източник</string>
-    <string name="ui_added_books_count">Добавени книги: %1$d.</string>
-    <string name="ui_items_could_not_be_read_count">%1$d елемент(а) не можаха да бъдат прочетени.</string>
-    <string name="ui_no_supported_books_found_in_folder">В тази папка не бяха намерени поддържани книги.</string>
     <string name="ui_duration_minutes_short">%1$d мин</string>
     <string name="ui_duration_hours_short">%1$d ч</string>
     <string name="ui_duration_hours_minutes_short">%1$d ч %2$d мин</string>

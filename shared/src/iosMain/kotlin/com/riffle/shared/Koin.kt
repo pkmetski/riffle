@@ -75,9 +75,11 @@ import com.riffle.core.data.di.REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE
 import com.riffle.core.data.di.RIFFLE_DATABASE_FILE
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
+import com.riffle.core.data.localfiles.IosLocalFilesFileReader
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
+import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver
@@ -1145,6 +1147,14 @@ private fun iosLibraryModule(
     // working — so sync looked healthy while being one-directional (#1071 §P0.1).
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
+            SourceType.LOCAL_FILES to LocalFilesCatalogFactory(
+                folderDao = get(),
+                fileDao = get(),
+                fileFolderDao = get(),
+                itemDao = get(),
+                overrideDao = get(),
+                fileReader = IosLocalFilesFileReader(),
+            ),
             // AbsCatalog itself is jvmMain-only (import/upload needs java.io.File, byte streaming
             // needs core:network's AbsFileDownloadApi). AbsCommonCatalogFactory builds the
             // commonMain half — browse + the full ebook/audiobook progress peer — which is the

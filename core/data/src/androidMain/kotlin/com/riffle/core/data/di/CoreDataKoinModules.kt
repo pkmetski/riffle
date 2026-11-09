@@ -112,6 +112,7 @@ import com.riffle.core.data.dictionary.KaikkiJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.data.localfiles.AndroidCopyInService
+import com.riffle.core.data.localfiles.AndroidLocalFilesFileReader
 import com.riffle.core.data.localfiles.AndroidManagedImportsFolder
 import com.riffle.core.data.localfiles.CopyInService
 import com.riffle.core.data.localfiles.FolderWalker
@@ -804,6 +805,7 @@ private val coreDataCatalogModule = module {
                 fileFolderDao = get(),
                 itemDao = get(),
                 overrideDao = get(),
+                fileReader = AndroidLocalFilesFileReader(),
             ),
             SourceType.ABS to AbsCatalogFactory(
                 libraryApi = get(),

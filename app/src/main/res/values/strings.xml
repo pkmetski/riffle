@@ -5,7 +5,6 @@
     <string name="reader_book_not_found">Book not found</string>
     <string name="source_storyteller_name" translatable="false">Storyteller</string>
     <string name="ui_add_chitanka">Add Chitanka</string>
-    <string name="ui_add_local_folder">Add local folder</string>
     <string name="ui_add_project_gutenberg">Add Project Gutenberg</string>
     <string name="ui_author">Author</string>
     <string name="ui_auto_scroll_creeps_the_page_upward_at_a_set_pace_so_you_can_read_hands_free">Auto-Scroll creeps the page upward at a set pace so you can read hands-free. </string>
@@ -19,7 +18,6 @@
     <string name="ui_content_is_provided_by_chitanka_info_and_gramofonche_chitanka_info">Content is provided by chitanka.info and gramofonche.chitanka.info.</string>
     <string name="ui_content_is_provided_by_gutenberg_org_via_the_gutendex_com_api">Content is provided by gutenberg.org via the gutendex.com API.</string>
     <string name="ui_could_not_load_book_details">Could not load book details.</string>
-    <string name="ui_couldn_t_add_that_folder">Couldn\'t add that folder.</string>
     <string name="ui_each_device_using_this_account_writes_its_own_annotation_file_per_book_to_webdav">Each device using this account writes its own annotation file per book to WebDAV. </string>
     <string name="ui_edge_case_if_this_device_went_offline_before_any_other_device_synced_its_last_ed">Edge case: if this device went offline before any other device synced its last edits, </string>
     <string name="ui_edit_the_schedule_in_settings_display">Edit the schedule in Settings → Display</string>
@@ -29,21 +27,17 @@
     <string name="ui_later">Later</string>
     <string name="ui_loading_3">Loading</string>
     <string name="ui_more_options">More options</string>
-    <string name="ui_no_folder_picked">No folder picked.</string>
     <string name="ui_no_libraries_configured">No libraries configured</string>
     <string name="ui_notes_optional">Notes (optional)</string>
     <string name="ui_nothing_to_read_or_listen_to_for_this_item_on_the_source">Nothing to read or listen to for this item on the source.</string>
     <string name="ui_only_do_this_if_you_re_sure_no_device_is_still_using_this_account_usually">Only do this if you\'re sure no device is still using this account — usually </string>
     <string name="ui_open_drawer">Open drawer</string>
     <string name="ui_open_in_book">Open in book</string>
-    <string name="ui_opening_folder_picker">Opening folder picker…</string>
-    <string name="ui_pick_a_folder">Pick a folder</string>
     <string name="ui_pick_cover_image">Pick cover image</string>
     <string name="ui_removes_this_device_s_files_from_the_webdav_server_other_devices_still_have_copi">Removes this device\'s files from the WebDAV server. Other devices still have copies of </string>
     <string name="ui_report_panel_detection_issue">Report panel detection issue</string>
     <string name="ui_restore_from_file_metadata">Restore from file metadata</string>
     <string name="ui_restore_global_defaults">Restore global defaults</string>
-    <string name="ui_scanning_your_folder">Scanning your folder…</string>
     <string name="ui_search_chitanka">Search Chitanka…</string>
     <string name="ui_search_project_gutenberg">Search Project Gutenberg…</string>
     <string name="ui_series_number">Series number</string>
@@ -84,9 +78,6 @@
     <string name="ui_uploaded_applying_metadata">Uploaded — applying metadata…</string>
     <string name="ui_uploaded_finishing">Uploaded — finishing…</string>
     <string name="ui_no_source">No source</string>
-    <string name="ui_added_books_count">Added %1$d book(s).</string>
-    <string name="ui_items_could_not_be_read_count">%1$d item(s) could not be read.</string>
-    <string name="ui_no_supported_books_found_in_folder">No supported books were found in that folder.</string>
     <string name="ui_duration_minutes_short">%1$dmin</string>
     <string name="ui_duration_hours_short">%1$dh</string>
     <string name="ui_duration_hours_minutes_short">%1$dh %2$dmin</string>
