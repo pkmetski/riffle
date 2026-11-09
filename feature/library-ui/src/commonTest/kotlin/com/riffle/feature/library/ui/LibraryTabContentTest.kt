@@ -25,6 +25,7 @@ import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 /**
  * Regression for the structurally-empty Annotations tab on iOS (#1071 §9).
@@ -641,6 +642,7 @@ class LibraryTabContentTest {
         }
 
         onNodeWithTag(TestTags.SEE_MORE_TILE).performClick()
+        assertNotNull(capturedSection, "onSectionSeeMore was never called — tap did nothing")
         assertEquals(LibrarySectionType.FINISHED, capturedSection)
     }
 }
