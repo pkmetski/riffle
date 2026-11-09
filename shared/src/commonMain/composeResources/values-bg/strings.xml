@@ -41,4 +41,12 @@
     <string name="ui_action_play_from_here">Пусни</string>
     <string name="ui_action_look_up">Търси в речника</string>
     <string name="ui_action_annotate">Анотирай</string>
+
+    <string name="ui_update_available">Налична е актуализация</string>
+    <string name="ui_update_available_message">Riffle %1$s е налична в GitHub Releases.</string>
+    <string name="ui_update_view_release">Виж версията</string>
+    <string name="ui_update_dismiss">Пропусни</string>
+    <string name="ui_crash_notice_title">Riffle се срина</string>
+    <string name="ui_crash_notice_message">Приложението се срина от последното ти посещение. Виж Настройки → Доклади за сривове, за да споделиш подробности с разработчика.</string>
+    <string name="ui_crash_notice_ok">ОК</string>
 </resources>

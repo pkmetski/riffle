@@ -2,9 +2,13 @@ package com.riffle.core.data
 
 import com.riffle.core.common.Clock
 import kotlin.experimental.ExperimentalNativeApi
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlin.native.ReportUnhandledExceptionHook
 import kotlin.native.setUnhandledExceptionHook
 import kotlin.native.terminateWithUnhandledException
+import platform.Foundation.NSBundle
+import platform.Foundation.NSProcessInfo
+import platform.UIKit.UIDevice
 
 /**
  * Writes a crash report when an unhandled Kotlin exception reaches the top of a coroutine or
@@ -45,9 +49,15 @@ object IosCrashReportRecorder {
     private var installed = false
     private var previousHook: ReportUnhandledExceptionHook? = null
 
+    @OptIn(ExperimentalForeignApi::class)
     internal fun report(throwable: Throwable, timestampMillis: Long): String = buildString {
         appendLine("Riffle iOS crash report")
         appendLine("timestamp: $timestampMillis")
+        appendLine("app_version: ${NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "?"}")
+        appendLine("build: ${NSBundle.mainBundle.infoDictionary?.get("CFBundleVersion") as? String ?: "?"}")
+        appendLine("device_model: ${UIDevice.currentDevice.model}")
+        appendLine("system_name: ${UIDevice.currentDevice.systemName} ${UIDevice.currentDevice.systemVersion}")
+        appendLine("os_version: ${NSProcessInfo.processInfo.operatingSystemVersionString}")
         appendLine("type: ${throwable::class.simpleName ?: "Throwable"}")
         appendLine("message: ${throwable.message ?: "(none)"}")
         appendLine()

@@ -41,4 +41,12 @@
     <string name="ui_action_play_from_here">Reproducir</string>
     <string name="ui_action_look_up">Buscar en diccionario</string>
     <string name="ui_action_annotate">Anotar</string>
+
+    <string name="ui_update_available">Actualización disponible</string>
+    <string name="ui_update_available_message">Riffle %1$s está disponible en GitHub Releases.</string>
+    <string name="ui_update_view_release">Ver versión</string>
+    <string name="ui_update_dismiss">Descartar</string>
+    <string name="ui_crash_notice_title">Riffle se cerró inesperadamente</string>
+    <string name="ui_crash_notice_message">La aplicación se cerró inesperadamente desde tu última visita. Ve a Ajustes → Informes de errores para compartir los detalles con el desarrollador.</string>
+    <string name="ui_crash_notice_ok">Aceptar</string>
 </resources>
