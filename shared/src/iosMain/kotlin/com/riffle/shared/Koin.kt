@@ -10,8 +10,6 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
-import com.riffle.core.data.localfiles.IosLocalFilesFileReader
-import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
@@ -77,9 +75,11 @@ import com.riffle.core.data.di.REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE
 import com.riffle.core.data.di.RIFFLE_DATABASE_FILE
 import com.riffle.core.data.di.iosDataModule
 import com.riffle.core.data.di.iosDatabaseModule
+import com.riffle.core.data.localfiles.IosLocalFilesFileReader
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
 import com.riffle.core.data.localfiles.IosLocalFilesScanner
+import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver

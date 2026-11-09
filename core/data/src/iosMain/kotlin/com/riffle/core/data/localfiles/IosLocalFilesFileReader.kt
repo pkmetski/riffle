@@ -12,7 +12,7 @@ import platform.Foundation.dataWithContentsOfFile
 import platform.posix.memcpy
 
 @OptIn(ExperimentalForeignApi::class)
-internal class IosLocalFilesFileReader : LocalFilesFileReader {
+class IosLocalFilesFileReader : LocalFilesFileReader {
 
     override fun toFileUrl(path: String): String = "file://$path"
 

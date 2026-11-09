@@ -1,14 +1,10 @@
 package com.riffle.shared.library
 
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
-import platform.Foundation.NSFileManager
 import platform.Foundation.NSItemProvider
 import platform.Foundation.NSTemporaryDirectory
-import platform.Foundation.NSURL
-import platform.Foundation.dataWithContentsOfURL
+import platform.Foundation.NSUUID
 import platform.Foundation.writeToFile
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
@@ -20,7 +16,6 @@ import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
 import platform.UniformTypeIdentifiers.UTTypeImage
 import platform.darwin.NSObject
-import platform.posix.memcpy
 
 /**
  * Shows a system PHPickerViewController to let the user pick one image from their photo library.
@@ -94,7 +89,7 @@ private class PhotoPickerDelegate(
 
     private fun writeTempFile(data: NSData): String? {
         val dir = NSTemporaryDirectory()
-        val path = "${dir}riffle_cover_pick_${platform.Foundation.NSDate().timeIntervalSince1970.toLong()}.jpg"
+        val path = "${dir}riffle_cover_pick_${NSUUID().UUIDString}.jpg"
         val written = data.writeToFile(path, atomically = true)
         return if (written) path else null
     }
