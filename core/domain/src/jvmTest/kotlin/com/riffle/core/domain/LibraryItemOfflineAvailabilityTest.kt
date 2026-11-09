@@ -1,5 +1,6 @@
 package com.riffle.core.domain
 
+import com.riffle.core.common.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,108 +32,71 @@ class LibraryItemOfflineAvailabilityTest {
         sourceId = sourceId,
     )
 
+    private fun availability(
+        epubRepository: JvmEpubRepository = FakeEpubRepository(),
+        pdfRepository: JvmPdfRepository = FakePdfRepository(),
+        cbzRepository: JvmCbzRepository = FakeCbzRepository(),
+        audiobookDownloadRepository: JvmAudiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+        bundleAudiobookSource: BundleAudiobookSource = FakeBundleAudiobookSource(),
+    ) = LibraryItemOfflineAvailabilityImpl(
+        epubRepository = epubRepository,
+        pdfRepository = pdfRepository,
+        cbzRepository = cbzRepository,
+        audiobookDownloadRepository = audiobookDownloadRepository,
+        bundleAudiobookSource = bundleAudiobookSource,
+        clock = TestClock(),
+    )
+
     @Test
     fun `epub that is downloaded is available offline`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(downloaded = true),
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-            bundleAudiobookSource = FakeBundleAudiobookSource(),
-        )
-
-        assertTrue(availability.isAvailableOffline(item(EbookFormat.Epub)))
+        assertTrue(availability(epubRepository = FakeEpubRepository(downloaded = true)).isAvailableOffline(item(EbookFormat.Epub)))
     }
 
     @Test
     fun `epub that is only cached is available offline`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(cached = true),
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-            bundleAudiobookSource = FakeBundleAudiobookSource(),
-        )
-
-        assertTrue(availability.isAvailableOffline(item(EbookFormat.Epub)))
+        assertTrue(availability(epubRepository = FakeEpubRepository(cached = true)).isAvailableOffline(item(EbookFormat.Epub)))
     }
 
     @Test
     fun `pdf that is downloaded is available offline`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(),
-            pdfRepository = FakePdfRepository(downloaded = true),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-            bundleAudiobookSource = FakeBundleAudiobookSource(),
-        )
-
-        assertTrue(availability.isAvailableOffline(item(EbookFormat.Pdf)))
+        assertTrue(availability(pdfRepository = FakePdfRepository(downloaded = true)).isAvailableOffline(item(EbookFormat.Pdf)))
     }
 
     @Test
     fun `downloaded audiobook-only item is available offline`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(),
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true),
-            bundleAudiobookSource = FakeBundleAudiobookSource(),
+        assertTrue(
+            availability(audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true))
+                .isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)),
         )
-
-        assertTrue(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
     }
 
     @Test
     fun `matched item with only the audiobook downloaded is available offline`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(), // ebook not downloaded/cached
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true),
-            bundleAudiobookSource = FakeBundleAudiobookSource(),
+        assertTrue(
+            availability(audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true))
+                .isAvailableOffline(item(EbookFormat.Epub, hasAudio = true)),
         )
-
-        assertTrue(availability.isAvailableOffline(item(EbookFormat.Epub, hasAudio = true)))
     }
 
     @Test
     fun `item with nothing downloaded or cached is not available offline`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(),
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-            bundleAudiobookSource = FakeBundleAudiobookSource(),
-        )
-
-        assertFalse(availability.isAvailableOffline(item(EbookFormat.Epub, hasAudio = true)))
+        assertFalse(availability().isAvailableOffline(item(EbookFormat.Epub, hasAudio = true)))
     }
 
     @Test
     fun `item with no ebook or audiobook download is offline-available when its bundle is downloaded`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(),
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-            bundleAudiobookSource = FakeBundleAudiobookSource(setOf("s1/i1")),
+        assertTrue(
+            availability(bundleAudiobookSource = FakeBundleAudiobookSource(setOf("s1/i1")))
+                .isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)),
         )
-
-        assertTrue(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
     }
 
     @Test
     fun `item with no downloads and no bundle is not offline-available`() {
-        val availability = LibraryItemOfflineAvailabilityImpl(
-            epubRepository = FakeEpubRepository(),
-            pdfRepository = FakePdfRepository(),
-            cbzRepository = FakeCbzRepository(),
-            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
-            bundleAudiobookSource = FakeBundleAudiobookSource(emptySet()),
+        assertFalse(
+            availability(bundleAudiobookSource = FakeBundleAudiobookSource(emptySet()))
+                .isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)),
         )
-
-        assertFalse(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
     }
 
     // --- Memoization (page-turn filesystem-sweep regression, see class KDoc) ---
@@ -160,7 +124,7 @@ class LibraryItemOfflineAvailabilityTest {
     private fun cachingAvailability(
         counting: CountingCbzRepository,
         changes: MutableSharedFlow<StoredItemRef>? = null,
-        nowMillis: () -> Long = { 0L },
+        clock: Clock = TestClock(),
     ) = LibraryItemOfflineAvailabilityImpl(
         epubRepository = FakeEpubRepository(),
         pdfRepository = FakePdfRepository(),
@@ -169,7 +133,7 @@ class LibraryItemOfflineAvailabilityTest {
         bundleAudiobookSource = FakeBundleAudiobookSource(),
         availabilityChanges = changes,
         invalidationScope = changes?.let { CoroutineScope(Dispatchers.Unconfined) },
-        nowMillis = nowMillis,
+        clock = clock,
     )
 
     @Test
@@ -197,13 +161,13 @@ class LibraryItemOfflineAvailabilityTest {
     fun `memo entries expire after the TTL backstop`() {
         // Availability paths that never notify (readaloud-bundle download/remove) must still be
         // picked up eventually — the TTL restores the pre-memo self-healing with bounded staleness.
-        var now = 0L
+        val clock = TestClock()
         val counting = CountingCbzRepository()
-        val availability = cachingAvailability(counting, nowMillis = { now })
+        val availability = cachingAvailability(counting, clock = clock)
         availability.isAvailableOffline(item(EbookFormat.Cbz))
         availability.isAvailableOffline(item(EbookFormat.Cbz))
         assertEquals(1, counting.isDownloadedCalls)
-        now = 30_000
+        clock.setNowMs(30_000)
         availability.isAvailableOffline(item(EbookFormat.Cbz))
         assertEquals(2, counting.isDownloadedCalls)
     }

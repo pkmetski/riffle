@@ -50,8 +50,6 @@
                 <data android:mimeType="application/pdf" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
                 <data android:mimeType="application/x-cbz" />
-                <data android:mimeType="application/vnd.comicbook-rar" />
-                <data android:mimeType="application/x-cbr" />
             </intent-filter>
             <intent-filter android:label="@string/ui_open_in_riffle">
                 <action android:name="android.intent.action.VIEW" />
@@ -64,7 +62,6 @@
                 <data android:pathPattern=".*\\.epub" />
                 <data android:pathPattern=".*\\.pdf" />
                 <data android:pathPattern=".*\\.cbz" />
-                <data android:pathPattern=".*\\.cbr" />
             </intent-filter>
             <intent-filter android:label="@string/ui_open_in_riffle">
                 <action android:name="android.intent.action.SEND" />

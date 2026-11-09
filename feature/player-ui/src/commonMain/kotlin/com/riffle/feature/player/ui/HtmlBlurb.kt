@@ -1,95 +1,66 @@
 package com.riffle.feature.player.ui
 
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import com.fleeksoft.ksoup.Ksoup
+import com.fleeksoft.ksoup.nodes.Element
+import com.fleeksoft.ksoup.nodes.Node
+import com.fleeksoft.ksoup.nodes.TextNode
 
 /**
- * Renders a book description, which Audiobookshelf serves as an HTML fragment.
+ * Renders a book description served as an HTML fragment.
  *
- * An `expect`/`actual` seam rather than shared code because `AnnotatedString.fromHtml` is an
- * Android-only API: Compose Multiplatform 1.10 does not publish it for Kotlin/Native. Android keeps
- * the rich rendering it has always had (`<b>`, `<i>`, `<br>` and entities) and iOS falls back to
- * [stripHtmlToText], which is shared so both platforms agree on what the *text* of a blurb is.
+ * Uses the Ksoup DOM (already in commonMain) to walk the tree and produce a styled
+ * [AnnotatedString]. Both `<b>`/`<strong>` and `<i>`/`<em>` are preserved. `<br>`, `<p>`, and
+ * `<div>` contribute newlines. HTML entities are decoded by Ksoup before we see the text.
  *
- * Replace the iOS actual with a real parse — not a second stripper — if CMP ever ships `fromHtml`
- * for Native.
+ * Replaces the former `expect`/`actual` split where Android used `AnnotatedString.fromHtml` and
+ * iOS fell back to [stripHtmlToText].
  */
-expect fun htmlBlurb(html: String): AnnotatedString
+fun htmlBlurb(html: String): AnnotatedString = buildAnnotatedString {
+    val body = Ksoup.parseBodyFragment(html).body()
+    walkNode(body)
+}
+
+private fun AnnotatedString.Builder.walkNode(node: Node) {
+    when (node) {
+        is TextNode -> append(node.text())
+        is Element -> {
+            val tag = node.tagName().lowercase()
+            when (tag) {
+                "br" -> append('\n')
+                "p", "div" -> {
+                    walkChildren(node)
+                    append('\n')
+                }
+                "b", "strong" -> {
+                    pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                    walkChildren(node)
+                    pop()
+                }
+                "i", "em" -> {
+                    pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                    walkChildren(node)
+                    pop()
+                }
+                else -> walkChildren(node)
+            }
+        }
+        else -> {}
+    }
+}
+
+private fun AnnotatedString.Builder.walkChildren(element: Element) {
+    for (child in element.childNodes()) walkNode(child)
+}
 
 /**
  * Tags out, entities in: `"<p>Hello&nbsp;<b>world</b></p>"` → `"Hello world"`.
  *
- * Deliberately not a parser. It handles what ABS descriptions actually contain: block tags that
- * should become a space, inline tags that should vanish, and the five named entities plus numeric
- * references. Runs of whitespace collapse so the removed markup does not leave gaps behind.
+ * Retained for callers that need a plain-text fallback, e.g. TTS synthesis which cannot
+ * process AnnotatedString spans.
  */
-fun stripHtmlToText(html: String): String {
-    val out = StringBuilder(html.length)
-    var i = 0
-    var inTag = false
-    while (i < html.length) {
-        val c = html[i]
-        when {
-            c == '<' -> {
-                inTag = true
-                i++
-            }
-            c == '>' -> {
-                inTag = false
-                // A removed tag is a word boundary: "a<br>b" must not become "ab".
-                out.append(' ')
-                i++
-            }
-            inTag -> i++
-            c == '&' -> {
-                val end = html.indexOf(';', i)
-                if (end in (i + 1)..(i + MAX_ENTITY_LENGTH)) {
-                    out.append(decodeEntity(html.substring(i + 1, end)))
-                    i = end + 1
-                } else {
-                    out.append(c)
-                    i++
-                }
-            }
-            else -> {
-                out.append(c)
-                i++
-            }
-        }
-    }
-    return out.toString().split(WHITESPACE).filter { it.isNotEmpty() }.joinToString(" ")
-}
-
-private const val MAX_ENTITY_LENGTH = 10
-private val WHITESPACE = Regex("\\s+")
-
-private fun decodeEntity(body: String): String = when {
-    body == "amp" -> "&"
-    body == "lt" -> "<"
-    body == "gt" -> ">"
-    body == "quot" -> "\""
-    body == "apos" -> "'"
-    body == "nbsp" -> " "
-    body.startsWith("#x") || body.startsWith("#X") ->
-        body.drop(2).toIntOrNull(16)?.let { charFromCodePoint(it) } ?: "&$body;"
-    body.startsWith("#") ->
-        body.drop(1).toIntOrNull()?.let { charFromCodePoint(it) } ?: "&$body;"
-    else -> "&$body;"
-}
-
-/** `StringBuilder.appendCodePoint` is JVM-only; this is the shared equivalent. */
-private fun charFromCodePoint(codePoint: Int): String? = when {
-    codePoint <= 0 || codePoint > MAX_CODE_POINT -> null
-    codePoint <= BMP_MAX -> codePoint.toChar().toString()
-    else -> {
-        val v = codePoint - SUPPLEMENTARY_OFFSET
-        val high = (SURROGATE_HIGH_BASE + (v shr 10)).toChar()
-        val low = (SURROGATE_LOW_BASE + (v and 0x3FF)).toChar()
-        "$high$low"
-    }
-}
-
-private const val MAX_CODE_POINT = 0x10FFFF
-private const val BMP_MAX = 0xFFFF
-private const val SUPPLEMENTARY_OFFSET = 0x10000
-private const val SURROGATE_HIGH_BASE = 0xD800
-private const val SURROGATE_LOW_BASE = 0xDC00
+fun stripHtmlToText(html: String): String = htmlBlurb(html).text

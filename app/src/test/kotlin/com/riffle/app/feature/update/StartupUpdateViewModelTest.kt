@@ -1,5 +1,7 @@
 package com.riffle.app.feature.update
 
+import com.riffle.feature.shellui.StartupUpdateViewModel
+import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
@@ -92,6 +94,7 @@ class StartupUpdateViewModelTest {
         appUpdatePreferencesStore = prefs,
         clock = clock,
         isDevBuild = false,
+        currentVersionCode = 0,
     )
 
     @Test

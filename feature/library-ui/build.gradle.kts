@@ -66,6 +66,7 @@ kotlin {
             // when it builds the ImageLoader. Same arrangement as :feature:player-ui.
             implementation(libs.coil.network.core)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ksoup)
             api(libs.androidx.lifecycle.viewmodel)
             // LibraryItemsScreen uses koinInject { parametersOf(...) } for its ViewModel defaults.
             implementation(libs.koin.compose)

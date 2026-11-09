@@ -28,7 +28,7 @@ import com.riffle.feature.library.ui.EditLocalFileMetadataDialog
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import org.koin.compose.koinInject
-import com.riffle.app.feature.update.StartupUpdateViewModel
+import com.riffle.feature.shellui.StartupUpdateViewModel
 import com.riffle.app.feature.update.UpdateAvailableDialog
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.i18n.findActivity

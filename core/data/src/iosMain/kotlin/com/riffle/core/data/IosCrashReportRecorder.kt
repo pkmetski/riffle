@@ -1,6 +1,10 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.Clock
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSBundle
+import platform.Foundation.NSProcessInfo
+import platform.UIKit.UIDevice
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.ReportUnhandledExceptionHook
 import kotlin.native.setUnhandledExceptionHook
@@ -45,9 +49,15 @@ object IosCrashReportRecorder {
     private var installed = false
     private var previousHook: ReportUnhandledExceptionHook? = null
 
-    internal fun report(throwable: Throwable, timestampMillis: Long): String = buildString {
+    @OptIn(ExperimentalForeignApi::class)
+    fun report(throwable: Throwable, timestampMillis: Long): String = buildString {
         appendLine("Riffle iOS crash report")
         appendLine("timestamp: $timestampMillis")
+        appendLine("app_version: ${NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "?"}")
+        appendLine("build: ${NSBundle.mainBundle.infoDictionary?.get("CFBundleVersion") as? String ?: "?"}")
+        appendLine("device_model: ${UIDevice.currentDevice.model}")
+        appendLine("system_name: ${UIDevice.currentDevice.systemName} ${UIDevice.currentDevice.systemVersion}")
+        appendLine("os_version: ${NSProcessInfo.processInfo.operatingSystemVersionString}")
         appendLine("type: ${throwable::class.simpleName ?: "Throwable"}")
         appendLine("message: ${throwable.message ?: "(none)"}")
         appendLine()

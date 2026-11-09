@@ -44,7 +44,6 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.riffle.cbz</string>
-				<string>com.riffle.cbr</string>
 			</array>
 		</dict>
 	</array>
@@ -58,6 +57,7 @@
 	<string>6.0</string>
 	<key>CFBundleLocalizations</key>
 	<array>
+		<string>en</string>
 		<string>bg</string>
 		<string>es</string>
 	</array>
@@ -150,28 +150,6 @@
 				<array>
 					<string>application/vnd.comicbook+zip</string>
 					<string>application/x-cbz</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Comic book archive (RAR)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.riffle.cbr</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>cbr</string>
-				</array>
-				<key>public.mime-type</key>
-				<array>
-					<string>application/vnd.comicbook-rar</string>
-					<string>application/x-cbr</string>
 				</array>
 			</dict>
 		</dict>

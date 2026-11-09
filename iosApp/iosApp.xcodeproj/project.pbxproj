@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */; };
+		B1SSH0002 /* IosShareSheetHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1SSH0001 /* IosShareSheetHelper.swift */; };
+		B1SHR0002 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1SHR0001 /* ShareViewController.swift */; };
+		B1SHR000C /* RiffleShareExtension.appex in Plugins */ = {isa = PBXBuildFile; fileRef = B1SHR000B /* RiffleShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3B5032BF2B674245BC2B89C7 /* BundledFontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */; };
 		64554B3A1231E214E6F43FC3 /* ReadiumPublicationInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */; };
 		7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */; };
@@ -135,6 +138,16 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXContainerItemProxy section */
+		B1SHR0011 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B1000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B1SHR0005;
+			remoteInfo = RiffleShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		A1BG0020 /* AppLocalizationUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizationUnitTests.swift; sourceTree = "<group>"; };
 		A1C0DE010002 /* AutoScrollBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutoScrollBridgeTests.swift; sourceTree = "<group>"; };
@@ -222,6 +235,12 @@
 		B158B2937A894E978405AAE1 /* InternalLinkBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalLinkBridgeTests.swift; sourceTree = "<group>"; };
 		BF98AA587BCA4ECA89C1507B /* BundledFontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledFontsTests.swift; sourceTree = "<group>"; };
 		E57037874D4925A258F21E7D /* ReadiumPublicationInspectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadiumPublicationInspectorTests.swift; sourceTree = "<group>"; };
+		B1SSH0001 /* IosShareSheetHelper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IosShareSheetHelper.swift; sourceTree = "<group>"; };
+		B1SHR0001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		B1SHR0003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B1SHR000B /* RiffleShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RiffleShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1SHR000F /* RiffleShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RiffleShareExtension.entitlements; sourceTree = "<group>"; };
+		B1SHR0010 /* Riffle.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Riffle.entitlements; sourceTree = "<group>"; };
 		E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ElidedPdfBridge.swift; sourceTree = "<group>"; };
 		F0NT001002 /* Literata-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Literata-Regular.ttf"; sourceTree = "<group>"; };
 		F0NT002002 /* Merriweather-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Merriweather-Regular.ttf"; sourceTree = "<group>"; };
@@ -258,6 +277,7 @@
 			children = (
 				B1000003 /* iosApp */,
 				B1001003 /* iosAppTests */,
+				B1SHR000E /* RiffleShareExtension */,
 				B1000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -265,6 +285,7 @@
 		B1000003 /* iosApp */ = {
 			isa = PBXGroup;
 			children = (
+				B1SHR0010 /* Riffle.entitlements */,
 				B1000020 /* RiffleApp.swift */,
 				B1000021 /* ContentView.swift */,
 				B1065030 /* NowPlayingSceneGate.swift */,
@@ -285,6 +306,7 @@
 				B1011030 /* OReillyPublicationBuilder.swift */,
 				FF3D035DD326163A8BF6BA0A /* ReadiumPublicationInspector.swift */,
 				E7D66DF625A34D8FA863FA59 /* ElidedPdfBridge.swift */,
+				B1SSH0001 /* IosShareSheetHelper.swift */,
 				A1C0DE040002 /* ReadiumDecorationTemplates.swift */,
 				F0NT000GRP /* Fonts */,
 			);
@@ -297,8 +319,19 @@
 				B1000001 /* Riffle.app */,
 				B1001001 /* iosAppTests.xctest */,
 				B1008000 /* iosAppUnitTests.xctest */,
+				B1SHR000B /* RiffleShareExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B1SHR000E /* RiffleShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				B1SHR0001 /* ShareViewController.swift */,
+				B1SHR0003 /* Info.plist */,
+				B1SHR000F /* RiffleShareExtension.entitlements */,
+			);
+			path = RiffleShareExtension;
 			sourceTree = "<group>";
 		};
 		B1001003 /* iosAppTests */ = {
@@ -409,10 +442,12 @@
 				B1000040 /* Sources */,
 				B1000042 /* Resources */,
 				B1002040 /* Frameworks */,
+				B1SHR000D /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B1SHR0012 /* PBXTargetDependency */,
 			);
 			name = Riffle;
 			packageProductDependencies = (
@@ -463,6 +498,23 @@
 			productReference = B1008000 /* iosAppUnitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		B1SHR0005 /* RiffleShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1SHR000A /* Build configuration list for PBXNativeTarget "RiffleShareExtension" */;
+			buildPhases = (
+				B1SHR0006 /* Sources */,
+				B1SHR0007 /* Resources */,
+				B1SHR0013 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RiffleShareExtension;
+			productName = RiffleShareExtension;
+			productReference = B1SHR000B /* RiffleShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -481,6 +533,9 @@
 						TestTargetID = B1000005;
 					};
 					B1008005 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					B1SHR0005 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -504,9 +559,24 @@
 				B1000005 /* Riffle */,
 				B1001005 /* iosAppTests */,
 				B1008005 /* iosAppUnitTests */,
+				B1SHR0005 /* RiffleShareExtension */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B1SHR000D /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B1SHR000C /* RiffleShareExtension.appex in Plugins */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		50994FB0B77A169E7AF6E236 /* Resources */ = {
@@ -592,6 +662,7 @@
 				B1011020 /* OReillyPublicationBuilder.swift in Sources */,
 				7DE0FEA86D35E9E71F3B3D09 /* ReadiumPublicationInspector.swift in Sources */,
 				0165E1A54573412CB658DD80 /* ElidedPdfBridge.swift in Sources */,
+				B1SSH0002 /* IosShareSheetHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -687,6 +758,28 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B1SHR0006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1SHR0002 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1SHR0007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1SHR0013 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -694,6 +787,11 @@
 			isa = PBXTargetDependency;
 			target = B1000005 /* Riffle */;
 			targetProxy = B1008061 /* PBXContainerItemProxy */;
+		};
+		B1SHR0012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B1SHR0005 /* RiffleShareExtension */;
+			targetProxy = B1SHR0011 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -774,6 +872,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_ENTITLEMENTS = iosApp/Riffle.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = NJ48TL85B9;
@@ -806,6 +905,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iosApp/Riffle.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = NJ48TL85B9;
@@ -918,6 +1018,46 @@
 			};
 			name = Release;
 		};
+		B1SHR0008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = RiffleShareExtension/RiffleShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NJ48TL85B9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RiffleShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.riffle.iosApp.RiffleShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B1SHR0009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = RiffleShareExtension/RiffleShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NJ48TL85B9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RiffleShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.riffle.iosApp.RiffleShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -953,6 +1093,15 @@
 			buildConfigurations = (
 				B1008072 /* Debug */,
 				B1008073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1SHR000A /* Build configuration list for PBXNativeTarget "RiffleShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1SHR0008 /* Debug */,
+				B1SHR0009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -790,6 +790,7 @@ private val coreDataRepositoriesModule = module {
             bundleAudiobookSource = get(),
             availabilityChanges = get<LocalAvailabilityEvents>().changes,
             invalidationScope = get<ApplicationScope>().coroutineScope,
+            clock = get(),
         )
     }
 }

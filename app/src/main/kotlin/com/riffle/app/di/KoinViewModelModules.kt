@@ -57,7 +57,7 @@ import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyHomeViewModel
 import com.riffle.app.feature.source.oreilly.OReillyLoginViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
-import com.riffle.app.feature.update.StartupUpdateViewModel
+import com.riffle.feature.shellui.StartupUpdateViewModel
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
@@ -744,6 +744,7 @@ private val updateViewModelModule = module {
             appUpdatePreferencesStore = get(),
             clock = get(),
             isDevBuild = get(named("isDevBuild")),
+            currentVersionCode = com.riffle.app.BuildConfig.VERSION_CODE,
         )
     }
     viewModel {

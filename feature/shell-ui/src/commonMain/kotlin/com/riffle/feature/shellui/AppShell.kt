@@ -205,6 +205,7 @@ fun AppShell(
 
     slots.languageChangeDialog?.invoke()
     slots.updateDialog?.invoke()
+    slots.crashNoticeDialog?.invoke()
 
     val drawerGesturesEnabled = !isInReaderDestination
 

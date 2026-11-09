@@ -4,7 +4,6 @@ import android.content.res.Configuration
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -111,6 +110,8 @@ import com.riffle.app.feature.reader.sentence.SentencePlaybackController
 import com.riffle.feature.settings.ui.readersettings.TocPanel
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import com.riffle.feature.source.ui.CornerBookmarkIndicator
+import com.riffle.feature.source.ui.RiffleSnackbarHost
+import com.riffle.feature.source.ui.TransientMessages
 import com.riffle.feature.settings.ui.readersettings.palette
 import com.riffle.feature.settings.ui.readersettings.swatchBackdropColor
 import com.riffle.app.ui.toScreenDimensionBucket
@@ -321,12 +322,10 @@ fun EpubReaderScreen(
     }
 
     val syncProgressError = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_could_not_sync_reading_progress)
+    val messages = remember { TransientMessages() }
 
-    // Toast on sync error
     LaunchedEffect(viewModel) {
-        viewModel.syncErrorEvents.collect {
-            Toast.makeText(context, syncProgressError, Toast.LENGTH_SHORT).show()
-        }
+        viewModel.syncErrorEvents.collect { messages.show(syncProgressError) }
     }
 
     val skipIntervalSec by viewModel.skipIntervalSec.collectAsState()
@@ -1055,6 +1054,7 @@ fun EpubReaderScreen(
                 AndroidSvgWebView(svgMarkup = svgMarkup, modifier = imgModifier)
             },
         )
+        RiffleSnackbarHost(messages)
     }
 }
 

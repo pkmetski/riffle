@@ -13,6 +13,7 @@ import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.JvmEpubRepository
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
@@ -147,6 +148,7 @@ class LibraryFilterEngineThreadingTest {
                 override suspend fun localSession(sourceId: String, itemId: String) = null
                 override fun isAvailableOffline(sourceId: String, itemId: String) = false
             },
+            clock = object : Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
         ),
         seriesSource = seriesFlow,
         collectionsSource = collectionsFlow,

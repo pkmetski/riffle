@@ -1,12 +1,14 @@
 package com.riffle.app.navigation
 
 import android.content.Intent
-import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.riffle.app.R
@@ -19,6 +21,8 @@ import com.riffle.app.feature.reader.cbz.CbzReaderScreen
 import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.navigation.LibraryNav
 import com.riffle.feature.player.AudiobookPlayerViewModel
+import com.riffle.feature.source.ui.RiffleSnackbarHost
+import com.riffle.feature.source.ui.TransientMessages
 import com.riffle.feature.player.ui.PlayerHostActions
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.PdfReaderViewModel
@@ -105,7 +109,7 @@ fun AndroidReaderSlot(
                 windowSizeClass = windowSizeClass,
                 onNavigateBack = playerActions.onBack,
                 onPlaylistAdvance = playerActions.onPlaylistAdvance,
-                onSwitchToReadaloud = playerActions.onSwitchToReadaloud ?: { _, _ -> },
+                onSwitchToReadaloud = playerActions.onSwitchToReadaloud,
                 viewModel = viewModel,
             )
         }
@@ -121,6 +125,7 @@ private fun AndroidEpubReaderSlot(
     val item = destination.item
     val context = LocalContext.current
     val exportErrorMessage = stringResource(R.string.export_pdf_error)
+    val messages = remember { TransientMessages() }
 
     val koin = KoinPlatform.getKoin()
     val host = remember { ScreenScopedViewModelHost() }
@@ -161,17 +166,18 @@ private fun AndroidEpubReaderSlot(
                     }
                     context.startActivity(Intent.createChooser(intent, null))
                 }
-                ReaderNavEvent.ExportError -> {
-                    Toast.makeText(context, exportErrorMessage, Toast.LENGTH_LONG).show()
-                }
+                ReaderNavEvent.ExportError -> messages.show(exportErrorMessage)
             }
         }
     }
 
-    EpubReaderScreen(
-        windowSizeClass = windowSizeClass,
-        onNavigateBack = readerActions.onBack,
-        viewModel = viewModel,
-    )
+    Box(Modifier.fillMaxSize()) {
+        EpubReaderScreen(
+            windowSizeClass = windowSizeClass,
+            onNavigateBack = readerActions.onBack,
+            viewModel = viewModel,
+        )
+        RiffleSnackbarHost(messages)
+    }
 }
 

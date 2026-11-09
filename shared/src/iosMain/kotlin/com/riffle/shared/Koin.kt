@@ -45,7 +45,6 @@ import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
-import com.riffle.core.data.IosLibraryItemOfflineAvailabilityImpl
 import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
@@ -122,6 +121,7 @@ import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.IosReadaloudEpubTextOps
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
+import com.riffle.core.domain.LibraryItemOfflineAvailabilityImpl
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfRepository
@@ -238,6 +238,8 @@ import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
+import com.riffle.feature.shellui.StartupUpdateViewModel
+import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
@@ -299,7 +301,11 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 import platform.Foundation.NSBundle
+import platform.Foundation.NSProcessInfo
 import org.koin.core.context.startKoin as koinStartKoin
+
+private const val IOS_DEFAULT_USER_AGENT =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
 
 private fun iosLibraryModule(
     navigatorBridgeFactory: IosEpubNavigatorBridgeFactory,
@@ -308,7 +314,9 @@ private fun iosLibraryModule(
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge,
+    shareSheetPresenter: IosShareSheetPresenter,
 ) = module {
+    single<IosShareSheetPresenter> { shareSheetPresenter }
     single { createDefaultHttpClient() }
     single<HttpClient>(named("streamingHttpClient")) { createStreamingHttpClient() }
     single { AbsApiClient(get()) }
@@ -849,7 +857,18 @@ private fun iosLibraryModule(
     single<ToReadRepository> {
         ToReadRepositoryImpl(get(), get(), get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>(), get())
     }
-    single<LibraryItemOfflineAvailability> { IosLibraryItemOfflineAvailabilityImpl(get()) }
+    single<LibraryItemOfflineAvailability> {
+        LibraryItemOfflineAvailabilityImpl(
+            epubRepository = get(),
+            pdfRepository = get(),
+            cbzRepository = get(),
+            audiobookDownloadRepository = get(),
+            bundleAudiobookSource = get(),
+            availabilityChanges = get<LocalAvailabilityEvents>().changes,
+            invalidationScope = get<ApplicationScope>().coroutineScope,
+            clock = get(),
+        )
+    }
     // Readaloud matching pipeline, same implementations Android binds in CoreDataKoinModules:
     // the syncer pulls Storyteller catalogues into library_items, the matching service reconciles
     // them against ABS books into confirmed links / pending candidates.
@@ -1043,6 +1062,19 @@ private fun iosLibraryModule(
     }
     viewModel { ChangelogViewModel(appUpdateRepository = get()) }
     viewModel {
+        val bundle = NSBundle.mainBundle
+        val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
+        val buildNumber = (bundle.infoDictionary?.get("CFBundleVersion") as? String)?.toIntOrNull() ?: 0
+        val isHarnessRun = NSProcessInfo.processInfo.arguments.any { it.toString() == "--RIFFLE_RESET_FOR_TESTS" }
+        StartupUpdateViewModel(
+            appUpdateRepository = get(),
+            appUpdatePreferencesStore = get(),
+            clock = get(),
+            isDevBuild = isDevVersionName(versionName) || isHarnessRun,
+            currentVersionCode = buildNumber,
+        )
+    }
+    viewModel {
         com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel(
             packStore = get(),
             downloader = get(),
@@ -1198,7 +1230,7 @@ private fun iosLibraryModule(
             SourceType.OREILLY to OReillyCatalogFactory(
                 httpClient = get(named("streamingHttpClient")),
                 cookieProvider = { iosOReillySessionStore.cookieHeader },
-                userAgentProvider = { "Riffle/dev (iOS) oreilly-source" },
+                userAgentProvider = { IOS_DEFAULT_USER_AGENT },
             ),
         )
     }
@@ -1520,6 +1552,18 @@ fun getNowPlayingNavigator(): com.riffle.feature.navigation.NowPlayingNavigator 
     KoinPlatform.getKoin().get()
 
 /**
+ * Opens the now-playing player if something is currently active. Guards on [NowPlayingStore.current]
+ * so a background→active transition that arrives when nothing is playing (e.g. a silent push or
+ * Control Centre pull-down) does not push a blank player screen.
+ */
+fun openNowPlayingIfActive() {
+    val store = KoinPlatform.getKoin().get<com.riffle.feature.player.NowPlayingStore>()
+    if (store.current != null) {
+        KoinPlatform.getKoin().get<com.riffle.feature.navigation.NowPlayingNavigator>().requestOpen()
+    }
+}
+
+/**
  * The Swift entry point. Its parameter list is the ObjC-exported surface, so it deliberately
  * carries **no defaulted parameters**: Kotlin default arguments do not cross the Objective-C
  * boundary and Swift sees every one of them as required, which breaks `RiffleApp.swift` at build
@@ -1532,6 +1576,7 @@ fun startKoin(
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge,
+    shareSheetPresenter: IosShareSheetPresenter,
 ) {
     startKoinWithDatabase(
         navigatorBridgeFactory = navigatorBridgeFactory,
@@ -1540,6 +1585,7 @@ fun startKoin(
         publicationInspector = publicationInspector,
         readaloudBridgeFactory = readaloudBridgeFactory,
         elidedPdfBridge = elidedPdfBridge,
+        shareSheetPresenter = shareSheetPresenter,
         databaseFile = RIFFLE_DATABASE_FILE,
     )
 }
@@ -1556,6 +1602,7 @@ internal fun startKoinWithDatabase(
     publicationInspector: IosPublicationInspector,
     readaloudBridgeFactory: IosReadaloudBridgeFactory,
     elidedPdfBridge: IosElidedPdfBridge = NoOpElidedPdfBridge,
+    shareSheetPresenter: IosShareSheetPresenter = NoOpShareSheetPresenter,
     databaseFile: String,
 ) {
     val app = koinStartKoin {
@@ -1565,7 +1612,7 @@ internal fun startKoinWithDatabase(
             iosDatabaseModule(databaseFile),
             iosLibraryModule(
                 navigatorBridgeFactory, audioPlayerBridgeFactory, pdfNavigatorBridgeFactory,
-                publicationInspector, readaloudBridgeFactory, elidedPdfBridge,
+                publicationInspector, readaloudBridgeFactory, elidedPdfBridge, shareSheetPresenter,
             ),
         )
     }
@@ -1582,4 +1629,9 @@ internal fun startKoinWithDatabase(
 
 private object NoOpElidedPdfBridge : IosElidedPdfBridge {
     override fun exportAndShare(html: String, fileName: String, onComplete: (() -> Unit)?) = Unit
+}
+
+private object NoOpShareSheetPresenter : IosShareSheetPresenter {
+    override fun shareFiles(filePaths: List<String>, subject: String?) = Unit
+    override fun shareText(text: String, subject: String?) = Unit
 }

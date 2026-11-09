@@ -4,6 +4,9 @@ import Riffle
 
 @main
 struct RiffleApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var previousScenePhase: ScenePhase = .inactive
+
     init() {
         if CommandLine.arguments.contains("--RIFFLE_RESET_FOR_TESTS") {
             wipeAppState()
@@ -14,7 +17,8 @@ struct RiffleApp: App {
             pdfNavigatorBridgeFactory: PdfKitNavigatorBridgeFactoryImpl(),
             publicationInspector: ReadiumPublicationInspector(),
             readaloudBridgeFactory: IosReadaloudBridgeFactoryImpl(),
-            elidedPdfBridge: ElidedPdfBridge()
+            elidedPdfBridge: ElidedPdfBridge(),
+            shareSheetPresenter: IosShareSheetHelper()
         )
         // UI-test harness: add a stub source through the production authenticate → commit path so
         // tests start on the library home without driving the add-source screens (no-op otherwise).
@@ -28,6 +32,31 @@ struct RiffleApp: App {
             ContentView()
                 .onOpenURL { url in openIncomingDocument(url) }
         }
+        .onChange(of: scenePhase) { newPhase in
+            if shouldRequestNowPlayingOpen(from: previousScenePhase, to: newPhase) {
+                KoinKt.openNowPlayingIfActive()
+            }
+            if newPhase == .active {
+                importPendingSharedFiles()
+            }
+            previousScenePhase = newPhase
+        }
+    }
+}
+
+/// Drains files staged by the Share Extension into the App Group container's `ShareInbox/`
+/// directory, importing each via the same shared importer that `onOpenURL` uses.
+private func importPendingSharedFiles() {
+    guard let container = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: "group.com.riffle.iosApp"
+    ) else { return }
+    let inbox = container.appendingPathComponent("ShareInbox", isDirectory: true)
+    guard let entries = try? FileManager.default.contentsOfDirectory(
+        at: inbox, includingPropertiesForKeys: nil
+    ) else { return }
+    for url in entries {
+        openIncomingDocument(url)
+        try? FileManager.default.removeItem(at: url)
     }
 }
 

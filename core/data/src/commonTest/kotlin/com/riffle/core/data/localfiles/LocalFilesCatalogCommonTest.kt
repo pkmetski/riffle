@@ -4,6 +4,7 @@ import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CollectionsCapability
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
@@ -17,7 +18,6 @@ import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.StatsCapability
 import com.riffle.core.catalog.ToReadListCapability
-import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.data.FakeLibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
