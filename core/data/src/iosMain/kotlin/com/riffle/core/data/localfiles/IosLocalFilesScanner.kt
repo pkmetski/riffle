@@ -9,6 +9,10 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.IosCbzMetadata
+import com.riffle.core.domain.IosCbzMetadataExtractor
+import com.riffle.core.domain.IosEpubMetadataExtractor
+import com.riffle.core.domain.IosPdfMetadataExtractor
 import com.riffle.core.models.EbookFormat
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -30,7 +34,7 @@ class IosLocalFilesScanner(
     private val clock: Clock,
 ) {
 
-    data class ScanReport(val added: Int, val refreshed: Int, val removed: Int, val failures: List<ScanFailure>,)
+    data class ScanReport(val added: Int, val refreshed: Int, val removed: Int, val failures: List<ScanFailure>)
 
     data class ScanFailure(val displayName: String, val reason: String)
 
@@ -119,29 +123,21 @@ class IosLocalFilesScanner(
         }
 
         val copiedPath = copyIn.copyBook(sourceId, identity, extension, file.path)
-        val title = file.displayName.substringBeforeLast('.').ifBlank { file.displayName }
-        libraryItemDao.upsertAll(
-            listOf(
-                LibraryItemEntity(
-                    sourceId = sourceId,
-                    id = identity,
-                    libraryId = folderLibraryId,
-                    title = title,
-                    author = "",
-                    coverUrl = null,
-                    readingProgress = 0f,
-                    ebookFormat = extension,
-                    addedAt = scanStart,
-                ),
-            ),
-        )
+        val (item, coverPath) = when (kind) {
+            FileClassifier.Kind.EPUB -> buildEpubItem(sourceId, identity, folderLibraryId, file, copiedPath, scanStart)
+            FileClassifier.Kind.PDF -> buildPdfItem(sourceId, identity, folderLibraryId, file, copiedPath, scanStart)
+            FileClassifier.Kind.CBZ -> buildCbzItem(sourceId, identity, folderLibraryId, file, copiedPath, scanStart)
+            FileClassifier.Kind.UNKNOWN -> return Outcome.SKIPPED
+        }
+
+        libraryItemDao.upsertAll(listOf(item))
         fileDao.upsert(
             LocalFilesFileEntity(
                 sourceId = sourceId,
                 sourceItemId = identity,
                 originalUri = file.path,
                 copiedPath = copiedPath,
-                coverPath = null,
+                coverPath = coverPath,
                 format = extension,
                 sizeBytes = file.sizeBytes,
                 mtimeEpochMs = file.mtimeEpochMs,
@@ -158,6 +154,104 @@ class IosLocalFilesScanner(
             ),
         )
         return Outcome.ADDED
+    }
+
+    private suspend fun buildEpubItem(
+        sourceId: String,
+        identity: String,
+        folderLibraryId: String,
+        file: IosWalkedFile,
+        copiedPath: String,
+        scanStart: Long,
+    ): Pair<LibraryItemEntity, String?> {
+        val metadata = IosEpubMetadataExtractor.extract(copiedPath)
+        val epubCoverBytes = metadata.coverBytes
+        val coverPath = if (epubCoverBytes != null) {
+            runCatching {
+                copyIn.writeCover(sourceId, identity, metadata.coverExtension ?: "jpg", epubCoverBytes)
+            }.getOrNull()
+        } else {
+            null
+        }
+        return LibraryItemEntity(
+            sourceId = sourceId,
+            id = identity,
+            libraryId = folderLibraryId,
+            title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
+            author = metadata.author?.ifBlank { null } ?: "",
+            coverUrl = coverPath?.let { "file://$it" },
+            readingProgress = 0f,
+            ebookFormat = EbookFormat.STORAGE_EPUB,
+            description = metadata.description,
+            seriesName = metadata.seriesName,
+            seriesSequence = metadata.seriesSequence,
+            publishedYear = metadata.publishedYear,
+            genres = metadata.genres.joinToString(","),
+            publisher = metadata.publisher,
+            language = metadata.language,
+            isbn = metadata.isbn,
+            asin = metadata.asin,
+            addedAt = scanStart,
+        ) to coverPath
+    }
+
+    private fun buildPdfItem(
+        sourceId: String,
+        identity: String,
+        folderLibraryId: String,
+        file: IosWalkedFile,
+        copiedPath: String,
+        scanStart: Long,
+    ): Pair<LibraryItemEntity, String?> {
+        val metadata = runCatching { IosPdfMetadataExtractor.extract(copiedPath) }.getOrElse { IosPdfMetadataExtractor.extract("") }
+        return LibraryItemEntity(
+            sourceId = sourceId,
+            id = identity,
+            libraryId = folderLibraryId,
+            title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
+            author = metadata.author?.ifBlank { null } ?: "",
+            coverUrl = null,
+            readingProgress = 0f,
+            ebookFormat = EbookFormat.STORAGE_PDF,
+            description = metadata.subject,
+            addedAt = scanStart,
+        ) to null
+    }
+
+    private suspend fun buildCbzItem(
+        sourceId: String,
+        identity: String,
+        folderLibraryId: String,
+        file: IosWalkedFile,
+        copiedPath: String,
+        scanStart: Long,
+    ): Pair<LibraryItemEntity, String?> {
+        val metadata = runCatching { IosCbzMetadataExtractor.extract(copiedPath) }.getOrElse { IosCbzMetadata.EMPTY }
+        val cbzCoverBytes = metadata.coverBytes
+        val coverPath = if (cbzCoverBytes != null) {
+            runCatching {
+                copyIn.writeCover(sourceId, identity, metadata.coverExtension ?: "jpg", cbzCoverBytes)
+            }.getOrNull()
+        } else {
+            null
+        }
+        return LibraryItemEntity(
+            sourceId = sourceId,
+            id = identity,
+            libraryId = folderLibraryId,
+            title = stripExtension(file.displayName),
+            author = "",
+            coverUrl = coverPath?.let { "file://$it" },
+            readingProgress = 0f,
+            ebookFormat = EbookFormat.STORAGE_CBZ,
+            addedAt = scanStart,
+            pageCount = metadata.pageCount.takeIf { it > 0 },
+        ) to coverPath
+    }
+
+    private fun stripExtension(name: String): String {
+        val dot = name.lastIndexOf('.')
+        return if (dot > 0) name.substring(0, dot) else name
     }
 
     private fun readHead(path: String): ByteArray {

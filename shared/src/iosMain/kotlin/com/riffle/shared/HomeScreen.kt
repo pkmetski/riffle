@@ -12,6 +12,7 @@ import com.riffle.feature.shellui.AppShell
 import com.riffle.feature.shellui.AppShellSlots
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
+import com.riffle.shared.library.IosEditMetadataDialogHost
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
 import com.riffle.shared.source.SourceOnboardingHost
@@ -77,6 +78,9 @@ fun HomeScreen() {
             appVersion = iosAppVersion,
             appSha = iosAppSha,
             localFilePicker = { showAddLocalFiles = true },
+            editLocalFileMetadataDialog = { itemId, sourceId, onDismiss ->
+                IosEditMetadataDialogHost(itemId = itemId, sourceId = sourceId, onDismiss = onDismiss)
+            },
         ),
     )
 }

@@ -1,6 +1,7 @@
 package com.riffle.shared.reader
 
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.common.FileStore
@@ -221,6 +222,13 @@ internal class IosCbzRepository(
                 return it
             }
             files.delete(cache)
+        }
+        // Local-file sources store the archive at a path known to fetchFile(); serve directly
+        // without copying to cache (CatalogFileHandle.Local contract).
+        val catalog = catalogRegistry.forSourceId(item.sourceId)
+        val handle = catalog?.let { runCatching { it.fetchFile(item.id, BookFormat.Cbz) }.getOrNull() }
+        if (handle is CatalogFileHandle.Local) {
+            openValid(handle.path)?.let { return it }
         }
         return null
     }

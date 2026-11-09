@@ -19,26 +19,32 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
     /**
      * Walks [folderPath] recursively.
      *
-     * Throws when the *root* folder cannot be listed — it was deleted, moved, replaced by a plain
-     * file, or lives on a volume that is no longer mounted. This mirrors [SafFolderWalker], which
-     * throws when the tree URI no longer resolves, and it matters: `IosLocalFilesScanner` only runs
-     * its stale sweep when every folder walked cleanly. Returning an empty list for an unreadable
-     * folder would look indistinguishable from "the user emptied the folder", and the sweep would
-     * hard-delete every book that folder had ever contributed — library rows, junction rows, and
-     * the copied bytes on disk.
+     * When [folderPath] is a bookmark URI (prefixed with "bookmark:"), resolves the bookmark and
+     * starts security-scoped access for the duration of the walk. Plain paths (legacy entries)
+     * are walked as-is.
      *
-     * An unreadable *sub*directory is skipped rather than fatal, matching Android's
-     * `DocumentFile.listFiles()`, which returns an empty array for children it cannot enumerate.
+     * Throws when the root folder cannot be listed (deleted, moved, permission revoked). Matching
+     * [SafFolderWalker]: a walk failure stops the stale sweep so books are not accidentally
+     * deleted when access is temporarily revoked.
+     *
+     * An unreadable sub-directory is skipped rather than fatal, matching Android's behaviour.
      */
     suspend fun walk(folderPath: String): List<IosWalkedFile> = withContext(dispatchers.io) {
-        val out = mutableListOf<IosWalkedFile>()
-        if (!walkDirectory(folderPath, out)) {
-            throw IllegalStateException("Cannot list folder: $folderPath")
+        val scopedFolder = IosFolderPicker.resolveBookmark(folderPath)
+            ?: throw IllegalStateException("Cannot resolve folder: $folderPath")
+        val started = scopedFolder.startAccessing()
+        if (!started) throw IllegalStateException("Cannot access security-scoped folder: $folderPath")
+        try {
+            val out = mutableListOf<IosWalkedFile>()
+            if (!walkDirectory(scopedFolder.path, out)) {
+                throw IllegalStateException("Cannot list folder: ${scopedFolder.path}")
+            }
+            out
+        } finally {
+            scopedFolder.close()
         }
-        out
     }
 
-    /** Returns false when [dirPath] could not be enumerated at all. */
     private fun walkDirectory(dirPath: String, out: MutableList<IosWalkedFile>): Boolean {
         val manager = NSFileManager.defaultManager
 

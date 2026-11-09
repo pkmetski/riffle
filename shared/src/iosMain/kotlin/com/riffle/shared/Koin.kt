@@ -10,6 +10,8 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.catalog.oreilly.OReillyCatalogFactory
 import com.riffle.core.catalog.radioes.RadioEsCatalogFactory
+import com.riffle.core.data.localfiles.IosLocalFilesFileReader
+import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.common.Clock
 import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.common.IosSystemClock
@@ -1145,6 +1147,14 @@ private fun iosLibraryModule(
     // working — so sync looked healthy while being one-directional (#1071 §P0.1).
     single<Map<SourceType, CatalogFactory>>(named("catalogFactoriesBySourceType")) {
         mapOf(
+            SourceType.LOCAL_FILES to LocalFilesCatalogFactory(
+                folderDao = get(),
+                fileDao = get(),
+                fileFolderDao = get(),
+                itemDao = get(),
+                overrideDao = get(),
+                fileReader = IosLocalFilesFileReader(),
+            ),
             // AbsCatalog itself is jvmMain-only (import/upload needs java.io.File, byte streaming
             // needs core:network's AbsFileDownloadApi). AbsCommonCatalogFactory builds the
             // commonMain half — browse + the full ebook/audiobook progress peer — which is the

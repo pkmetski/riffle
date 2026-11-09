@@ -1,5 +1,6 @@
 package com.riffle.app.navigation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
@@ -7,10 +8,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.backhandler.BackHandler
-import com.riffle.app.feature.source.localfiles.AddLocalFilesScreen
+import com.riffle.app.feature.source.localfiles.PickFolderContract
 import com.riffle.app.feature.source.oreilly.OReillyLoginScreen
+import com.riffle.core.data.localfiles.FolderUri
+import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.models.ServerType
@@ -18,6 +22,8 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceBackend
 import com.riffle.feature.source.ui.AddSourceScreen
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
+import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import com.riffle.feature.source.ui.AddSourceViewModel
 import com.riffle.feature.source.ui.SelectLibrariesScreen
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
@@ -47,6 +53,8 @@ fun AndroidOnboardingSlot(
     windowSizeClass: WindowSizeClass,
 ) {
     val isExpandedWidth = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+    val scope = rememberCoroutineScope()
+    val localFilesInstaller: LocalFilesInstallerInterface = org.koin.compose.koinInject()
 
     val startStep: AndroidOnboardingStep = remember(initialBackend) {
         val credentialed = initialBackend as? AddSourceBackend.Credentialed
@@ -125,11 +133,18 @@ fun AndroidOnboardingSlot(
             )
         }
 
-        AndroidOnboardingStep.LocalFiles -> AddLocalFilesScreen(
-            windowSizeClass = windowSizeClass,
-            onDone = onFinished,
-            onNavigateBack = { step = AndroidOnboardingStep.Picker },
-        )
+        AndroidOnboardingStep.LocalFiles -> {
+            val viewModel = remember { AddLocalFilesCommonViewModel(localFilesInstaller, scope) }
+            val launcher = rememberLauncherForActivityResult(PickFolderContract()) { uri ->
+                viewModel.onFolderPicked(uri?.let { FolderUri(it.toString()) })
+            }
+            AddLocalFilesScreen(
+                onDone = onFinished,
+                onNavigateBack = { step = AndroidOnboardingStep.Picker },
+                onPickFolder = { launcher.launch(Unit) },
+                viewModel = viewModel,
+            )
+        }
 
         AndroidOnboardingStep.OReillyLogin -> OReillyLoginScreen(
             windowSizeClass = windowSizeClass,

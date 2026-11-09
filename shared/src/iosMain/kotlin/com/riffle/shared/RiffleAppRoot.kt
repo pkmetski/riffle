@@ -11,8 +11,11 @@ import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.ContentCacheCleaner
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.logging.Logger
+import com.riffle.core.models.SourceType
 import com.riffle.core.sync.ForegroundSyncDriver
 import com.riffle.feature.designsystem.LocalCoverLoadReporter
 import com.riffle.feature.designsystem.LoggingCoverLoadReporter
@@ -22,6 +25,8 @@ import com.riffle.feature.source.ui.RiffleMessageScaffold
 import com.riffle.feature.source.ui.rememberTransientMessages
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
@@ -69,13 +74,30 @@ fun RiffleAppRoot(content: @Composable () -> Unit) {
         val syncDriver = withContext(Dispatchers.Default) {
             KoinPlatform.getKoin().get<ForegroundSyncDriver>()
         }
-        runStartupWork(
-            io = dispatchers.io,
-            contentCacheCleaner = contentCacheCleaner,
-            syncDriver = syncDriver,
-            appBecameActive = appBecameActive,
-            isOnline = connectivity.isOnline,
-        )
+        launch {
+            runStartupWork(
+                io = dispatchers.io,
+                contentCacheCleaner = contentCacheCleaner,
+                syncDriver = syncDriver,
+                appBecameActive = appBecameActive,
+                isOnline = connectivity.isOnline,
+            )
+        }
+        // Auto-rescan local-file folders on every foreground, mirroring Android's
+        // LocalFilesFolderWatcher.lifecycleObserver.onStart(). Each scan is idempotent; fires
+        // asynchronously so the foreground event is not delayed.
+        val localFilesScanner = KoinPlatform.getKoin().get<LocalFilesScannerInterface>()
+        val sourceRepository = KoinPlatform.getKoin().get<SourceRepository>()
+        withContext(dispatchers.io) {
+            appBecameActive.collect {
+                runCatching {
+                    val sources = sourceRepository.observeAll().first()
+                    sources.filter { it.type == SourceType.LOCAL_FILES }.forEach { source ->
+                        launch { runCatching { localFilesScanner.scan(source.id) } }
+                    }
+                }
+            }
+        }
     }
 
     val appearance by appearanceCoordinator.resolved.collectAsState()

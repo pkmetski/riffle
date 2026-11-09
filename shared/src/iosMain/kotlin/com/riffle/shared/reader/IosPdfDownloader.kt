@@ -1,6 +1,7 @@
 package com.riffle.shared.reader
 
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
 import com.riffle.core.data.IosItemFiles
@@ -79,6 +80,10 @@ class IosPdfDownloader(
         }
 
         val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
+        // Local-file sources return a CatalogFileHandle.Local — serve the path directly without
+        // copying to cache (the file is already on disk, managed by IosCopyInService).
+        val handle = try { catalog.fetchFile(item.id, BookFormat.Pdf) } catch (_: Exception) { null }
+        if (handle is CatalogFileHandle.Local) return handle.path
         return try {
             catalog.withFileStream(item.id, BookFormat.Pdf, item.ebookFileIno) { stream ->
                 val written = IosItemFiles.writeChannel(cachePath, stream.channel, stream.contentLength)
