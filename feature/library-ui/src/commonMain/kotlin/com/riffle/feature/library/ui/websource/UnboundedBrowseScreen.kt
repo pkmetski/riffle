@@ -28,6 +28,7 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
+import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.ui.CircleNavItem
 import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
@@ -88,6 +89,7 @@ fun UnboundedBrowseScreen(
     onOpenDrawer: () -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookSelected: (sourceId: String, itemId: String) -> Unit = { _, itemId -> onOpenDetail(itemId) },
+    onSectionSeeMore: (LibrarySectionType) -> Unit = {},
     externalSavedQuery: String = "",
     onQuerySaved: (String) -> Unit = {},
 ) {
@@ -223,7 +225,7 @@ fun UnboundedBrowseScreen(
                                 onAnnotatedBookSelected = onAnnotatedBookSelected,
                                 onSeriesSelected = {},
                                 onCollectionSelected = {},
-                                onSectionSeeMore = {},
+                                onSectionSeeMore = onSectionSeeMore,
                                 onPlaylistSelected = {},
                                 onToggleNotStarted = {},
                                 onSetSortMode = {},
@@ -256,7 +258,7 @@ fun UnboundedBrowseScreen(
                             onAnnotatedBookSelected = onAnnotatedBookSelected,
                             onSeriesSelected = {},
                             onCollectionSelected = {},
-                            onSectionSeeMore = {},
+                            onSectionSeeMore = onSectionSeeMore,
                             onPlaylistSelected = {},
                             onToggleNotStarted = {},
                             onSetSortMode = {},

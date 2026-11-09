@@ -727,6 +727,7 @@ internal fun LibraryHost(
                     onAnnotatedBookSelected = { sourceId, itemId ->
                         push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                     },
+                    onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
                 )
             } else {
                 LibraryItemsScreen(
