@@ -150,4 +150,6 @@ class LibraryItemDetailHelpersTest {
     fun htmlBlurbHandlesNumericEntities() {
         assertEquals("'quoted'", htmlBlurb("&#39;quoted&#39;").text)
     }
+
+    // Lone-surrogate handling (&#xD800; etc.) is Ksoup-implementation-defined; not tested.
 }
