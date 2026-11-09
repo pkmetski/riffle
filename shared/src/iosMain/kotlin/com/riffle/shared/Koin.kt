@@ -304,11 +304,12 @@ import platform.Foundation.NSBundle
 import org.koin.core.context.startKoin as koinStartKoin
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreGraphics.CGRectMake
+import platform.Foundation.NSObject
 import platform.WebKit.WKWebView
 
 @OptIn(ExperimentalForeignApi::class)
 private val iosWebViewUserAgent: String by lazy {
-    WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0))
+    (WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0)) as NSObject)
         .valueForKey("userAgent") as? String
         ?: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 }
