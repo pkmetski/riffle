@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.riffle.feature.reader.AnnotationHighlight
 
 /** Real-WebView regression coverage for Android-selection-style highlight line bands. */
 @RunWith(AndroidJUnit4::class)

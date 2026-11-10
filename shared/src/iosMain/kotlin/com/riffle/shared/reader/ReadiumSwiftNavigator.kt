@@ -342,7 +342,12 @@ class ReadiumSwiftNavigator(
     }
 
     override fun applyDecorations(group: String, decorations: List<NavigatorDecoration>) {
-        bridge.applyDecorations(serializeDecorations(decorations), group)
+        val json = serializeDecorations(decorations)
+        if (isNativeContinuousActive) {
+            bridge.applyContinuousDecorations(json, group)
+        } else {
+            bridge.applyDecorations(json, group)
+        }
     }
 
     private fun serializeDecorations(decorations: List<NavigatorDecoration>): String {

@@ -405,6 +405,12 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
+    func applyContinuousDecorations(decorationsJson: String, group: String) {
+        Task { @MainActor in
+            self.continuousScrollView?.applyDecorationsGroup(json: decorationsJson, group: group)
+        }
+    }
+
     func getTocJson() -> String { cachedTocJson }
 
     private func prefetchToc(_ pub: Publication) {

@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.riffle.feature.reader.AnnotationHighlight
 
 /** Real-WebView regression coverage for note glyphs at the minimum reader margin. */
 @RunWith(AndroidJUnit4::class)

@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.feature.reader.AnnotationHighlight
 
 /**
  * Diagnose continuous-mode annotation rendering: load a tiny EPUB-like body in a real WebView,

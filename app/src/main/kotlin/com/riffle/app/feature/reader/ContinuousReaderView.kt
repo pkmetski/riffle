@@ -12,7 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.core.view.doOnNextLayout
 import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.models.EmphasisStyle
+import com.riffle.feature.reader.AnnotationHighlight
 import com.riffle.feature.reader.FigureLongPressPayload
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Publication
@@ -28,31 +28,6 @@ import kotlin.math.abs
  * touch/fling arbitration, requestChildFocus / scrollBy overrides (the selection-jump fix), the
  * fling cap, [computeScroll] (tickling the controller's landing-hold), and hosting the container.
  */
-internal data class AnnotationHighlight(
-    val id: String,
-    val text: String,
-    val cssColor: String,
-    val hasNote: Boolean = false,
-    val before: String = "",
-    val after: String = "",
-    /**
-     * Highlights-mode (ADR 0048): when true, the injected `<mark>` MUST NOT carry a click listener.
-     * Tap dispatch is owned by the accent-bar span baked into the synthesised HTML by
-     * [com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory] — a `<mark>` listener
-     * here would let a tap on the text itself open the highlight menu, which the annotations view
-     * explicitly disallows.
-     */
-    val suppressMarkClick: Boolean = false,
-    /**
-     * ADR 0056: union of typographic styles (bold / italic / underline / strike) that layer onto
-     * this annotation's range. Rendered as inline CSS on the injected `<mark>` — continuous mode
-     * owns the DOM directly, so unlike paginated (which stacks a companion Readium decoration for
-     * underline/strike and a DOM-wrap script for bold/italic) all four styles live on the mark.
-     * Empty when no emphasis is layered.
-     */
-    val emphasisStyles: Set<EmphasisStyle> = emptySet(),
-)
-
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,

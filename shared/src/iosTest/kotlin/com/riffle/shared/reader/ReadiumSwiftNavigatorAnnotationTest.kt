@@ -69,6 +69,7 @@ class ReadiumSwiftNavigatorAnnotationTest {
         override fun applyDecorations(decorationsJson: String, group: String) {
             appliedByGroup[group] = decorationsJson
         }
+        override fun applyContinuousDecorations(decorationsJson: String, group: String) = Unit
         override fun openLazyEpub(shapeJson: String, locatorJson: String?, fetcher: IosLazyChapterFetcher) = Unit
         override fun applyReaderPreferences(preferences: IosReaderPreferences) = Unit
         override fun getTocJson(): String = "[]"

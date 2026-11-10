@@ -65,6 +65,14 @@ final class IosContinuousScrollView: UIView {
     private var pendingInitialProgression: Float = 0
     private var initialScrollApplied = false
 
+    // MARK: - Decoration state (continuous-mode annotation/search highlights)
+    // Each entry is the raw decoration JSON received from the Kotlin navigator for that group.
+    // All three annotation groups are merged on each update; search is applied independently.
+    private var highlightsGroupJson: String = "[]"
+    private var noteGlyphsGroupJson: String = "[]"
+    private var emphasisGroupJson: String = "[]"
+    private var searchGroupJson: String = "[]"
+
     // Exposed for regression tests: lets tests verify the eviction guard keeps the pending chapter
     // loaded across a simulated contentOffset-reset-to-0 that would otherwise evict it.
     internal var loadedChapterIndices: Set<Int> { Set(loadedWebViews.keys) }
@@ -248,17 +256,28 @@ final class IosContinuousScrollView: UIView {
         }
     }
 
-    // Apply reading-theme background to the scroll canvas so that a WKWebView that is still
-    // loading (transparent) blends in rather than showing a jarring white flash.
-    private func applyThemeBackground(theme: String) {
-        let bg: UIColor
-        switch theme {
-        case "dark":  bg = UIColor(red: 0.071, green: 0.071, blue: 0.071, alpha: 1)
-        case "sepia": bg = UIColor(red: 0.992, green: 0.965, blue: 0.91,  alpha: 1)
-        default:      bg = .white
+    // MARK: - Decoration application (continuous-mode annotation/search highlights)
+
+    /// Route a decoration group received from the Kotlin navigator into the correct JS injection
+    /// path. Annotation groups (highlights / noteGlyphs / emphasis) are stored and merged on each
+    /// update; search is applied independently. Unrecognised groups are silently dropped.
+    func applyDecorationsGroup(json: String, group: String) {
+        switch group {
+        case ReaderDecorationGroups.shared.highlights:
+            highlightsGroupJson = json
+            reapplyAnnotationHighlights()
+        case ReaderDecorationGroups.shared.noteGlyphs:
+            noteGlyphsGroupJson = json
+            reapplyAnnotationHighlights()
+        case ReaderDecorationGroups.shared.emphasis:
+            emphasisGroupJson = json
+            reapplyAnnotationHighlights()
+        case ReaderDecorationGroups.shared.search:
+            searchGroupJson = json
+            reapplySearchHighlights()
+        default:
+            break
         }
-        outerScrollView.backgroundColor = bg
-        contentContainer.backgroundColor = bg
     }
 
     // MARK: - Window management
@@ -303,24 +322,6 @@ final class IosContinuousScrollView: UIView {
             positionWebView(webView, at: pendingInitialIndex)
             loadChapter(index: pendingInitialIndex, in: webView)
         }
-    }
-
-    private func positionWebView(_ webView: WKWebView, at index: Int) {
-        let yPos = slotOffsets[index]
-        let cht = slotHeights[index]
-        webView.frame = CGRect(x: 0, y: yPos, width: contentContainer.bounds.width, height: cht)
-    }
-
-    private func updateAllWebViewFrames() {
-        for (index, webView) in loadedWebViews {
-            positionWebView(webView, at: index)
-        }
-    }
-
-    private func updateContentHeight() {
-        let total = (slotOffsets.last ?? 0) + (slotHeights.last ?? defaultSlotHeight)
-        contentContainer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: total)
-        outerScrollView.contentSize = CGSize(width: bounds.width, height: total)
     }
 
     // MARK: - WebView creation
@@ -510,6 +511,149 @@ final class IosContinuousScrollView: UIView {
     }
 }
 
+// MARK: - Decoration helpers
+
+extension IosContinuousScrollView {
+
+    fileprivate func reapplyAnnotationHighlights() {
+        let inputsByHref = buildAnnotationInputs()
+        for (index, webView) in loadedWebViews {
+            guard index < spineHrefs.count else { continue }
+            let href = normalizeHref(spineHrefs[index])
+            let inputs = inputsByHref[href] ?? []
+            let js = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: inputs)
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
+    fileprivate func reapplySearchHighlights() {
+        guard let decoded = try? JSONSerialization.jsonObject(with: Data(searchGroupJson.utf8)) as? [[String: Any]] else { return }
+        let inputs = buildSearchInputsByHref(from: decoded)
+        let clearJs = ContinuousAnnotationJs.shared.CLEAR_SEARCH_HIGHLIGHTS_JS
+        for (index, webView) in loadedWebViews {
+            guard index < spineHrefs.count else { continue }
+            let href = normalizeHref(spineHrefs[index])
+            let items = inputs[href] ?? []
+            if items.isEmpty {
+                webView.evaluateJavaScript(clearJs, completionHandler: nil)
+            } else {
+                let inactiveTexts = items.filter { !$0.isCurrent }.compactMap { $0.text }
+                let activeItem = items.first { $0.isCurrent }
+                let js = ContinuousAnnotationJs.shared.applySearchHighlightsJs(
+                    inactiveTexts: inactiveTexts,
+                    inactiveCssColor: "rgba(255,235,59,0.45)",
+                    activeText: activeItem?.text,
+                    activeProgression: activeItem?.progression ?? -1,
+                    activeCssColor: "rgba(255,152,0,0.55)"
+                )
+                webView.evaluateJavaScript(js, completionHandler: nil)
+            }
+        }
+    }
+
+    fileprivate func buildAnnotationInputs() -> [String: [ContinuousAnnotationInput]] {
+        guard let highlights = try? JSONSerialization.jsonObject(with: Data(highlightsGroupJson.utf8)) as? [[String: Any]] else { return [:] }
+        let noteGlyphIds: Set<String> = {
+            guard let ng = try? JSONSerialization.jsonObject(with: Data(noteGlyphsGroupJson.utf8)) as? [[String: Any]] else { return [] }
+            return Set(ng.compactMap { $0["id"] as? String })
+        }()
+        let emphasisByAnnotationId: [String: String] = {
+            guard let em = try? JSONSerialization.jsonObject(with: Data(emphasisGroupJson.utf8)) as? [[String: Any]] else { return [:] }
+            var result: [String: String] = [:]
+            for item in em {
+                guard let id = item["id"] as? String, let styles = item["styles"] as? String else { continue }
+                result[id] = styles
+            }
+            return result
+        }()
+        var byHref: [String: [ContinuousAnnotationInput]] = [:]
+        for item in highlights {
+            guard let id = item["id"] as? String,
+                  let locator = item["locator"] as? [String: Any],
+                  let rawHref = locator["href"] as? String else { continue }
+            let href = normalizeHref(rawHref)
+            let textDict = locator["text"] as? [String: Any]
+            let text = textDict?["highlight"] as? String ?? ""
+            let before = textDict?["before"] as? String ?? ""
+            let after = textDict?["after"] as? String ?? ""
+            let colorHex = item["color"] as? String ?? "#FFEB3B"
+            let alpha = (item["alpha"] as? NSNumber)?.floatValue ?? 0.45
+            let cssColor = hexToCssRgba(hex: colorHex, alpha: alpha)
+            let hasNote = noteGlyphIds.contains(id)
+            let emphasisTokens = emphasisByAnnotationId[id] ?? ""
+            let input = ContinuousAnnotationInput(
+                id: id, text: text, cssColor: cssColor,
+                hasNote: hasNote, before: before, after: after,
+                suppressMarkClick: false, emphasisTokens: emphasisTokens
+            )
+            byHref[href, default: []].append(input)
+        }
+        return byHref
+    }
+
+    private struct SearchItem { let text: String; let isCurrent: Bool; let progression: Float }
+
+    private func buildSearchInputsByHref(from items: [[String: Any]]) -> [String: [SearchItem]] {
+        var result: [String: [SearchItem]] = [:]
+        for item in items {
+            guard let locator = item["locator"] as? [String: Any],
+                  let rawHref = locator["href"] as? String else { continue }
+            let href = normalizeHref(rawHref)
+            let text = (locator["text"] as? [String: Any])?["highlight"] as? String ?? ""
+            let isCurrent = (item["isCurrent"] as? Bool) == true
+            let locs = locator["locations"] as? [String: Any]
+            let progression = Float((locs?["progression"] as? NSNumber)?.floatValue ?? 0)
+            result[href, default: []].append(SearchItem(text: text, isCurrent: isCurrent, progression: progression))
+        }
+        return result
+    }
+
+    private func hexToCssRgba(hex: String, alpha: Float) -> String {
+        let hexStr = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        guard hexStr.count == 6,
+              let red = UInt8(hexStr.prefix(2), radix: 16),
+              let grn = UInt8(hexStr.dropFirst(2).prefix(2), radix: 16),
+              let blu = UInt8(hexStr.dropFirst(4).prefix(2), radix: 16) else {
+            return "rgba(255,235,59,0.45)"
+        }
+        return "rgba(\(red),\(grn),\(blu),\(String(format: "%.2f", alpha)))"
+    }
+
+    fileprivate func applyThemeBackground(theme: String) {
+        let bg: UIColor
+        switch theme {
+        case "dark":  bg = UIColor(red: 0.071, green: 0.071, blue: 0.071, alpha: 1)
+        case "sepia": bg = UIColor(red: 0.992, green: 0.965, blue: 0.91,  alpha: 1)
+        default:      bg = .white
+        }
+        outerScrollView.backgroundColor = bg
+        contentContainer.backgroundColor = bg
+    }
+}
+
+// MARK: - Frame and content helpers
+
+extension IosContinuousScrollView {
+
+    fileprivate func positionWebView(_ webView: WKWebView, at index: Int) {
+        let yPos = slotOffsets[index]
+        let cht = slotHeights[index]
+        webView.frame = CGRect(x: 0, y: yPos, width: contentContainer.bounds.width, height: cht)
+    }
+
+    fileprivate func updateAllWebViewFrames() {
+        for (index, webView) in loadedWebViews {
+            positionWebView(webView, at: index)
+        }
+    }
+
+    fileprivate func updateContentHeight() {
+        let total = (slotOffsets.last ?? 0) + (slotHeights.last ?? defaultSlotHeight)
+        contentContainer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: total)
+        outerScrollView.contentSize = CGSize(width: bounds.width, height: total)
+    }
+}
+
 // MARK: - Feature seams
 
 extension IosContinuousScrollView {
@@ -693,6 +837,14 @@ extension IosContinuousScrollView: WKNavigationDelegate {
         webView.evaluateJavaScript(heightJs, completionHandler: nil)
         for (_, script) in pendingDecorationScripts {
             webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+        // Re-apply any pending annotation highlights to this newly loaded chapter.
+        let chapterHref = normalizeHref(rawPath)
+        let inputsByHref = buildAnnotationInputs()
+        let inputs = inputsByHref[chapterHref] ?? []
+        if !inputs.isEmpty {
+            let annJs = ContinuousAnnotationJs.shared.applyAnnotationsFromInputs(annotations: inputs)
+            webView.evaluateJavaScript(annJs, completionHandler: nil)
         }
     }
 }

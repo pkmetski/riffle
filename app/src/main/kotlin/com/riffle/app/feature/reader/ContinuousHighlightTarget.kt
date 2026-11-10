@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.feature.reader.AnnotationHighlight
+
 /**
  * Narrow interface over [ContinuousReaderView]'s highlight-related methods.
  * Extracted so [ContinuousHighlightRenderer] can be tested on JVM without

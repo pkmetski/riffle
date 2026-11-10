@@ -229,6 +229,14 @@ interface IosEpubNavigatorBridge {
     fun applyDecorations(decorationsJson: String, group: String)
 
     /**
+     * Deliver decorations to the iOS continuous-mode scroll view (bypasses the Readium navigator
+     * since continuous mode uses direct WebView JS injection instead of Readium's decoration API).
+     * [decorationsJson] has the same schema as [applyDecorations]. [group] identifies the
+     * decoration type ("highlights", "noteGlyphs", "emphasis", "search", etc.).
+     */
+    fun applyContinuousDecorations(decorationsJson: String, group: String)
+
+    /**
      * Open an O'Reilly lazy publication: build a Readium Swift [Publication] from [shapeJson]
      * (the serialised [LazyPublicationShape]) backed by [fetcher], then open the navigator.
      * This bypasses file-based EPUB parsing entirely — no download is required.
