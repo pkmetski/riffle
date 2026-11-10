@@ -405,7 +405,7 @@ private let emptySpineJson = "{\"hrefs\":[],\"positionCounts\":[]}"
         }
     }
 
-    func applyContinuousDecorations(_ decorationsJson: String, group: String) {
+    func applyContinuousDecorations(decorationsJson: String, group: String) {
         Task { @MainActor in
             self.continuousScrollView?.applyDecorationsGroup(json: decorationsJson, group: group)
         }
