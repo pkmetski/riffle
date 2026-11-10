@@ -25,6 +25,7 @@ import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 /**
  * Regression for the structurally-empty Annotations tab on iOS (#1071 §9).
@@ -608,5 +609,40 @@ class LibraryTabContentTest {
         onNodeWithTag(sectionHeaderTag(LibrarySectionType.IN_PROGRESS)).assertIsDisplayed()
         // "See all" must not be present: the overflow tile is the only "see more" affordance.
         onNodeWithText("See all").assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun tappingSeeMoreTileOnCompletedSectionFiresOnSectionSeeMoreWithFinished() = runComposeUiTest {
+        val item = LibraryItem(
+            id = "placeholder", libraryId = "lib", title = "Book", author = "Author",
+            coverUrl = null, readingProgress = 1f, isCached = false, isDownloaded = false,
+            ebookFormat = EbookFormat.Epub,
+        )
+        // 20 finished items guarantees the see-more tile is rendered regardless of grid column count.
+        val manyFinished = List(20) { i -> item.copy(id = "f$i") }
+        var capturedSection: LibrarySectionType? = null
+        setContent {
+            LibraryTabContent(
+                selectedTab = 0,
+                projection = LibraryProjection.Empty.copy(finished = manyFinished),
+                playlists = emptyList(),
+                annotationsState = AnnotationsListUiState(loading = false, books = emptyList()),
+                coversAreSquare = false,
+                linkedItemIds = emptySet(),
+                onItemSelected = {},
+                onAnnotatedBookSelected = { _, _ -> },
+                onSeriesSelected = {},
+                onCollectionSelected = {},
+                onSectionSeeMore = { section -> capturedSection = section },
+                onPlaylistSelected = {},
+                onToggleNotStarted = {},
+                onSetSortMode = {},
+            )
+        }
+
+        onNodeWithTag(TestTags.SEE_MORE_TILE).performClick()
+        assertNotNull(capturedSection, "onSectionSeeMore was never called — tap did nothing")
+        assertEquals(LibrarySectionType.FINISHED, capturedSection)
     }
 }
