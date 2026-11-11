@@ -48,6 +48,8 @@
     <string name="ui_this_audiobook_can_t_be_played_right_now">This audiobook can\'t be played right now.</string>
     <string name="ui_title">Title</string>
     <string name="ui_update_available">Update available</string>
+    <string name="ui_update_available_version">Update available — v%1$s</string>
+    <string name="ui_download_and_install">Download &amp; install</string>
     <string name="ui_upload_completed">Upload completed</string>
     <string name="ui_upload_failed">Upload failed</string>
     <string name="ui_upload_unavailable">Upload unavailable</string>
