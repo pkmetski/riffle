@@ -18,17 +18,11 @@ import com.riffle.app.feature.audiobook.AudiobookController
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.feature.player.AudioPlayerInterface
 import com.riffle.feature.player.ReadaloudHandoff
-import com.riffle.feature.player.AudiobookReconciliationCoordinator
-import com.riffle.feature.player.AudiobookResumeResolver
-import com.riffle.feature.player.FollowLoopOrchestrator
 import com.riffle.feature.library.BookImportManagerImpl
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.feature.library.LibraryTabVisibilityObserver
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
-import com.riffle.feature.reader.ProgressFlushScope
-import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.ReaderSyncFactory
-import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.cadence.CadenceController
 import com.riffle.app.feature.reader.controllers.BookmarksController
@@ -240,9 +234,9 @@ val appKoinModule: Module = module {
     // ---- Playback navigation ----------------------------------------------------------------
 
     single { NowPlayingNavigator() }
-    single { NowPlayingStore() }
+    // NowPlayingStore: in playerKoinModule (commonMain)
     single { LibraryNavStateHolder() }
-    single { com.riffle.feature.player.AudiobookPlayIntentRegistry() }
+    // AudiobookPlayIntentRegistry: in playerKoinModule (commonMain)
 
     // ---- Audio session connectors (factory — one instance per consumer) ---------------------
 
@@ -358,28 +352,16 @@ val appKoinModule: Module = module {
         )
     }
 
-    single { AudiobookHandoffState() }
-    single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
-    single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
-    single {
-        AudiobookReconciliationCoordinator(
-            readerSyncFactory = get(),
-            openReconcileTargets = get(),
-            audioSyncStore = get(),
-            readingSyncStore = get(),
-            readaloudResumeStore = get(),
-        )
-    }
+    // playerKoinModule (commonMain) provides: AudiobookHandoffState, FollowLoopOrchestrator,
+    // AudiobookResumeResolver, AudiobookReconciliationCoordinator, NowPlayingStore, AudiobookPlayIntentRegistry
+    // readerKoinModule (commonMain) provides: ReaderStateHolder, VolumeNavigationController, ProgressFlushScope
 
-    // ---- Reader state -----------------------------------------------------------------------
+    // ---- Reader state (Android-only) -------------------------------------------------------
 
-    single { ReaderStateHolder() }
-    single { VolumeNavigationController() }
     single { VolumeKeyDispatcher(volumeKeyPreferencesStore = get(), volumeNavigationController = get()) }
     single { CadenceController(dispatchers = get()) }
     single { AutoScrollController(dispatchers = get()) }
     single { HighlightsPublicationFactory() }
-    single { ProgressFlushScope(applicationScope = get()) }
 
     // ---- Download/Import managers -----------------------------------------------------------
 

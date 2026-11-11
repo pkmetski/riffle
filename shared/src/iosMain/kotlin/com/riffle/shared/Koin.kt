@@ -216,23 +216,17 @@ import com.riffle.feature.library.WebSourceLibraryItemUpserter
 import com.riffle.feature.library.urlFormEncode
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.feature.player.AudiobookPlayerViewModel
-import com.riffle.feature.player.AudiobookReconciliationCoordinator
-import com.riffle.feature.player.AudiobookResumeResolver
-import com.riffle.feature.player.FollowLoopOrchestrator
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.player.ReadaloudHandoff
 import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.PdfReaderViewModel
-import com.riffle.feature.reader.ProgressFlushScope
 import com.riffle.feature.reader.ReadaloudSession
-import com.riffle.feature.reader.ReaderStateHolder
 import com.riffle.feature.reader.ReaderSyncFactory
 import com.riffle.feature.reader.ReaderSyncFactoryInterface
 import com.riffle.feature.reader.SharedPdfRepository
 import com.riffle.feature.reader.VolumeKeyDispatcher
-import com.riffle.feature.reader.VolumeNavigationController
 import com.riffle.feature.settings.AppVersion
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceViewModel
@@ -314,6 +308,7 @@ private fun iosLibraryModule(
     elidedPdfBridge: IosElidedPdfBridge,
     shareSheetPresenter: IosShareSheetPresenter,
 ) = module {
+    includes(com.riffle.feature.player.playerKoinModule, com.riffle.feature.reader.readerKoinModule)
     single<IosShareSheetPresenter> { shareSheetPresenter }
     single { createDefaultHttpClient() }
     single<HttpClient>(named("streamingHttpClient")) { createStreamingHttpClient() }
@@ -602,14 +597,9 @@ private fun iosLibraryModule(
             }
         }
     }
-    single { VolumeNavigationController() }
+    // VolumeNavigationController: in readerKoinModule (commonMain)
     single { VolumeKeyDispatcher(get(), get()) }
-    // Constructor dependency of the commonMain CbzReaderViewModel, which writes it from
-    // IosCbzReaderScreen's DisposableEffect — so the binding cannot be deleted. On Android the
-    // only *reader* is MainActivity.onKeyDown, which consults it to decide whether a hardware
-    // volume press is a page turn. iOS has no hardware-key surface to read it from yet, so the
-    // three flags are written and never consulted (#1071 §17; the volume-key reader is #1072).
-    single { ReaderStateHolder() }
+    // ReaderStateHolder: in readerKoinModule (commonMain)
     factory { params ->
         CbzReaderViewModel(
             itemId = params.get(0),
@@ -672,19 +662,11 @@ private fun iosLibraryModule(
         AudioIdentityResolverImpl(get<ReadaloudLinkDao>(), get<LibraryItemDao>())
     }
     single<com.riffle.core.domain.AudioPlaybackPreferencesStore> { AudioPlaybackPreferencesStoreImpl(get<AudioPlaybackPreferencesDao>()) }
-    // Constructor dependency of the commonMain AudiobookPlayerViewModel, which sets and clears it
-    // around playback — so the binding cannot be deleted. Android's only reader is MainScreen's
-    // openNowPlayingRequests collector, which turns a media-notification tap into a nav route;
-    // iOS's DrawerViewModel has no equivalent and IosAudioPlayerBridgeImpl talks to
-    // MPNowPlayingInfoCenter (the OS widget) rather than this store, so a lock-screen tap cannot
-    // route back to the player (#1071 §17). The routing surface is #1072.
-    single { NowPlayingStore() }
-    single { AudiobookHandoffState() }
+    // NowPlayingStore: in playerKoinModule (commonMain)
+    // AudiobookHandoffState: in playerKoinModule (commonMain)
     single { OpenReconcileTargets() }
-    single { com.riffle.feature.player.AudiobookPlayIntentRegistry() }
-    // Live on iOS: FollowLoopOrchestrator.flush (per-tick audiobook position writes) and
-    // AudiobookPlayerViewModel's speed-change and onCleared flushes all run through it.
-    single { ProgressFlushScope(applicationScope = get()) }
+    // AudiobookPlayIntentRegistry: in playerKoinModule (commonMain)
+    // ProgressFlushScope: in readerKoinModule (commonMain)
     factory<AnnotationSession.Factory> {
         AnnotationSession.Factory { scope, startLiveSync, scheduleSync, syncOnOpen, syncOnClose, mergeAfterEdit, commitDraftWithNote ->
             AnnotationSession(
@@ -784,17 +766,7 @@ private fun iosLibraryModule(
             logger = get(),
         )
     }
-    single { FollowLoopOrchestrator(clock = get(), progressFlushScope = get()) }
-    single { AudiobookResumeResolver(positionStore = get(), clock = get()) }
-    single {
-        AudiobookReconciliationCoordinator(
-            readerSyncFactory = get(),
-            openReconcileTargets = get(),
-            audioSyncStore = get(),
-            readingSyncStore = get(),
-            readaloudResumeStore = get(),
-        )
-    }
+    // FollowLoopOrchestrator, AudiobookResumeResolver, AudiobookReconciliationCoordinator: in playerKoinModule (commonMain)
     factory { params ->
         val bridge = get<IosAudioPlayerBridgeFactory>().create()
         AudiobookPlayerViewModel(
