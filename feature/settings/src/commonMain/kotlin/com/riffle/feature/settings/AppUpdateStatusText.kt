@@ -24,7 +24,7 @@ object AppUpdateStatus {
         // R.string.ui_installed_version_up_to_date
         is AppUpdateUiState.UpToDate -> "Installed: v$installedVersionName · Up to date"
         // R.string.ui_update_available_version
-        is AppUpdateUiState.UpdateAvailable -> "Update available: v${state.versionName}"
+        is AppUpdateUiState.UpdateAvailable -> "Update: v${state.versionName}"
         // R.string.ui_downloading_update_percent
         is AppUpdateUiState.Downloading -> "Downloading update… ${state.percent}%"
         // R.string.ui_starting_installer

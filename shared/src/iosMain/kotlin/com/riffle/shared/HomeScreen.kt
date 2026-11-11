@@ -24,10 +24,11 @@ import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextOverflow
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.generated.resources.ui_update_available
@@ -113,10 +114,13 @@ fun HomeScreen() {
             updateDrawerRow = updateState?.let { state ->
                 {
                     NavigationDrawerItem(
-                        label = { Text(stringResource(Res.string.ui_update_available_version, state.update.versionName), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        label = { Text(stringResource(Res.string.ui_update_available_version, state.update.versionName)) },
                         icon = { Icon(RiffleIcons.Upgrade, contentDescription = null) },
                         selected = false,
                         onClick = startupUpdateVm::showUpdateSheet,
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
                         modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
                     )
                 }

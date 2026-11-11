@@ -177,7 +177,10 @@ private fun DrawerSheetContent(
                 }
             }
         }
-        updateRow?.invoke()
+        if (updateRow != null) {
+            HorizontalDivider()
+            updateRow()
+        }
         HorizontalDivider()
         if (showDownloadsLink) {
             NavigationDrawerItem(

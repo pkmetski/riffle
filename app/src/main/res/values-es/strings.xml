@@ -49,7 +49,7 @@
     <string name="ui_this_audiobook_can_t_be_played_right_now">Este audiolibro no se puede reproducir ahora mismo.</string>
     <string name="ui_title">Título</string>
     <string name="ui_update_available">Actualización disponible</string>
-    <string name="ui_update_available_version">Actualización disponible: v%1$s</string>
+    <string name="ui_update_available_version">Actualización: v%1$s</string>
     <string name="ui_download_and_install">Descargar e instalar</string>
     <string name="ui_download_percent">%1$d%%</string>
     <string name="ui_upload_completed">Subida completada</string>
