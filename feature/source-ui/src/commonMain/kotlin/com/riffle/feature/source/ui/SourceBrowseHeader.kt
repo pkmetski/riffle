@@ -90,13 +90,10 @@ fun SourceBrowseHeader(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),
         ) {
-            BadgedBox(
-                badge = { if (showUpdateDot) Badge() },
-                modifier = drawerButtonModifier,
-            ) {
+            BadgedBox(badge = { if (showUpdateDot) Badge() }) {
                 IconButton(
                     onClick = onOpenDrawer,
-                    modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
+                    modifier = drawerButtonModifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
                 ) {
                     Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
                 }
