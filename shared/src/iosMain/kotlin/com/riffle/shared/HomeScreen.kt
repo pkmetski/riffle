@@ -24,9 +24,10 @@ import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.riffle.feature.designsystem.RiffleIcons
@@ -118,9 +119,8 @@ fun HomeScreen() {
                         icon = { Icon(RiffleIcons.Upgrade, contentDescription = null) },
                         selected = false,
                         onClick = startupUpdateVm::showUpdateSheet,
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
+                        shape = RectangleShape,
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color(0xFFFFF9C4)),
                         modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
                     )
                 }
