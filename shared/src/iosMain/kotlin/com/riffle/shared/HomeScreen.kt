@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.generated.resources.ui_update_available
@@ -112,8 +113,8 @@ fun HomeScreen() {
             updateDrawerRow = updateState?.let { state ->
                 {
                     NavigationDrawerItem(
-                        label = { Text(stringResource(Res.string.ui_update_available_version, state.update.versionName)) },
-                        icon = { Icon(RiffleIcons.Download, contentDescription = null) },
+                        label = { Text(stringResource(Res.string.ui_update_available_version, state.update.versionName), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        icon = { Icon(RiffleIcons.Upgrade, contentDescription = null) },
                         selected = false,
                         onClick = startupUpdateVm::showUpdateSheet,
                         modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),

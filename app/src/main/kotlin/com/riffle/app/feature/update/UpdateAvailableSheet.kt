@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,8 +38,8 @@ internal fun UpdateDrawerRow(
     onClick: () -> Unit,
 ) {
     NavigationDrawerItem(
-        label = { Text(stringResource(R.string.ui_update_available_version, versionName)) },
-        icon = { Icon(RiffleIcons.Download, contentDescription = null) },
+        label = { Text(stringResource(R.string.ui_update_available_version, versionName), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        icon = { Icon(RiffleIcons.Upgrade, contentDescription = null) },
         selected = false,
         onClick = onClick,
         modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
