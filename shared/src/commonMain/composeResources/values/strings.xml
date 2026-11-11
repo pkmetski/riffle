@@ -34,6 +34,7 @@
 
     <!-- Startup update dialog -->
     <string name="ui_update_available">Update available</string>
+    <string name="ui_update_available_version">Update available: v%1$s</string>
     <string name="ui_update_available_message">Riffle %1$s is available on GitHub Releases.</string>
     <string name="ui_update_view_release">View release</string>
     <string name="ui_update_dismiss">Dismiss</string>

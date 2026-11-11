@@ -23,10 +23,17 @@ import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.ui_update_available_message
+import com.riffle.shared.generated.resources.ui_update_available_version
 import com.riffle.shared.generated.resources.ui_update_dismiss
 import com.riffle.shared.generated.resources.ui_update_view_release
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import com.riffle.shared.library.IosEditMetadataDialogHost
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
@@ -54,7 +61,9 @@ fun HomeScreen() {
     val crashReportRepository = koinInject<CrashReportRepository>()
     val logBuffer = koinInject<InMemoryLogBuffer>()
     val startupUpdateVm = koinViewModel<StartupUpdateViewModel>()
-    val updateDialogState by startupUpdateVm.dialogState.collectAsState()
+    val updateState by startupUpdateVm.updateState.collectAsState()
+    val showUpdateDot by startupUpdateVm.showDot.collectAsState()
+    val showUpdateSheet by startupUpdateVm.showSheet.collectAsState()
     val scope = rememberCoroutineScope()
     var showAddLocalFiles by remember { mutableStateOf(false) }
     var showCrashNotice by remember {
@@ -98,31 +107,48 @@ fun HomeScreen() {
                 )
             },
             platformSettingsHooks = IosPlatformSettingsHooks,
-            updateDialog = {
-                updateDialogState?.let { dialogState ->
-                    AlertDialog(
-                        onDismissRequest = startupUpdateVm::dismissDialog,
-                        title = { Text(stringResource(Res.string.ui_update_available)) },
-                        text = { Text(stringResource(Res.string.ui_update_available_message, dialogState.update.versionName)) },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                NSURL.URLWithString(dialogState.update.downloadUrl)?.let {
-                                    UIApplication.sharedApplication.openURL(it)
-                                }
-                                startupUpdateVm.dismissDialog()
-                            }) { Text(stringResource(Res.string.ui_update_view_release)) }
+            showUpdateDot = showUpdateDot,
+            onDrawerOpened = startupUpdateVm::markUpdateSeen,
+            updateDrawerRow = updateState?.let { state ->
+                {
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = stringResource(Res.string.ui_update_available_version, state.update.versionName),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         },
-                        dismissButton = {
-                            TextButton(onClick = {
-                                startupUpdateVm.ignoreVersion(
-                                    dialogState.update.versionCode,
-                                    dialogState.update.prerelease,
-                                )
-                            }) { Text(stringResource(Res.string.ui_update_dismiss)) }
-                        },
+                        modifier = Modifier
+                            .testTag(TestTags.NAV_DRAWER_UPDATE)
+                            .clickable(onClick = startupUpdateVm::showUpdateSheet),
                     )
                 }
             },
+            updateSheet = if (showUpdateSheet) {
+                {
+                    updateState?.let { state ->
+                        AlertDialog(
+                            onDismissRequest = startupUpdateVm::dismissSheet,
+                            title = { Text(stringResource(Res.string.ui_update_available)) },
+                            text = { Text(stringResource(Res.string.ui_update_available_message, state.update.versionName)) },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    NSURL.URLWithString(state.update.downloadUrl)?.let {
+                                        UIApplication.sharedApplication.openURL(it)
+                                    }
+                                    startupUpdateVm.dismissSheet()
+                                }) { Text(stringResource(Res.string.ui_update_view_release)) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = startupUpdateVm::dismissSheet) {
+                                    Text(stringResource(Res.string.ui_update_dismiss))
+                                }
+                            },
+                        )
+                    }
+                }
+            } else null,
             languageChangeDialog = {
                 LanguageChangeRestartDialog(onDismiss = {})
             },
