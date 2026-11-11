@@ -15,8 +15,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -1615,6 +1615,11 @@ private fun EpubNavigatorView(
     // on readiumPresenter, so its closure would capture the null from launch time and silently
     // drop paginated TOC navigation after a continuous→paginated mode switch.
     val currentReadiumPresenter by rememberUpdatedState(readiumPresenter)
+    // Tracks popup visibility for tap-listener guards. Reading .value inside any remembered
+    // lambda gives the snapshot value from the last committed composition — stable across a
+    // single event dispatch cycle, so a dismiss tap that also fires onTap still sees the popup
+    // as visible and the guard fires before onTap can toggle immersive mode.
+    val currentHighlightPopupVisible = rememberUpdatedState(highlightToEdit != null)
 
     // Coordinator created once; lambdas close over rememberUpdatedState delegates so each
     // invocation always reads the latest value, not the value at remember time.
@@ -1629,6 +1634,7 @@ private fun EpubNavigatorView(
             ensureSentenceQuotesReady = { currentEnsureSentenceQuotesReady() },
             navigation = object : ContinuousNavigationSink {
                 override fun onTap() {
+                    if (currentHighlightPopupVisible.value) return
                     currentOnTap()
                 }
                 override fun onLocator(locator: Locator) = onPositionChanged(locator)
@@ -1853,6 +1859,7 @@ private fun EpubNavigatorView(
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 if (consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)) return false
+                if (currentHighlightPopupVisible.value) return false
                 if (currentEffectiveOrientation.value == ReaderOrientation.Horizontal) {
                     val container = containerRef.value
                     if (container != null) {
@@ -3281,13 +3288,23 @@ private fun EpubNavigatorView(
             // The popup lives in a separate Android window (non-focusable). Taps outside it pass
             // directly to the Activity window and can reach the WebView's onTap — toggling
             // immersive mode before onDismissRequest fires. This scrim sits in the Activity window
-            // and intercepts those taps first; detectTapGestures CONSUMES the gesture so the
-            // WebView never receives it, preventing the immersive-mode toggle.
+            // and consumes every pointer event at PointerEventPass.Initial — the earliest pass,
+            // before AndroidView dispatches MotionEvents to the WebView. The dismiss call fires
+            // on the first DOWN so the popup is hidden promptly; the loop continues consuming
+            // subsequent events in the same gesture until recomposition removes the scrim.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        detectTapGestures { onDismissHighlightActions() }
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { it.consume() }
+                                if (event.changes.any { it.pressed && !it.previousPressed }) {
+                                    onDismissHighlightActions()
+                                }
+                            }
+                        }
                     },
             )
             HighlightActionsPopup(
