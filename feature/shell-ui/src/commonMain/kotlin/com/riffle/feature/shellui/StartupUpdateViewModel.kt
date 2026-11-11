@@ -24,7 +24,6 @@ class StartupUpdateViewModel(
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdatePreferencesStore: AppUpdatePreferencesStore,
     private val clock: Clock,
-    private val isDevBuild: Boolean,
     private val currentVersionCode: Int,
 ) : ViewModel() {
 
@@ -53,7 +52,6 @@ class StartupUpdateViewModel(
     }
 
     fun checkNow() {
-        if (isDevBuild) return
         if (_showSheet.value && _downloadState.value != null) return
         viewModelScope.launch {
             val autoEnabled = appUpdatePreferencesStore.autoUpdateEnabled.first()

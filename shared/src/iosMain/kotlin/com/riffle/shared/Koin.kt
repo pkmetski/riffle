@@ -239,7 +239,6 @@ import com.riffle.feature.settings.ui.annotationsync.AnnotationSyncMaintenanceVi
 import com.riffle.feature.settings.ui.changelog.ChangelogViewModel
 import com.riffle.feature.settings.ui.readaloud.ReadaloudMatchesViewModel
 import com.riffle.feature.shellui.StartupUpdateViewModel
-import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
@@ -1063,14 +1062,11 @@ private fun iosLibraryModule(
     viewModel { ChangelogViewModel(appUpdateRepository = get()) }
     viewModel {
         val bundle = NSBundle.mainBundle
-        val versionName = bundle.infoDictionary?.get("CFBundleShortVersionString") as? String ?: "0.0.0"
         val buildNumber = (bundle.infoDictionary?.get("CFBundleVersion") as? String)?.toIntOrNull() ?: 0
-        val isHarnessRun = NSProcessInfo.processInfo.arguments.any { it.toString() == "--RIFFLE_RESET_FOR_TESTS" }
         StartupUpdateViewModel(
             appUpdateRepository = get(),
             appUpdatePreferencesStore = get(),
             clock = get(),
-            isDevBuild = isDevVersionName(versionName) || isHarnessRun,
             currentVersionCode = buildNumber,
         )
     }

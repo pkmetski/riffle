@@ -64,7 +64,6 @@ import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.SourceUiStrings
 import com.riffle.feature.source.ui.WebDavTargetConnectionTester
 import com.riffle.feature.source.ui.WebdavConnectionTester
-import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.app.sync.AnnotationSweepEnqueuerImpl
 import com.riffle.app.sync.ProgressSyncScheduler
@@ -148,12 +147,6 @@ val appKoinModule: Module = module {
         CoroutineScope(SupervisorJob() + get<DispatcherProvider>().io)
     }
     single<ApplicationScope> { DefaultApplicationScope(get(named("applicationCoroutineScope"))) }
-
-    // ---- Build metadata -----------------------------------------------------------------------
-
-    single<Boolean>(named("isDevBuild")) {
-        isDevVersionName(com.riffle.app.BuildConfig.VERSION_NAME)
-    }
 
     // ---- Logging: Logger/InMemoryLogBuffer are bound by loggingKoinModule (core:logging) ------
 
