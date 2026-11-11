@@ -18,6 +18,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,9 +44,8 @@ internal fun UpdateDrawerRow(
         icon = { Icon(RiffleIcons.Upgrade, contentDescription = null) },
         selected = false,
         onClick = onClick,
-        colors = NavigationDrawerItemDefaults.colors(
-            unselectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-        ),
+        shape = RectangleShape,
+        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color(0xFFFFF9C4)),
         modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
     )
 }
