@@ -88,11 +88,11 @@ fun RiffleScreen(
                         )
                     },
                     navigationIcon = {
-                        BadgedBox(badge = { if (showUpdateDot) Badge() }) {
-                            IconButton(
-                                onClick = onOpenDrawer,
-                                modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
-                            ) {
+                        IconButton(
+                            onClick = onOpenDrawer,
+                            modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
+                        ) {
+                            BadgedBox(badge = { if (showUpdateDot) Badge() }) {
                                 Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
                             }
                         }
