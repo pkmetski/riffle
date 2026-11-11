@@ -165,10 +165,6 @@ class SettingsViewModel constructor(
                 if (available != null && available.update.prerelease) {
                     _appUpdateState.value = AppUpdateUiState.Idle
                 }
-                if (appUpdatePreferencesStore.ignoredVersionWasPreRelease.first()) {
-                    appUpdatePreferencesStore.setIgnoredVersionCode(0)
-                    appUpdatePreferencesStore.setIgnoredVersionWasPreRelease(false)
-                }
             }
         }
     }
