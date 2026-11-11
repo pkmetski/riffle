@@ -205,8 +205,12 @@ fun AppShell(
     }
 
     slots.languageChangeDialog?.invoke()
-    slots.updateDialog?.invoke()
+    slots.updateSheet?.invoke()
     slots.crashNoticeDialog?.invoke()
+
+    LaunchedEffect(drawerState.currentValue) {
+        if (drawerState.currentValue == DrawerValue.Open) slots.onDrawerOpened?.invoke()
+    }
 
     val drawerGesturesEnabled = !isInReaderDestination
 
