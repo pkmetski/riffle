@@ -3485,20 +3485,14 @@ class EpubReaderViewModel constructor(
         val renders = segments
             .mapIndexedNotNull { index, segmentText ->
                 if (segmentText.isBlank()) return@mapIndexedNotNull null
-                val locator = try {
-                    Locator.fromJSON(
-                        JSONObject()
-                            .put("href", href)
-                            .put("type", "application/xhtml+xml")
-                            .put("locations", JSONObject().put("progression", progression))
-                            .put("text", JSONObject()
-                                .put("before", if (index == 0) a.textBefore else "")
-                                .put("highlight", segmentText)
-                                .put("after", if (index == segments.lastIndex) a.textAfter else "")),
-                    )
-                } catch (_: Exception) {
-                    null
-                } ?: return@mapIndexedNotNull null
+                val locator = buildAnnotationRenderLocator(
+                    href = href,
+                    cfi = a.cfi,
+                    progression = progression,
+                    before = if (index == 0) a.textBefore else "",
+                    highlight = segmentText,
+                    after = if (index == segments.lastIndex) a.textAfter else "",
+                ) ?: return@mapIndexedNotNull null
                 val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
                 HighlightRender(decorationId, locator.toJSON().toString(), a.color, a.note, emphasisStyles = emphasisStyles)
             }
@@ -4250,4 +4244,41 @@ internal fun highlightsResumeChapterHref(
  */
 internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>, href: String): String? =
     com.riffle.feature.reader.highlights.highlightsResumeAnnotationIdForHref(chapters, href)
+
+/**
+ * Builds the Readium [Locator] for a persisted annotation's [HighlightRender]. The CFI is
+ * included in `locations.fragments` so Readium uses CFI-based decoration positioning rather than
+ * text search. Text-search positioning fails for continuous-mode annotations whose selection text
+ * (from JavaScript `window.getSelection().toString()`) may contain invisible characters (soft
+ * hyphens, ZWSPs) that differ from the XHTML source, causing decorations to silently not appear
+ * when switching from continuous to paginated mode.
+ *
+ * `internal` so the CFI-in-fragments contract is unit-testable without constructing the ViewModel.
+ * [locatorFromJson] is injected so tests can bypass `android.net.Uri` (unavailable in JVM stubs).
+ */
+internal fun buildAnnotationRenderLocator(
+    href: String,
+    cfi: String,
+    progression: Double,
+    before: String,
+    highlight: String,
+    after: String,
+    locatorFromJson: (org.json.JSONObject) -> org.readium.r2.shared.publication.Locator? =
+        { json -> org.readium.r2.shared.publication.Locator.fromJSON(json) },
+): org.readium.r2.shared.publication.Locator? = try {
+    locatorFromJson(
+        org.json.JSONObject()
+            .put("href", href)
+            .put("type", "application/xhtml+xml")
+            .put("locations", org.json.JSONObject()
+                .put("fragments", org.json.JSONArray().put(cfi))
+                .put("progression", progression))
+            .put("text", org.json.JSONObject()
+                .put("before", before)
+                .put("highlight", highlight)
+                .put("after", after)),
+    )
+} catch (_: Exception) {
+    null
+}
 
