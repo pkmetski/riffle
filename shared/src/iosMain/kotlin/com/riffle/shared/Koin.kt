@@ -138,8 +138,6 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
-import com.riffle.core.domain.SystemTimeProvider
-import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
@@ -152,7 +150,6 @@ import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
-import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
@@ -212,14 +209,12 @@ import com.riffle.feature.library.PlaylistDetailViewModel
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.library.RiffleViewModel
 import com.riffle.feature.library.SeriesDetailViewModel
-import com.riffle.feature.library.WebSourceLibraryItemUpserter
 import com.riffle.feature.library.urlFormEncode
 import com.riffle.feature.player.AudiobookHandoffState
 import com.riffle.feature.player.AudiobookPlayerViewModel
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.feature.player.ProgressSweepRunner
 import com.riffle.feature.player.ReadaloudHandoff
-import com.riffle.feature.reader.AnnotationSession
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.PdfReaderViewModel
 import com.riffle.feature.reader.ReadaloudSession
@@ -236,13 +231,9 @@ import com.riffle.feature.shellui.StartupUpdateViewModel
 import com.riffle.feature.source.SourceSetupViewModel
 import com.riffle.feature.source.SourceTypePickerViewModel
 import com.riffle.feature.source.ui.AddSourceViewModel
-import com.riffle.feature.source.ui.ComposeResourceSourceUiStrings
 import com.riffle.feature.source.ui.DevSourceDefaults
 import com.riffle.feature.source.ui.ProgressSyncTrigger
 import com.riffle.feature.source.ui.SelectLibrariesViewModel
-import com.riffle.feature.source.ui.SourceUiStrings
-import com.riffle.feature.source.ui.WebDavTargetConnectionTester
-import com.riffle.feature.source.ui.WebdavConnectionTester
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
 import com.riffle.feature.source.ui.websource.GutenbergBrowseViewModel
 import com.riffle.feature.source.ui.websource.OReillyBrowseViewModel
@@ -308,7 +299,12 @@ private fun iosLibraryModule(
     elidedPdfBridge: IosElidedPdfBridge,
     shareSheetPresenter: IosShareSheetPresenter,
 ) = module {
-    includes(com.riffle.feature.player.playerKoinModule, com.riffle.feature.reader.readerKoinModule)
+    includes(
+        com.riffle.core.domain.coreDomainKoinModule,
+        com.riffle.feature.source.ui.sourceUiKoinModule,
+        com.riffle.feature.player.playerKoinModule,
+        com.riffle.feature.reader.readerKoinModule,
+    )
     single<IosShareSheetPresenter> { shareSheetPresenter }
     single { createDefaultHttpClient() }
     single<HttpClient>(named("streamingHttpClient")) { createStreamingHttpClient() }
@@ -382,7 +378,7 @@ private fun iosLibraryModule(
     single { SingletonWebSourceInstaller(get(), get(), get(), get()) }
     single { SourceTypePickerViewModel(sourceRepository = get(), developerOptions = get()) }
     single { SourceSetupViewModel() }
-    single<SourceUiStrings> { ComposeResourceSourceUiStrings }
+    // SourceUiStrings: in sourceUiKoinModule (commonMain)
     // core:sources' AbsSourceAdapter and KomgaSourceAdapter are both commonMain.
     single { StorytellerApiClient(get()) }
     single<StorytellerApi> { get<StorytellerApiClient>() }
@@ -407,7 +403,7 @@ private fun iosLibraryModule(
     // (`isWebDavTlsFailure`). The form this tester serves is reachable from Settings →
     // Annotations Sync → Configure, via `WebdavOnboardingHost`.
     single { WebDavAnnotationSyncTargetFactory(get<HttpClient>(), get()) }
-    single<WebdavConnectionTester> { WebDavTargetConnectionTester(get()) }
+    // WebdavConnectionTester: in sourceUiKoinModule (commonMain)
     single { WebDavProgressRemoteFactory(get<HttpClient>(), get()) }
     single { WebDavProgressEnumerator(get<HttpClient>(), get()) }
     // Cross-device progress for web sources: the reconciler's "local row is clean but the server
@@ -667,24 +663,7 @@ private fun iosLibraryModule(
     single { OpenReconcileTargets() }
     // AudiobookPlayIntentRegistry: in playerKoinModule (commonMain)
     // ProgressFlushScope: in readerKoinModule (commonMain)
-    factory<AnnotationSession.Factory> {
-        AnnotationSession.Factory { scope, startLiveSync, scheduleSync, syncOnOpen, syncOnClose, mergeAfterEdit, commitDraftWithNote ->
-            AnnotationSession(
-                scope = scope,
-                annotationStore = get(),
-                annotationStatusStore = get(),
-                highlightColorPreferencesStore = get(),
-                emphasisPreferencesStore = get(),
-                progressFlushScope = get(),
-                startLiveSync = startLiveSync,
-                scheduleSync = scheduleSync,
-                syncOnOpen = syncOnOpen,
-                syncOnClose = syncOnClose,
-                mergeAfterEdit = mergeAfterEdit,
-                commitDraftWithNote = commitDraftWithNote,
-            )
-        }
-    }
+    // AnnotationSession.Factory: in readerKoinModule (commonMain)
     // SyncPositionStore<Double>/<String> are bound in iosDataModule (core:data), backed by the
     // real ReadingPositionStoreImpl/AudiobookPositionStoreImpl (issue #1065 server-sync wiring).
     single { IosReadaloudHandoff() }
@@ -957,7 +936,7 @@ private fun iosLibraryModule(
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
     single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }
     single<ReadaloudReviewMutator> { get<ReadaloudReviewRepositoryImpl>() }
-    single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
+    // ReadaloudReviewActions: in coreDomainKoinModule (commonMain)
     single<EncryptedKeyValueStore> { IosEncryptedKeyValueStore() }
     single<AnnotationSyncConfigStore> {
         IosAnnotationSyncConfigStore(store = get(), scope = get<ApplicationScope>().coroutineScope)
@@ -1073,7 +1052,7 @@ private fun iosLibraryModule(
         )
     }
     single<Clock> { IosSystemClock }
-    single<TimeProvider> { SystemTimeProvider }
+    // TimeProvider: in coreDomainKoinModule (commonMain)
     single<AnnotationStore> { AnnotationStoreImpl(dao = get(), deviceIdStore = get(), clock = get()) }
     single<AudiobookBookmarkStore> { AudiobookBookmarkStoreImpl(get<AudiobookBookmarkDao>()) }
     single<ReadaloudLinkRepository> { ReadaloudLinkRepositoryImpl(get<ReadaloudLinkDao>()) }
@@ -1225,13 +1204,7 @@ private fun iosLibraryModule(
         }
     }
     single<CoverImageCopier> { IosCoverImageCopier(get()) }
-    single<WebSourceLibraryItemUpserter> {
-        val upserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>()
-        object : WebSourceLibraryItemUpserter {
-            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) =
-                upserter.upsert(sourceId, item)
-        }
-    }
+    // WebSourceLibraryItemUpserter: in libraryKoinModule (commonMain)
 
     // ADR-0052 web-source item cache. Android binds the same pair in CoreDataKoinModules; iOS had
     // neither, because nothing on iOS could browse an unbounded catalogue to reach them.

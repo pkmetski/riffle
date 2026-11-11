@@ -52,12 +52,9 @@ import com.riffle.app.feature.reader.session.AndroidStorytellerSyncDelegate
 import com.riffle.feature.reader.ReadaloudSession
 import com.riffle.app.feature.reader.session.ReaderSessionLifecycle
 import com.riffle.feature.source.ui.AddSourceViewModel
-import com.riffle.feature.source.ui.ComposeResourceSourceUiStrings
 import com.riffle.feature.source.ui.DevSourceDefaults
 import com.riffle.feature.source.ui.ProgressSyncTrigger
-import com.riffle.feature.source.ui.SourceUiStrings
-import com.riffle.feature.source.ui.WebDavTargetConnectionTester
-import com.riffle.feature.source.ui.WebdavConnectionTester
+import com.riffle.feature.shellui.isDevVersionName
 import com.riffle.feature.player.NowPlayingStore
 import com.riffle.app.sync.AnnotationSweepEnqueuerImpl
 import com.riffle.app.sync.ProgressSyncScheduler
@@ -66,8 +63,6 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.RandomProvider
 import com.riffle.core.common.SystemClock
 import com.riffle.core.common.SystemRandomProvider
-import com.riffle.core.domain.SystemTimeProvider
-import com.riffle.core.domain.TimeProvider
 import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudEpubTextOps
@@ -98,10 +93,8 @@ import com.riffle.feature.library.EpubDetails
 import com.riffle.feature.library.EpubTocExtractor
 import com.riffle.feature.library.LocalFileMetadataOverrideSaver
 import com.riffle.feature.library.PdfPageCountExtractor
-import com.riffle.feature.library.WebSourceLibraryItemUpserter
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase as SharedFetchAudiobookChaptersUseCase
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
-import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
@@ -129,7 +122,7 @@ val appKoinModule: Module = module {
 
     single<Clock> { SystemClock }
     single<RandomProvider> { SystemRandomProvider }
-    single<TimeProvider> { SystemTimeProvider }
+    // TimeProvider: in coreDomainKoinModule (commonMain)
     single<DispatcherProvider> { DefaultDispatcherProvider }
 
     // ---- Coroutine scopes --------------------------------------------------------------------
@@ -214,9 +207,8 @@ val appKoinModule: Module = module {
     //     is not visible from an android+ios commonMain
     //   * the progress sweep kick — WorkManager, Android-only
     //   * BuildConfig dev prefill — Android-only
-    single<SourceUiStrings> { ComposeResourceSourceUiStrings }
-
-    single<WebdavConnectionTester> { WebDavTargetConnectionTester(get()) }
+    // SourceUiStrings: in sourceUiKoinModule (commonMain)
+    // WebdavConnectionTester: in sourceUiKoinModule (commonMain)
 
     single<ProgressSyncTrigger> {
         val context = androidContext()
@@ -416,24 +408,7 @@ val appKoinModule: Module = module {
         }
     }
 
-    factory<AnnotationSession.Factory> {
-        AnnotationSession.Factory { scope, startLiveSync, scheduleSync, syncOnOpen, syncOnClose, mergeAfterEdit, commitDraftWithNote ->
-            AnnotationSession(
-                scope = scope,
-                annotationStore = get(),
-                annotationStatusStore = get(),
-                highlightColorPreferencesStore = get(),
-                emphasisPreferencesStore = get(),
-                progressFlushScope = get(),
-                startLiveSync = startLiveSync,
-                scheduleSync = scheduleSync,
-                syncOnOpen = syncOnOpen,
-                syncOnClose = syncOnClose,
-                mergeAfterEdit = mergeAfterEdit,
-                commitDraftWithNote = commitDraftWithNote,
-            )
-        }
-    }
+    // AnnotationSession.Factory: in readerKoinModule (commonMain)
 
     factory<ReadaloudSession.Factory> {
         val handoffState: com.riffle.feature.player.AudiobookHandoffState = get()
@@ -506,7 +481,7 @@ val appKoinModule: Module = module {
     single { RecordItemOpened(libraryMutator = get(), readingSessionRepository = get()) }
     single { MarkReadAcrossDimensions(libraryMutator = get(), readingSessionRepository = get(), readaloudLinkRepository = get(), sourceRepository = get()) }
     single { UpdateReadingProgress(libraryMutator = get()) }
-    single { ReadaloudReviewActions(mutator = get(), linkRepository = get(), audioIdentityResolver = get(), audioPlaybackPreferencesStore = get()) }
+    // ReadaloudReviewActions: in coreDomainKoinModule (commonMain)
     single { ExtractEpubTocUseCase(epubRepository = get(), publicationOpener = get(), assetRetriever = get(), tocRepository = get(), publicationMetricsRepository = get(), dispatchers = get()) }
     single { ExtractPdfPageCountUseCase(pdfRepository = get(), publicationOpener = get(), assetRetriever = get(), publicationMetricsRepository = get()) }
     single { FetchAudiobookChaptersUseCase(chapterCacheRepository = get()) }
@@ -546,11 +521,5 @@ val appKoinModule: Module = module {
                 uc(sourceId, sourceItemId, contentUriString)
         }
     }
-    single<WebSourceLibraryItemUpserter> {
-        val upserter = get<com.riffle.core.data.websource.WebSourceLibraryItemUpserter>()
-        object : WebSourceLibraryItemUpserter {
-            override suspend fun upsert(sourceId: String, item: com.riffle.core.catalog.CatalogItem) =
-                upserter.upsert(sourceId, item)
-        }
-    }
+    // WebSourceLibraryItemUpserter: in libraryKoinModule (commonMain)
 }

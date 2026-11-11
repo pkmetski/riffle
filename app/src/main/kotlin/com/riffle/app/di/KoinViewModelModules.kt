@@ -777,6 +777,8 @@ private fun annotationSearchSavedStateHandle(
 )
 
 internal fun riffleViewModelKoinModules(): List<Module> = listOf(
+    com.riffle.core.domain.coreDomainKoinModule,
+    com.riffle.feature.source.ui.sourceUiKoinModule,
     com.riffle.feature.player.playerKoinModule,
     com.riffle.feature.reader.readerKoinModule,
     appKoinModule,
