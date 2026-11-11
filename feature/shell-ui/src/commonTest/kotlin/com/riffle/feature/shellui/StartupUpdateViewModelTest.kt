@@ -12,6 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -85,7 +86,6 @@ class StartupUpdateViewModelTest {
         appUpdateRepository = repo,
         appUpdatePreferencesStore = prefs,
         clock = clock,
-        isDevBuild = false,
         currentVersionCode = 0,
     )
 
@@ -221,17 +221,38 @@ class StartupUpdateViewModelTest {
     }
 
     @Test
-    fun `dismissSheet does nothing when downloadState is non-null`() = runTest {
-        val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
-        advanceUntilIdle()
+    fun `dismissSheet does nothing while download is in progress`() = runTest {
+        val neverCompletes = flow<UpdateDownloadState> {
+            emit(UpdateDownloadState.Downloading(0))
+            kotlinx.coroutines.awaitCancellation()
+        }
+        val repo = object : AppUpdateRepository {
+            override suspend fun checkForUpdate(currentVersionCode: Int) = UpdateCheckResult.UpToDate
+            override fun downloadAndInstall(update: AvailableUpdate) = neverCompletes
+            override fun sweepStaleApks() {}
+            override suspend fun listReleasesSince(sinceVersionCode: Int) = emptyList<ReleaseInfo>()
+        }
+        val vm = viewModel(repo = repo)
         vm.showUpdateSheet()
-
         vm.startUpdate(AvailableUpdate("1.6.0", 10600, "https://x/1.6.0.apk", 1000L))
         advanceUntilIdle()
 
         vm.dismissSheet()
 
         assertTrue(vm.showSheet.value)
+    }
+
+    @Test
+    fun `sheet auto-dismisses after installer is handed off`() = runTest {
+        val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
+        advanceUntilIdle()
+        vm.showUpdateSheet()
+        assertTrue(vm.showSheet.value)
+
+        vm.startUpdate(AvailableUpdate("1.6.0", 10600, "https://x/1.6.0.apk", 1000L))
+        advanceUntilIdle()
+
+        assertFalse(vm.showSheet.value)
     }
 
     @Test

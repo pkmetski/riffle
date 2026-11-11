@@ -99,9 +99,13 @@ class StartupUpdateViewModel(
 
     fun startUpdate(update: AvailableUpdate) {
         viewModelScope.launch {
+            var launched = false
             appUpdateRepository.downloadAndInstall(update).collect { step ->
                 _downloadState.value = step
+                if (step is UpdateDownloadState.Installing) launched = true
             }
+            _downloadState.value = null
+            if (launched) _showSheet.value = false
         }
     }
 
