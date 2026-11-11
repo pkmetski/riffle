@@ -33,9 +33,9 @@ class StartupUpdateViewModel(
     private val _updateState = MutableStateFlow<UpdateState?>(null)
     val updateState: StateFlow<UpdateState?> = _updateState.asStateFlow()
 
-    private val _seenVersionCode = MutableStateFlow(0)
+    private val seenVersionCodeState = MutableStateFlow(0)
 
-    val showDot: StateFlow<Boolean> = combine(_updateState, _seenVersionCode) { state, seen ->
+    val showDot: StateFlow<Boolean> = combine(_updateState, seenVersionCodeState) { state, seen ->
         state != null && state.update.versionCode > seen
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
@@ -47,7 +47,7 @@ class StartupUpdateViewModel(
 
     init {
         viewModelScope.launch {
-            _seenVersionCode.value = appUpdatePreferencesStore.seenUpdateVersionCode.first()
+            seenVersionCodeState.value = appUpdatePreferencesStore.seenUpdateVersionCode.first()
         }
         checkNow()
     }
@@ -85,7 +85,7 @@ class StartupUpdateViewModel(
         viewModelScope.launch {
             val code = _updateState.value?.update?.versionCode ?: return@launch
             appUpdatePreferencesStore.setSeenUpdateVersionCode(code)
-            _seenVersionCode.value = code
+            seenVersionCodeState.value = code
         }
     }
 

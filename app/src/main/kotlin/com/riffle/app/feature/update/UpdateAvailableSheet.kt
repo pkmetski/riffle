@@ -93,7 +93,7 @@ internal fun UpdateAvailableSheet(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
                         )
-                        Text("${downloadState.percent}%", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.ui_download_percent, downloadState.percent), style = MaterialTheme.typography.bodySmall)
                     }
                 is UpdateDownloadState.Installing ->
                     Text(
