@@ -61,8 +61,6 @@ import com.riffle.feature.library.ui.SeriesDetailScreen
 import com.riffle.feature.library.ui.annotationSearchLabels
 import com.riffle.feature.library.ui.filteredBooksLabels
 import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_book_not_found
-import com.riffle.feature.library.ui.generated.resources.ui_retry
 import com.riffle.feature.library.ui.generated.resources.ui_unable_to_connect_to_source
 import com.riffle.feature.library.ui.playlistLabels
 import com.riffle.feature.library.ui.websource.UnboundedBrowseScreen
@@ -104,6 +102,9 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_book_not_found
+import com.riffle.feature.designsystem.generated.resources.ui_retry
 
 /**
  * The shared application shell rendered by both the Android app and the iOS app.
@@ -612,7 +613,7 @@ fun AppShell(
                     ) {
                         Text(stringResource(Res.string.ui_unable_to_connect_to_source))
                         Button(onClick = { refreshKey++ }) {
-                            Text(stringResource(Res.string.ui_retry))
+                            Text(stringResource(DsRes.string.ui_retry))
                         }
                     }
                     is HomeViewModel.StartDestination.Library -> {
@@ -1006,7 +1007,7 @@ internal fun ElidedReaderLoader(
             ),
         )
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(Res.string.ui_book_not_found))
+            Text(stringResource(DsRes.string.ui_book_not_found))
         }
         else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -1039,7 +1040,7 @@ internal fun AnnotationReaderLoader(
             PlayerHostActions(onBack = onBack, onPlaylistAdvance = NoOp.playlistAdvanceUnavailable),
         )
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(Res.string.ui_book_not_found))
+            Text(stringResource(DsRes.string.ui_book_not_found))
         }
         else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -1070,7 +1071,7 @@ internal fun AudiobookBookmarkLoader(
             playerActions,
         )
         loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(Res.string.ui_book_not_found))
+            Text(stringResource(DsRes.string.ui_book_not_found))
         }
         else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()

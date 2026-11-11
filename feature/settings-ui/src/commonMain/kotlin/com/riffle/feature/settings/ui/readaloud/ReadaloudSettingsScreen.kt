@@ -42,19 +42,19 @@ import com.riffle.core.models.ServerType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud_match_counts
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.StorytellerBadge
 import com.riffle.feature.settings.ui.disabledListItemColors
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_appearance
-import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_configure_storyteller
 import com.riffle.feature.settings.ui.generated.resources.ui_configure_storyteller_first_to_review_matches
 import com.riffle.feature.settings.ui.generated.resources.ui_matches
 import com.riffle.feature.settings.ui.generated.resources.ui_not_configured
-import com.riffle.feature.settings.ui.generated.resources.ui_readaloud
-import com.riffle.feature.settings.ui.generated.resources.ui_readaloud_match_counts
 import com.riffle.feature.settings.ui.generated.resources.ui_review_readaloud_matches
 import com.riffle.feature.settings.ui.generated.resources.ui_sentence_highlight
 import com.riffle.feature.settings.ui.generated.resources.ui_server
@@ -67,6 +67,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Clock
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Full-screen drill-in that hosts every Readaloud-related setting. Reached from the collapsed
@@ -113,10 +114,10 @@ fun ReadaloudSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(Res.string.ui_readaloud)) },
+                title = { Text(stringResource(DsRes.string.ui_readaloud)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SETTINGS_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -167,7 +168,7 @@ fun ReadaloudSettingsScreen(
                     if (summary != null) {
                         Text(
                             stringResource(
-                                Res.string.ui_readaloud_match_counts,
+                                DsRes.string.ui_readaloud_match_counts,
                                 summary.unmatchedCount,
                                 summary.suggestedCount,
                                 summary.partiallyMatchedCount,

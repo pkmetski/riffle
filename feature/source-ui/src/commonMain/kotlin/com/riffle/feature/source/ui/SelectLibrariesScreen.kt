@@ -31,8 +31,8 @@ import com.riffle.core.domain.PendingSource
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.Res
-import com.riffle.feature.source.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.ui_choose_which_libraries_to_show_in_riffle_you_can_change_this_later_in_settings
 import com.riffle.feature.source.ui.generated.resources.ui_continue
 import com.riffle.feature.source.ui.generated.resources.ui_go_back
@@ -40,6 +40,7 @@ import com.riffle.feature.source.ui.generated.resources.ui_select_at_least_one_l
 import com.riffle.feature.source.ui.generated.resources.ui_select_libraries
 import com.riffle.feature.source.ui.generated.resources.ui_this_source_doesn_t_expose_any_book_libraries
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,7 +65,7 @@ fun SelectLibrariesScreen(
                 title = { Text(stringResource(Res.string.ui_select_libraries)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.SELECT_LIBRARIES_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )

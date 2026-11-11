@@ -488,6 +488,11 @@ jobs:
             # path suffix (CoreSimulator may launch via a different argv), so the -f pattern
             # silently misses the running process. Fall back to process-name matching.
             [ "$alive" = 0 ] && pgrep -x Riffle > /dev/null 2>&1 && alive=1
+            # Final authoritative check via launchctl: works regardless of argv or process-name
+            # variations across Xcode and macOS versions. LaunchServices registers the bundle ID
+            # as a managed service when the app is running.
+            [ "$alive" = 0 ] && xcrun simctl spawn "$SIMULATOR_UDID" launchctl list 2>/dev/null \
+              | grep -q "com.riffle.iosApp" && alive=1
             xcrun simctl terminate "$SIMULATOR_UDID" com.riffle.iosApp 2>/dev/null || true
             kill "$launch_pid" 2>/dev/null || true
             wait "$launch_pid" 2>/dev/null || true

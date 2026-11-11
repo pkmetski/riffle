@@ -25,10 +25,9 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.BookCoverTile
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_this_collection
 import com.riffle.feature.library.CollectionDetailViewModel
-import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.OfflineBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -57,7 +56,7 @@ fun CollectionDetailScreen(
                         onClick = onNavigateBack,
                         modifier = Modifier.testTag(TestTags.COLLECTION_DETAIL_BACK),
                     ) {
-                        Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )

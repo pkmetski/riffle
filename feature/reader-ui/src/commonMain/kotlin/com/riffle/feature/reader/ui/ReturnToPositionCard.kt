@@ -24,11 +24,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_dismiss
 import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_back
-import com.riffle.feature.reader.ui.generated.resources.ui_dismiss
 import com.riffle.feature.reader.ui.generated.resources.ui_return_to_previous_position
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * A bottom card offering to undo an internal-link jump. Unlike [FootnotePopup] it lays no
@@ -72,7 +73,7 @@ fun ReturnToPositionCard(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        text = stringResource(Res.string.ui_back),
+                        text = stringResource(DsRes.string.ui_back),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -85,7 +86,7 @@ fun ReturnToPositionCard(
                 ) {
                     Icon(
                         RiffleIcons.Close,
-                        contentDescription = stringResource(Res.string.ui_dismiss),
+                        contentDescription = stringResource(DsRes.string.ui_dismiss),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

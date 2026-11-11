@@ -14,9 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.*
-import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Shared full-screen scaffold for every Settings drill-in panel (Formatting, Display, Behavior,
@@ -41,7 +42,7 @@ internal fun DetailScaffold(
                 title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )

@@ -10,10 +10,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.generated.resources.ui_off
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @Composable
 fun ListeningPreferencesPanel(
@@ -96,8 +98,8 @@ fun ListeningPreferencesPanel(
             ) {
                 Text(
                     if (seconds == 0) {
-                        // TODO: migrate to Res.string.ui_off
-                        stringResource(Res.string.ui_off)
+                        // TODO: migrate to DsRes.string.ui_off
+                        stringResource(DsRes.string.ui_off)
                     } else {
                         // TODO: migrate to Res.string.ui_seconds_short
                         stringResource(Res.string.ui_seconds_short, seconds)

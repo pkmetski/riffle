@@ -29,6 +29,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_book_not_found
 import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.PdfReaderState
 import com.riffle.feature.reader.PdfReaderViewModel
@@ -47,7 +48,6 @@ import com.riffle.feature.source.ui.RiffleSnackbarHost
 import com.riffle.feature.source.ui.rememberTransientMessages
 import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.ui_book_not_found
 import com.riffle.shared.generated.resources.ui_could_not_sync_reading_progress
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
@@ -55,6 +55,7 @@ import org.koin.core.parameter.parametersOf
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 private const val MARGIN_STEP_PTS = 16.0
 
@@ -103,7 +104,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val bridge = remember { bridgeFactory.create() }
     val messages = rememberTransientMessages()
 
-    val bookNotFound = stringResource(Res.string.ui_book_not_found)
+    val bookNotFound = stringResource(DsRes.string.ui_book_not_found)
     val syncErrorText = stringResource(Res.string.ui_could_not_sync_reading_progress)
 
     LaunchedEffect(state) {

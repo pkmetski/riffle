@@ -33,21 +33,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_close_readaloud
+import com.riffle.feature.designsystem.generated.resources.ui_download
+import com.riffle.feature.designsystem.generated.resources.ui_next_chapter
+import com.riffle.feature.designsystem.generated.resources.ui_previous_chapter
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.skipBackwardLabel
 import com.riffle.feature.player.skipForwardLabel
 import com.riffle.feature.player.ui.generated.resources.Res
-import com.riffle.feature.player.ui.generated.resources.ui_cancel
-import com.riffle.feature.player.ui.generated.resources.ui_close_readaloud
-import com.riffle.feature.player.ui.generated.resources.ui_download
 import com.riffle.feature.player.ui.generated.resources.ui_download_readaloud_audio_size
 import com.riffle.feature.player.ui.generated.resources.ui_downloading_percent
-import com.riffle.feature.player.ui.generated.resources.ui_next_chapter
 import com.riffle.feature.player.ui.generated.resources.ui_playback_speed
-import com.riffle.feature.player.ui.generated.resources.ui_previous_chapter
 import com.riffle.feature.player.ui.generated.resources.ui_switch_to_audiobook
 import com.riffle.feature.player.ui.generated.resources.ui_wi_fi_only
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Shared readaloud mini-player bar. Rendered by both `:app` (Android) and `:shared` (iOS).
@@ -121,7 +122,7 @@ fun ReadaloudMiniPlayer(
                     enabled = canPreviousChapter,
                     modifier = Modifier.testTag(TestTags.READALOUD_PREV_CHAPTER),
                 ) {
-                    Icon(PlayerGlyphs.SkipPrevious, contentDescription = stringResource(Res.string.ui_previous_chapter))
+                    Icon(PlayerGlyphs.SkipPrevious, contentDescription = stringResource(DsRes.string.ui_previous_chapter))
                 }
                 IconButton(onClick = onPlayPause, modifier = Modifier.testTag(TestTags.READALOUD_PLAY_PAUSE)) {
                     Icon(
@@ -134,7 +135,7 @@ fun ReadaloudMiniPlayer(
                     enabled = canNextChapter,
                     modifier = Modifier.testTag(TestTags.READALOUD_NEXT_CHAPTER),
                 ) {
-                    Icon(PlayerGlyphs.SkipNext, contentDescription = stringResource(Res.string.ui_next_chapter))
+                    Icon(PlayerGlyphs.SkipNext, contentDescription = stringResource(DsRes.string.ui_next_chapter))
                 }
                 IconButton(onClick = onForward, modifier = Modifier.testTag(TestTags.READALOUD_FORWARD)) {
                     ReadaloudSkipIcon(seconds = skipIntervalSeconds, forward = true, tint = contentColor)
@@ -150,7 +151,7 @@ fun ReadaloudMiniPlayer(
                 }
             }
             IconButton(onClick = onClose, modifier = Modifier.testTag(TestTags.READALOUD_CLOSE)) {
-                Icon(PlayerGlyphs.Close, contentDescription = stringResource(Res.string.ui_close_readaloud))
+                Icon(PlayerGlyphs.Close, contentDescription = stringResource(DsRes.string.ui_close_readaloud))
             }
         }
     }
@@ -257,12 +258,12 @@ fun ReadaloudDownloadDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(wifiOnly) }) {
-                Text(stringResource(Res.string.ui_download))
+                Text(stringResource(DsRes.string.ui_download))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.ui_cancel))
+                Text(stringResource(DsRes.string.ui_cancel))
             }
         },
     )

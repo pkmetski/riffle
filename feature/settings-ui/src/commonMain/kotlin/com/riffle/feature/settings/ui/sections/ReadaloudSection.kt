@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
 import com.riffle.feature.settings.ReadaloudMatchSummary
 import com.riffle.feature.settings.readaloudRowSummary
 import com.riffle.feature.settings.ui.DrillInChevron
@@ -14,6 +15,7 @@ import com.riffle.feature.settings.ui.StorytellerBadge
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * "Readaloud" section — collapsed to a single drill-in row that leads to the dedicated Readaloud
@@ -32,8 +34,8 @@ internal fun ReadaloudSection(
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
     onOpen: () -> Unit,
 ) {
-    // TODO: migrate to Res.string.ui_readaloud
-    SettingsSectionHeader(stringResource(Res.string.ui_readaloud))
+    // TODO: migrate to DsRes.string.ui_readaloud
+    SettingsSectionHeader(stringResource(DsRes.string.ui_readaloud))
     val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }
     val configured = storyteller != null
     ListItem(
@@ -42,8 +44,8 @@ internal fun ReadaloudSection(
         headlineContent = {
             Text(
                 if (configured) {
-                    // TODO: migrate to Res.string.ui_readaloud
-                    stringResource(Res.string.ui_readaloud)
+                    // TODO: migrate to DsRes.string.ui_readaloud
+                    stringResource(DsRes.string.ui_readaloud)
                 } else {
                     // TODO: migrate to Res.string.ui_configure_readaloud
                     stringResource(Res.string.ui_configure_readaloud)

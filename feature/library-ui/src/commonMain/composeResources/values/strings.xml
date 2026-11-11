@@ -13,33 +13,21 @@
     <string name="ui_active_source">Active source</string>
     <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
     <string name="ui_unable_to_connect_to_source">Unable to connect to source</string>
-    <string name="ui_retry">Retry</string>
-    <string name="ui_book_not_found">Book not found</string>
 
     <!-- Generic navigation/actions used across library screens -->
-    <string name="ui_back">Back</string>
-    <string name="ui_cancel">Cancel</string>
-    <string name="ui_remove_all">Remove all</string>
-    <string name="ui_clear_all">Clear all</string>
     <string name="ui_clear_all_cached">Clear all cached</string>
     <string name="ui_this_will_clear_all_cached_media_from_your_device">This will clear all cached media from your device.</string>
     <string name="ui_sort">Sort: %1$s</string>
 
     <!-- Downloads screen -->
-    <string name="ui_downloads">Downloads</string>
-    <string name="ui_remove_all_downloads">Remove all downloads?</string>
-    <string name="ui_this_will_remove_all_downloaded_media_from_your_device">This will remove all downloaded media from your device.</string>
     <string name="ui_remove_named_item">Remove %1$s</string>
     <string name="ui_no_downloaded_media">No downloaded media</string>
     <string name="ui_no_cached_media">No cached media</string>
     <!-- Media type labels for download rows. Keep in step with feature/downloads label(). -->
-    <string name="ui_audiobook">Audiobook</string>
     <string name="ui_comic">Comic</string>
-    <string name="ui_readaloud">Readaloud</string>
 
     <!-- Annotations list screen -->
     <string name="ui_annotations_count">Annotations (%1$d)</string>
-    <string name="ui_no_highlights_yet">No highlights yet.</string>
     <string name="ui_long_press_text_while_reading_to_highlight_it">Long-press text while reading to highlight it.</string>
 
     <!-- Library items screen — tab counts -->
@@ -52,9 +40,7 @@
     <!-- "Show all N annotations" footer in the Annotations tab -->
     <string name="ui_show_all_annotations">Show all %1$d annotations</string>
     <!-- Library items screen — books tab count label -->
-    <string name="ui_books">Books</string>
     <!-- "Not Started" chip in the All Books tab -->
-    <string name="ui_not_started">Not Started</string>
     <!-- Readaloud narration not supported for a format -->
     <string name="ui_not_supported">Not supported</string>
     <!-- Library items screen — empty states -->
@@ -63,13 +49,10 @@
     <string name="ui_no_series_in_this_library">No series in this library</string>
     <string name="ui_no_collections_in_this_library">No collections in this library</string>
     <string name="ui_no_unstarted_books">No unstarted books</string>
-    <string name="ui_no_results_for">No results for \'%1$s\'</string>
     <string name="ui_remove_from_library">Remove from library</string>
 
     <!-- Item detail screen -->
     <string name="ui_listen">Listen</string>
-    <string name="ui_to_read">To Read</string>
-    <string name="ui_in_to_read">In To-Read</string>
     <string name="ui_summary">Summary</string>
     <string name="ui_show_more">Show more</string>
     <string name="ui_show_less">Show less</string>
@@ -96,9 +79,7 @@
     <string name="ui_edit_metadata">Edit metadata</string>
     <string name="ui_title">Title</string>
     <string name="ui_author">Author</string>
-    <string name="ui_series">Series</string>
     <string name="ui_series_number">Series number</string>
-    <string name="ui_save">Save</string>
     <string name="ui_pick_cover_image">Pick cover image</string>
     <string name="ui_restore_from_file_metadata">Restore from file metadata</string>
     <string name="ui_upload_to">Upload to</string>
@@ -108,18 +89,14 @@
     <string name="ui_connect_to_download_audiobook">Connect to download audiobook</string>
     <string name="ui_connect_to_download_readaloud_audio">Connect to download readaloud audio</string>
     <string name="ui_connect_to_stream_audio">Connect to stream audio</string>
-    <string name="ui_read">Read</string>
 
     <!-- Playlist surfaces -->
-    <string name="ui_play">Play</string>
-    <string name="ui_loading">Loading…</string>
     <string name="ui_this_playlist_is_empty">This playlist is empty.</string>
     <string name="ui_remove_from_playlist">Remove from playlist</string>
     <string name="ui_no_playlists_yet_create_one_from_any_item">No playlists yet. Create one from any item.</string>
     <string name="ui_new_playlist">New playlist</string>
     <string name="ui_no_playlists_yet_create_one_to_get_started">No playlists yet. Create one to get started.</string>
     <string name="ui_in_this_playlist">In this playlist</string>
-    <string name="ui_name">Name</string>
     <string name="ui_create">Create</string>
     <string name="ui_playlist_count_one">1 item</string>
     <string name="ui_playlist_count_other">%1$d items</string>
@@ -154,13 +131,8 @@
     <string name="ui_upload_phase_uploading">Uploading…</string>
     <string name="ui_upload_phase_uploading_n_of_m">Uploading %1$d of %2$d files</string>
     <string name="ui_cannot_upload_title">Cannot upload</string>
-    <string name="ui_ok">OK</string>
     <!-- Item detail — Ko-fi nudge -->
     <string name="ui_enjoying_riffle">Enjoying Riffle? Consider supporting development. ☕</string>
-    <string name="ui_dismiss">Dismiss</string>
     <!-- Unbounded browse — navigation bar item content descriptions -->
-    <string name="ui_open_menu">Open menu</string>
-    <string name="ui_home">Home</string>
-    <string name="ui_annotations">Annotations</string>
     <string name="ui_library">Library</string>
 </resources>

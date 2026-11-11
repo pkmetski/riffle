@@ -19,15 +19,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.feature.designsystem.generated.resources.ui_done
+import com.riffle.feature.designsystem.generated.resources.ui_off
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_after_days
 import com.riffle.feature.source.ui.generated.resources.ui_auto_clear_after_days
 import com.riffle.feature.source.ui.generated.resources.ui_auto_clear_off
 import com.riffle.feature.source.ui.generated.resources.ui_cache_settings
 import com.riffle.feature.source.ui.generated.resources.ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n
-import com.riffle.feature.source.ui.generated.resources.ui_done
-import com.riffle.feature.source.ui.generated.resources.ui_off
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * The Downloads screen's "Cache settings" row and its auto-clear dialog.
@@ -99,7 +100,7 @@ fun CacheSettingsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_done)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_done)) }
         },
     )
 }
@@ -111,4 +112,4 @@ private fun ContentCacheAutoClear.summaryLabel(): String =
 
 @Composable
 private fun ContentCacheAutoClear.optionLabel(): String =
-    days?.let { stringResource(Res.string.ui_after_days, it) } ?: stringResource(Res.string.ui_off)
+    days?.let { stringResource(Res.string.ui_after_days, it) } ?: stringResource(DsRes.string.ui_off)

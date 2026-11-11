@@ -25,13 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_not_started
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_all
 import com.riffle.feature.source.ui.generated.resources.ui_any
-import com.riffle.feature.source.ui.generated.resources.ui_not_started
 import com.riffle.feature.source.ui.generated.resources.ui_unowned
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * The Library tab of every unbounded web source: the filter-chip strip over
@@ -83,7 +84,7 @@ fun UnboundedBrowseLibraryTab(
                 CheckableFilterChip(
                     selected = notStartedFilterActive,
                     onClick = { viewModel.toggleNotStartedFilter() },
-                    label = Res.string.ui_not_started,
+                    label = DsRes.string.ui_not_started,
                 )
             }
             if (hasServerSources) {

@@ -96,6 +96,7 @@ import com.riffle.core.models.TocEntry
 import com.riffle.core.models.isStorytellerService
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
@@ -193,7 +194,6 @@ import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_could_not_download_book
 import com.riffle.shared.generated.resources.ui_error
 import com.riffle.shared.generated.resources.ui_no_highlights_to_show
-import com.riffle.shared.generated.resources.ui_readaloud
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -210,6 +210,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via
@@ -1719,7 +1720,7 @@ fun EpubReaderScreen(
                     ) {
                         Icon(
                             imageVector = RiffleIcons.Readaloud,
-                            contentDescription = stringResource(Res.string.ui_readaloud),
+                            contentDescription = stringResource(DsRes.string.ui_readaloud),
                         )
                     }
                 }

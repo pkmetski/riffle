@@ -39,11 +39,12 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.models.CrashReport
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_save
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.crashReportShareSubject
 import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_clear
 import com.riffle.feature.settings.ui.generated.resources.ui_crash_report_count
 import com.riffle.feature.settings.ui.generated.resources.ui_crash_reports_subject
@@ -55,7 +56,6 @@ import com.riffle.feature.settings.ui.generated.resources.ui_github_pat_public_r
 import com.riffle.feature.settings.ui.generated.resources.ui_hide
 import com.riffle.feature.settings.ui.generated.resources.ui_newest_first
 import com.riffle.feature.settings.ui.generated.resources.ui_no_crashes_recorded
-import com.riffle.feature.settings.ui.generated.resources.ui_save
 import com.riffle.feature.settings.ui.generated.resources.ui_share
 import com.riffle.feature.settings.ui.generated.resources.ui_share_all
 import com.riffle.feature.settings.ui.generated.resources.ui_share_crash_report
@@ -69,6 +69,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Instant
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Developer Options screen — GitHub PAT field and diagnostics (debug logs + crash inventory).
@@ -98,7 +99,7 @@ fun DeveloperOptionsScreen(
                 title = { Text(stringResource(Res.string.ui_developer_options)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -177,7 +178,7 @@ private fun GithubPatField(
                     isSaved = true
                 },
                 enabled = pat.isNotBlank() && !isSaved,
-            ) { Text(stringResource(Res.string.ui_save)) }
+            ) { Text(stringResource(DsRes.string.ui_save)) }
         }
     }
 }

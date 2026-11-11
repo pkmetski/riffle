@@ -71,6 +71,15 @@ import com.riffle.core.models.TocEntry
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_back_with_arrow
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_dismiss
+import com.riffle.feature.designsystem.generated.resources.ui_in_to_read
+import com.riffle.feature.designsystem.generated.resources.ui_loading
+import com.riffle.feature.designsystem.generated.resources.ui_ok
+import com.riffle.feature.designsystem.generated.resources.ui_read
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.library.BookDownloadOutcome
 import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.ChaptersState
@@ -86,25 +95,20 @@ import com.riffle.feature.library.bookDownloadOutcome
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_add_to_playlist
 import com.riffle.feature.library.ui.generated.resources.ui_audiobook_duration_line
-import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.library.ui.generated.resources.ui_by
-import com.riffle.feature.library.ui.generated.resources.ui_cancel
 import com.riffle.feature.library.ui.generated.resources.ui_cannot_upload_title
 import com.riffle.feature.library.ui.generated.resources.ui_chapters_count
-import com.riffle.feature.library.ui.generated.resources.ui_dismiss
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total_remaining
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
 import com.riffle.feature.library.ui.generated.resources.ui_enjoying_riffle
 import com.riffle.feature.library.ui.generated.resources.ui_genres
 import com.riffle.feature.library.ui.generated.resources.ui_in_this_playlist
-import com.riffle.feature.library.ui.generated.resources.ui_in_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_language
 import com.riffle.feature.library.ui.generated.resources.ui_listen
 import com.riffle.feature.library.ui.generated.resources.ui_mark_as_read
 import com.riffle.feature.library.ui.generated.resources.ui_mark_as_unread
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_to_read_or_listen
-import com.riffle.feature.library.ui.generated.resources.ui_ok
 import com.riffle.feature.library.ui.generated.resources.ui_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_pages
 import com.riffle.feature.library.ui.generated.resources.ui_pages_read
@@ -112,7 +116,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_progress_listened
 import com.riffle.feature.library.ui.generated.resources.ui_progress_read
 import com.riffle.feature.library.ui.generated.resources.ui_published
 import com.riffle.feature.library.ui.generated.resources.ui_publisher
-import com.riffle.feature.library.ui.generated.resources.ui_read
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated_total
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated_total_remaining
@@ -121,7 +124,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_show_all_readalouds
 import com.riffle.feature.library.ui.generated.resources.ui_show_less
 import com.riffle.feature.library.ui.generated.resources.ui_show_more
 import com.riffle.feature.library.ui.generated.resources.ui_summary
-import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_upload_completed
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_cannot_overwrite
 import com.riffle.feature.library.ui.generated.resources.ui_upload_conflict_message
@@ -131,11 +133,9 @@ import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_uploadi
 import com.riffle.feature.library.ui.generated.resources.ui_upload_phase_uploading_n_of_m
 import com.riffle.feature.library.ui.generated.resources.ui_upload_to
 import com.riffle.feature.source.ui.RiffleMessageScaffold
-import com.riffle.feature.source.ui.generated.resources.ui_back_with_arrow
 import com.riffle.feature.source.ui.generated.resources.ui_download_complete
 import com.riffle.feature.source.ui.generated.resources.ui_download_failed
 import com.riffle.feature.source.ui.generated.resources.ui_item_not_found
-import com.riffle.feature.source.ui.generated.resources.ui_loading
 import com.riffle.feature.source.ui.generated.resources.ui_you_are_offline
 import com.riffle.feature.source.ui.library.DownloadButton
 import com.riffle.feature.source.ui.library.ReadaloudDownloadButton
@@ -144,6 +144,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import kotlin.math.roundToInt
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.source.ui.generated.resources.Res as SourceRes
 
 private const val READ_PROGRESS_THRESHOLD = 0.99f
@@ -273,7 +274,7 @@ fun LibraryItemDetailScreen(
                 confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { showUploadDestinationDialog = false }) {
-                        Text(stringResource(Res.string.ui_cancel))
+                        Text(stringResource(DsRes.string.ui_cancel))
                     }
                 },
             )
@@ -416,11 +417,11 @@ internal fun UploadPreflightDialog(
                         Text(stringResource(Res.string.ui_overwrite))
                     }
                 } else {
-                    TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_ok)) }
+                    TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_ok)) }
                 }
             },
             dismissButton = if (preflight.canOverwrite) {
-                { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } }
+                { TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_cancel)) } }
             } else {
                 null
             },
@@ -430,7 +431,7 @@ internal fun UploadPreflightDialog(
             title = { Text(stringResource(Res.string.ui_cannot_upload_title)) },
             text = { Text(preflight.reason) },
             confirmButton = {
-                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_ok)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_ok)) }
             },
         )
         else -> Unit
@@ -467,7 +468,7 @@ private fun DetailReadyScaffold(
                             onClick = onBack,
                             modifier = Modifier.testTag(TestTags.BOOK_DETAIL_BACK),
                         ) {
-                            Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                            Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                         }
                     },
                     actions = {
@@ -560,7 +561,7 @@ private fun DetailLoadingContent(onBack: () -> Unit, bookImportState: BookImport
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag(TestTags.BOOK_DETAIL_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -569,7 +570,7 @@ private fun DetailLoadingContent(onBack: () -> Unit, bookImportState: BookImport
         Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = stringResource(SourceRes.string.ui_loading),
+                    text = stringResource(DsRes.string.ui_loading),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -592,7 +593,7 @@ private fun DetailErrorContent(onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(16.dp))
-            TextButton(onClick = onBack) { Text(stringResource(SourceRes.string.ui_back_with_arrow)) }
+            TextButton(onClick = onBack) { Text(stringResource(DsRes.string.ui_back_with_arrow)) }
         }
     }
 }
@@ -1064,7 +1065,7 @@ private fun ActionRow(
                 onClick = if (readDisabledByOffline) ({}) else onRead,
                 enabled = !readDisabledByOffline && downloadState !is DownloadState.InProgress,
                 modifier = Modifier.weight(1f).testTag(TestTags.BOOK_DETAIL_OPEN),
-            ) { Text(stringResource(Res.string.ui_read)) }
+            ) { Text(stringResource(DsRes.string.ui_read)) }
         }
         if (effectivelyListenable) {
             val audiobookAvailableOffline = audiobookDownloadState == DownloadState.Downloaded || audiobookDownloadState == DownloadState.Cached
@@ -1168,7 +1169,7 @@ private fun ToReadToggleButton(isInToRead: Boolean, onToggle: () -> Unit, modifi
     ) {
         Icon(
             imageVector = if (isInToRead) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
-            contentDescription = if (isInToRead) stringResource(Res.string.ui_in_to_read) else stringResource(Res.string.ui_to_read),
+            contentDescription = if (isInToRead) stringResource(DsRes.string.ui_in_to_read) else stringResource(DsRes.string.ui_to_read),
             tint = if (isInToRead) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )
@@ -1360,7 +1361,7 @@ private fun KoFiNudge(onDismiss: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(stringResource(Res.string.ui_enjoying_riffle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_dismiss)) }
+        TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_dismiss)) }
     }
 }
 

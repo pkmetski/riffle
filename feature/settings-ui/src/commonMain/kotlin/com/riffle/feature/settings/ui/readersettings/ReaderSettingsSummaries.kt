@@ -8,11 +8,17 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
+import com.riffle.feature.designsystem.generated.resources.ui_auto
+import com.riffle.feature.designsystem.generated.resources.ui_dark
+import com.riffle.feature.designsystem.generated.resources.ui_light
+import com.riffle.feature.designsystem.generated.resources.ui_off
+import com.riffle.feature.designsystem.generated.resources.ui_sepia
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 // Only the `localized*` variants live here: they need a Compose composition to read string
 // resources, so they cannot move to commonMain. Everything they are built from — the theme, font,
@@ -26,16 +32,16 @@ import kotlin.math.roundToInt
 
 @Composable
 fun ReaderTheme.localizedLabel(): String = when (this) {
-    // TODO: migrate to Res.string.ui_light
-    ReaderTheme.Light -> stringResource(Res.string.ui_light)
-    // TODO: migrate to Res.string.ui_dark
-    ReaderTheme.Dark -> stringResource(Res.string.ui_dark)
+    // TODO: migrate to DsRes.string.ui_light
+    ReaderTheme.Light -> stringResource(DsRes.string.ui_light)
+    // TODO: migrate to DsRes.string.ui_dark
+    ReaderTheme.Dark -> stringResource(DsRes.string.ui_dark)
     // TODO: migrate to Res.string.ui_dim
     ReaderTheme.DarkDim -> stringResource(Res.string.ui_dim)
-    // TODO: migrate to Res.string.ui_sepia
-    ReaderTheme.Sepia -> stringResource(Res.string.ui_sepia)
-    // TODO: migrate to Res.string.ui_auto
-    ReaderTheme.Auto -> stringResource(Res.string.ui_auto)
+    // TODO: migrate to DsRes.string.ui_sepia
+    ReaderTheme.Sepia -> stringResource(DsRes.string.ui_sepia)
+    // TODO: migrate to DsRes.string.ui_auto
+    ReaderTheme.Auto -> stringResource(DsRes.string.ui_auto)
 }
 
 @Composable
@@ -135,8 +141,8 @@ fun localizedAutoScrollSummary(prefs: FormattingPreferences): String =
         // TODO: migrate to Res.string.ui_auto_scroll_running_summary
         stringResource(Res.string.ui_auto_scroll_running_summary, prefs.autoScrollWpm)
     } else {
-        // TODO: migrate to Res.string.ui_off
-        stringResource(Res.string.ui_off)
+        // TODO: migrate to DsRes.string.ui_off
+        stringResource(DsRes.string.ui_off)
     }
 
 @Composable
@@ -145,8 +151,8 @@ fun localizedCadenceSummary(prefs: FormattingPreferences): String =
         // TODO: migrate to Res.string.ui_cadence_running_summary
         stringResource(Res.string.ui_cadence_running_summary, prefs.cadenceWpm)
     } else {
-        // TODO: migrate to Res.string.ui_off
-        stringResource(Res.string.ui_off)
+        // TODO: migrate to DsRes.string.ui_off
+        stringResource(DsRes.string.ui_off)
     }
 
 @Composable

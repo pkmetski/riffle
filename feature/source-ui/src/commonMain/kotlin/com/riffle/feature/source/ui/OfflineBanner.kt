@@ -9,9 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.source.ui.generated.resources.Res
-import com.riffle.feature.source.ui.generated.resources.ui_offline_showing_cached_data
+import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * The "you are offline" strip every library-ish grid puts above its content. Shared so the
@@ -20,7 +20,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun OfflineBanner(modifier: Modifier = Modifier) {
     Text(
-        text = stringResource(Res.string.ui_offline_showing_cached_data),
+        text = stringResource(DsRes.string.ui_offline_showing_cached_data),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSecondaryContainer,
         textAlign = TextAlign.Center,

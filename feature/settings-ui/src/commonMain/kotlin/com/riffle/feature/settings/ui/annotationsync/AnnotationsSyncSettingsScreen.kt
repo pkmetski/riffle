@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.settings.AnnotationSyncRowState
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.AnnotationSyncBadge
@@ -33,6 +34,7 @@ import com.riffle.feature.settings.ui.resolve
 import com.riffle.feature.source.ui.AddSourceBackend
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Full-screen drill-in that hosts every WebDAV annotation-sync setting. Reached from the collapsed
@@ -62,8 +64,8 @@ fun AnnotationsSyncSettingsScreen(
                 title = { Text(stringResource(Res.string.ui_webdav_annotation_sync_for_komga)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        // TODO: migrate to Res.string.ui_back
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        // TODO: migrate to DsRes.string.ui_back
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )

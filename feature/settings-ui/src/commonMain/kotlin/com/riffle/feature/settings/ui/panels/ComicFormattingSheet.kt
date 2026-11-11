@@ -21,22 +21,22 @@ import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.ComicBackgroundThemeChoices
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_background
+import com.riffle.feature.designsystem.generated.resources.ui_current_page_and_remaining_pages
+import com.riffle.feature.designsystem.generated.resources.ui_frame_one_panel_at_a_time_in_reading_order
+import com.riffle.feature.designsystem.generated.resources.ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully
+import com.riffle.feature.designsystem.generated.resources.ui_on_screen_info
+import com.riffle.feature.designsystem.generated.resources.ui_page_numbers
+import com.riffle.feature.designsystem.generated.resources.ui_panel_overflow
+import com.riffle.feature.designsystem.generated.resources.ui_panel_view
+import com.riffle.feature.designsystem.generated.resources.ui_progress_bar_at_the_bottom_of_the_page
+import com.riffle.feature.designsystem.generated.resources.ui_reading_progress
+import com.riffle.feature.designsystem.generated.resources.ui_reset_to_global_defaults
 import com.riffle.feature.settings.ui.comicBackgroundChipSelection
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.ui_background
-import com.riffle.feature.settings.ui.generated.resources.ui_current_page_and_remaining_pages
-import com.riffle.feature.settings.ui.generated.resources.ui_frame_one_panel_at_a_time_in_reading_order
-import com.riffle.feature.settings.ui.generated.resources.ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully
-import com.riffle.feature.settings.ui.generated.resources.ui_on_screen_info
-import com.riffle.feature.settings.ui.generated.resources.ui_page_numbers
-import com.riffle.feature.settings.ui.generated.resources.ui_panel_overflow
-import com.riffle.feature.settings.ui.generated.resources.ui_panel_view
-import com.riffle.feature.settings.ui.generated.resources.ui_progress_bar_at_the_bottom_of_the_page
-import com.riffle.feature.settings.ui.generated.resources.ui_reading_progress
-import com.riffle.feature.settings.ui.generated.resources.ui_reset_to_global_defaults
 import com.riffle.feature.settings.ui.readersettings.ThemeChipRows
 import com.riffle.feature.settings.ui.readersettings.ThemeSwatchStyle
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * In-reader comic formatting bottom sheet, shared by Android and iOS.
@@ -63,7 +63,7 @@ fun ComicFormattingSheet(
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Text(
-                    text = stringResource(Res.string.ui_background),
+                    text = stringResource(DsRes.string.ui_background),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
                 )
@@ -79,8 +79,8 @@ fun ComicFormattingSheet(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             ListItem(
-                headlineContent = { Text(stringResource(Res.string.ui_panel_view)) },
-                supportingContent = { Text(stringResource(Res.string.ui_frame_one_panel_at_a_time_in_reading_order)) },
+                headlineContent = { Text(stringResource(DsRes.string.ui_panel_view)) },
+                supportingContent = { Text(stringResource(DsRes.string.ui_frame_one_panel_at_a_time_in_reading_order)) },
                 trailingContent = {
                     Switch(
                         checked = formatting.panelViewOn,
@@ -93,12 +93,12 @@ fun ComicFormattingSheet(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text(
-                text = stringResource(Res.string.ui_panel_overflow),
+                text = stringResource(DsRes.string.ui_panel_overflow),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
             )
             Text(
-                text = stringResource(Res.string.ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully),
+                text = stringResource(DsRes.string.ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
@@ -120,13 +120,13 @@ fun ComicFormattingSheet(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text(
-                text = stringResource(Res.string.ui_on_screen_info),
+                text = stringResource(DsRes.string.ui_on_screen_info),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
             )
             ListItem(
-                headlineContent = { Text(stringResource(Res.string.ui_reading_progress)) },
-                supportingContent = { Text(stringResource(Res.string.ui_progress_bar_at_the_bottom_of_the_page)) },
+                headlineContent = { Text(stringResource(DsRes.string.ui_reading_progress)) },
+                supportingContent = { Text(stringResource(DsRes.string.ui_progress_bar_at_the_bottom_of_the_page)) },
                 trailingContent = {
                     Switch(
                         checked = formatting.showChapterMap,
@@ -136,8 +136,8 @@ fun ComicFormattingSheet(
                 },
             )
             ListItem(
-                headlineContent = { Text(stringResource(Res.string.ui_page_numbers)) },
-                supportingContent = { Text(stringResource(Res.string.ui_current_page_and_remaining_pages)) },
+                headlineContent = { Text(stringResource(DsRes.string.ui_page_numbers)) },
+                supportingContent = { Text(stringResource(DsRes.string.ui_current_page_and_remaining_pages)) },
                 trailingContent = {
                     Switch(
                         checked = formatting.showPageProgress,
@@ -155,7 +155,7 @@ fun ComicFormattingSheet(
                     .align(Alignment.CenterHorizontally)
                     .padding(vertical = 4.dp),
             ) {
-                Text(stringResource(Res.string.ui_reset_to_global_defaults))
+                Text(stringResource(DsRes.string.ui_reset_to_global_defaults))
             }
         }
     }

@@ -10,14 +10,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import com.riffle.core.domain.comic.PanelOverflowBehavior
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.ui_cuts_oversized_panels_in_half
-import com.riffle.feature.settings.ui.generated.resources.ui_no_split
-import com.riffle.feature.settings.ui.generated.resources.ui_show_oversized_panels_as_is_without_splitting
-import com.riffle.feature.settings.ui.generated.resources.ui_smart_split
-import com.riffle.feature.settings.ui.generated.resources.ui_smart_split_description
-import com.riffle.feature.settings.ui.generated.resources.ui_split
+import com.riffle.feature.designsystem.generated.resources.ui_cuts_oversized_panels_in_half
+import com.riffle.feature.designsystem.generated.resources.ui_no_split
+import com.riffle.feature.designsystem.generated.resources.ui_show_oversized_panels_as_is_without_splitting
+import com.riffle.feature.designsystem.generated.resources.ui_smart_split
+import com.riffle.feature.designsystem.generated.resources.ui_smart_split_description
+import com.riffle.feature.designsystem.generated.resources.ui_split
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @Composable
 internal fun PanelOverflowRadioGroup(
@@ -26,9 +26,9 @@ internal fun PanelOverflowRadioGroup(
     onSelect: (PanelOverflowBehavior) -> Unit,
 ) {
     val options = listOf(
-        Triple(PanelOverflowBehavior.OFF, stringResource(Res.string.ui_no_split), stringResource(Res.string.ui_show_oversized_panels_as_is_without_splitting)),
-        Triple(PanelOverflowBehavior.SPLIT, stringResource(Res.string.ui_split), stringResource(Res.string.ui_cuts_oversized_panels_in_half)),
-        Triple(PanelOverflowBehavior.SMART_SPLIT, stringResource(Res.string.ui_smart_split), stringResource(Res.string.ui_smart_split_description)),
+        Triple(PanelOverflowBehavior.OFF, stringResource(DsRes.string.ui_no_split), stringResource(DsRes.string.ui_show_oversized_panels_as_is_without_splitting)),
+        Triple(PanelOverflowBehavior.SPLIT, stringResource(DsRes.string.ui_split), stringResource(DsRes.string.ui_cuts_oversized_panels_in_half)),
+        Triple(PanelOverflowBehavior.SMART_SPLIT, stringResource(DsRes.string.ui_smart_split), stringResource(DsRes.string.ui_smart_split_description)),
     )
     Column(Modifier.selectableGroup()) {
         options.forEach { (behavior, label, description) ->

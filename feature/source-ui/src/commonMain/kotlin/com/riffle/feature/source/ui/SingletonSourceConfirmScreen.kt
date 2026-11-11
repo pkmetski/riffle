@@ -34,13 +34,14 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
-import com.riffle.feature.source.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.ui_singleton_confirm_title
-import com.riffle.feature.source.ui.generated.resources.ui_try_again
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Confirmation screen for zero-config singleton sources (Chitanka, Gutenberg, radio.es). Mirrors
@@ -81,7 +82,7 @@ fun SingletonSourceConfirmScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -127,7 +128,7 @@ fun SingletonSourceConfirmScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                 } else if (error != null) {
                     TextButton(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth().testTag(TestTags.SOURCE_TYPE_PICKER_CANCEL)) {
-                        Text(stringResource(Res.string.ui_back))
+                        Text(stringResource(DsRes.string.ui_back))
                     }
                     Button(
                         onClick = {
@@ -141,7 +142,7 @@ fun SingletonSourceConfirmScreen(
                         },
                         modifier = Modifier.fillMaxWidth().testTag(TestTags.SOURCE_TYPE_PICKER_CONFIRM),
                     ) {
-                        Text(stringResource(Res.string.ui_try_again))
+                        Text(stringResource(DsRes.string.ui_try_again))
                     }
                 } else {
                     Button(

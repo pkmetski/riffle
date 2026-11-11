@@ -37,11 +37,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
+import com.riffle.feature.designsystem.generated.resources.ui_search
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_clear_search
-import com.riffle.feature.source.ui.generated.resources.ui_open_menu
-import com.riffle.feature.source.ui.generated.resources.ui_search
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Unified always-visible search header used by all source browse screens (server libraries and
@@ -88,7 +89,7 @@ fun SourceBrowseHeader(
                 onClick = onOpenDrawer,
                 modifier = drawerButtonModifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
             ) {
-                Icon(RiffleIcons.Menu, contentDescription = stringResource(Res.string.ui_open_menu))
+                Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
             }
             if (sourceIcon != null) {
                 sourceIcon()
@@ -139,7 +140,7 @@ fun SourceBrowseHeader(
                     Box {
                         if (searchQuery.isEmpty()) {
                             Text(
-                                stringResource(Res.string.ui_search),
+                                stringResource(DsRes.string.ui_search),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

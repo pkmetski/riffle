@@ -81,8 +81,13 @@ import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_all_books
 import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_books
 import com.riffle.feature.designsystem.generated.resources.ui_collections
 import com.riffle.feature.designsystem.generated.resources.ui_home
+import com.riffle.feature.designsystem.generated.resources.ui_loading
+import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
+import com.riffle.feature.designsystem.generated.resources.ui_no_results_for
+import com.riffle.feature.designsystem.generated.resources.ui_not_started
 import com.riffle.feature.designsystem.generated.resources.ui_playlists
 import com.riffle.feature.designsystem.generated.resources.ui_section_completed
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
@@ -104,15 +109,10 @@ import com.riffle.feature.library.tabIndexForAnnotations
 import com.riffle.feature.library.tabIndexForPlaylists
 import com.riffle.feature.library.ui.generated.resources.ui_all_books_count
 import com.riffle.feature.library.ui.generated.resources.ui_annotations_count
-import com.riffle.feature.library.ui.generated.resources.ui_books
 import com.riffle.feature.library.ui.generated.resources.ui_collections_count
-import com.riffle.feature.library.ui.generated.resources.ui_loading
 import com.riffle.feature.library.ui.generated.resources.ui_no_collections
-import com.riffle.feature.library.ui.generated.resources.ui_no_highlights_yet
-import com.riffle.feature.library.ui.generated.resources.ui_no_results_for
 import com.riffle.feature.library.ui.generated.resources.ui_no_series
 import com.riffle.feature.library.ui.generated.resources.ui_no_unstarted_books
-import com.riffle.feature.library.ui.generated.resources.ui_not_started
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_in_to_read
 import com.riffle.feature.library.ui.generated.resources.ui_nothing_to_show_here
 import com.riffle.feature.library.ui.generated.resources.ui_offline_banner
@@ -132,6 +132,7 @@ import com.riffle.feature.source.ui.SourceBrowseHeader
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.library.ui.generated.resources.Res as LibRes
 
 // The tab index vocabulary and the visibility/clamp rules come from
@@ -247,7 +248,7 @@ fun LibraryItemsScreen(
             ) {
                 if (isLoading) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(stringResource(LibRes.string.ui_loading))
+                        Text(stringResource(DsRes.string.ui_loading))
                     }
                 } else if (searchQuery.isNotBlank()) {
                     SearchResultsContent(
@@ -538,7 +539,7 @@ internal fun SearchResultsContent(
     if (allEmpty) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                stringResource(LibRes.string.ui_no_results_for, query),
+                stringResource(DsRes.string.ui_no_results_for, query),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -553,7 +554,7 @@ internal fun SearchResultsContent(
     val bmPreview = audiobookBookmarks.take(ANNOTATION_PREVIEW_CAP - annoPreview.size)
     val seriesLabel = stringResource(Res.string.ui_series)
     val collectionsLabel = stringResource(Res.string.ui_collections)
-    val booksLabel = stringResource(LibRes.string.ui_books)
+    val booksLabel = stringResource(DsRes.string.ui_books)
     val annotationsLabel = stringResource(Res.string.ui_annotations)
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -931,7 +932,7 @@ internal fun AnnotationsTabContent(
     if (state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                stringResource(LibRes.string.ui_loading),
+                stringResource(DsRes.string.ui_loading),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -941,7 +942,7 @@ internal fun AnnotationsTabContent(
     if (state.books.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                stringResource(LibRes.string.ui_no_highlights_yet),
+                stringResource(DsRes.string.ui_no_highlights_yet),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1201,7 +1202,7 @@ private fun AllBooksTabContent(
     onToggleNotStarted: () -> Unit,
     onSetSortMode: (LibrarySortMode) -> Unit,
 ) {
-    val notStartedLabel = stringResource(LibRes.string.ui_not_started)
+    val notStartedLabel = stringResource(DsRes.string.ui_not_started)
     val noUnstartedLabel = stringResource(LibRes.string.ui_no_unstarted_books)
     val sortLabel = stringResource(LibRes.string.ui_sort, librarySortMode.label())
     var sortMenuExpanded by remember { mutableStateOf(false) }

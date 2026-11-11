@@ -37,13 +37,14 @@ import coil3.request.crossfade
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_annotations_count
 import com.riffle.feature.library.ui.generated.resources.ui_long_press_text_while_reading_to_highlight_it
-import com.riffle.feature.library.ui.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.source.ui.fadingScrollbar
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Grid of annotated books. Rendered as a tab inside [LibraryItemsScreen] and in [RiffleScreen],
@@ -113,7 +114,7 @@ private fun AnnotationsEmptyState(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = stringResource(Res.string.ui_no_highlights_yet),
+                text = stringResource(DsRes.string.ui_no_highlights_yet),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )

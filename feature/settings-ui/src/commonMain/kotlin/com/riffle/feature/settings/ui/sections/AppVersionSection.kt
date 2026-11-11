@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_retry
 import com.riffle.feature.settings.AppUpdateUiState
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.generated.resources.Res
@@ -22,20 +23,20 @@ import com.riffle.feature.settings.ui.generated.resources.ui_app_name
 import com.riffle.feature.settings.ui.generated.resources.ui_app_version_section
 import com.riffle.feature.settings.ui.generated.resources.ui_check_for_updates
 import com.riffle.feature.settings.ui.generated.resources.ui_check_for_updates_automatically
-import com.riffle.feature.settings.ui.generated.resources.ui_include_beta_versions
-import com.riffle.feature.settings.ui.generated.resources.ui_include_beta_versions_sublabel
 import com.riffle.feature.settings.ui.generated.resources.ui_checking_for_updates
 import com.riffle.feature.settings.ui.generated.resources.ui_downloading_update_percent
+import com.riffle.feature.settings.ui.generated.resources.ui_include_beta_versions
+import com.riffle.feature.settings.ui.generated.resources.ui_include_beta_versions_sublabel
 import com.riffle.feature.settings.ui.generated.resources.ui_installed_version
 import com.riffle.feature.settings.ui.generated.resources.ui_installed_version_up_to_date
 import com.riffle.feature.settings.ui.generated.resources.ui_release_history
 import com.riffle.feature.settings.ui.generated.resources.ui_release_page
-import com.riffle.feature.settings.ui.generated.resources.ui_retry
 import com.riffle.feature.settings.ui.generated.resources.ui_starting_installer
 import com.riffle.feature.settings.ui.generated.resources.ui_update
 import com.riffle.feature.settings.ui.generated.resources.ui_update_available_version
 import com.riffle.feature.settings.ui.generated.resources.ui_update_check_failed
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @Composable
 internal fun AppVersionSection(
@@ -96,7 +97,7 @@ internal fun AppVersionSection(
                         }
                     }
                 is AppUpdateUiState.Failed ->
-                    TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_retry)) }
+                    TextButton(onClick = onCheckForUpdate) { Text(stringResource(DsRes.string.ui_retry)) }
                 else ->
                     TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_check_for_updates)) }
             }

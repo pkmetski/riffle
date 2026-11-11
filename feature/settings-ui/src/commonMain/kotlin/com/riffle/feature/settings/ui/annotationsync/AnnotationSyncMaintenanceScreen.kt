@@ -41,10 +41,18 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_collapse
+import com.riffle.feature.designsystem.generated.resources.ui_dismiss
+import com.riffle.feature.designsystem.generated.resources.ui_expand
+import com.riffle.feature.designsystem.generated.resources.ui_name
+import com.riffle.feature.designsystem.generated.resources.ui_save
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +68,7 @@ fun AnnotationSyncMaintenanceScreen(
                 title = { Text(stringResource(Res.string.ui_maintenance)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -220,7 +228,7 @@ private fun ForgetDialog(row: MaintenanceDeviceRowUiState, onCancel: () -> Unit,
             }
         },
         confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(Res.string.ui_forget_device)) } },
-        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(Res.string.ui_cancel)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(DsRes.string.ui_cancel)) } },
     )
 }
 
@@ -241,13 +249,13 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
                     value = value,
                     onValueChange = { value = it },
                     singleLine = true,
-                    label = { Text(stringResource(Res.string.ui_name)) },
+                    label = { Text(stringResource(DsRes.string.ui_name)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(value) }) { Text(stringResource(Res.string.ui_save)) } },
-        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(Res.string.ui_cancel)) } },
+        confirmButton = { TextButton(onClick = { onConfirm(value) }) { Text(stringResource(DsRes.string.ui_save)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(DsRes.string.ui_cancel)) } },
     )
 }
 
@@ -310,9 +318,9 @@ private fun OtherUserGroup(
             Icon(
                 RiffleIcons.KeyboardArrowRight,
                 contentDescription = if (isOpen) {
-                    stringResource(Res.string.ui_collapse)
+                    stringResource(DsRes.string.ui_collapse)
                 } else {
-                    stringResource(Res.string.ui_expand)
+                    stringResource(DsRes.string.ui_expand)
                 },
                 modifier = Modifier.rotate(caretRotation),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -423,7 +431,7 @@ private fun ForgetUserDialog(
             }
         },
         confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(Res.string.ui_forget_all)) } },
-        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(Res.string.ui_cancel)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(DsRes.string.ui_cancel)) } },
     )
 }
 
@@ -472,7 +480,7 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
             )
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_dismiss)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_dismiss)) }
         }
     }
 }

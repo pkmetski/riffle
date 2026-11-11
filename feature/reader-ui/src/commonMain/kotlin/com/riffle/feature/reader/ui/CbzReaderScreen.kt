@@ -47,16 +47,17 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.VolumeNavEvent
 import com.riffle.feature.reader.cbzSegmentPageIndex
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.reader_book_not_found
-import com.riffle.feature.reader.ui.generated.resources.ui_back
 import com.riffle.feature.reader.ui.generated.resources.ui_comic_formatting
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Shared CBZ reader chrome for Android and iOS. Platform hosts wrap this composable and supply
@@ -180,7 +181,7 @@ fun CbzReaderScreen(
                         onClick = onNavigateBack,
                         modifier = Modifier.testTag(TestTags.CBZ_READER_BACK),
                     ) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
                 actions = {
