@@ -25,7 +25,6 @@
     <string name="ui_item_already_exists">El elemento ya existe</string>
     <string name="ui_later">Más tarde</string>
     <string name="ui_loading_3">Cargando</string>
-    <string name="ui_more_options">Más opciones</string>
     <string name="ui_no_libraries_configured">No hay bibliotecas configuradas</string>
     <string name="ui_notes_optional">Notas (opcional)</string>
     <string name="ui_nothing_to_read_or_listen_to_for_this_item_on_the_source">No hay nada que leer ni escuchar para este elemento en la fuente.</string>
@@ -46,7 +45,6 @@
     <string name="ui_tap_panels_in_the_correct_reading_order_tap_a_numbered_panel_to_reset_from_that">Toca los paneles en el orden de lectura correcto. Toca un panel numerado para reiniciar desde ese punto.</string>
     <string name="ui_this_audiobook_can_t_be_played_right_now">Este audiolibro no se puede reproducir ahora mismo.</string>
     <string name="ui_title">Título</string>
-    <string name="ui_update_available">Actualización disponible</string>
     <string name="ui_update_available_version">Actualización: v%1$s</string>
     <string name="ui_download_and_install">Descargar e instalar</string>
     <string name="ui_download_percent">%1$d%%</string>
@@ -71,7 +69,6 @@
     <string name="ui_gutenberg_source_description">Explora decenas de miles de libros electrónicos gratuitos de dominio público. No necesitas una cuenta: todo se lee directamente desde el catálogo público.</string>
     <string name="ui_chitanka_source_description">Explora libros electrónicos y audiolibros búlgaros de dos bibliotecas digitales públicas. No necesitas una cuenta: todo se lee directamente desde los sitios públicos.</string>
     <string name="ui_radio_es_source_description">Explora y escucha podcasts del directorio radio.es. No necesitas una cuenta: todo se transmite directamente desde el catálogo público.</string>
-    <string name="ui_could_not_sync_reading_progress">No se pudo sincronizar el progreso de lectura</string>
     <string name="ui_nothing_to_show">Nada que mostrar</string>
     <string name="ui_preparing_files">Preparando ficheros…</string>
     <string name="ui_uploading">Subiendo…</string>

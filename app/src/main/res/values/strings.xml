@@ -25,7 +25,6 @@
     <string name="ui_item_already_exists">Item already exists</string>
     <string name="ui_later">Later</string>
     <string name="ui_loading_3">Loading</string>
-    <string name="ui_more_options">More options</string>
     <string name="ui_no_libraries_configured">No libraries configured</string>
     <string name="ui_notes_optional">Notes (optional)</string>
     <string name="ui_nothing_to_read_or_listen_to_for_this_item_on_the_source">Nothing to read or listen to for this item on the source.</string>
@@ -45,7 +44,6 @@
     <string name="ui_tap_panels_in_the_correct_reading_order_tap_a_numbered_panel_to_reset_from_that">Tap panels in the correct reading order. Tap a numbered panel to reset from that point.</string>
     <string name="ui_this_audiobook_can_t_be_played_right_now">This audiobook can\'t be played right now.</string>
     <string name="ui_title">Title</string>
-    <string name="ui_update_available">Update available</string>
     <string name="ui_update_available_version">Update: v%1$s</string>
     <string name="ui_download_and_install">Download &amp; install</string>
     <string name="ui_download_percent">%1$d%%</string>
@@ -63,7 +61,6 @@
     <string name="ui_comic_page_number">Comic page %1$d</string>
     <string name="ui_comic_page_panel">Comic page %1$d panel %2$d</string>
     <string name="ui_download_readaloud_audio_size">Download readaloud audio (%1$s)</string>
-    <string name="ui_could_not_sync_reading_progress">Could not sync reading progress</string>
     <string name="error_select_failure_type">Select a failure type before submitting</string>
     <string name="error_mark_false_panel">Mark at least one panel as false before submitting</string>
     <string name="crash_report_title">Crash report</string>

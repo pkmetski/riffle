@@ -20,8 +20,6 @@
     <string name="ui_oreilly_sign_in_failed">Couldn\'t save your O\'Reilly session. Please try signing in again.</string>
 
     <!-- PDF / CBZ reader error feedback -->
-    <string name="ui_could_not_sync_reading_progress">Could not sync reading progress</string>
-    <string name="ui_more_options">More options</string>
     <string name="ui_submit">Submit</string>
 
     <!-- Selection action strip (iOS text-selection overlay) -->

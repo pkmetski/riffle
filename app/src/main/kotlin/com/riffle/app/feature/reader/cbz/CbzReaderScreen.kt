@@ -35,6 +35,7 @@ import coil3.request.ImageRequest
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.designsystem.generated.resources.error_comic_page_load_failed
+import com.riffle.feature.designsystem.generated.resources.ui_more_options
 import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 import org.jetbrains.compose.resources.stringResource as dsStringResource
 import com.riffle.feature.reader.CbzReaderState
@@ -171,7 +172,7 @@ fun CbzReaderScreen(
             if (developerModeEnabled && state is CbzReaderState.Ready) {
                 var menuOpen by remember { mutableStateOf(false) }
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(RiffleIcons.MoreVert, contentDescription = stringResource(com.riffle.app.R.string.ui_more_options))
+                    Icon(RiffleIcons.MoreVert, contentDescription = dsStringResource(DsRes.string.ui_more_options))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(

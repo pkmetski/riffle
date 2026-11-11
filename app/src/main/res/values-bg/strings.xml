@@ -25,7 +25,6 @@
     <string name="ui_item_already_exists">Артикулът вече съществува</string>
     <string name="ui_later">По-късно</string>
     <string name="ui_loading_3">Зареждане</string>
-    <string name="ui_more_options">Още опции</string>
     <string name="ui_no_libraries_configured">Няма настроени библиотеки</string>
     <string name="ui_notes_optional">Бележки (по избор)</string>
     <string name="ui_nothing_to_read_or_listen_to_for_this_item_on_the_source">Няма нищо за четене или слушане за този елемент в източника.</string>
@@ -46,7 +45,6 @@
     <string name="ui_tap_panels_in_the_correct_reading_order_tap_a_numbered_panel_to_reset_from_that">Докоснете панелите в правилния ред на четене. Докоснете номериран панел, за да нулирате от тази точка.</string>
     <string name="ui_this_audiobook_can_t_be_played_right_now">Тази аудиокнига не може да се възпроизведе в момента.</string>
     <string name="ui_title">Заглавие</string>
-    <string name="ui_update_available">Налична е актуализация</string>
     <string name="ui_update_available_version">Актуализация: v%1$s</string>
     <string name="ui_download_and_install">Изтегляне и инсталиране</string>
     <string name="ui_download_percent">%1$d%%</string>
@@ -71,7 +69,6 @@
     <string name="ui_gutenberg_source_description">Разгледайте десетки хиляди безплатни електронни книги от общественото достояние. Не е нужен акаунт — всичко се чете директно от публичния каталог.</string>
     <string name="ui_chitanka_source_description">Разгледайте български електронни книги и аудиокниги от две публични дигитални библиотеки. Не е нужен акаунт — всичко се чете директно от публичните сайтове.</string>
     <string name="ui_radio_es_source_description">Разгледайте и слушайте подкасти от директорията radio.es. Не е нужен акаунт — всичко се стриймва директно от публичния каталог.</string>
-    <string name="ui_could_not_sync_reading_progress">Напредъкът при четене не можа да се синхронизира</string>
     <string name="ui_nothing_to_show">Няма нищо за показване</string>
     <string name="ui_preparing_files">Подготовка на файловете…</string>
     <string name="ui_uploading">Качване…</string>

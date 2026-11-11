@@ -28,15 +28,16 @@ import com.riffle.feature.shellui.AppShellSlots
 import com.riffle.feature.shellui.StartupUpdateViewModel
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
+import com.riffle.feature.designsystem.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
-import com.riffle.shared.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.ui_update_available_message
 import com.riffle.shared.generated.resources.ui_update_available_version
 import com.riffle.shared.generated.resources.ui_update_dismiss
 import com.riffle.shared.generated.resources.ui_update_view_release
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.shared.library.IosEditMetadataDialogHost
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
@@ -121,8 +122,7 @@ fun HomeScreen() {
                         onClick = startupUpdateVm::showUpdateSheet,
                         shape = RectangleShape,
                         colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color(0xFFFFF9C4)),
-                        modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
-                    )
+                        modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),                    )
                 }
             },
             updateSheet = if (showUpdateSheet) {
