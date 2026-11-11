@@ -8,10 +8,13 @@ import org.junit.Test
 /**
  * Pins the popup-dismiss → no-immersive-toggle contract.
  *
- * Mechanism: a full-screen transparent scrim [Box] sits in the Activity window behind the popup
- * (which lives in its own separate, non-focusable Android window). Any tap outside the popup
- * is caught by the scrim BEFORE it propagates to the WebView, so the reader's onTap handler
- * never fires for a dismiss tap. The tap listeners therefore carry no popup-visibility guard.
+ * Mechanism: a full-screen transparent scrim [Box] lives inside the same inner [Box] as the
+ * [EpubNavigatorView] (the WebView wrapper), placed AFTER it so it wins z-order. This mirrors
+ * the [CornerBookmarkIndicator] placement: a fillMaxSize AndroidView inside a Box consumes all
+ * touches before any outer-Box Compose element sees them, so the scrim must be a sibling of the
+ * AndroidView — not a sibling of the inner Box — to intercept at PointerEventPass.Initial before
+ * the WebView dispatches the MotionEvent. The tap listeners also carry a popup-visibility guard
+ * as a secondary defence.
  */
 class PopupDismissedTapTest {
 

@@ -780,6 +780,30 @@ fun EpubReaderScreen(
                             .graphicsLayer { }
                             .testTag(TestTags.READER_BOOKMARK),
                     )
+                    // Dismiss-tap scrim: must live inside this inner Box (sibling of
+                    // EpubNavigatorView, placed AFTER it so it wins the z-order) for the same
+                    // reason CornerBookmarkIndicator does — a fillMaxSize AndroidView in a Box
+                    // consumes all touches before any outer-Box Compose element sees them.
+                    // Consuming every pointer at PointerEventPass.Initial blocks the WebView from
+                    // receiving the dismiss tap and calling onTap → onToggleImmersive(), which
+                    // would shift the layout and reposition the popup to the bottom of the screen.
+                    if (highlightToEdit != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                            event.changes.forEach { it.consume() }
+                                            if (event.changes.any { it.pressed && !it.previousPressed }) {
+                                                viewModel.dismissHighlightActions()
+                                            }
+                                        }
+                                    }
+                                },
+                        )
+                    }
                 }
                 is ReaderState.Error -> {
                     Text(
@@ -3285,28 +3309,6 @@ private fun EpubNavigatorView(
             )
             val selectedColor = popupSelection.selectedColor
             val currentEmphasisStyles = popupSelection.emphasisStyles
-            // The popup lives in a separate Android window (non-focusable). Taps outside it pass
-            // directly to the Activity window and can reach the WebView's onTap — toggling
-            // immersive mode before onDismissRequest fires. This scrim sits in the Activity window
-            // and consumes every pointer event at PointerEventPass.Initial — the earliest pass,
-            // before AndroidView dispatches MotionEvents to the WebView. The dismiss call fires
-            // on the first DOWN so the popup is hidden promptly; the loop continues consuming
-            // subsequent events in the same gesture until recomposition removes the scrim.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                event.changes.forEach { it.consume() }
-                                if (event.changes.any { it.pressed && !it.previousPressed }) {
-                                    onDismissHighlightActions()
-                                }
-                            }
-                        }
-                    },
-            )
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect.toIntRect(),
                 selected = selectedColor,
