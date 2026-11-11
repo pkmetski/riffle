@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +60,7 @@ import com.riffle.feature.designsystem.generated.resources.Res as DsRes
  * before this moved, iOS had no source search field at all.
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun SourceBrowseHeader(
     sourceName: String,
     searchQuery: String,
@@ -64,6 +68,7 @@ fun SourceBrowseHeader(
     onOpenDrawer: () -> Unit,
     sourceIcon: (@Composable () -> Unit)? = null,
     drawerButtonModifier: Modifier = Modifier,
+    showUpdateDot: Boolean = false,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     // Claim initial focus on an invisible focusable so the BasicTextField never auto-focuses
@@ -89,7 +94,9 @@ fun SourceBrowseHeader(
                 onClick = onOpenDrawer,
                 modifier = drawerButtonModifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
             ) {
-                Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
+                BadgedBox(badge = { if (showUpdateDot) Badge() }) {
+                    Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
+                }
             }
             if (sourceIcon != null) {
                 sourceIcon()

@@ -93,6 +93,7 @@ fun UnboundedBrowseScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit = {},
     externalSavedQuery: String = "",
     onQuerySaved: (String) -> Unit = {},
+    showUpdateDot: Boolean = false,
 ) {
     val key = "$sourceType/$libraryId"
     val host = remember(key) { ScreenScopedViewModelHost() }
@@ -153,6 +154,7 @@ fun UnboundedBrowseScreen(
                 sourceIcon = {
                     SourceTypeIcon(type = sourceType, size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 },
+                showUpdateDot = showUpdateDot,
             )
         },
         bottomBar = {

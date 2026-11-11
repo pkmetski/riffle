@@ -27,9 +27,15 @@ import com.riffle.feature.source.ui.AddSourceBackend
  *   Null if the platform does not implement WebDAV onboarding.
  * @param platformSettingsHooks Platform-specific hooks for the Settings screen (language picker,
  *   volume-key toggle visibility, update-install capability).
- * @param updateDialog Platform-specific update-available dialog, shown by the shell after the
- *   startup check. Both platforms show a dialog — Android with download/install, iOS with a
- *   "View release" link to GitHub Releases (the distribution channel on both platforms).
+ * @param showUpdateDot True when a new version is available and not yet seen by the user. Renders
+ *   as a small dot badge on the ≡ hamburger icon in [RiffleScreen].
+ * @param onDrawerOpened Invoked each time the navigation drawer opens. Used to mark the current
+ *   update version as seen (clearing the dot).
+ * @param updateDrawerRow Optional composable rendered inside the navigation drawer footer, above
+ *   Downloads and Settings, when an update is available.
+ * @param updateSheet Optional composable rendered at top level (outside the drawer) when the user
+ *   has tapped the update drawer row. Platform-specific: Android shows a bottom sheet with
+ *   download/install; iOS shows an AlertDialog with a "View release" link to GitHub Releases.
  * @param languageChangeDialog Platform-specific dialog shown after a language switch that
  *   requires the app to restart. Null on Android (recreate() handles it inline).
  * @param appVersion Version string shown in the navigation drawer and Settings, e.g. "1.4.2".
@@ -59,7 +65,10 @@ data class AppShellSlots(
         ) -> Unit
     )? = null,
     val platformSettingsHooks: PlatformSettingsHooks,
-    val updateDialog: (@Composable () -> Unit)? = null,
+    val showUpdateDot: Boolean = false,
+    val onDrawerOpened: (() -> Unit)? = null,
+    val updateDrawerRow: (@Composable () -> Unit)? = null,
+    val updateSheet: (@Composable () -> Unit)? = null,
     val languageChangeDialog: (@Composable () -> Unit)? = null,
     val appVersion: String? = null,
     val appSha: String? = null,

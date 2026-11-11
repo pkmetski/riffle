@@ -1,6 +1,9 @@
 package com.riffle.shared
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -10,10 +13,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.testTag
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.logging.InMemoryLogBuffer
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.shellui.AppShell
 import com.riffle.feature.shellui.AppShellSlots
 import com.riffle.feature.shellui.StartupUpdateViewModel
@@ -25,6 +34,7 @@ import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
 import com.riffle.shared.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.ui_update_available_message
+import com.riffle.shared.generated.resources.ui_update_available_version
 import com.riffle.shared.generated.resources.ui_update_dismiss
 import com.riffle.shared.generated.resources.ui_update_view_release
 import com.riffle.shared.library.IosEditMetadataDialogHost
@@ -54,7 +64,9 @@ fun HomeScreen() {
     val crashReportRepository = koinInject<CrashReportRepository>()
     val logBuffer = koinInject<InMemoryLogBuffer>()
     val startupUpdateVm = koinViewModel<StartupUpdateViewModel>()
-    val updateDialogState by startupUpdateVm.dialogState.collectAsState()
+    val updateState by startupUpdateVm.updateState.collectAsState()
+    val showUpdateDot by startupUpdateVm.showDot.collectAsState()
+    val showUpdateSheet by startupUpdateVm.showSheet.collectAsState()
     val scope = rememberCoroutineScope()
     var showAddLocalFiles by remember { mutableStateOf(false) }
     var showCrashNotice by remember {
@@ -98,30 +110,46 @@ fun HomeScreen() {
                 )
             },
             platformSettingsHooks = IosPlatformSettingsHooks,
-            updateDialog = {
-                updateDialogState?.let { dialogState ->
-                    AlertDialog(
-                        onDismissRequest = startupUpdateVm::dismissDialog,
-                        title = { Text(stringResource(Res.string.ui_update_available)) },
-                        text = { Text(stringResource(Res.string.ui_update_available_message, dialogState.update.versionName)) },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                NSURL.URLWithString(dialogState.update.downloadUrl)?.let {
-                                    UIApplication.sharedApplication.openURL(it)
-                                }
-                                startupUpdateVm.dismissDialog()
-                            }) { Text(stringResource(Res.string.ui_update_view_release)) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = {
-                                startupUpdateVm.ignoreVersion(
-                                    dialogState.update.versionCode,
-                                    dialogState.update.prerelease,
-                                )
-                            }) { Text(stringResource(Res.string.ui_update_dismiss)) }
-                        },
+            showUpdateDot = showUpdateDot,
+            onDrawerOpened = startupUpdateVm::markUpdateSeen,
+            updateDrawerRow = updateState?.let { state ->
+                {
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(Res.string.ui_update_available_version, state.update.versionName)) },
+                        icon = { Icon(RiffleIcons.Upgrade, contentDescription = null) },
+                        selected = false,
+                        onClick = startupUpdateVm::showUpdateSheet,
+                        shape = RectangleShape,
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color(0xFFFFF9C4)),
+                        modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
                     )
                 }
+            },
+            updateSheet = if (showUpdateSheet) {
+                {
+                    updateState?.let { state ->
+                        AlertDialog(
+                            onDismissRequest = startupUpdateVm::dismissSheet,
+                            title = { Text(stringResource(Res.string.ui_update_available)) },
+                            text = { Text(stringResource(Res.string.ui_update_available_message, state.update.versionName)) },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    NSURL.URLWithString(state.update.downloadUrl)?.let {
+                                        UIApplication.sharedApplication.openURL(it)
+                                    }
+                                    startupUpdateVm.dismissSheet()
+                                }) { Text(stringResource(Res.string.ui_update_view_release)) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = startupUpdateVm::dismissSheet) {
+                                    Text(stringResource(Res.string.ui_update_dismiss))
+                                }
+                            },
+                        )
+                    }
+                }
+            } else {
+                null
             },
             languageChangeDialog = {
                 LanguageChangeRestartDialog(onDismiss = {})

@@ -39,7 +39,7 @@ class AppUpdateStatusTextTest {
 
     @Test fun updateAvailableNamesTheOfferedVersion() {
         assertEquals(
-            "Update available: v2.6.0",
+            "Update: v2.6.0",
             AppUpdateStatus.statusText(AppUpdateUiState.UpdateAvailable("2.6.0", update), "2.5.0"),
         )
     }

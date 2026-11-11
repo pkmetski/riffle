@@ -29,7 +29,8 @@ import com.riffle.feature.source.ui.localfiles.AddLocalFilesCommonViewModel
 import com.riffle.feature.source.ui.localfiles.AddLocalFilesScreen
 import org.koin.compose.koinInject
 import com.riffle.feature.shellui.StartupUpdateViewModel
-import com.riffle.app.feature.update.UpdateAvailableDialog
+import com.riffle.app.feature.update.UpdateAvailableSheet
+import com.riffle.app.feature.update.UpdateDrawerRow
 import com.riffle.app.i18n.AppLocaleController
 import com.riffle.app.i18n.findActivity
 import com.riffle.feature.library.LibraryItemDetailUiState
@@ -51,8 +52,10 @@ fun MainScreen(
     windowSizeClass: WindowSizeClass,
 ) {
     val startupUpdateVm: StartupUpdateViewModel = koinViewModel()
-    val updateDialogState by startupUpdateVm.dialogState.collectAsState()
+    val updateState by startupUpdateVm.updateState.collectAsState()
     val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
+    val showUpdateDot by startupUpdateVm.showDot.collectAsState()
+    val showUpdateSheet by startupUpdateVm.showSheet.collectAsState()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -156,17 +159,23 @@ fun MainScreen(
                     )
                 },
                 platformSettingsHooks = platformHooks,
-                updateDialog = {
-                    updateDialogState?.let { dialogState ->
-                        UpdateAvailableDialog(
-                            state = dialogState,
-                            downloadState = updateDownloadState,
-                            onIgnore = startupUpdateVm::ignoreVersion,
-                            onUpdate = startupUpdateVm::startUpdate,
-                            onDismiss = startupUpdateVm::dismissDialog,
-                        )
-                    }
+                showUpdateDot = showUpdateDot,
+                onDrawerOpened = startupUpdateVm::markUpdateSeen,
+                updateDrawerRow = updateState?.let { state ->
+                    { UpdateDrawerRow(versionName = state.update.versionName, onClick = startupUpdateVm::showUpdateSheet) }
                 },
+                updateSheet = if (showUpdateSheet) {
+                    {
+                        updateState?.let { state ->
+                            UpdateAvailableSheet(
+                                state = state,
+                                downloadState = updateDownloadState,
+                                onUpdate = startupUpdateVm::startUpdate,
+                                onDismiss = startupUpdateVm::dismissSheet,
+                            )
+                        }
+                    }
+                } else null,
                 appVersion = BuildConfig.VERSION_NAME,
                 appSha = BuildConfig.GIT_SHA,
                 localFilePicker = { showLocalFilePicker = true },

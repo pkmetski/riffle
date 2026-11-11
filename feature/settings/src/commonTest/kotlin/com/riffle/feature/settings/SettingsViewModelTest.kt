@@ -244,17 +244,14 @@ class SettingsViewModelTest {
 
     private val autoUpdateEnabledFlow = MutableStateFlow(true)
     private val betaUpdatesEnabledFlow = MutableStateFlow(false)
-    private val ignoredVersionCodeFlow = MutableStateFlow(0)
-    private val ignoredVersionWasPreReleaseFlow = MutableStateFlow(false)
+    private val seenUpdateVersionCodeFlow = MutableStateFlow(0)
     private val fakeAppUpdatePreferencesStore = object : AppUpdatePreferencesStore {
         override val autoUpdateEnabled: Flow<Boolean> = autoUpdateEnabledFlow
-        override val ignoredVersionCode: Flow<Int> = ignoredVersionCodeFlow
         override val betaUpdatesEnabled: Flow<Boolean> = betaUpdatesEnabledFlow
-        override val ignoredVersionWasPreRelease: Flow<Boolean> = ignoredVersionWasPreReleaseFlow
+        override val seenUpdateVersionCode: Flow<Int> = seenUpdateVersionCodeFlow
         override suspend fun setAutoUpdateEnabled(value: Boolean) { autoUpdateEnabledFlow.value = value }
-        override suspend fun setIgnoredVersionCode(value: Int) { ignoredVersionCodeFlow.value = value }
         override suspend fun setBetaUpdatesEnabled(value: Boolean) { betaUpdatesEnabledFlow.value = value }
-        override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) { ignoredVersionWasPreReleaseFlow.value = value }
+        override suspend fun setSeenUpdateVersionCode(value: Int) { seenUpdateVersionCodeFlow.value = value }
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
@@ -990,9 +987,8 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setBetaUpdatesEnabledFalseClearsIgnoredPrereleaseIgnore() = runTest {
-        ignoredVersionCodeFlow.value = 10500
-        ignoredVersionWasPreReleaseFlow.value = true
+    fun setBetaUpdatesEnabledFalseDoesNotResetSeenVersionCode() = runTest {
+        seenUpdateVersionCodeFlow.value = 10500
         val vm = makeViewModel()
         backgroundScope.launch { vm.betaUpdatesEnabled.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -1000,8 +996,7 @@ class SettingsViewModelTest {
         vm.setBetaUpdatesEnabled(false)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(0, ignoredVersionCodeFlow.value)
-        assertFalse(ignoredVersionWasPreReleaseFlow.value)
+        assertEquals(10500, seenUpdateVersionCodeFlow.value)
     }
 
     @Test
@@ -1070,21 +1065,6 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertIs<AppUpdateUiState.Idle>(vm.appUpdateState.value)
-    }
-
-    @Test
-    fun setBetaUpdatesEnabledFalsePreservesStableIgnore() = runTest {
-        ignoredVersionCodeFlow.value = 10400
-        ignoredVersionWasPreReleaseFlow.value = false
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.betaUpdatesEnabled.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        vm.setBetaUpdatesEnabled(false)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals(10400, ignoredVersionCodeFlow.value)
-        assertFalse(ignoredVersionWasPreReleaseFlow.value)
     }
 
     @Test

@@ -67,11 +67,12 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
 
         let backButton = openReader(from: audiobookTile, in: app)
         XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Player screen must open")
-        // 200s, raised from 150s (raised from 90s): under Clone 2 resource pressure the CMP
-        // accessibility bridge populates controls asynchronously; observed a 173s total test time
-        // at the 150s limit on a contended CI runner where controls were still rendering.
+        // 300s, raised from 200s (raised from 150s, raised from 90s): under Clone 2 resource
+        // pressure the CMP accessibility bridge populates controls asynchronously; observed a 230s
+        // total test time at the 200s limit on a contended CI runner where controls were still
+        // rendering. Raised to 300s to match the sibling testAudiobookPlayerShowsSpeedSleepAndListControls.
         XCTAssertTrue(
-            playPause.waitForExistence(timeout: 200),
+            playPause.waitForExistence(timeout: 300),
             "Play/pause button should be visible on the player screen"
         )
     }

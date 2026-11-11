@@ -7,9 +7,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import platform.Foundation.NSUserDefaults
 
 private const val KEY_AUTO_UPDATE_ENABLED = "app_update:auto_update_enabled"
-private const val KEY_IGNORED_VERSION_CODE = "app_update:ignored_version_code"
 private const val KEY_BETA_UPDATES_ENABLED = "app_update:beta_updates_enabled"
-private const val KEY_IGNORED_VERSION_WAS_PRE_RELEASE = "app_update:ignored_version_was_prerelease"
+private const val KEY_SEEN_UPDATE_VERSION_CODE = "app_update:seen_update_version_code"
 
 class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
 
@@ -18,27 +17,18 @@ class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
     private val autoUpdateState = MutableStateFlow(
         if (defaults.objectForKey(KEY_AUTO_UPDATE_ENABLED) != null) defaults.boolForKey(KEY_AUTO_UPDATE_ENABLED) else true
     )
-    private val ignoredVersionState = MutableStateFlow(defaults.integerForKey(KEY_IGNORED_VERSION_CODE).toInt())
     private val betaUpdatesState = MutableStateFlow(
         if (defaults.objectForKey(KEY_BETA_UPDATES_ENABLED) != null) defaults.boolForKey(KEY_BETA_UPDATES_ENABLED) else false
     )
-    private val ignoredVersionWasPreReleaseState = MutableStateFlow(
-        if (defaults.objectForKey(KEY_IGNORED_VERSION_WAS_PRE_RELEASE) != null) defaults.boolForKey(KEY_IGNORED_VERSION_WAS_PRE_RELEASE) else false
-    )
+    private val seenVersionState = MutableStateFlow(defaults.integerForKey(KEY_SEEN_UPDATE_VERSION_CODE).toInt())
 
     override val autoUpdateEnabled: Flow<Boolean> = autoUpdateState.asStateFlow()
-    override val ignoredVersionCode: Flow<Int> = ignoredVersionState.asStateFlow()
     override val betaUpdatesEnabled: Flow<Boolean> = betaUpdatesState.asStateFlow()
-    override val ignoredVersionWasPreRelease: Flow<Boolean> = ignoredVersionWasPreReleaseState.asStateFlow()
+    override val seenUpdateVersionCode: Flow<Int> = seenVersionState.asStateFlow()
 
     override suspend fun setAutoUpdateEnabled(value: Boolean) {
         defaults.setBool(value, forKey = KEY_AUTO_UPDATE_ENABLED)
         autoUpdateState.value = value
-    }
-
-    override suspend fun setIgnoredVersionCode(value: Int) {
-        defaults.setInteger(value.toLong(), forKey = KEY_IGNORED_VERSION_CODE)
-        ignoredVersionState.value = value
     }
 
     override suspend fun setBetaUpdatesEnabled(value: Boolean) {
@@ -46,8 +36,8 @@ class IosAppUpdatePreferencesStoreImpl : AppUpdatePreferencesStore {
         betaUpdatesState.value = value
     }
 
-    override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) {
-        defaults.setBool(value, forKey = KEY_IGNORED_VERSION_WAS_PRE_RELEASE)
-        ignoredVersionWasPreReleaseState.value = value
+    override suspend fun setSeenUpdateVersionCode(value: Int) {
+        defaults.setInteger(value.toLong(), forKey = KEY_SEEN_UPDATE_VERSION_CODE)
+        seenVersionState.value = value
     }
 }

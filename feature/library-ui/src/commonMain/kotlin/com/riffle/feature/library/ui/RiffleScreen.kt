@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +54,7 @@ fun RiffleScreen(
     onOpenDrawer: () -> Unit,
     onItemSelected: (sourceId: String, itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit = onItemSelected,
+    showUpdateDot: Boolean = false,
 ) {
     val inProgress by viewModel.inProgress.collectAsState()
     val continueSeries by viewModel.continueSeries.collectAsState()
@@ -89,7 +92,9 @@ fun RiffleScreen(
                             onClick = onOpenDrawer,
                             modifier = Modifier.testTag(TestTags.NAV_DRAWER_TOGGLE),
                         ) {
-                            Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
+                            BadgedBox(badge = { if (showUpdateDot) Badge() }) {
+                                Icon(RiffleIcons.Menu, contentDescription = stringResource(DsRes.string.ui_open_menu))
+                            }
                         }
                     },
                 )

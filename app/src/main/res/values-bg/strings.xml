@@ -49,6 +49,9 @@
     <string name="ui_this_audiobook_can_t_be_played_right_now">Тази аудиокнига не може да се възпроизведе в момента.</string>
     <string name="ui_title">Заглавие</string>
     <string name="ui_update_available">Налична е актуализация</string>
+    <string name="ui_update_available_version">Актуализация: v%1$s</string>
+    <string name="ui_download_and_install">Изтегляне и инсталиране</string>
+    <string name="ui_download_percent">%1$d%%</string>
     <string name="ui_upload_completed">Качването завърши</string>
     <string name="ui_upload_failed">Качването е неуспешно</string>
     <string name="ui_upload_unavailable">Качването не е налично</string>

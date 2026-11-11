@@ -3,6 +3,7 @@ package com.riffle.core.domain
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -22,13 +23,13 @@ class AppUpdatePreferencesStoreTest {
     }
 
     @Test
-    fun ignoredVersionWasPreReleaseDefaultsFalse() = runTest {
-        assertFalse(fake.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease should default to false")
+    fun seenUpdateVersionCodeDefaultsZero() = runTest {
+        assertEquals(0, fake.seenUpdateVersionCode.first(), "seenUpdateVersionCode should default to 0")
     }
 
     @Test
-    fun setIgnoredVersionWasPreReleasePersists() = runTest {
-        fake.setIgnoredVersionWasPreRelease(true)
-        assertTrue(fake.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease should be true after setting true")
+    fun setSeenUpdateVersionCodePersists() = runTest {
+        fake.setSeenUpdateVersionCode(42)
+        assertEquals(42, fake.seenUpdateVersionCode.first(), "seenUpdateVersionCode should be 42 after setting 42")
     }
 }

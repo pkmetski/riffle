@@ -196,11 +196,9 @@ class AppUpdateRepositoryImplTest {
 
 private object NoOpAppUpdatePreferencesStore : AppUpdatePreferencesStore {
     override val autoUpdateEnabled: Flow<Boolean> = flowOf(true)
-    override val ignoredVersionCode: Flow<Int> = flowOf(0)
     override val betaUpdatesEnabled: Flow<Boolean> = flowOf(false)
-    override val ignoredVersionWasPreRelease: Flow<Boolean> = flowOf(false)
+    override val seenUpdateVersionCode: Flow<Int> = flowOf(0)
     override suspend fun setAutoUpdateEnabled(value: Boolean) = Unit
-    override suspend fun setIgnoredVersionCode(value: Int) = Unit
     override suspend fun setBetaUpdatesEnabled(value: Boolean) = Unit
-    override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) = Unit
+    override suspend fun setSeenUpdateVersionCode(value: Int) = Unit
 }

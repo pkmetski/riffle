@@ -744,7 +744,6 @@ private val updateViewModelModule = module {
             appUpdateRepository = get(),
             appUpdatePreferencesStore = get(),
             clock = get(),
-            isDevBuild = get(named("isDevBuild")),
             currentVersionCode = com.riffle.app.BuildConfig.VERSION_CODE,
         )
     }

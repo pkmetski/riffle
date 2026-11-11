@@ -8,6 +8,7 @@ object TestTags {
     const val NAV_DRAWER_SOURCE_HEADER = "nav_drawer_source_header"
     const val NAV_DRAWER_DOWNLOADS = "nav_drawer_downloads"
     const val NAV_DRAWER_SETTINGS = "nav_drawer_settings"
+    const val NAV_DRAWER_UPDATE = "nav_drawer_update"
     const val NAV_DRAWER_RIFFLE = "nav_drawer_riffle"
     const val NAV_TAB_IN_PROGRESS = "nav_tab_in_progress"
     const val NAV_TAB_TO_READ = "nav_tab_to_read"

@@ -14,9 +14,8 @@ class IosAppUpdatePreferencesStoreImplTest {
 
     private val keys = listOf(
         "app_update:auto_update_enabled",
-        "app_update:ignored_version_code",
         "app_update:beta_updates_enabled",
-        "app_update:ignored_version_was_prerelease",
+        "app_update:seen_update_version_code",
     )
 
     @BeforeTest
@@ -26,11 +25,11 @@ class IosAppUpdatePreferencesStoreImplTest {
     fun cleanup() = keys.forEach { NSUserDefaults.standardUserDefaults.removeObjectForKey(it) }
 
     @Test
-    fun `defaults to auto-update on and no ignored version`() = runTest {
+    fun `defaults to auto-update on and zero seen version`() = runTest {
         val store = IosAppUpdatePreferencesStoreImpl()
 
         assertTrue(store.autoUpdateEnabled.first())
-        assertEquals(0, store.ignoredVersionCode.first())
+        assertEquals(0, store.seenUpdateVersionCode.first())
     }
 
     @Test
@@ -43,25 +42,25 @@ class IosAppUpdatePreferencesStoreImplTest {
     }
 
     @Test
-    fun `setIgnoredVersionCode is observable without a restart`() = runTest {
+    fun `setSeenUpdateVersionCode is observable without a restart`() = runTest {
         val store = IosAppUpdatePreferencesStoreImpl()
 
-        store.setIgnoredVersionCode(42)
+        store.setSeenUpdateVersionCode(42)
 
-        assertEquals(42, store.ignoredVersionCode.first())
+        assertEquals(42, store.seenUpdateVersionCode.first())
     }
 
     @Test
     fun `values persist across store instances`() = runTest {
         IosAppUpdatePreferencesStoreImpl().apply {
             setAutoUpdateEnabled(true)
-            setIgnoredVersionCode(7)
+            setSeenUpdateVersionCode(7)
         }
 
         val reopened = IosAppUpdatePreferencesStoreImpl()
 
         assertTrue(reopened.autoUpdateEnabled.first(), "auto-update must survive a new instance")
-        assertEquals(7, reopened.ignoredVersionCode.first())
+        assertEquals(7, reopened.seenUpdateVersionCode.first())
     }
 
     @Test
@@ -74,12 +73,12 @@ class IosAppUpdatePreferencesStoreImplTest {
     }
 
     @Test
-    fun `ignoredVersionWasPreRelease persists across store instances`() = runTest {
-        IosAppUpdatePreferencesStoreImpl().setIgnoredVersionWasPreRelease(true)
+    fun `seenUpdateVersionCode persists across store instances`() = runTest {
+        IosAppUpdatePreferencesStoreImpl().setSeenUpdateVersionCode(99)
 
         val reopened = IosAppUpdatePreferencesStoreImpl()
 
-        assertTrue(reopened.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease must survive a new instance")
+        assertEquals(99, reopened.seenUpdateVersionCode.first(), "seenUpdateVersionCode must survive a new instance")
     }
 
     @Test
@@ -96,15 +95,8 @@ class IosAppUpdatePreferencesStoreImplTest {
     }
 
     @Test
-    fun `ignoredVersionWasPreRelease defaults to false`() = runTest {
+    fun `seenUpdateVersionCode defaults to zero`() = runTest {
         val store = IosAppUpdatePreferencesStoreImpl()
-        assertFalse(store.ignoredVersionWasPreRelease.first(), "ignoredVersionWasPreRelease should default to false")
-    }
-
-    @Test
-    fun `setIgnoredVersionWasPreRelease is observable without a restart`() = runTest {
-        val store = IosAppUpdatePreferencesStoreImpl()
-        store.setIgnoredVersionWasPreRelease(true)
-        assertTrue(store.ignoredVersionWasPreRelease.first(), "the flow must replay the new value")
+        assertEquals(0, store.seenUpdateVersionCode.first(), "seenUpdateVersionCode should default to 0")
     }
 }
