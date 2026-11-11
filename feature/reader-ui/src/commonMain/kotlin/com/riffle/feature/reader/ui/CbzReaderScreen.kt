@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.VolumeNavEvent
@@ -57,7 +58,6 @@ import com.riffle.feature.reader.ui.generated.resources.ui_comic_formatting
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
 
 /**
  * Shared CBZ reader chrome for Android and iOS. Platform hosts wrap this composable and supply

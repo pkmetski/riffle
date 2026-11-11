@@ -37,6 +37,7 @@ import coil3.request.crossfade
 import com.riffle.core.domain.AnnotatedBook
 import com.riffle.feature.designsystem.asAuthHeader
 import com.riffle.feature.designsystem.coverGridMinCell
+import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_annotations_count
@@ -44,7 +45,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_long_press_text_whil
 import com.riffle.feature.source.ui.fadingScrollbar
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
 
 /**
  * Grid of annotated books. Rendered as a tab inside [LibraryItemsScreen] and in [RiffleScreen],

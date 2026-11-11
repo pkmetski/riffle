@@ -10,12 +10,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.generated.resources.ui_off
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_off
 
 @Composable
 fun ListeningPreferencesPanel(

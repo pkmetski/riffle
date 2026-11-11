@@ -60,6 +60,9 @@ import com.riffle.core.models.InsecureConnectionType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_save
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_webdav
 import com.riffle.feature.source.ui.generated.resources.ui_choose_scheme
@@ -81,9 +84,6 @@ import com.riffle.feature.source.ui.generated.resources.ui_webdav_add_source_hel
 import com.riffle.feature.source.ui.generated.resources.ui_webdav_url
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_save
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -25,6 +25,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_no_results
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_close_search
 import com.riffle.feature.reader.ui.generated.resources.ui_next_result
@@ -33,8 +35,6 @@ import com.riffle.feature.reader.ui.generated.resources.ui_result_position
 import com.riffle.feature.reader.ui.generated.resources.ui_search_in_book
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_no_results
 
 /**
  * Reader search top bar — shared by Android and iOS. Shows the search query field, the

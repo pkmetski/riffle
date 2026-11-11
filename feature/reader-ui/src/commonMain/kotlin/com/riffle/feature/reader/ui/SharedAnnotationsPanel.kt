@@ -43,15 +43,6 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.HighlightColor
 import com.riffle.feature.designsystem.RiffleIcons
-import com.riffle.feature.reader.RowKind
-import com.riffle.feature.reader.collectInlineFigures
-import com.riffle.feature.reader.maxLinesForAnnotationTitle
-import com.riffle.feature.reader.rowKindFor
-import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_options
-import com.riffle.feature.source.ui.fadingScrollbar
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.designsystem.generated.resources.ui_annotations
 import com.riffle.feature.designsystem.generated.resources.ui_bookmarks
 import com.riffle.feature.designsystem.generated.resources.ui_cancel
@@ -61,6 +52,15 @@ import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.designsystem.generated.resources.ui_rename
 import com.riffle.feature.designsystem.generated.resources.ui_rename_bookmark
 import com.riffle.feature.designsystem.generated.resources.ui_save
+import com.riffle.feature.reader.RowKind
+import com.riffle.feature.reader.collectInlineFigures
+import com.riffle.feature.reader.maxLinesForAnnotationTitle
+import com.riffle.feature.reader.rowKindFor
+import com.riffle.feature.reader.ui.generated.resources.Res
+import com.riffle.feature.reader.ui.generated.resources.ui_options
+import com.riffle.feature.source.ui.fadingScrollbar
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * Shared annotations panel. Android and iOS both render this; Android passes its

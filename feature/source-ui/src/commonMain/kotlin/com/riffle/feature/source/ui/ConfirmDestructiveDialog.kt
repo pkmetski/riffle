@@ -7,10 +7,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import com.riffle.feature.source.ui.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
 
 /**
  * The one "are you sure?" dialog in the app.

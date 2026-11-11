@@ -29,13 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.designsystem.generated.resources.ui_display
 import com.riffle.feature.designsystem.generated.resources.ui_formatting
 import com.riffle.feature.designsystem.generated.resources.ui_reset_to_global_defaults
+import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * In-reader settings sheet for both Android and iOS. Fixed-height bottom surface (does not

@@ -26,6 +26,9 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_home
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.library.AnnotationsListViewModel
 import com.riffle.feature.library.LibraryItemsViewModel
 import com.riffle.feature.library.LibrarySectionType
@@ -54,9 +57,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_annotations
-import com.riffle.feature.designsystem.generated.resources.ui_home
-import com.riffle.feature.designsystem.generated.resources.ui_to_read
 
 /**
  * Browse surface for an unbounded catalogue (`SourceType.isUnboundedCatalog`), shared by both

@@ -2,6 +2,9 @@ package com.riffle.feature.settings.ui.sections
 import androidx.compose.runtime.Composable
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.generated.resources.ui_books
+import com.riffle.feature.designsystem.generated.resources.ui_display
+import com.riffle.feature.designsystem.generated.resources.ui_formatting
 import com.riffle.feature.settings.ui.SettingsDrillInRow
 import com.riffle.feature.settings.ui.SettingsPanel
 import com.riffle.feature.settings.ui.generated.resources.*
@@ -12,9 +15,6 @@ import com.riffle.feature.settings.ui.readersettings.localizedDisplaySummary
 import com.riffle.feature.settings.ui.readersettings.localizedFormattingSummary
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_books
-import com.riffle.feature.designsystem.generated.resources.ui_display
-import com.riffle.feature.designsystem.generated.resources.ui_formatting
 
 @Composable
 internal fun ReadingSection(

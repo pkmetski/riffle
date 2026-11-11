@@ -23,14 +23,14 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.AppTheme
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.generated.resources.ui_dark
+import com.riffle.feature.designsystem.generated.resources.ui_light
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_dark
-import com.riffle.feature.designsystem.generated.resources.ui_light
-import com.riffle.feature.designsystem.generated.resources.ui_open_menu
 
 /**
  * Settings for app chrome. The app theme remains independent of the reader's content theme.

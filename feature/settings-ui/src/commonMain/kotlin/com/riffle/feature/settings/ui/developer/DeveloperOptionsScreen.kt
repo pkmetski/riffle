@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.models.CrashReport
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_save
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.crashReportShareSubject
@@ -68,8 +70,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Instant
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_save
 
 /**
  * Developer Options screen — GitHub PAT field and diagnostics (debug logs + crash inventory).

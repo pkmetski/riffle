@@ -24,13 +24,13 @@ import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_on_screen_info
 import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_on_screen_info
 
 /**
  * Theme + view + on-screen-info controls. Reused by the in-reader settings sheet (Display tab)

@@ -8,17 +8,17 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
+import com.riffle.feature.designsystem.generated.resources.ui_auto
+import com.riffle.feature.designsystem.generated.resources.ui_dark
+import com.riffle.feature.designsystem.generated.resources.ui_light
+import com.riffle.feature.designsystem.generated.resources.ui_off
+import com.riffle.feature.designsystem.generated.resources.ui_sepia
 import com.riffle.feature.settings.ReaderSettingsSummaries
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_auto
-import com.riffle.feature.designsystem.generated.resources.ui_dark
-import com.riffle.feature.designsystem.generated.resources.ui_light
-import com.riffle.feature.designsystem.generated.resources.ui_off
-import com.riffle.feature.designsystem.generated.resources.ui_sepia
 
 // Only the `localized*` variants live here: they need a Compose composition to read string
 // resources, so they cannot move to commonMain. Everything they are built from — the theme, font,

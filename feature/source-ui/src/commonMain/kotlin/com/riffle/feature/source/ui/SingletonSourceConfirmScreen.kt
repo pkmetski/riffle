@@ -34,14 +34,14 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
 import com.riffle.feature.source.ui.generated.resources.ui_singleton_confirm_title
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_try_again
 
 /**
  * Confirmation screen for zero-config singleton sources (Chitanka, Gutenberg, radio.es). Mirrors

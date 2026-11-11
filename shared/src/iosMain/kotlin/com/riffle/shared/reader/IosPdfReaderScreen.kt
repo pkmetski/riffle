@@ -29,6 +29,7 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_book_not_found
 import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.PdfReaderState
 import com.riffle.feature.reader.PdfReaderViewModel
@@ -55,7 +56,6 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_book_not_found
 
 private const val MARGIN_STEP_PTS = 16.0
 

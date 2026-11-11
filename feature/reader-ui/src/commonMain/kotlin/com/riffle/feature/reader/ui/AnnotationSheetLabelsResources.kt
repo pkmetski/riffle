@@ -1,6 +1,11 @@
 package com.riffle.feature.reader.ui
 
 import androidx.compose.runtime.Composable
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_edit
+import com.riffle.feature.designsystem.generated.resources.ui_remove
+import com.riffle.feature.designsystem.generated.resources.ui_remove_bookmark
+import com.riffle.feature.designsystem.generated.resources.ui_save
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_active_suffix
 import com.riffle.feature.reader.ui.generated.resources.ui_add_a_note
@@ -15,11 +20,6 @@ import com.riffle.feature.reader.ui.generated.resources.ui_play_from_here
 import com.riffle.feature.reader.ui.generated.resources.ui_selected_suffix
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_edit
-import com.riffle.feature.designsystem.generated.resources.ui_remove
-import com.riffle.feature.designsystem.generated.resources.ui_remove_bookmark
-import com.riffle.feature.designsystem.generated.resources.ui_save
 
 /** Builds [AnnotationSheetLabels] from composeResources, picking up the active locale. */
 @Composable

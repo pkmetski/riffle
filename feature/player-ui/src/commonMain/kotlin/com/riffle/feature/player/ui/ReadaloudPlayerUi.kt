@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_close_readaloud
+import com.riffle.feature.designsystem.generated.resources.ui_download
+import com.riffle.feature.designsystem.generated.resources.ui_next_chapter
+import com.riffle.feature.designsystem.generated.resources.ui_previous_chapter
 import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.player.skipBackwardLabel
 import com.riffle.feature.player.skipForwardLabel
@@ -44,11 +49,6 @@ import com.riffle.feature.player.ui.generated.resources.ui_switch_to_audiobook
 import com.riffle.feature.player.ui.generated.resources.ui_wi_fi_only
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_close_readaloud
-import com.riffle.feature.designsystem.generated.resources.ui_download
-import com.riffle.feature.designsystem.generated.resources.ui_next_chapter
-import com.riffle.feature.designsystem.generated.resources.ui_previous_chapter
 
 /**
  * Shared readaloud mini-player bar. Rendered by both `:app` (Android) and `:shared` (iOS).

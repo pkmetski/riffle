@@ -57,6 +57,8 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_ok
 import com.riffle.feature.settings.ReaderSettingsSections
 import com.riffle.feature.settings.label
 import com.riffle.feature.settings.ui.generated.resources.*
@@ -64,8 +66,6 @@ import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_ok
 
 enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
 

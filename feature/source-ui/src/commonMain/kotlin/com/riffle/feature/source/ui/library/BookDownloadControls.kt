@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_download
 import com.riffle.feature.library.DetailCapabilities
 import com.riffle.feature.library.DownloadState
 import com.riffle.feature.library.bookDownloadAffordances
@@ -41,7 +42,6 @@ import com.riffle.feature.source.ui.generated.resources.ui_remove_readaloud_down
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_download
 
 /**
  * The per-format download controls for one library item: ebook, audiobook and readaloud bundle.

@@ -17,21 +17,20 @@ import com.riffle.feature.designsystem.BookGrid
 import com.riffle.feature.designsystem.LocalCoversAreSquare
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.ui_all_books
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.designsystem.generated.resources.ui_collections
 import com.riffle.feature.designsystem.generated.resources.ui_section_completed
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
 import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
 import com.riffle.feature.designsystem.generated.resources.ui_section_recently_added
+import com.riffle.feature.designsystem.generated.resources.ui_series
 import com.riffle.feature.library.LibrarySectionType
 import com.riffle.feature.library.LibrarySectionViewModel
-import com.riffle.feature.library.ui.generated.resources.Res
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_series
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

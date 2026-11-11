@@ -1,6 +1,19 @@
 package com.riffle.feature.player.ui
 
 import androidx.compose.runtime.Composable
+import com.riffle.feature.designsystem.generated.resources.ui_audiobook
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_bookmarks
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_delete
+import com.riffle.feature.designsystem.generated.resources.ui_next_chapter
+import com.riffle.feature.designsystem.generated.resources.ui_no_bookmarks_yet
+import com.riffle.feature.designsystem.generated.resources.ui_play
+import com.riffle.feature.designsystem.generated.resources.ui_previous_chapter
+import com.riffle.feature.designsystem.generated.resources.ui_remove_bookmark
+import com.riffle.feature.designsystem.generated.resources.ui_rename
+import com.riffle.feature.designsystem.generated.resources.ui_rename_bookmark
+import com.riffle.feature.designsystem.generated.resources.ui_save
 import com.riffle.feature.player.CompactDurationLabelTemplates
 import com.riffle.feature.player.ui.generated.resources.Res
 import com.riffle.feature.player.ui.generated.resources.ui_add_bookmark
@@ -29,19 +42,6 @@ import com.riffle.feature.player.ui.generated.resources.ui_sleeping_at_end_of_ch
 import com.riffle.feature.player.ui.generated.resources.ui_sleeping_in
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_audiobook
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_bookmarks
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_delete
-import com.riffle.feature.designsystem.generated.resources.ui_next_chapter
-import com.riffle.feature.designsystem.generated.resources.ui_no_bookmarks_yet
-import com.riffle.feature.designsystem.generated.resources.ui_play
-import com.riffle.feature.designsystem.generated.resources.ui_previous_chapter
-import com.riffle.feature.designsystem.generated.resources.ui_remove_bookmark
-import com.riffle.feature.designsystem.generated.resources.ui_rename
-import com.riffle.feature.designsystem.generated.resources.ui_rename_bookmark
-import com.riffle.feature.designsystem.generated.resources.ui_save
 
 /** Builds [PlayerChromeLabels] from composeResources, picking up the active locale automatically. */
 @Composable

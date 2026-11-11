@@ -30,6 +30,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_done
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_local_folder
 import com.riffle.feature.source.ui.generated.resources.ui_added_books_count
@@ -42,10 +46,6 @@ import com.riffle.feature.source.ui.generated.resources.ui_pick_a_folder
 import com.riffle.feature.source.ui.generated.resources.ui_scanning_your_folder
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_done
-import com.riffle.feature.designsystem.generated.resources.ui_try_again
 
 /**
  * Shared Add-Local-Files onboarding screen, used by both Android and iOS.

@@ -27,6 +27,9 @@ import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_libraries_with_arrow
+import com.riffle.feature.designsystem.generated.resources.ui_settings
+import com.riffle.feature.designsystem.generated.resources.ui_sources
 import com.riffle.feature.settings.SettingsNavEvent
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.generated.resources.Res
@@ -51,9 +54,6 @@ import com.riffle.feature.source.ui.settings.SourcesSection
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_libraries_with_arrow
-import com.riffle.feature.designsystem.generated.resources.ui_settings
-import com.riffle.feature.designsystem.generated.resources.ui_sources
 
 /** Subject line used when sharing a single crash report. Kept here so tests can pin the format. */
 internal fun crashReportShareSubject(timestamp: String): String =

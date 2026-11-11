@@ -42,6 +42,9 @@ import com.riffle.core.models.ServerType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SettingsSectionHeader
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud_match_counts
 import com.riffle.feature.settings.SettingsViewModel
 import com.riffle.feature.settings.ui.DrillInChevron
 import com.riffle.feature.settings.ui.StorytellerBadge
@@ -65,9 +68,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Clock
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_readaloud
-import com.riffle.feature.designsystem.generated.resources.ui_readaloud_match_counts
 
 /**
  * Full-screen drill-in that hosts every Readaloud-related setting. Reached from the collapsed

@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.feature.designsystem.generated.resources.ui_done
+import com.riffle.feature.designsystem.generated.resources.ui_off
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_after_days
 import com.riffle.feature.source.ui.generated.resources.ui_auto_clear_after_days
@@ -27,8 +29,6 @@ import com.riffle.feature.source.ui.generated.resources.ui_cache_settings
 import com.riffle.feature.source.ui.generated.resources.ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_done
-import com.riffle.feature.designsystem.generated.resources.ui_off
 
 /**
  * The Downloads screen's "Cache settings" row and its auto-clear dialog.

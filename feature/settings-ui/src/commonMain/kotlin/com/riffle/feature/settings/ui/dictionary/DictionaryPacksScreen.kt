@@ -29,6 +29,10 @@ import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_delete
+import com.riffle.feature.designsystem.generated.resources.ui_download
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.library.DownloadState
 import com.riffle.feature.settings.ui.generated.resources.Res
@@ -44,10 +48,6 @@ import com.riffle.feature.source.ui.library.DownloadProgressIndicator
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_delete
-import com.riffle.feature.designsystem.generated.resources.ui_download
 
 private val HTML_TAG_REGEX = Regex("<[^>]*>")
 

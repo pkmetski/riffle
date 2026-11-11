@@ -1,6 +1,11 @@
 package com.riffle.feature.library.ui
 
 import androidx.compose.runtime.Composable
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_loading
+import com.riffle.feature.designsystem.generated.resources.ui_name
+import com.riffle.feature.designsystem.generated.resources.ui_play
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_add_to_playlist
 import com.riffle.feature.library.ui.generated.resources.ui_annotations_query_title
@@ -19,11 +24,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_remove_from_playlist
 import com.riffle.feature.library.ui.generated.resources.ui_this_playlist_is_empty
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_loading
-import com.riffle.feature.designsystem.generated.resources.ui_name
-import com.riffle.feature.designsystem.generated.resources.ui_play
 
 /** Builds [PlaylistLabels] from composeResources, picking up the active locale automatically. */
 @Composable

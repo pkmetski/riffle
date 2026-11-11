@@ -21,12 +21,6 @@ import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.ComicBackgroundThemeChoices
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.settings.ui.comicBackgroundChipSelection
-import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.readersettings.ThemeChipRows
-import com.riffle.feature.settings.ui.readersettings.ThemeSwatchStyle
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.designsystem.generated.resources.ui_background
 import com.riffle.feature.designsystem.generated.resources.ui_current_page_and_remaining_pages
 import com.riffle.feature.designsystem.generated.resources.ui_frame_one_panel_at_a_time_in_reading_order
@@ -38,6 +32,11 @@ import com.riffle.feature.designsystem.generated.resources.ui_panel_view
 import com.riffle.feature.designsystem.generated.resources.ui_progress_bar_at_the_bottom_of_the_page
 import com.riffle.feature.designsystem.generated.resources.ui_reading_progress
 import com.riffle.feature.designsystem.generated.resources.ui_reset_to_global_defaults
+import com.riffle.feature.settings.ui.comicBackgroundChipSelection
+import com.riffle.feature.settings.ui.readersettings.ThemeChipRows
+import com.riffle.feature.settings.ui.readersettings.ThemeSwatchStyle
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 /**
  * In-reader comic formatting bottom sheet, shared by Android and iOS.

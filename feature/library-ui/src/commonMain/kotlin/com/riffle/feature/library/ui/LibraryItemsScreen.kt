@@ -80,12 +80,21 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.coverGridMinCell
 import com.riffle.feature.designsystem.generated.resources.Res
 import com.riffle.feature.designsystem.generated.resources.ui_all_books
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_books
 import com.riffle.feature.designsystem.generated.resources.ui_collections
+import com.riffle.feature.designsystem.generated.resources.ui_home
+import com.riffle.feature.designsystem.generated.resources.ui_loading
+import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
+import com.riffle.feature.designsystem.generated.resources.ui_no_results_for
+import com.riffle.feature.designsystem.generated.resources.ui_not_started
 import com.riffle.feature.designsystem.generated.resources.ui_playlists
 import com.riffle.feature.designsystem.generated.resources.ui_section_completed
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
 import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
 import com.riffle.feature.designsystem.generated.resources.ui_section_recently_added
+import com.riffle.feature.designsystem.generated.resources.ui_series
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.library.AnnotationSearchResult
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.AnnotationsListViewModel
@@ -123,17 +132,8 @@ import com.riffle.feature.source.ui.SourceBrowseHeader
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
-import com.riffle.feature.library.ui.generated.resources.Res as LibRes
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_annotations
-import com.riffle.feature.designsystem.generated.resources.ui_home
-import com.riffle.feature.designsystem.generated.resources.ui_series
-import com.riffle.feature.designsystem.generated.resources.ui_to_read
-import com.riffle.feature.designsystem.generated.resources.ui_not_started
-import com.riffle.feature.designsystem.generated.resources.ui_no_results_for
-import com.riffle.feature.designsystem.generated.resources.ui_books
-import com.riffle.feature.designsystem.generated.resources.ui_loading
-import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
+import com.riffle.feature.library.ui.generated.resources.Res as LibRes
 
 // The tab index vocabulary and the visibility/clamp rules come from
 // `com.riffle.feature.library.LibraryTabs`, which Android's LibraryItemsScreen calls too. They used

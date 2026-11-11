@@ -41,11 +41,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
-import com.riffle.feature.settings.ui.generated.resources.*
-import com.riffle.feature.settings.ui.generated.resources.Res
-import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.viewmodel.koinViewModel
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.designsystem.generated.resources.ui_cancel
 import com.riffle.feature.designsystem.generated.resources.ui_collapse
@@ -53,6 +48,11 @@ import com.riffle.feature.designsystem.generated.resources.ui_dismiss
 import com.riffle.feature.designsystem.generated.resources.ui_expand
 import com.riffle.feature.designsystem.generated.resources.ui_name
 import com.riffle.feature.designsystem.generated.resources.ui_save
+import com.riffle.feature.settings.ui.generated.resources.*
+import com.riffle.feature.settings.ui.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

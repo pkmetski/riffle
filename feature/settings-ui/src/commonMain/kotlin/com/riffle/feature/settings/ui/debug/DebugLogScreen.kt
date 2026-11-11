@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.logging.LogChannel
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_clear
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_entries_count
@@ -53,7 +54,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.Instant
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
 
 /**
  * In-app viewer for [InMemoryLogBuffer]. Reverse-chronological (newest first), channel-filter

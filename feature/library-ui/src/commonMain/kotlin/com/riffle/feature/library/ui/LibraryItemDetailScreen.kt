@@ -71,6 +71,15 @@ import com.riffle.core.models.TocEntry
 import com.riffle.feature.designsystem.CoverImage
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_back_with_arrow
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_dismiss
+import com.riffle.feature.designsystem.generated.resources.ui_in_to_read
+import com.riffle.feature.designsystem.generated.resources.ui_loading
+import com.riffle.feature.designsystem.generated.resources.ui_ok
+import com.riffle.feature.designsystem.generated.resources.ui_read
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.library.BookDownloadOutcome
 import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.ChaptersState
@@ -135,17 +144,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import kotlin.math.roundToInt
-import com.riffle.feature.source.ui.generated.resources.Res as SourceRes
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_loading
-import com.riffle.feature.designsystem.generated.resources.ui_back_with_arrow
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_dismiss
-import com.riffle.feature.designsystem.generated.resources.ui_in_to_read
-import com.riffle.feature.designsystem.generated.resources.ui_ok
-import com.riffle.feature.designsystem.generated.resources.ui_read
-import com.riffle.feature.designsystem.generated.resources.ui_to_read
+import com.riffle.feature.source.ui.generated.resources.Res as SourceRes
 
 private const val READ_PROGRESS_THRESHOLD = 0.99f
 private const val EXPANDED_WIDTH_BREAKPOINT_DP = 600

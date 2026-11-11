@@ -9,10 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.riffle.feature.source.ui.generated.resources.Res
+import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_offline_showing_cached_data
 
 /**
  * The "you are offline" strip every library-ish grid puts above its content. Shared so the

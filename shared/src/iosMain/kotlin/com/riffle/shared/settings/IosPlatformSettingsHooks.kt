@@ -6,6 +6,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
+import com.riffle.feature.designsystem.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.PlatformSettingsHooks
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_body
@@ -20,7 +21,6 @@ import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationWillEnterForegroundNotification
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_ok
 
 /**
  * iOS implementation of [PlatformSettingsHooks].

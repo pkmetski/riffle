@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
+import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 import com.riffle.feature.reader.ui.generated.resources.Res
 import com.riffle.feature.reader.ui.generated.resources.ui_clear_last
 import com.riffle.feature.reader.ui.generated.resources.ui_notes_optional
@@ -73,7 +74,6 @@ import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_tap_in_r
 import com.riffle.feature.reader.ui.generated.resources.ui_submit_to_github
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 
 @Composable
 fun PanelDetectionFailureType.localizedLabel(): String = stringResource(

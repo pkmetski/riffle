@@ -23,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.LanguageCatalogEntry
+import com.riffle.feature.designsystem.generated.resources.ui_download
+import com.riffle.feature.designsystem.generated.resources.ui_no_results_for
+import com.riffle.feature.designsystem.generated.resources.ui_retry
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.reader.LookupTarget
 import com.riffle.feature.reader.LookupUiState
@@ -36,9 +39,6 @@ import com.riffle.feature.reader.ui.generated.resources.ui_no_dictionary_install
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_download
-import com.riffle.feature.designsystem.generated.resources.ui_no_results_for
-import com.riffle.feature.designsystem.generated.resources.ui_retry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

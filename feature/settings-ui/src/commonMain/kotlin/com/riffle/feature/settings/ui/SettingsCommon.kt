@@ -18,12 +18,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_edit
 import com.riffle.feature.settings.AnnotationSyncRowState
 import com.riffle.feature.settings.ui.generated.resources.*
-import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_edit
 
 /**
  * A clickable "opens a full-screen or bottom-sheet drill-in" row with a right-aligned "Edit" text

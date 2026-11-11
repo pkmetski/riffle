@@ -32,6 +32,9 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.riffle.core.models.LibraryItem
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_save
+import com.riffle.feature.designsystem.generated.resources.ui_series
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_author
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
@@ -41,9 +44,6 @@ import com.riffle.feature.library.ui.generated.resources.ui_series_number
 import com.riffle.feature.library.ui.generated.resources.ui_title
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_cancel
-import com.riffle.feature.designsystem.generated.resources.ui_save
-import com.riffle.feature.designsystem.generated.resources.ui_series
 
 /**
  * Shared dialog for editing a local-file book's metadata.

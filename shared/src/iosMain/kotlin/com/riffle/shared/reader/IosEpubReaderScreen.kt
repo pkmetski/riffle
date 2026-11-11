@@ -96,6 +96,7 @@ import com.riffle.core.models.TocEntry
 import com.riffle.core.models.isStorytellerService
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
 import com.riffle.feature.downloads.formatBytesOrUnknown
 import com.riffle.feature.player.ui.ReadaloudDownloadDialog
 import com.riffle.feature.player.ui.ReadaloudMiniPlayer
@@ -210,7 +211,6 @@ import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_readaloud
 
 /**
  * iOS EPUB reader composable. For O'Reilly lazy publications, opens directly via

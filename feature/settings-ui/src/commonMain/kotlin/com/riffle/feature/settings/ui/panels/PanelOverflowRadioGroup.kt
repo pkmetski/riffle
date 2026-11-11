@@ -10,15 +10,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import com.riffle.core.domain.comic.PanelOverflowBehavior
-import com.riffle.feature.settings.ui.generated.resources.Res
-import org.jetbrains.compose.resources.stringResource
-import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 import com.riffle.feature.designsystem.generated.resources.ui_cuts_oversized_panels_in_half
 import com.riffle.feature.designsystem.generated.resources.ui_no_split
 import com.riffle.feature.designsystem.generated.resources.ui_show_oversized_panels_as_is_without_splitting
 import com.riffle.feature.designsystem.generated.resources.ui_smart_split
 import com.riffle.feature.designsystem.generated.resources.ui_smart_split_description
 import com.riffle.feature.designsystem.generated.resources.ui_split
+import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
 
 @Composable
 internal fun PanelOverflowRadioGroup(

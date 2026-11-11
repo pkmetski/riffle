@@ -37,13 +37,13 @@ import com.riffle.core.models.SourceType
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_source
 import com.riffle.feature.source.ui.generated.resources.ui_coming_soon
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
 
 data class SourceTypeCard(val type: SourceType, val titleRes: StringResource, val subtitleRes: StringResource, val enabled: Boolean, val comingSoon: Boolean,)
 

@@ -28,15 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.riffle.feature.designsystem.generated.resources.ui_collapse
+import com.riffle.feature.designsystem.generated.resources.ui_delete
+import com.riffle.feature.designsystem.generated.resources.ui_expand
 import com.riffle.feature.source.ui.MaterialGlyphs
-import com.riffle.feature.source.ui.generated.resources.Res
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_collapse
-import com.riffle.feature.designsystem.generated.resources.ui_delete
-import com.riffle.feature.designsystem.generated.resources.ui_expand
 
 /**
  * The one shell every source row in Settings uses: swipe-to-delete over a header ListItem with a

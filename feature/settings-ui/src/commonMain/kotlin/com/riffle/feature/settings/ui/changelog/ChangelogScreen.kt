@@ -37,13 +37,13 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReleaseInfo
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_no_release_notes
 import com.riffle.feature.settings.ui.generated.resources.ui_no_releases_found
 import com.riffle.feature.settings.ui.generated.resources.ui_release_history
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

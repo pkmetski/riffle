@@ -30,6 +30,8 @@ import com.riffle.core.catalog.oreilly.parseOrmJwtFromCookieHeader
 import com.riffle.core.domain.OReillyWebSourceDescriptor
 import com.riffle.core.domain.SourceRepository
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
 import com.riffle.feature.source.ui.oreilly.OReillyLoginCommonViewModel
 import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_oreilly_sign_in_failed
@@ -51,8 +53,6 @@ import platform.WebKit.WKWebViewConfiguration
 import platform.WebKit.WKWebsiteDataStore
 import platform.darwin.NSObject
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_back
-import com.riffle.feature.designsystem.generated.resources.ui_try_again
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -37,12 +37,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
+import com.riffle.feature.designsystem.generated.resources.ui_search
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_clear_search
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_open_menu
-import com.riffle.feature.designsystem.generated.resources.ui_search
 
 /**
  * Unified always-visible search header used by all source browse screens (server libraries and
