@@ -42,7 +42,7 @@ class StartupUpdateViewModelTest {
     private fun releaseInfo(
         versionName: String,
         versionCode: Int,
-        changelog: String = "",
+        changelog: String = "Notes for $versionName",
         downloadUrl: String = "https://x/$versionName.apk",
     ) = ReleaseInfo(
         versionName = versionName,
@@ -52,24 +52,19 @@ class StartupUpdateViewModelTest {
         sizeBytes = 1000L,
     )
 
-    private fun fakePrefs(
+    private class MutableFakePrefs(
         autoEnabled: Boolean = true,
-        ignored: Int = 0,
-        ignoredWasPreRelease: Boolean = false,
-    ): AppUpdatePreferencesStore {
-        val autoFlow = MutableStateFlow(autoEnabled)
-        val ignoredFlow = MutableStateFlow(ignored)
-        val wasPreReleaseFlow = MutableStateFlow(ignoredWasPreRelease)
-        return object : AppUpdatePreferencesStore {
-            override val autoUpdateEnabled: Flow<Boolean> = autoFlow
-            override val ignoredVersionCode: Flow<Int> = ignoredFlow
-            override val betaUpdatesEnabled: Flow<Boolean> = MutableStateFlow(false)
-            override val ignoredVersionWasPreRelease: Flow<Boolean> = wasPreReleaseFlow
-            override suspend fun setAutoUpdateEnabled(value: Boolean) { autoFlow.value = value }
-            override suspend fun setIgnoredVersionCode(value: Int) { ignoredFlow.value = value }
-            override suspend fun setBetaUpdatesEnabled(value: Boolean) {}
-            override suspend fun setIgnoredVersionWasPreRelease(value: Boolean) { wasPreReleaseFlow.value = value }
-        }
+        seen: Int = 0,
+    ) : AppUpdatePreferencesStore {
+        private val autoFlow = MutableStateFlow(autoEnabled)
+        private val betaFlow = MutableStateFlow(false)
+        val seenFlow = MutableStateFlow(seen)
+        override val autoUpdateEnabled: Flow<Boolean> = autoFlow
+        override val betaUpdatesEnabled: Flow<Boolean> = betaFlow
+        override val seenUpdateVersionCode: Flow<Int> = seenFlow
+        override suspend fun setAutoUpdateEnabled(value: Boolean) { autoFlow.value = value }
+        override suspend fun setBetaUpdatesEnabled(value: Boolean) { betaFlow.value = value }
+        override suspend fun setSeenUpdateVersionCode(value: Int) { seenFlow.value = value }
     }
 
     private fun fakeRepo(releases: List<ReleaseInfo> = emptyList()): AppUpdateRepository =
@@ -84,7 +79,7 @@ class StartupUpdateViewModelTest {
 
     private fun viewModel(
         repo: AppUpdateRepository = fakeRepo(),
-        prefs: AppUpdatePreferencesStore = fakePrefs(),
+        prefs: AppUpdatePreferencesStore = MutableFakePrefs(),
         clock: Clock = MutableClock(),
     ) = StartupUpdateViewModel(
         appUpdateRepository = repo,
@@ -95,149 +90,152 @@ class StartupUpdateViewModelTest {
     )
 
     @Test
-    fun `dialog is null when auto-update is disabled`() = runTest {
+    fun `updateState is null when auto-update is disabled`() = runTest {
         val vm = viewModel(
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
-            prefs = fakePrefs(autoEnabled = false),
+            prefs = MutableFakePrefs(autoEnabled = false),
         )
         advanceUntilIdle()
 
-        assertNull(vm.dialogState.value)
+        assertNull(vm.updateState.value)
     }
 
     @Test
-    fun `dialog is null when no releases are newer`() = runTest {
+    fun `updateState is null when no releases are newer`() = runTest {
         val vm = viewModel(repo = fakeRepo(emptyList()))
         advanceUntilIdle()
 
-        assertNull(vm.dialogState.value)
+        assertNull(vm.updateState.value)
     }
 
     @Test
-    fun `dialog is null when newer release tags have no APK artifact`() = runTest {
+    fun `updateState is null when newer release has no APK artifact`() = runTest {
         val vm = viewModel(
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600, downloadUrl = ""))),
         )
         advanceUntilIdle()
 
-        assertNull(vm.dialogState.value)
+        assertNull(vm.updateState.value)
     }
 
     @Test
-    fun `dialog skips a newer unfinished release and offers the latest release with an APK`() = runTest {
+    fun `updateState is non-null when update is available`() = runTest {
         val vm = viewModel(
-            repo = fakeRepo(
-                listOf(
-                    releaseInfo("1.6.0", 10600, downloadUrl = ""),
-                    releaseInfo("1.5.1", 10501, downloadUrl = "https://x/1.5.1.apk"),
-                ),
-            ),
+            repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600, "Release notes"))),
         )
         advanceUntilIdle()
 
-        val state = vm.dialogState.value
+        val state = vm.updateState.value
         assertNotNull(state)
-        assertEquals("1.5.1", state.update.versionName)
-        assertEquals("https://x/1.5.1.apk", state.update.downloadUrl)
-        assertEquals(listOf("1.5.1"), state.releases.map(ReleaseInfo::versionName))
+        assertEquals("1.6.0", state.update.versionName)
+        assertEquals("Release notes", state.latestChangelog)
     }
 
     @Test
-    fun `dialog is null when latest version matches ignoredVersionCode`() = runTest {
-        val vm = viewModel(
-            repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
-            prefs = fakePrefs(ignored = 10600),
-        )
-        advanceUntilIdle()
-
-        assertNull(vm.dialogState.value)
-    }
-
-    @Test
-    fun `dialog is shown when a newer unignored version is available`() = runTest {
-        val releases = listOf(
-            releaseInfo("1.6.0", 10600, "Notes 1.6"),
-            releaseInfo("1.5.1", 10501, "Notes 1.5.1"),
-        )
-        val vm = viewModel(repo = fakeRepo(releases))
-        advanceUntilIdle()
-
-        val state = vm.dialogState.value
-        assertNotNull(state)
-        assertEquals(2, state.releases.size)
-        assertEquals("1.6.0", state.releases[0].versionName)
-        assertEquals("https://x/1.6.0.apk", state.update.downloadUrl)
-        assertEquals(10600, state.update.versionCode)
-    }
-
-    @Test
-    fun `ignoreVersion writes pref and clears dialog`() = runTest {
-        val prefs = fakePrefs()
+    fun `showDot is true when updateState is non-null and version exceeds seen`() = runTest {
+        val prefs = MutableFakePrefs(seen = 0)
         val vm = viewModel(
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             prefs = prefs,
         )
         advanceUntilIdle()
-        assertNotNull(vm.dialogState.value)
 
-        vm.ignoreVersion(10600, wasPreRelease = false)
-        advanceUntilIdle()
-
-        assertNull(vm.dialogState.value)
-        assertEquals(10600, prefs.ignoredVersionCode.first())
+        assertTrue(vm.showDot.value)
     }
 
     @Test
-    fun `ignoreVersion writes both prefs when prerelease`() = runTest {
-        val prefs = fakePrefs()
-        val vm = viewModel(
-            repo = fakeRepo(listOf(releaseInfo("1.5.0-beta.1", 10500))),
-            prefs = prefs,
-        )
-        advanceUntilIdle()
-
-        vm.ignoreVersion(10500, wasPreRelease = true)
-        advanceUntilIdle()
-
-        assertEquals(10500, prefs.ignoredVersionCode.first())
-        assertTrue(prefs.ignoredVersionWasPreRelease.first())
-    }
-
-    @Test
-    fun `ignoreVersion writes both prefs when stable`() = runTest {
-        val prefs = fakePrefs()
-        val vm = viewModel(
-            repo = fakeRepo(listOf(releaseInfo("1.4.0", 10400))),
-            prefs = prefs,
-        )
-        advanceUntilIdle()
-
-        vm.ignoreVersion(10400, wasPreRelease = false)
-        advanceUntilIdle()
-
-        assertEquals(10400, prefs.ignoredVersionCode.first())
-        assertFalse(prefs.ignoredVersionWasPreRelease.first())
-    }
-
-    @Test
-    fun `dismissDialog clears dialog without writing ignoredVersionCode`() = runTest {
-        val prefs = fakePrefs()
+    fun `showDot is false when seenVersionCode equals update versionCode`() = runTest {
+        val prefs = MutableFakePrefs(seen = 10600)
         val vm = viewModel(
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             prefs = prefs,
         )
         advanceUntilIdle()
-        assertNotNull(vm.dialogState.value)
 
-        vm.dismissDialog()
-
-        assertNull(vm.dialogState.value)
-        assertEquals(0, prefs.ignoredVersionCode.first())
+        assertFalse(vm.showDot.value)
     }
 
     @Test
-    fun `prerelease flag on ReleaseInfo is propagated to AvailableUpdate in dialog`() = runTest {
-        val prefs = fakePrefs()
+    fun `markUpdateSeen writes seenVersionCode and showDot becomes false`() = runTest {
+        val prefs = MutableFakePrefs(seen = 0)
+        val vm = viewModel(
+            repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
+            prefs = prefs,
+        )
+        advanceUntilIdle()
+        assertTrue(vm.showDot.value)
+
+        vm.markUpdateSeen()
+        advanceUntilIdle()
+
+        assertFalse(vm.showDot.value)
+        assertEquals(10600, prefs.seenFlow.first())
+    }
+
+    @Test
+    fun `showDot becomes true again when newer version appears after markUpdateSeen`() = runTest {
+        val prefs = MutableFakePrefs(seen = 0)
+        val releasesFlow = MutableStateFlow(listOf(releaseInfo("1.6.0", 10600)))
+        val clock = MutableClock()
+        val repo = object : AppUpdateRepository {
+            override suspend fun checkForUpdate(currentVersionCode: Int) = UpdateCheckResult.UpToDate
+            override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> = flowOf(UpdateDownloadState.Installing)
+            override fun sweepStaleApks() {}
+            override suspend fun listReleasesSince(sinceVersionCode: Int) = releasesFlow.value
+        }
+        val vm = viewModel(repo = repo, prefs = prefs, clock = clock)
+        advanceUntilIdle()
+
+        vm.markUpdateSeen()
+        advanceUntilIdle()
+        assertFalse(vm.showDot.value)
+
+        clock.timeMs = StartupUpdateViewModel.AUTO_CHECK_INTERVAL_MS + 1
+        releasesFlow.value = listOf(releaseInfo("1.7.0", 10700))
+        vm.checkNow()
+        advanceUntilIdle()
+
+        assertTrue(vm.showDot.value)
+    }
+
+    @Test
+    fun `showUpdateSheet sets showSheet to true`() = runTest {
+        val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
+        advanceUntilIdle()
+
+        vm.showUpdateSheet()
+
+        assertTrue(vm.showSheet.value)
+    }
+
+    @Test
+    fun `dismissSheet sets showSheet to false when not downloading`() = runTest {
+        val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
+        advanceUntilIdle()
+        vm.showUpdateSheet()
+        assertTrue(vm.showSheet.value)
+
+        vm.dismissSheet()
+
+        assertFalse(vm.showSheet.value)
+    }
+
+    @Test
+    fun `dismissSheet does nothing when downloadState is non-null`() = runTest {
+        val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
+        advanceUntilIdle()
+        vm.showUpdateSheet()
+
+        vm.startUpdate(AvailableUpdate("1.6.0", 10600, "https://x/1.6.0.apk", 1000L))
+        advanceUntilIdle()
+
+        vm.dismissSheet()
+
+        assertTrue(vm.showSheet.value)
+    }
+
+    @Test
+    fun `prerelease flag on ReleaseInfo is propagated to AvailableUpdate in updateState`() = runTest {
         val vm = viewModel(
             repo = fakeRepo(
                 listOf(
@@ -251,13 +249,29 @@ class StartupUpdateViewModelTest {
                     )
                 )
             ),
-            prefs = prefs,
         )
         advanceUntilIdle()
 
-        val state = vm.dialogState.value
+        val state = vm.updateState.value
         assertNotNull(state)
         assertTrue(state.update.prerelease)
+    }
+
+    @Test
+    fun `updateState skips releases without APK and offers next available`() = runTest {
+        val vm = viewModel(
+            repo = fakeRepo(
+                listOf(
+                    releaseInfo("1.6.0", 10600, downloadUrl = ""),
+                    releaseInfo("1.5.1", 10501, downloadUrl = "https://x/1.5.1.apk"),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = vm.updateState.value
+        assertNotNull(state)
+        assertEquals("1.5.1", state.update.versionName)
     }
 
     @Test
