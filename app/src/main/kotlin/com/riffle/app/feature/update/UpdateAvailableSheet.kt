@@ -1,6 +1,5 @@
 package com.riffle.app.feature.update
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,9 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.R
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.UpdateDownloadState
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.shellui.UpdateState
 
@@ -35,17 +36,12 @@ internal fun UpdateDrawerRow(
     versionName: String,
     onClick: () -> Unit,
 ) {
-    ListItem(
-        headlineContent = {
-            Text(
-                text = stringResource(R.string.ui_update_available_version, versionName),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        },
-        modifier = Modifier
-            .testTag(TestTags.NAV_DRAWER_UPDATE)
-            .clickable(onClick = onClick),
+    NavigationDrawerItem(
+        label = { Text(stringResource(R.string.ui_update_available_version, versionName)) },
+        icon = { Icon(RiffleIcons.Download, contentDescription = null) },
+        selected = false,
+        onClick = onClick,
+        modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
     )
 }
 

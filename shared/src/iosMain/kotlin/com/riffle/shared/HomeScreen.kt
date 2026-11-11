@@ -23,17 +23,17 @@ import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.ui_update_available_message
 import com.riffle.shared.generated.resources.ui_update_available_version
 import com.riffle.shared.generated.resources.ui_update_dismiss
 import com.riffle.shared.generated.resources.ui_update_view_release
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import com.riffle.shared.library.IosEditMetadataDialogHost
 import com.riffle.shared.settings.IosPlatformSettingsHooks
 import com.riffle.shared.settings.LanguageChangeRestartDialog
@@ -111,17 +111,12 @@ fun HomeScreen() {
             onDrawerOpened = startupUpdateVm::markUpdateSeen,
             updateDrawerRow = updateState?.let { state ->
                 {
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                text = stringResource(Res.string.ui_update_available_version, state.update.versionName),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        },
-                        modifier = Modifier
-                            .testTag(TestTags.NAV_DRAWER_UPDATE)
-                            .clickable(onClick = startupUpdateVm::showUpdateSheet),
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(Res.string.ui_update_available_version, state.update.versionName)) },
+                        icon = { Icon(RiffleIcons.Download, contentDescription = null) },
+                        selected = false,
+                        onClick = startupUpdateVm::showUpdateSheet,
+                        modifier = Modifier.testTag(TestTags.NAV_DRAWER_UPDATE),
                     )
                 }
             },
