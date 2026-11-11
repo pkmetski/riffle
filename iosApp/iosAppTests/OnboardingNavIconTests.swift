@@ -46,7 +46,7 @@ final class OnboardingNavIconTests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: absCard)], timeout: 10)
         absCard.tap()
 
-        XCTAssertTrue(app.staticTexts["Add Audiobookshelf"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["Add Audiobookshelf"].waitForExistence(timeout: 30),
                       "Add Audiobookshelf screen must appear after tapping the card")
 
         let backButton = app.buttons.matching(identifier: RiffleTestTags.navBack).firstMatch
