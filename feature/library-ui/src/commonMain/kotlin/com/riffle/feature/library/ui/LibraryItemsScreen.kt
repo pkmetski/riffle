@@ -150,6 +150,7 @@ fun LibraryItemsScreen(
     // False by default so iOS callers, which manage their own back stack, need no change.
     // Android passes the result of libraryItemsBackEnabled() from MainScreen.
     backEnabled: Boolean = false,
+    showUpdateDot: Boolean = false,
     viewModel: LibraryItemsViewModel = koinInject { parametersOf(libraryId) },
     // Same view model Android's Annotations tab resolves (app/.../LibraryItemsScreen.kt) and the
     // same query tab *visibility* is computed from, so the tab can never be visible-but-empty.
@@ -215,6 +216,7 @@ fun LibraryItemsScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onOpenDrawer = onOpenDrawer,
+                showUpdateDot = showUpdateDot,
             )
         },
         bottomBar = {

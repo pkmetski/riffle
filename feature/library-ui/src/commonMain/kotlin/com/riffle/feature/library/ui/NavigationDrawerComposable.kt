@@ -90,6 +90,7 @@ fun RiffleNavigationDrawer(
     isRiffleActive: Boolean = false,
     appVersion: String? = null,
     appSha: String? = null,
+    updateRow: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val sheetBody: @Composable () -> Unit = {
@@ -108,6 +109,7 @@ fun RiffleNavigationDrawer(
             isRiffleActive = isRiffleActive,
             appVersion = appVersion,
             appSha = appSha,
+            updateRow = updateRow,
         )
     }
 
@@ -148,6 +150,7 @@ private fun DrawerSheetContent(
     isRiffleActive: Boolean = false,
     appVersion: String? = null,
     appSha: String? = null,
+    updateRow: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
         DrawerHeader(
@@ -174,6 +177,7 @@ private fun DrawerSheetContent(
                 }
             }
         }
+        updateRow?.invoke()
         HorizontalDivider()
         if (showDownloadsLink) {
             NavigationDrawerItem(

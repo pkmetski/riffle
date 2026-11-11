@@ -228,6 +228,7 @@ fun AppShell(
         isRiffleActive = appSection == AppSection.Riffle || isRiffleMode,
         appVersion = slots.appVersion,
         appSha = slots.appSha,
+        updateRow = slots.updateDrawerRow,
         onRiffleSelected = {
             scope.launch { drawerState.close() }
             viewModel.setRiffleActive()
@@ -594,6 +595,7 @@ fun AppShell(
                         onAnnotatedBookClick = { sourceId, itemId ->
                             rifflePush(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                         },
+                        showUpdateDot = slots.showUpdateDot,
                     )
                 }
             }
@@ -639,6 +641,7 @@ fun AppShell(
                                 navStateHolder.stack = it
                             },
                             slots = slots,
+                            showUpdateDot = slots.showUpdateDot,
                         )
                     }
                 }
@@ -660,6 +663,7 @@ internal fun LibraryHost(
     navStack: List<LibraryNav>,
     onNavStackChange: (List<LibraryNav>) -> Unit,
     slots: AppShellSlots,
+    showUpdateDot: Boolean = false,
 ) {
     val applicationScope = koinInject<ApplicationScope>()
     val recordItemOpened = koinInject<RecordItemOpened>()
@@ -733,6 +737,7 @@ internal fun LibraryHost(
                         push(LibraryNav.ElidedReader(itemId, sourceId.ifEmpty { null }))
                     },
                     onSectionSeeMore = { sectionType -> push(LibraryNav.Section(sectionType)) },
+                    showUpdateDot = showUpdateDot,
                 )
             } else {
                 LibraryItemsScreen(
@@ -802,6 +807,7 @@ internal fun LibraryHost(
                         onShowAllAnnotations = { query -> push(LibraryNav.AnnotationSearch(libraryId, query)) },
                         onNavigateBack = NoOp.backHandledByIosHost,
                     ),
+                    showUpdateDot = showUpdateDot,
                 )
             }
         }
