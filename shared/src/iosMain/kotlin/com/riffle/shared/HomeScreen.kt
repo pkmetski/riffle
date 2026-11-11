@@ -1,6 +1,9 @@
 package com.riffle.shared
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -10,10 +13,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.testTag
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.logging.InMemoryLogBuffer
+import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.shellui.AppShell
 import com.riffle.feature.shellui.AppShellSlots
 import com.riffle.feature.shellui.StartupUpdateViewModel
@@ -23,15 +32,6 @@ import com.riffle.shared.generated.resources.Res
 import com.riffle.shared.generated.resources.ui_crash_notice_message
 import com.riffle.shared.generated.resources.ui_crash_notice_ok
 import com.riffle.shared.generated.resources.ui_crash_notice_title
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import com.riffle.feature.designsystem.RiffleIcons
-import com.riffle.feature.designsystem.TestTags
 import com.riffle.shared.generated.resources.ui_update_available
 import com.riffle.shared.generated.resources.ui_update_available_message
 import com.riffle.shared.generated.resources.ui_update_available_version
@@ -148,7 +148,9 @@ fun HomeScreen() {
                         )
                     }
                 }
-            } else null,
+            } else {
+                null
+            },
             languageChangeDialog = {
                 LanguageChangeRestartDialog(onDismiss = {})
             },

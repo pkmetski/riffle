@@ -300,7 +300,6 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 import platform.Foundation.NSBundle
-import platform.Foundation.NSProcessInfo
 import org.koin.core.context.startKoin as koinStartKoin
 
 private const val IOS_DEFAULT_USER_AGENT =
