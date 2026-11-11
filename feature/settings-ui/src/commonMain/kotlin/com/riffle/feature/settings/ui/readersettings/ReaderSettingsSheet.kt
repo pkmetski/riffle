@@ -30,11 +30,12 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.ui_display
-import com.riffle.feature.settings.ui.generated.resources.ui_formatting
-import com.riffle.feature.settings.ui.generated.resources.ui_reset_to_global_defaults
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_display
+import com.riffle.feature.designsystem.generated.resources.ui_formatting
+import com.riffle.feature.designsystem.generated.resources.ui_reset_to_global_defaults
 
 /**
  * In-reader settings sheet for both Android and iOS. Fixed-height bottom surface (does not
@@ -54,8 +55,8 @@ fun ReaderSettingsSheet(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val formattingLabel = stringResource(Res.string.ui_formatting)
-    val displayLabel = stringResource(Res.string.ui_display)
+    val formattingLabel = stringResource(DsRes.string.ui_formatting)
+    val displayLabel = stringResource(DsRes.string.ui_display)
     val tabs = remember(formattingLabel, displayLabel) { listOf(formattingLabel, displayLabel) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -118,7 +119,7 @@ fun ReaderSettingsSheet(
                         .padding(vertical = 4.dp)
                         .navigationBarsPadding(),
                 ) {
-                    Text(stringResource(Res.string.ui_reset_to_global_defaults))
+                    Text(stringResource(DsRes.string.ui_reset_to_global_defaults))
                 }
             }
         }

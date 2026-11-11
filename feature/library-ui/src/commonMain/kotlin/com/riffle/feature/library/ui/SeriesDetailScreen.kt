@@ -30,12 +30,12 @@ import com.riffle.feature.designsystem.generated.resources.ui_no_books_in_this_s
 import com.riffle.feature.library.CoverGridLayout
 import com.riffle.feature.library.SeriesDetailViewModel
 import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_back
 import com.riffle.feature.source.ui.OfflineBanner
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +59,7 @@ fun SeriesDetailScreen(
                         onClick = onNavigateBack,
                         modifier = Modifier.testTag(TestTags.SERIES_DETAIL_BACK),
                     ) {
-                        Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )

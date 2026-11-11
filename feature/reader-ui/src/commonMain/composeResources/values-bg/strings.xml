@@ -3,31 +3,14 @@
   Reader chrome UI strings — Bulgarian. Values copied from app/src/main/res/values-bg/strings.xml.
 -->
 <resources>
-    <string name="ui_back">Назад</string>
-    <string name="ui_cancel">Отказ</string>
-    <string name="ui_save">Запазване</string>
-    <string name="ui_delete">Изтриване</string>
-    <string name="ui_rename">Преименуване</string>
-    <string name="ui_rename_bookmark">Преименуване на отметката</string>
-    <string name="ui_dismiss">Затваряне</string>
-    <string name="ui_annotations">Анотации</string>
-    <string name="ui_bookmarks">Отметки</string>
-    <string name="ui_no_bookmarks_yet">Все още няма отметки.</string>
-    <string name="ui_no_highlights_yet">Все още няма анотации.</string>
     <string name="ui_format">Формат</string>
-    <string name="ui_formatting">Форматиране</string>
-    <string name="ui_display">Дисплей</string>
-    <string name="ui_reset_to_global_defaults">Връщане към глобалните настройки по подразбиране</string>
-    <string name="ui_search">Search</string>
     <string name="ui_search_in_book">Търсене в книгата...</string>
-    <string name="ui_no_results">Няма резултати</string>
     <string name="ui_result_position">%1$d от %2$d</string>
     <string name="ui_previous_result">Предишен резултат</string>
     <string name="ui_next_result">Следващ резултат</string>
     <string name="ui_close_search">Затворете търсенето</string>
     <string name="ui_footnote">Бележка под линия</string>
     <string name="ui_return_to_previous_position">Върнете се в предишна позиция</string>
-    <string name="ui_next_chapter">Следваща глава</string>
     <string name="ui_look_up">Търси в речника</string>
     <string name="ui_table_of_contents">Съдържание</string>
     <string name="ui_options">Опции</string>
@@ -43,11 +26,8 @@
     <string name="ui_active_suffix">, активно</string>
     <string name="ui_note">Бележка</string>
     <string name="ui_add_a_note">Добавяне на бележка…</string>
-    <string name="ui_edit">Редактиране</string>
-    <string name="ui_remove">Премахнете</string>
     <string name="ui_delete_annotation">Изтриване на анотация</string>
     <string name="ui_bookmark_this_page">Маркиране на тази страница</string>
-    <string name="ui_remove_bookmark">Премахване на отметка</string>
     <string name="ui_open_in_book">Отваряне в книгата</string>
     <string name="ui_play_from_here">Пусни от тук</string>
 
@@ -81,36 +61,12 @@
     <!-- CBZ / comic reader -->
     <string name="reader_book_not_found">Книгата не е намерена</string>
     <string name="ui_comic_formatting">Настройки за комикс</string>
-    <string name="error_comic_page_load_failed">Тази страница не можа да се зареди</string>
     <string name="ui_comic_page_number">Страница от комикс %1$d</string>
     <string name="ui_comic_page_panel">Страница от комикс %1$d, панел %2$d</string>
 
     <!-- CBZ formatting sheet -->
-    <string name="ui_background">Фон</string>
-    <string name="ui_light">Светъл</string>
-    <string name="ui_dark">Тъмен</string>
-    <string name="ui_sepia">Сепия</string>
-    <string name="ui_auto">Автоматично</string>
-    <string name="ui_panel_view">Изглед на панела</string>
-    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Рамкирайте панел по панел в ред на четене</string>
-    <string name="ui_panel_overflow">Преливане на панел</string>
-    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">Как да боравите с панели, които са твърде широки или високи, за да ги увеличите полезно.</string>
-    <string name="ui_no_split">Без разделяне</string>
-    <string name="ui_show_oversized_panels_as_is_without_splitting">Показване на твърде големи панели без разделяне</string>
-    <string name="ui_split">Разделяне</string>
-    <string name="ui_cuts_oversized_panels_in_half">Разделя твърде големите панели на две и показва всяка половина като отделна страница</string>
-    <string name="ui_smart_split">Умно разделяне</string>
-    <string name="ui_smart_split_description">Като Разделяне, но намира естествена граница (канал или празно пространство) за по-чисто срязване</string>
-    <string name="ui_animation_speed">Скорост на анимацията</string>
-    <string name="ui_off">Изкл.</string>
-    <string name="ui_on_screen_info">Информация на екрана</string>
-    <string name="ui_reading_progress">Напредък в четенето</string>
-    <string name="ui_progress_bar_at_the_bottom_of_the_page">Лента за напредък в долната част на страницата</string>
-    <string name="ui_page_numbers">Номерата на страниците</string>
-    <string name="ui_current_page_and_remaining_pages">Текуща страница и оставащи страници</string>
 
     <!-- Panel report sheet -->
-    <string name="ui_report_panel_detection_issue">Докладвай проблем с панел</string>
     <string name="ui_panel_report_select_issue_type">Избери тип проблем</string>
     <string name="ui_panel_report_draw_correct_boundaries">Нарисувай правилните граници на панела</string>
     <string name="ui_panel_report_tap_cut_off_panel">Докосни отрязания панел за идентификация; плъзни за да нарисуваш правилните му граници</string>
@@ -139,8 +95,5 @@
     <string name="ui_download_dictionary_pack">Изтеглете речниковия пакет за %1$s, за да търсите думи офлайн.</string>
     <string name="ui_downloading_dictionary">Изтегляне на речник…</string>
     <string name="ui_download_failed_retry">Неуспешно изтегляне. Проверете връзката си и опитайте отново.</string>
-    <string name="ui_download">Изтегляне</string>
-    <string name="ui_retry">Повторен опит</string>
-    <string name="ui_no_results_for">Няма резултати за \'%1$s\'</string>
     <string name="ui_look_up_in_system_dictionary">Търсене в системния речник</string>
 </resources>

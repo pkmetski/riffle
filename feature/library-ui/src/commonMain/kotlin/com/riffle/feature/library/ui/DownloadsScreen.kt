@@ -40,8 +40,6 @@ import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.designsystem.generated.resources.ui_cached
-import com.riffle.feature.designsystem.generated.resources.ui_downloaded
 import com.riffle.feature.downloads.DownloadsUiState
 import com.riffle.feature.downloads.DownloadsViewModel
 import com.riffle.feature.downloads.LocalItemUi
@@ -49,25 +47,27 @@ import com.riffle.feature.downloads.LocalMediaType
 import com.riffle.feature.downloads.displayOrder
 import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_audiobook
-import com.riffle.feature.library.ui.generated.resources.ui_back
-import com.riffle.feature.library.ui.generated.resources.ui_cancel
-import com.riffle.feature.library.ui.generated.resources.ui_clear_all
 import com.riffle.feature.library.ui.generated.resources.ui_clear_all_cached
 import com.riffle.feature.library.ui.generated.resources.ui_comic
-import com.riffle.feature.library.ui.generated.resources.ui_downloads
 import com.riffle.feature.library.ui.generated.resources.ui_no_cached_media
 import com.riffle.feature.library.ui.generated.resources.ui_no_downloaded_media
-import com.riffle.feature.library.ui.generated.resources.ui_readaloud
-import com.riffle.feature.library.ui.generated.resources.ui_remove_all
-import com.riffle.feature.library.ui.generated.resources.ui_remove_all_downloads
 import com.riffle.feature.library.ui.generated.resources.ui_remove_named_item
 import com.riffle.feature.library.ui.generated.resources.ui_this_will_clear_all_cached_media_from_your_device
-import com.riffle.feature.library.ui.generated.resources.ui_this_will_remove_all_downloaded_media_from_your_device
 import com.riffle.feature.source.ui.CacheSettingsDialog
 import com.riffle.feature.source.ui.CacheSettingsRow
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_audiobook
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cached
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_clear_all
+import com.riffle.feature.designsystem.generated.resources.ui_downloaded
+import com.riffle.feature.designsystem.generated.resources.ui_downloads
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
+import com.riffle.feature.designsystem.generated.resources.ui_remove_all
+import com.riffle.feature.designsystem.generated.resources.ui_remove_all_downloads
+import com.riffle.feature.designsystem.generated.resources.ui_this_will_remove_all_downloaded_media_from_your_device
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,8 +110,8 @@ internal fun DownloadsContent(
     if (showRemoveAllDownloadsDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveAllDownloadsDialog = false },
-            title = { Text(stringResource(Res.string.ui_remove_all_downloads)) },
-            text = { Text(stringResource(Res.string.ui_this_will_remove_all_downloaded_media_from_your_device)) },
+            title = { Text(stringResource(DsRes.string.ui_remove_all_downloads)) },
+            text = { Text(stringResource(DsRes.string.ui_this_will_remove_all_downloaded_media_from_your_device)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -119,11 +119,11 @@ internal fun DownloadsContent(
                         showRemoveAllDownloadsDialog = false
                     },
                     modifier = Modifier.testTag(TestTags.DOWNLOADS_CONFIRM_REMOVE_ALL),
-                ) { Text(stringResource(Res.string.ui_remove_all)) }
+                ) { Text(stringResource(DsRes.string.ui_remove_all)) }
             },
             dismissButton = {
                 TextButton(onClick = { showRemoveAllDownloadsDialog = false }) {
-                    Text(stringResource(Res.string.ui_cancel))
+                    Text(stringResource(DsRes.string.ui_cancel))
                 }
             },
         )
@@ -141,11 +141,11 @@ internal fun DownloadsContent(
                         showClearAllCachedDialog = false
                     },
                     modifier = Modifier.testTag(TestTags.DOWNLOADS_CONFIRM_CLEAR_CACHED),
-                ) { Text(stringResource(Res.string.ui_clear_all)) }
+                ) { Text(stringResource(DsRes.string.ui_clear_all)) }
             },
             dismissButton = {
                 TextButton(onClick = { showClearAllCachedDialog = false }) {
-                    Text(stringResource(Res.string.ui_cancel))
+                    Text(stringResource(DsRes.string.ui_cancel))
                 }
             },
         )
@@ -162,13 +162,13 @@ internal fun DownloadsContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(Res.string.ui_downloads)) },
+                title = { Text(stringResource(DsRes.string.ui_downloads)) },
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier.testTag(TestTags.DOWNLOADS_BACK),
                     ) {
-                        Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(LibraryUiGlyphs.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -183,7 +183,7 @@ internal fun DownloadsContent(
                     SectionHeader(
                         title = stringResource(DsRes.string.ui_downloaded),
                         totalLabel = if (state.downloadedItems.isNotEmpty()) formatBytes(state.downloadedTotalBytes) else null,
-                        actionLabel = if (state.downloadedItems.isNotEmpty()) stringResource(Res.string.ui_remove_all) else null,
+                        actionLabel = if (state.downloadedItems.isNotEmpty()) stringResource(DsRes.string.ui_remove_all) else null,
                         onAction = { showRemoveAllDownloadsDialog = true },
                         actionTag = TestTags.DOWNLOADS_REMOVE_ALL,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -207,7 +207,7 @@ internal fun DownloadsContent(
                     SectionHeader(
                         title = stringResource(DsRes.string.ui_cached),
                         totalLabel = if (state.cachedItems.isNotEmpty()) formatBytes(state.cachedTotalBytes) else null,
-                        actionLabel = if (state.cachedItems.isNotEmpty()) stringResource(Res.string.ui_clear_all) else null,
+                        actionLabel = if (state.cachedItems.isNotEmpty()) stringResource(DsRes.string.ui_clear_all) else null,
                         onAction = { showClearAllCachedDialog = true },
                         actionTag = TestTags.DOWNLOADS_CLEAR_CACHED,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -338,8 +338,8 @@ private fun LocalMediaType.localizedLabel(): String = when (this) {
     LocalMediaType.Epub -> "EPUB"
     LocalMediaType.Pdf -> "PDF"
     LocalMediaType.Comic -> stringResource(Res.string.ui_comic)
-    LocalMediaType.Audiobook -> stringResource(Res.string.ui_audiobook)
-    LocalMediaType.Readaloud -> stringResource(Res.string.ui_readaloud)
+    LocalMediaType.Audiobook -> stringResource(DsRes.string.ui_audiobook)
+    LocalMediaType.Readaloud -> stringResource(DsRes.string.ui_readaloud)
 }
 
 private val LocalMediaType.icon: ImageVector

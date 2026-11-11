@@ -11,6 +11,10 @@ import com.riffle.feature.settings.ui.SettingsPanel
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_display
+import com.riffle.feature.designsystem.generated.resources.ui_page_numbers
+import com.riffle.feature.designsystem.generated.resources.ui_reading_progress
 
 @Composable
 internal fun localizedComicDisplaySummary(prefs: ComicFormattingPreferences): String {
@@ -36,11 +40,11 @@ internal fun localizedComicDisplaySummary(prefs: ComicFormattingPreferences): St
         },
     )
     if (prefs.showChapterMap) {
-        // TODO: migrate to Res.string.ui_reading_progress
-        parts += stringResource(Res.string.ui_reading_progress)
+        // TODO: migrate to DsRes.string.ui_reading_progress
+        parts += stringResource(DsRes.string.ui_reading_progress)
         if (prefs.showPageProgress) {
-            // TODO: migrate to Res.string.ui_page_numbers
-            parts += stringResource(Res.string.ui_page_numbers)
+            // TODO: migrate to DsRes.string.ui_page_numbers
+            parts += stringResource(DsRes.string.ui_page_numbers)
         }
     }
     return parts.joinToString(" · ")
@@ -54,8 +58,8 @@ internal fun ComicsSection(
     // TODO: migrate to Res.string.ui_comics
     SettingsSectionHeader(stringResource(Res.string.ui_comics))
     SettingsDrillInRow(
-        // TODO: migrate to Res.string.ui_display
-        title = stringResource(Res.string.ui_display),
+        // TODO: migrate to DsRes.string.ui_display
+        title = stringResource(DsRes.string.ui_display),
         summary = localizedComicDisplaySummary(comicFormatting),
         onClick = { onOpenPanel(SettingsPanel.ComicDisplay) },
     )

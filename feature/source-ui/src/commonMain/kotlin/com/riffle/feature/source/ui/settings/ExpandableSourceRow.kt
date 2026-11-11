@@ -30,12 +30,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.feature.source.ui.MaterialGlyphs
 import com.riffle.feature.source.ui.generated.resources.Res
-import com.riffle.feature.source.ui.generated.resources.ui_collapse
-import com.riffle.feature.source.ui.generated.resources.ui_delete
-import com.riffle.feature.source.ui.generated.resources.ui_expand
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_collapse
+import com.riffle.feature.designsystem.generated.resources.ui_delete
+import com.riffle.feature.designsystem.generated.resources.ui_expand
 
 /**
  * The one shell every source row in Settings uses: swipe-to-delete over a header ListItem with a
@@ -86,9 +87,9 @@ fun ExpandableSourceRow(
                         Icon(
                             MaterialGlyphs.KeyboardArrowRight,
                             contentDescription = if (isExpanded) {
-                                stringResource(Res.string.ui_collapse)
+                                stringResource(DsRes.string.ui_collapse)
                             } else {
-                                stringResource(Res.string.ui_expand)
+                                stringResource(DsRes.string.ui_expand)
                             },
                             modifier = Modifier.rotate(chevronRotation),
                         )
@@ -151,7 +152,7 @@ fun SwipeToDeleteRow(
             ) {
                 Icon(
                     imageVector = MaterialGlyphs.Delete,
-                    contentDescription = stringResource(Res.string.ui_delete),
+                    contentDescription = stringResource(DsRes.string.ui_delete),
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }

@@ -13,7 +13,6 @@
 -->
 <resources>
     <string name="ui_add_source">Add source</string>
-    <string name="ui_back">Back</string>
     <string name="ui_coming_soon">Coming soon</string>
     <string name="source_audiobookshelf_name" translatable="false">Audiobookshelf</string>
     <string name="ui_local_files">Local files</string>
@@ -46,7 +45,6 @@
     <string name="ui_edit_webdav">Edit WebDAV</string>
     <string name="ui_add_webdav">Add WebDAV</string>
     <string name="ui_webdav_url">WebDAV URL</string>
-    <string name="ui_save">Save</string>
     <string name="ui_connect">Connect</string>
     <string name="ui_webdav_add_source_help_text">Sync highlights, notes, and bookmarks between your devices via a WebDAV server. Available for Komga sources.</string>
     <string name="ui_choose_scheme">Choose scheme</string>
@@ -62,7 +60,6 @@
     <string name="ui_insecure_http_description">This server uses HTTP. Your credentials will be sent without encryption. Proceed only if you trust this network.</string>
     <string name="ui_untrusted_certificate_description">The server\'s TLS certificate cannot be verified. Connecting may expose your credentials. Proceed only if you trust this server.</string>
     <string name="ui_connect_anyway">Connect anyway</string>
-    <string name="ui_cancel">Cancel</string>
     <string name="ui_select_libraries">Select libraries</string>
     <string name="ui_this_source_doesn_t_expose_any_book_libraries">This source doesn\'t expose any book libraries.</string>
     <string name="ui_go_back">Go back</string>
@@ -95,7 +92,6 @@
     <string name="ui_source_oreilly_picker_blurb">Browse and read ebooks and audiobooks from your O'Reilly account.</string>
     <!-- Zero-config singleton confirmation screens (B3: shared across Android and iOS) -->
     <string name="ui_singleton_confirm_title">Add %1$s</string>
-    <string name="ui_try_again">Try again</string>
     <string name="ui_singleton_description_chitanka">Browse Bulgarian ebooks and audiobooks from two public digital libraries. No account is needed — everything is read directly from the public sites.</string>
     <string name="ui_singleton_description_gutenberg">Browse tens of thousands of free public-domain ebooks. No account is needed — everything is read directly from the public catalogue.</string>
     <string name="ui_singleton_description_radio_es">Browse and listen to podcasts from the radio.es directory. No account is needed — everything streams directly from the public catalog.</string>
@@ -105,35 +101,23 @@
     <!-- Cache settings row + dialog on the Downloads screen (shared by :app and :shared). -->
     <string name="ui_cache_settings">Cache settings</string>
     <string name="ui_cached_book_audiobook_comic_and_readaloud_files_can_be_removed_after_they_have_n">Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.</string>
-    <string name="ui_done">Done</string>
-    <string name="ui_off">Off</string>
     <string name="ui_auto_clear_after_days">Auto-clear after %1$d days</string>
     <string name="ui_auto_clear_off">Auto-clear off</string>
     <string name="ui_after_days">After %1$d days</string>
     <!-- Unbounded web-source browse surface (Chitanka / Gutenberg / radio.es), shared by :app and
          :shared. Copied verbatim from app/src/main/res/values/strings.xml. -->
-    <string name="ui_open_menu">Open menu</string>
-    <string name="ui_search">Search</string>
     <string name="ui_clear_search">Clear search</string>
     <string name="ui_all">All</string>
     <string name="ui_any">Any</string>
-    <string name="ui_not_started">Not Started</string>
     <string name="ui_unowned">Unowned</string>
     <string name="ui_language_filter">Language: %1$s</string>
     <string name="ui_country_filter">Country: %1$s</string>
-    <string name="ui_no_results">No results</string>
     <string name="ui_no_items_in_this_library">No items in this library</string>
-    <string name="ui_offline_showing_cached_data">Offline — showing cached data</string>
     <string name="ui_active">Active</string>
     <string name="ui_add_folder">Add folder</string>
-    <string name="ui_clear_all">Clear all</string>
     <string name="ui_clear_all_cached">Clear all cached?</string>
-    <string name="ui_collapse">Collapse</string>
-    <string name="ui_delete">Delete</string>
-    <string name="ui_download">Download</string>
     <string name="ui_download_cached_item">Download cached item</string>
     <string name="ui_download_readaloud">Download readaloud</string>
-    <string name="ui_expand">Expand</string>
     <string name="ui_import_added">Added \"%1$s\"</string>
     <string name="ui_import_failed">Could not import \"%1$s\"</string>
     <string name="ui_import_unsupported">\"%1$s\" is not an EPUB, PDF or comic file</string>
@@ -145,11 +129,6 @@
     <string name="ui_no_libraries_found">No libraries found.</string>
     <string name="ui_permission_revoked">Permission revoked</string>
     <string name="ui_permission_revoked_remove_and_readd">Permission revoked — remove and re-add</string>
-    <string name="ui_readaloud_match_counts">%1$d unmatched · %2$d suggested · %3$d partially matched · %4$d matched</string>
-    <string name="ui_readaloud_matches">Readaloud matches</string>
-    <string name="ui_remove">Remove</string>
-    <string name="ui_remove_all">Remove all</string>
-    <string name="ui_remove_all_downloads">Remove all downloads?</string>
     <string name="ui_remove_download">Remove download</string>
     <string name="ui_remove_folder">Remove folder?</string>
     <string name="ui_remove_folder_3">Remove folder</string>
@@ -159,17 +138,12 @@
     <string name="ui_remove_source_question">Remove source?</string>
     <string name="ui_review_and_match_readalouds">Review &amp; match readalouds</string>
     <string name="ui_some_folders_need_attention">Some folders need attention</string>
-    <string name="ui_sources">Sources</string>
     <string name="ui_tap_add_folder_above_to_pick_a_folder_to_monitor">Tap \"Add folder\" above to pick a folder to monitor.</string>
     <string name="ui_this_will_clear_all_cached_media_from_your_device">This will clear all cached media from your device. Downloaded media is kept.</string>
-    <string name="ui_this_will_remove_all_downloaded_media_from_your_device">This will remove all downloaded media from your device.</string>
     <string name="ui_download_complete">Download complete</string>
     <string name="ui_download_failed">Download failed</string>
     <!-- Downloads screen: screen title. Same key and value as app/src/main/res/values/strings.xml. -->
-    <string name="ui_downloads">Downloads</string>
     <!-- Downloads screen: section headers for pinned vs. cached media. Same keys as app/. -->
-    <string name="ui_downloaded">Downloaded</string>
-    <string name="ui_cached">Cached</string>
     <!-- Downloads screen: empty state when neither section has content. -->
     <string name="ui_no_downloaded_or_cached_items">No downloaded or cached items.</string>
     <!-- Downloads screen: button label to remove all pinned downloads (no dialog title — use ui_remove_all_downloads for that). -->
@@ -177,15 +151,11 @@
     <!-- Downloads screen: button label to clear all cached items (no dialog title — use ui_clear_all_cached for that). -->
     <string name="ui_clear_all_cached_action">Clear all cached</string>
     <!-- Navigation: back button with a leading arrow. Same key and value as feature:design-system. -->
-    <string name="ui_back_with_arrow">← Back</string>
     <!-- Item detail screen: loading placeholder. Same key and value as app/src/main/res/values/strings.xml. -->
-    <string name="ui_loading">Loading…</string>
     <!-- Item detail screen: error state when the item cannot be found. -->
     <string name="ui_item_not_found">Item not found</string>
     <!-- Item detail screen: primary action button to open the reader. Same key and value as app/. -->
-    <string name="ui_read">Read</string>
     <!-- Item detail screen: to-read toggle states. -->
-    <string name="ui_in_to_read">In To-Read</string>
     <string name="ui_add_to_to_read">Add to To-Read</string>
     <!-- Item detail screen: offline status note. -->
     <string name="ui_you_are_offline">You are offline</string>

@@ -30,12 +30,13 @@ import com.riffle.feature.settings.ui.generated.resources.ui_installed_version
 import com.riffle.feature.settings.ui.generated.resources.ui_installed_version_up_to_date
 import com.riffle.feature.settings.ui.generated.resources.ui_release_history
 import com.riffle.feature.settings.ui.generated.resources.ui_release_page
-import com.riffle.feature.settings.ui.generated.resources.ui_retry
 import com.riffle.feature.settings.ui.generated.resources.ui_starting_installer
 import com.riffle.feature.settings.ui.generated.resources.ui_update
 import com.riffle.feature.settings.ui.generated.resources.ui_update_available_version
 import com.riffle.feature.settings.ui.generated.resources.ui_update_check_failed
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_retry
 
 @Composable
 internal fun AppVersionSection(
@@ -96,7 +97,7 @@ internal fun AppVersionSection(
                         }
                     }
                 is AppUpdateUiState.Failed ->
-                    TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_retry)) }
+                    TextButton(onClick = onCheckForUpdate) { Text(stringResource(DsRes.string.ui_retry)) }
                 else ->
                     TextButton(onClick = onCheckForUpdate) { Text(stringResource(Res.string.ui_check_for_updates)) }
             }

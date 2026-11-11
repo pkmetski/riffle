@@ -29,6 +29,8 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabilities
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_on_screen_info
 
 /**
  * Theme + view + on-screen-info controls. Reused by the in-reader settings sheet (Display tab)
@@ -151,8 +153,8 @@ fun DisplaySection(
         }
 
         // On-screen info
-        // TODO: migrate to Res.string.ui_on_screen_info
-        Text(stringResource(Res.string.ui_on_screen_info), style = MaterialTheme.typography.labelMedium)
+        // TODO: migrate to DsRes.string.ui_on_screen_info
+        Text(stringResource(DsRes.string.ui_on_screen_info), style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
         // TODO: migrate to Res.string.ui_chapter_map
         ToggleRow(

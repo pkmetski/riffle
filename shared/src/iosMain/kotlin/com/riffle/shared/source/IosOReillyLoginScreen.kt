@@ -32,12 +32,10 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.source.ui.oreilly.OReillyLoginCommonViewModel
 import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.ui_back
 import com.riffle.shared.generated.resources.ui_oreilly_sign_in_failed
 import com.riffle.shared.generated.resources.ui_oreilly_sign_in_title
 import com.riffle.shared.generated.resources.ui_oreilly_signing_in
 import com.riffle.shared.generated.resources.ui_oreilly_signing_in_sub
-import com.riffle.shared.generated.resources.ui_try_again
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValue
 import org.jetbrains.compose.resources.stringResource
@@ -52,6 +50,9 @@ import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.WebKit.WKWebsiteDataStore
 import platform.darwin.NSObject
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +83,7 @@ internal fun IosOReillyLoginScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             RiffleIcons.ArrowBack,
-                            contentDescription = stringResource(Res.string.ui_back),
+                            contentDescription = stringResource(DsRes.string.ui_back),
                         )
                     }
                 },
@@ -197,7 +198,7 @@ private fun ErrorOverlay(onRetry: () -> Unit) {
                 color = MaterialTheme.colorScheme.error,
             )
             Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-                Text(stringResource(Res.string.ui_try_again))
+                Text(stringResource(DsRes.string.ui_try_again))
             }
         }
     }

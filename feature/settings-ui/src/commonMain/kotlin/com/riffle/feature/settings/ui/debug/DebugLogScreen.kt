@@ -40,7 +40,6 @@ import com.riffle.core.logging.InMemoryLogBuffer
 import com.riffle.core.logging.LogChannel
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.settings.ui.generated.resources.Res
-import com.riffle.feature.settings.ui.generated.resources.ui_back
 import com.riffle.feature.settings.ui.generated.resources.ui_clear
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_entries_count
 import com.riffle.feature.settings.ui.generated.resources.ui_debug_logs
@@ -53,6 +52,8 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.Instant
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
 
 /**
  * In-app viewer for [InMemoryLogBuffer]. Reverse-chronological (newest first), channel-filter
@@ -83,7 +84,7 @@ fun DebugLogScreen(
                 title = { Text(stringResource(Res.string.ui_debug_logs)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
                 actions = {

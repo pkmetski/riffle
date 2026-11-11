@@ -27,12 +27,13 @@ import androidx.compose.ui.unit.sp
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_annotations
-import com.riffle.feature.reader.ui.generated.resources.ui_back
 import com.riffle.feature.reader.ui.generated.resources.ui_format
-import com.riffle.feature.reader.ui.generated.resources.ui_search
 import com.riffle.feature.reader.ui.generated.resources.ui_table_of_contents
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_search
 
 /**
  * Shared reader top bar for both Android and iOS. Slides in/out based on [visible].
@@ -71,7 +72,7 @@ fun ReaderTopBar(
                 ) {
                     Icon(
                         RiffleIcons.ArrowBack,
-                        contentDescription = stringResource(Res.string.ui_back),
+                        contentDescription = stringResource(DsRes.string.ui_back),
                     )
                 }
             },
@@ -90,7 +91,7 @@ fun ReaderTopBar(
                         ) {
                             Icon(
                                 RiffleIcons.Search,
-                                contentDescription = stringResource(Res.string.ui_search),
+                                contentDescription = stringResource(DsRes.string.ui_search),
                             )
                         }
                     }
@@ -109,7 +110,7 @@ fun ReaderTopBar(
                     ) {
                         Icon(
                             RiffleIcons.Bookmarks,
-                            contentDescription = stringResource(Res.string.ui_annotations),
+                            contentDescription = stringResource(DsRes.string.ui_annotations),
                         )
                     }
                     val formatDescription = stringResource(Res.string.ui_format)

@@ -34,10 +34,7 @@ import com.riffle.feature.library.ui.CoverGridZoomBox
 import com.riffle.feature.library.ui.LibraryTabContent
 import com.riffle.feature.library.ui.ScreenScopedViewModelHost
 import com.riffle.feature.library.ui.generated.resources.Res
-import com.riffle.feature.library.ui.generated.resources.ui_annotations
-import com.riffle.feature.library.ui.generated.resources.ui_home
 import com.riffle.feature.library.ui.generated.resources.ui_library
-import com.riffle.feature.library.ui.generated.resources.ui_to_read
 import com.riffle.feature.source.ui.SourceBrowseHeader
 import com.riffle.feature.source.ui.SourceTypeIcon
 import com.riffle.feature.source.ui.websource.ChitankaBrowseViewModel
@@ -56,6 +53,10 @@ import com.riffle.feature.source.ui.websource.unboundedLocalTabToLibraryTabIndex
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_home
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 
 /**
  * Browse surface for an unbounded catalogue (`SourceType.isUnboundedCatalog`), shared by both
@@ -162,7 +163,7 @@ fun UnboundedBrowseScreen(
                 ) {
                     Icon(
                         if (selectedLocalTab == TAB_HOME) RiffleIcons.Home else RiffleIcons.HomeOutlined,
-                        contentDescription = stringResource(Res.string.ui_home),
+                        contentDescription = stringResource(DsRes.string.ui_home),
                     )
                 }
                 if (tabVisibility?.toRead == true) {
@@ -172,7 +173,7 @@ fun UnboundedBrowseScreen(
                     ) {
                         Icon(
                             if (selectedLocalTab == TAB_TO_READ) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
-                            contentDescription = stringResource(Res.string.ui_to_read),
+                            contentDescription = stringResource(DsRes.string.ui_to_read),
                         )
                     }
                 }
@@ -183,7 +184,7 @@ fun UnboundedBrowseScreen(
                     ) {
                         Icon(
                             if (selectedLocalTab == TAB_ANNOTATIONS) RiffleIcons.Annotations else RiffleIcons.AnnotationsOutlined,
-                            contentDescription = stringResource(Res.string.ui_annotations),
+                            contentDescription = stringResource(DsRes.string.ui_annotations),
                         )
                     }
                 }

@@ -62,8 +62,6 @@ import com.riffle.feature.designsystem.TabletContentWidthContainer
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_webdav
-import com.riffle.feature.source.ui.generated.resources.ui_back
-import com.riffle.feature.source.ui.generated.resources.ui_cancel
 import com.riffle.feature.source.ui.generated.resources.ui_choose_scheme
 import com.riffle.feature.source.ui.generated.resources.ui_connect
 import com.riffle.feature.source.ui.generated.resources.ui_connect_anyway
@@ -74,7 +72,6 @@ import com.riffle.feature.source.ui.generated.resources.ui_insecure_http_descrip
 import com.riffle.feature.source.ui.generated.resources.ui_last_sync_value
 import com.riffle.feature.source.ui.generated.resources.ui_password
 import com.riffle.feature.source.ui.generated.resources.ui_pending_will_retry_automatically
-import com.riffle.feature.source.ui.generated.resources.ui_save
 import com.riffle.feature.source.ui.generated.resources.ui_sync_error
 import com.riffle.feature.source.ui.generated.resources.ui_synced_via_webdav
 import com.riffle.feature.source.ui.generated.resources.ui_untrusted_certificate
@@ -83,6 +80,10 @@ import com.riffle.feature.source.ui.generated.resources.ui_username
 import com.riffle.feature.source.ui.generated.resources.ui_webdav_add_source_help_text
 import com.riffle.feature.source.ui.generated.resources.ui_webdav_url
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_save
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,7 +121,7 @@ fun AddSourceScreen(
     val urlPlaceholder = descriptorCopy?.urlPlaceholder ?: "server.example.com/dav/annotations"
     val submitLabel = descriptorCopy
         ?.let { if (isEditing) it.submitLabelEdit else it.submitLabelAdd }
-        ?: stringResource(if (isEditing) Res.string.ui_save else Res.string.ui_connect)
+        ?: stringResource(if (isEditing) DsRes.string.ui_save else Res.string.ui_connect)
     // Fixed-host credentialed sources (O'Reilly) have no user-entered URL: the ViewModel stamps
     // the host and the URL row is suppressed. WebDAV (descriptor == null) and every hasNetworkHost
     // source keep the row.
@@ -153,7 +154,7 @@ fun AddSourceScreen(
                 navigationIcon = {
                     if (showNavigationIcon) {
                         IconButton(onClick = onNavigateBack, modifier = Modifier.testTag(TestTags.NAV_BACK)) {
-                            Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                            Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                         }
                     }
                 },
@@ -376,6 +377,6 @@ private fun InsecureConnectionDialog(
                 Text(stringResource(Res.string.ui_connect_anyway))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_cancel)) } },
     )
 }

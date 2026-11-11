@@ -5,31 +5,14 @@
   Every key here MUST also exist in values-es/ and values-bg/.
 -->
 <resources>
-    <string name="ui_back">Back</string>
-    <string name="ui_cancel">Cancel</string>
-    <string name="ui_save">Save</string>
-    <string name="ui_delete">Delete</string>
-    <string name="ui_rename">Rename</string>
-    <string name="ui_rename_bookmark">Rename bookmark</string>
-    <string name="ui_dismiss">Dismiss</string>
-    <string name="ui_annotations">Annotations</string>
-    <string name="ui_bookmarks">Bookmarks</string>
-    <string name="ui_no_bookmarks_yet">No bookmarks yet.</string>
-    <string name="ui_no_highlights_yet">No highlights yet.</string>
     <string name="ui_format">Format</string>
-    <string name="ui_formatting">Formatting</string>
-    <string name="ui_display">Display</string>
-    <string name="ui_reset_to_global_defaults">Reset to global defaults</string>
-    <string name="ui_search">Search</string>
     <string name="ui_search_in_book">Search in book…</string>
-    <string name="ui_no_results">No results</string>
     <string name="ui_result_position">%1$d of %2$d</string>
     <string name="ui_previous_result">Previous result</string>
     <string name="ui_next_result">Next result</string>
     <string name="ui_close_search">Close search</string>
     <string name="ui_footnote">Footnote</string>
     <string name="ui_return_to_previous_position">Return to previous position</string>
-    <string name="ui_next_chapter">Next chapter</string>
     <string name="ui_look_up">Look up</string>
     <string name="ui_table_of_contents">Table of Contents</string>
     <string name="ui_options">Options</string>
@@ -45,11 +28,8 @@
     <string name="ui_active_suffix">, active</string>
     <string name="ui_note">Note</string>
     <string name="ui_add_a_note">Add a note…</string>
-    <string name="ui_edit">Edit</string>
-    <string name="ui_remove">Remove</string>
     <string name="ui_delete_annotation">Delete annotation</string>
     <string name="ui_bookmark_this_page">Bookmark this page</string>
-    <string name="ui_remove_bookmark">Remove bookmark</string>
     <string name="ui_open_in_book">Open in book</string>
     <string name="ui_play_from_here">Play from here</string>
 
@@ -83,36 +63,12 @@
     <!-- CBZ / comic reader -->
     <string name="reader_book_not_found">Book not found</string>
     <string name="ui_comic_formatting">Comic formatting</string>
-    <string name="error_comic_page_load_failed">Couldn\'t load this page</string>
     <string name="ui_comic_page_number">Comic page %1$d</string>
     <string name="ui_comic_page_panel">Comic page %1$d panel %2$d</string>
 
     <!-- CBZ formatting sheet -->
-    <string name="ui_background">Background</string>
-    <string name="ui_light">Light</string>
-    <string name="ui_dark">Dark</string>
-    <string name="ui_sepia">Sepia</string>
-    <string name="ui_auto">Auto</string>
-    <string name="ui_panel_view">Panel View</string>
-    <string name="ui_frame_one_panel_at_a_time_in_reading_order">Frame one panel at a time in reading order</string>
-    <string name="ui_panel_overflow">Panel Overflow</string>
-    <string name="ui_how_to_handle_panels_that_are_too_wide_or_tall_to_zoom_into_usefully">How to handle panels that are too wide or tall to zoom into usefully.</string>
-    <string name="ui_no_split">No split</string>
-    <string name="ui_show_oversized_panels_as_is_without_splitting">Show oversized panels as-is without splitting</string>
-    <string name="ui_split">Split</string>
-    <string name="ui_cuts_oversized_panels_in_half">Cuts oversized panels in half and shows each half as its own page</string>
-    <string name="ui_smart_split">Smart split</string>
-    <string name="ui_smart_split_description">Like Split, but finds a natural seam (gutter or whitespace) to cut at a cleaner boundary</string>
-    <string name="ui_animation_speed">Animation Speed</string>
-    <string name="ui_off">Off</string>
-    <string name="ui_on_screen_info">On-screen info</string>
-    <string name="ui_reading_progress">Reading progress</string>
-    <string name="ui_progress_bar_at_the_bottom_of_the_page">Progress bar at the bottom of the page</string>
-    <string name="ui_page_numbers">Page numbers</string>
-    <string name="ui_current_page_and_remaining_pages">Current page and remaining pages</string>
 
     <!-- Panel report sheet -->
-    <string name="ui_report_panel_detection_issue">Report panel detection issue</string>
     <string name="ui_panel_report_select_issue_type">Select issue type</string>
     <string name="ui_panel_report_draw_correct_boundaries">Draw the correct panel boundaries</string>
     <string name="ui_panel_report_tap_cut_off_panel">Tap the cut-off panel to identify it; drag to draw its correct boundary</string>
@@ -141,8 +97,5 @@
     <string name="ui_download_dictionary_pack">Download the %1$s dictionary pack to look up words offline.</string>
     <string name="ui_downloading_dictionary">Downloading dictionary…</string>
     <string name="ui_download_failed_retry">Download failed. Check your connection and try again.</string>
-    <string name="ui_download">Download</string>
-    <string name="ui_retry">Retry</string>
-    <string name="ui_no_results_for">No results for \'%1$s\'</string>
     <string name="ui_look_up_in_system_dictionary">Look up in system dictionary</string>
 </resources>

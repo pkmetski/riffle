@@ -63,6 +63,9 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_ok
 
 enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
 
@@ -587,12 +590,12 @@ private fun TimeField(
                 TextButton(onClick = {
                     onTimeChange(LocalMinuteTime.of(state.hour, state.minute))
                     showPicker = false
-                    // TODO: migrate to Res.string.ui_ok
-                }) { Text(stringResource(Res.string.ui_ok)) }
+                    // TODO: migrate to DsRes.string.ui_ok
+                }) { Text(stringResource(DsRes.string.ui_ok)) }
             },
             dismissButton = {
-                // TODO: migrate to Res.string.ui_cancel
-                TextButton(onClick = { showPicker = false }) { Text(stringResource(Res.string.ui_cancel)) }
+                // TODO: migrate to DsRes.string.ui_cancel
+                TextButton(onClick = { showPicker = false }) { Text(stringResource(DsRes.string.ui_cancel)) }
             },
             text = { TimePicker(state = state) },
         )

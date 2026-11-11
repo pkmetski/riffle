@@ -34,15 +34,16 @@ import coil3.request.ImageRequest
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.library.ui.generated.resources.Res
 import com.riffle.feature.library.ui.generated.resources.ui_author
-import com.riffle.feature.library.ui.generated.resources.ui_cancel
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
 import com.riffle.feature.library.ui.generated.resources.ui_pick_cover_image
 import com.riffle.feature.library.ui.generated.resources.ui_restore_from_file_metadata
-import com.riffle.feature.library.ui.generated.resources.ui_save
-import com.riffle.feature.library.ui.generated.resources.ui_series
 import com.riffle.feature.library.ui.generated.resources.ui_series_number
 import com.riffle.feature.library.ui.generated.resources.ui_title
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_save
+import com.riffle.feature.designsystem.generated.resources.ui_series
 
 /**
  * Shared dialog for editing a local-file book's metadata.
@@ -140,7 +141,7 @@ fun EditLocalFileMetadataDialog(
                 OutlinedTextField(
                     value = seriesName,
                     onValueChange = { seriesName = it },
-                    label = { Text(stringResource(Res.string.ui_series)) },
+                    label = { Text(stringResource(DsRes.string.ui_series)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -165,7 +166,7 @@ fun EditLocalFileMetadataDialog(
         },
         confirmButton = {
             Row(modifier = Modifier.padding(end = 8.dp, bottom = 4.dp)) {
-                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_cancel)) }
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
                     onClick = {
@@ -182,7 +183,7 @@ fun EditLocalFileMetadataDialog(
                     },
                     enabled = title.isNotBlank(),
                 ) {
-                    Text(stringResource(Res.string.ui_save))
+                    Text(stringResource(DsRes.string.ui_save))
                 }
             }
         },

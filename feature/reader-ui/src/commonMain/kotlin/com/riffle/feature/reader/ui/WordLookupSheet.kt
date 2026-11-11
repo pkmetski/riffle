@@ -27,17 +27,18 @@ import com.riffle.feature.downloads.formatBytes
 import com.riffle.feature.reader.LookupTarget
 import com.riffle.feature.reader.LookupUiState
 import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_download
 import com.riffle.feature.reader.ui.generated.resources.ui_download_dictionary_pack
 import com.riffle.feature.reader.ui.generated.resources.ui_download_dictionary_pack_with_size
 import com.riffle.feature.reader.ui.generated.resources.ui_download_failed_retry
 import com.riffle.feature.reader.ui.generated.resources.ui_downloading_dictionary
 import com.riffle.feature.reader.ui.generated.resources.ui_look_up_in_system_dictionary
 import com.riffle.feature.reader.ui.generated.resources.ui_no_dictionary_installed
-import com.riffle.feature.reader.ui.generated.resources.ui_no_results_for
-import com.riffle.feature.reader.ui.generated.resources.ui_retry
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_download
+import com.riffle.feature.designsystem.generated.resources.ui_no_results_for
+import com.riffle.feature.designsystem.generated.resources.ui_retry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +100,7 @@ fun WordLookupSheet(
                             },
                             modifier = Modifier.align(Alignment.End),
                         ) {
-                            Text(stringResource(Res.string.ui_download))
+                            Text(stringResource(DsRes.string.ui_download))
                         }
                     }
                     if (onSystemDictionary != null) {
@@ -137,13 +138,13 @@ fun WordLookupSheet(
                             },
                             modifier = Modifier.align(Alignment.End),
                         ) {
-                            Text(stringResource(Res.string.ui_retry))
+                            Text(stringResource(DsRes.string.ui_retry))
                         }
                     }
                 }
                 is LookupUiState.NoResults -> {
                     Text(
-                        text = stringResource(Res.string.ui_no_results_for, state.word),
+                        text = stringResource(DsRes.string.ui_no_results_for, state.word),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

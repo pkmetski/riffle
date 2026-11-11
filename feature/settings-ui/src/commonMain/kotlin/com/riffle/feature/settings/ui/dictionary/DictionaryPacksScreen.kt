@@ -35,18 +35,19 @@ import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_all_packs_installed
 import com.riffle.feature.settings.ui.generated.resources.ui_approx_size
 import com.riffle.feature.settings.ui.generated.resources.ui_available
-import com.riffle.feature.settings.ui.generated.resources.ui_back
-import com.riffle.feature.settings.ui.generated.resources.ui_cancel
-import com.riffle.feature.settings.ui.generated.resources.ui_delete
 import com.riffle.feature.settings.ui.generated.resources.ui_dictionary_packs
 import com.riffle.feature.settings.ui.generated.resources.ui_dictionary_source_description
-import com.riffle.feature.settings.ui.generated.resources.ui_download
 import com.riffle.feature.settings.ui.generated.resources.ui_downloading_dictionary_name
 import com.riffle.feature.settings.ui.generated.resources.ui_installed
 import com.riffle.feature.settings.ui.generated.resources.ui_update
 import com.riffle.feature.source.ui.library.DownloadProgressIndicator
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_delete
+import com.riffle.feature.designsystem.generated.resources.ui_download
 
 private val HTML_TAG_REGEX = Regex("<[^>]*>")
 
@@ -71,7 +72,7 @@ fun DictionaryPacksScreen(
                 title = { Text(stringResource(Res.string.ui_dictionary_packs)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -164,7 +165,7 @@ private fun InstalledPackRow(
         Row {
             Spacer(modifier = Modifier.weight(1f))
             TextButton(onClick = onUpdate) { Text(stringResource(Res.string.ui_update)) }
-            TextButton(onClick = onDelete) { Text(stringResource(Res.string.ui_delete)) }
+            TextButton(onClick = onDelete) { Text(stringResource(DsRes.string.ui_delete)) }
         }
     }
 }
@@ -189,11 +190,11 @@ private fun AvailablePackRow(
                         modifier = Modifier.padding(end = 4.dp),
                     )
                     IconButton(onClick = onCancel) {
-                        Icon(RiffleIcons.Close, contentDescription = stringResource(Res.string.ui_cancel))
+                        Icon(RiffleIcons.Close, contentDescription = stringResource(DsRes.string.ui_cancel))
                     }
                 }
             } else {
-                TextButton(onClick = onDownload) { Text(stringResource(Res.string.ui_download)) }
+                TextButton(onClick = onDownload) { Text(stringResource(DsRes.string.ui_download)) }
             }
         },
     )

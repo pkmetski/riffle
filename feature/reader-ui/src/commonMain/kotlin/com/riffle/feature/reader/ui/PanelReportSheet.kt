@@ -70,9 +70,10 @@ import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_mark_fal
 import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_select_issue_type
 import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_tap_cut_off_panel
 import com.riffle.feature.reader.ui.generated.resources.ui_panel_report_tap_in_reading_order
-import com.riffle.feature.reader.ui.generated.resources.ui_report_panel_detection_issue
 import com.riffle.feature.reader.ui.generated.resources.ui_submit_to_github
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 
 @Composable
 fun PanelDetectionFailureType.localizedLabel(): String = stringResource(
@@ -118,7 +119,7 @@ fun PanelReportSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                stringResource(Res.string.ui_report_panel_detection_issue),
+                stringResource(DsRes.string.ui_report_panel_detection_issue),
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             )
 

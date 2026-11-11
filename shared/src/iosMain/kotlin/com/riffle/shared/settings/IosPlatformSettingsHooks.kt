@@ -10,7 +10,6 @@ import com.riffle.feature.settings.ui.PlatformSettingsHooks
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_body
 import com.riffle.feature.settings.ui.generated.resources.ui_language_change_restart_title
-import com.riffle.feature.settings.ui.generated.resources.ui_ok
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSBundle
@@ -20,6 +19,8 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationWillEnterForegroundNotification
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_ok
 
 /**
  * iOS implementation of [PlatformSettingsHooks].
@@ -112,7 +113,7 @@ fun LanguageChangeRestartDialog(onDismiss: () -> Unit) {
                 pendingRestart.value = false
                 onDismiss()
             }) {
-                Text(stringResource(Res.string.ui_ok))
+                Text(stringResource(DsRes.string.ui_ok))
             }
         },
     )

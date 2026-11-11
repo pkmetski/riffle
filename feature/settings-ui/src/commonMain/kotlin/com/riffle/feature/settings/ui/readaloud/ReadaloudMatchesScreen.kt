@@ -66,6 +66,11 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_dismiss
+import com.riffle.feature.designsystem.generated.resources.ui_done
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud_matches
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,10 +86,10 @@ fun ReadaloudMatchesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(Res.string.ui_readaloud_matches)) },
+                title = { Text(stringResource(DsRes.string.ui_readaloud_matches)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -289,7 +294,7 @@ private fun CandidateRow(
             Row {
                 Button(onClick = onConfirm) { Text(stringResource(Res.string.ui_confirm)) }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_dismiss)) }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_dismiss)) }
             }
         }
     }
@@ -515,7 +520,7 @@ private fun AbsPickerDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_done)) }
+                    TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_done)) }
                 }
             }
         }

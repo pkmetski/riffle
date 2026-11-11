@@ -27,6 +27,10 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.i18n.AppLanguage
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_dark
+import com.riffle.feature.designsystem.generated.resources.ui_light
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
 
 /**
  * Settings for app chrome. The app theme remains independent of the reader's content theme.
@@ -41,10 +45,10 @@ internal fun AppearanceSection(
     // TODO: migrate to Res.string.ui_appearance
     SettingsSectionHeader(stringResource(Res.string.ui_appearance))
     val options = listOf(
-        // TODO: migrate to Res.string.ui_light
-        AppTheme.Light to stringResource(Res.string.ui_light),
-        // TODO: migrate to Res.string.ui_dark
-        AppTheme.Dark to stringResource(Res.string.ui_dark),
+        // TODO: migrate to DsRes.string.ui_light
+        AppTheme.Light to stringResource(DsRes.string.ui_light),
+        // TODO: migrate to DsRes.string.ui_dark
+        AppTheme.Dark to stringResource(DsRes.string.ui_dark),
         // TODO: migrate to Res.string.ui_system
         AppTheme.System to stringResource(Res.string.ui_system),
     )
@@ -93,8 +97,8 @@ internal fun AppearanceSection(
                         Text(selectedLanguageLabel)
                         Icon(
                             RiffleIcons.ArrowDropDown,
-                            // TODO: migrate to Res.string.ui_open_menu
-                            contentDescription = stringResource(Res.string.ui_open_menu),
+                            // TODO: migrate to DsRes.string.ui_open_menu
+                            contentDescription = stringResource(DsRes.string.ui_open_menu),
                         )
                     }
                     DropdownMenu(

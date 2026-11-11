@@ -5,11 +5,13 @@ import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import com.riffle.feature.settings.ui.readersettings.DisplaySection
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_display
 
 @Composable
 fun DisplaySettingsPanel(
     prefs: FormattingPreferences,
     onPrefsChange: (FormattingPreferences) -> Unit,
     onDismiss: () -> Unit,
-// TODO: migrate to Res.string.ui_display
-) = DetailScaffold(stringResource(Res.string.ui_display), onDismiss) { DisplaySection(prefs, onPrefsChange, scheduleEditable = true) }
+// TODO: migrate to DsRes.string.ui_display
+) = DetailScaffold(stringResource(DsRes.string.ui_display), onDismiss) { DisplaySection(prefs, onPrefsChange, scheduleEditable = true) }

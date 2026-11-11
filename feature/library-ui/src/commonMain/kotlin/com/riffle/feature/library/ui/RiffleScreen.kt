@@ -32,11 +32,8 @@ import com.riffle.feature.designsystem.LocalCoverGridScale
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.SectionHeader
 import com.riffle.feature.designsystem.TestTags
-import com.riffle.feature.designsystem.generated.resources.ui_annotations
-import com.riffle.feature.designsystem.generated.resources.ui_open_menu
 import com.riffle.feature.designsystem.generated.resources.ui_section_continue_series
 import com.riffle.feature.designsystem.generated.resources.ui_section_in_progress
-import com.riffle.feature.designsystem.generated.resources.ui_to_read
 import com.riffle.feature.designsystem.pinchCoverZoom
 import com.riffle.feature.library.AnnotationsListUiState
 import com.riffle.feature.library.RiffleViewModel
@@ -44,6 +41,9 @@ import com.riffle.feature.source.ui.OfflineBanner
 import com.riffle.feature.source.ui.sourceDisplayName
 import org.jetbrains.compose.resources.stringResource
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_open_menu
+import com.riffle.feature.designsystem.generated.resources.ui_to_read
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

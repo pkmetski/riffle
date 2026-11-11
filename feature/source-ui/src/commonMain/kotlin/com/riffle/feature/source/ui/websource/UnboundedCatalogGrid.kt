@@ -39,10 +39,11 @@ import com.riffle.feature.source.ui.EmptyLibrary
 import com.riffle.feature.source.ui.OfflineBanner
 import com.riffle.feature.source.ui.fadingScrollbar
 import com.riffle.feature.source.ui.generated.resources.Res
-import com.riffle.feature.source.ui.generated.resources.ui_no_results
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_no_results
 
 private const val PAGINATION_PREFETCH_THRESHOLD = 6
 
@@ -96,7 +97,7 @@ fun <T> UnboundedBrowseContent(
                 items.isEmpty() ->
                     if (query.isNotBlank()) {
                         Text(
-                            stringResource(Res.string.ui_no_results),
+                            stringResource(DsRes.string.ui_no_results),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.align(Alignment.Center).padding(24.dp),

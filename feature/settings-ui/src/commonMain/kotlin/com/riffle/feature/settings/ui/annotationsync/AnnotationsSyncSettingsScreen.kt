@@ -33,6 +33,8 @@ import com.riffle.feature.settings.ui.resolve
 import com.riffle.feature.source.ui.AddSourceBackend
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
 
 /**
  * Full-screen drill-in that hosts every WebDAV annotation-sync setting. Reached from the collapsed
@@ -62,8 +64,8 @@ fun AnnotationsSyncSettingsScreen(
                 title = { Text(stringResource(Res.string.ui_webdav_annotation_sync_for_komga)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        // TODO: migrate to Res.string.ui_back
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        // TODO: migrate to DsRes.string.ui_back
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )

@@ -41,9 +41,7 @@ import com.riffle.feature.reader.ui.generated.resources.error_select_failure_typ
 import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import com.riffle.shared.IosAppActiveEvents
 import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.error_comic_page_load_failed
 import com.riffle.shared.generated.resources.ui_more_options
-import com.riffle.shared.generated.resources.ui_report_panel_detection_issue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.delay
@@ -60,6 +58,9 @@ import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import com.riffle.feature.reader.ui.generated.resources.Res as ReaderRes
 import org.jetbrains.skia.Bitmap as SkiaBitmap
 import org.jetbrains.skia.Image as SkiaImage
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.error_comic_page_load_failed
+import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 
 private const val MAX_PAGE_DIMENSION = 4096
 private const val MAX_THUMB_DIMENSION = 256
@@ -182,7 +183,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.ui_report_panel_detection_issue)) },
+                        text = { Text(stringResource(DsRes.string.ui_report_panel_detection_issue)) },
                         onClick = {
                             menuOpen = false
                             coroutineScope.launch(Dispatchers.IO) {
@@ -293,7 +294,7 @@ private fun IosComicPageContent(
         is PageState.Error -> {
             Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = stringResource(Res.string.error_comic_page_load_failed),
+                    text = stringResource(DsRes.string.error_comic_page_load_failed),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

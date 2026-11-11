@@ -7,26 +7,14 @@
     <string name="ui_active_source">Fuente activa</string>
     <string name="ui_app_version_footer">Riffle v%1$s%2$s</string>
     <string name="ui_unable_to_connect_to_source">No se puede conectar a la fuente</string>
-    <string name="ui_retry">Reintentar</string>
-    <string name="ui_book_not_found">Libro no encontrado</string>
-    <string name="ui_back">Atrás</string>
-    <string name="ui_cancel">Cancelar</string>
-    <string name="ui_remove_all">Quitar todo</string>
-    <string name="ui_clear_all">Borrar todo</string>
     <string name="ui_clear_all_cached">Borrar todo en caché</string>
     <string name="ui_this_will_clear_all_cached_media_from_your_device">Esto borrará toda la multimedia en caché de tu dispositivo.</string>
     <string name="ui_sort">Ordenar: %1$s</string>
-    <string name="ui_downloads">Descargas</string>
-    <string name="ui_remove_all_downloads">¿Eliminar todas las descargas?</string>
-    <string name="ui_this_will_remove_all_downloaded_media_from_your_device">Esto eliminará todo el contenido descargado de tu dispositivo.</string>
     <string name="ui_remove_named_item">Eliminar %1$s</string>
     <string name="ui_no_downloaded_media">No hay multimedia descargada</string>
     <string name="ui_no_cached_media">No hay multimedia en caché</string>
-    <string name="ui_audiobook">Audiolibro</string>
     <string name="ui_comic">Cómic</string>
-    <string name="ui_readaloud">Lectura en voz alta</string>
     <string name="ui_annotations_count">Anotaciones (%1$d)</string>
-    <string name="ui_no_highlights_yet">Aún no hay resaltados.</string>
     <string name="ui_long_press_text_while_reading_to_highlight_it">Mantén pulsado el texto mientras lees para resaltarlo.</string>
     <string name="ui_to_read_count">Para leer (%1$d)</string>
     <string name="ui_series_count">Serie (%1$d)</string>
@@ -34,21 +22,16 @@
     <string name="ui_all_books_count">Todos los libros (%1$d)</string>
     <string name="ui_book_count">%1$d libro(s)</string>
     <string name="ui_show_all_annotations">Mostrar las %1$d anotaciones</string>
-    <string name="ui_books">Libros</string>
-    <string name="ui_not_started">No iniciado</string>
     <string name="ui_not_supported">No compatible</string>
     <string name="ui_nothing_to_show_here">Nada que mostrar aquí</string>
     <string name="ui_nothing_in_to_read">No hay nada en Para leer</string>
     <string name="ui_no_series_in_this_library">No hay series en esta biblioteca</string>
     <string name="ui_no_collections_in_this_library">No hay colecciones en esta biblioteca</string>
     <string name="ui_no_unstarted_books">No hay libros sin empezar</string>
-    <string name="ui_no_results_for">No hay resultados para \'%1$s\'</string>
     <string name="ui_remove_from_library">Eliminar de la biblioteca</string>
 
     <!-- Item detail screen -->
     <string name="ui_listen">Escuchar</string>
-    <string name="ui_to_read">Para leer</string>
-    <string name="ui_in_to_read">En Para leer</string>
     <string name="ui_summary">Resumen</string>
     <string name="ui_show_more">Mostrar más</string>
     <string name="ui_show_less">Mostrar menos</string>
@@ -75,9 +58,7 @@
     <string name="ui_edit_metadata">Editar metadatos</string>
     <string name="ui_title">Título</string>
     <string name="ui_author">Autor</string>
-    <string name="ui_series">Serie</string>
     <string name="ui_series_number">Número de serie</string>
-    <string name="ui_save">Guardar</string>
     <string name="ui_pick_cover_image">Seleccionar imagen de portada</string>
     <string name="ui_restore_from_file_metadata">Restaurar desde metadatos del archivo</string>
     <string name="ui_upload_to">Subir a</string>
@@ -87,18 +68,14 @@
     <string name="ui_connect_to_download_audiobook">Conectar para descargar audiolibro</string>
     <string name="ui_connect_to_download_readaloud_audio">Conectar para descargar audio readaloud</string>
     <string name="ui_connect_to_stream_audio">Conectar para reproducir audio</string>
-    <string name="ui_read">Leer</string>
 
     <!-- Playlist surfaces -->
-    <string name="ui_play">Reproducir</string>
-    <string name="ui_loading">Cargando…</string>
     <string name="ui_this_playlist_is_empty">Esta lista de reproducción está vacía.</string>
     <string name="ui_remove_from_playlist">Eliminar de la lista de reproducción</string>
     <string name="ui_no_playlists_yet_create_one_from_any_item">Aún no hay listas de reproducción. Crea una desde cualquier elemento.</string>
     <string name="ui_new_playlist">Nueva lista de reproducción</string>
     <string name="ui_no_playlists_yet_create_one_to_get_started">Aún no hay listas de reproducción. Crea una para empezar.</string>
     <string name="ui_in_this_playlist">En esta lista de reproducción</string>
-    <string name="ui_name">Nombre</string>
     <string name="ui_create">Crear</string>
     <string name="ui_playlist_count_one">1 elemento</string>
     <string name="ui_playlist_count_other">%1$d elementos</string>
@@ -130,11 +107,6 @@
     <string name="ui_upload_phase_uploading">Subiendo…</string>
     <string name="ui_upload_phase_uploading_n_of_m">Subiendo %1$d de %2$d archivos</string>
     <string name="ui_cannot_upload_title">No se puede cargar</string>
-    <string name="ui_ok">Aceptar</string>
     <string name="ui_enjoying_riffle">Enjoying Riffle? Consider supporting development. ☕</string>
-    <string name="ui_dismiss">Cerrar</string>
-    <string name="ui_open_menu">Abrir menú</string>
-    <string name="ui_home">Inicio</string>
-    <string name="ui_annotations">Anotaciones</string>
     <string name="ui_library">Library</string>
 </resources>

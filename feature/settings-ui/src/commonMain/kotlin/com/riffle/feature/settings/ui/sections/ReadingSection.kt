@@ -11,23 +11,27 @@ import com.riffle.feature.settings.ui.readersettings.localizedCadenceSummary
 import com.riffle.feature.settings.ui.readersettings.localizedDisplaySummary
 import com.riffle.feature.settings.ui.readersettings.localizedFormattingSummary
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_books
+import com.riffle.feature.designsystem.generated.resources.ui_display
+import com.riffle.feature.designsystem.generated.resources.ui_formatting
 
 @Composable
 internal fun ReadingSection(
     globalFormatting: FormattingPreferences,
     onOpenPanel: (SettingsPanel) -> Unit,
 ) {
-    // TODO: migrate to Res.string.ui_books
-    SettingsSectionHeader(stringResource(Res.string.ui_books))
+    // TODO: migrate to DsRes.string.ui_books
+    SettingsSectionHeader(stringResource(DsRes.string.ui_books))
     SettingsDrillInRow(
-        // TODO: migrate to Res.string.ui_formatting
-        title = stringResource(Res.string.ui_formatting),
+        // TODO: migrate to DsRes.string.ui_formatting
+        title = stringResource(DsRes.string.ui_formatting),
         summary = localizedFormattingSummary(globalFormatting),
         onClick = { onOpenPanel(SettingsPanel.Formatting) },
     )
     SettingsDrillInRow(
-        // TODO: migrate to Res.string.ui_display
-        title = stringResource(Res.string.ui_display),
+        // TODO: migrate to DsRes.string.ui_display
+        title = stringResource(DsRes.string.ui_display),
         summary = localizedDisplaySummary(globalFormatting),
         onClick = { onOpenPanel(SettingsPanel.Display) },
     )

@@ -48,18 +48,19 @@ import com.riffle.feature.reader.collectInlineFigures
 import com.riffle.feature.reader.maxLinesForAnnotationTitle
 import com.riffle.feature.reader.rowKindFor
 import com.riffle.feature.reader.ui.generated.resources.Res
-import com.riffle.feature.reader.ui.generated.resources.ui_annotations
-import com.riffle.feature.reader.ui.generated.resources.ui_bookmarks
-import com.riffle.feature.reader.ui.generated.resources.ui_cancel
-import com.riffle.feature.reader.ui.generated.resources.ui_delete
-import com.riffle.feature.reader.ui.generated.resources.ui_no_bookmarks_yet
-import com.riffle.feature.reader.ui.generated.resources.ui_no_highlights_yet
 import com.riffle.feature.reader.ui.generated.resources.ui_options
-import com.riffle.feature.reader.ui.generated.resources.ui_rename
-import com.riffle.feature.reader.ui.generated.resources.ui_rename_bookmark
-import com.riffle.feature.reader.ui.generated.resources.ui_save
 import com.riffle.feature.source.ui.fadingScrollbar
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_annotations
+import com.riffle.feature.designsystem.generated.resources.ui_bookmarks
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_delete
+import com.riffle.feature.designsystem.generated.resources.ui_no_bookmarks_yet
+import com.riffle.feature.designsystem.generated.resources.ui_no_highlights_yet
+import com.riffle.feature.designsystem.generated.resources.ui_rename
+import com.riffle.feature.designsystem.generated.resources.ui_rename_bookmark
+import com.riffle.feature.designsystem.generated.resources.ui_save
 
 /**
  * Shared annotations panel. Android and iOS both render this; Android passes its
@@ -99,18 +100,18 @@ fun SharedAnnotationsPanel(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text(stringResource(Res.string.ui_bookmarks)) },
+                    text = { Text(stringResource(DsRes.string.ui_bookmarks)) },
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text(stringResource(Res.string.ui_annotations)) },
+                    text = { Text(stringResource(DsRes.string.ui_annotations)) },
                 )
             }
             val emptyMessage = if (selectedTab == 0) {
-                stringResource(Res.string.ui_no_bookmarks_yet)
+                stringResource(DsRes.string.ui_no_bookmarks_yet)
             } else {
-                stringResource(Res.string.ui_no_highlights_yet)
+                stringResource(DsRes.string.ui_no_highlights_yet)
             }
             if (visibleAnnotations.isEmpty()) {
                 Text(
@@ -279,7 +280,7 @@ private fun SharedAnnotationOverflow(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             if (isBookmark) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.ui_rename)) },
+                    text = { Text(stringResource(DsRes.string.ui_rename)) },
                     leadingIcon = { Icon(RiffleIcons.Edit, contentDescription = null) },
                     onClick = {
                         expanded = false
@@ -288,7 +289,7 @@ private fun SharedAnnotationOverflow(
                 )
             }
             DropdownMenuItem(
-                text = { Text(stringResource(Res.string.ui_delete)) },
+                text = { Text(stringResource(DsRes.string.ui_delete)) },
                 leadingIcon = { Icon(RiffleIcons.Delete, contentDescription = null) },
                 onClick = {
                     expanded = false
@@ -308,7 +309,7 @@ private fun SharedBookmarkRenameDialog(
     var title by remember { mutableStateOf(initialTitle) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.ui_rename_bookmark)) },
+        title = { Text(stringResource(DsRes.string.ui_rename_bookmark)) },
         text = {
             OutlinedTextField(
                 value = title,
@@ -322,10 +323,10 @@ private fun SharedBookmarkRenameDialog(
             TextButton(
                 onClick = { onConfirm(trimmed) },
                 enabled = trimmed.isNotEmpty(),
-            ) { Text(stringResource(Res.string.ui_save)) }
+            ) { Text(stringResource(DsRes.string.ui_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.ui_cancel)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(DsRes.string.ui_cancel)) }
         },
     )
 }

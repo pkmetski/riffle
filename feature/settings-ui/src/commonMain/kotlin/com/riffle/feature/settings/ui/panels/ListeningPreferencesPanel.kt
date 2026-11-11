@@ -14,6 +14,8 @@ import com.riffle.feature.player.PlaybackSpeed
 import com.riffle.feature.settings.ui.generated.resources.*
 import com.riffle.feature.settings.ui.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_off
 
 @Composable
 fun ListeningPreferencesPanel(
@@ -96,8 +98,8 @@ fun ListeningPreferencesPanel(
             ) {
                 Text(
                     if (seconds == 0) {
-                        // TODO: migrate to Res.string.ui_off
-                        stringResource(Res.string.ui_off)
+                        // TODO: migrate to DsRes.string.ui_off
+                        stringResource(DsRes.string.ui_off)
                     } else {
                         // TODO: migrate to Res.string.ui_seconds_short
                         stringResource(Res.string.ui_seconds_short, seconds)

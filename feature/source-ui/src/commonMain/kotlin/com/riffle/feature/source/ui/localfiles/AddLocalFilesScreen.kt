@@ -33,18 +33,19 @@ import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ui_add_local_folder
 import com.riffle.feature.source.ui.generated.resources.ui_added_books_count
-import com.riffle.feature.source.ui.generated.resources.ui_back
-import com.riffle.feature.source.ui.generated.resources.ui_cancel
 import com.riffle.feature.source.ui.generated.resources.ui_couldn_t_add_that_folder
-import com.riffle.feature.source.ui.generated.resources.ui_done
 import com.riffle.feature.source.ui.generated.resources.ui_items_could_not_be_read_count
 import com.riffle.feature.source.ui.generated.resources.ui_no_folder_picked
 import com.riffle.feature.source.ui.generated.resources.ui_no_supported_books_found_in_folder
 import com.riffle.feature.source.ui.generated.resources.ui_opening_folder_picker
 import com.riffle.feature.source.ui.generated.resources.ui_pick_a_folder
 import com.riffle.feature.source.ui.generated.resources.ui_scanning_your_folder
-import com.riffle.feature.source.ui.generated.resources.ui_try_again
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_cancel
+import com.riffle.feature.designsystem.generated.resources.ui_done
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
 
 /**
  * Shared Add-Local-Files onboarding screen, used by both Android and iOS.
@@ -77,7 +78,7 @@ fun AddLocalFilesScreen(
                 title = { Text(stringResource(Res.string.ui_add_local_folder)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(Res.string.ui_back))
+                        Icon(RiffleIcons.ArrowBack, contentDescription = stringResource(DsRes.string.ui_back))
                     }
                 },
             )
@@ -141,7 +142,7 @@ private fun SuccessView(added: Int, failures: Int, onDone: () -> Unit) {
             )
         }
         Button(onClick = onDone, modifier = Modifier.testTag(TestTags.ADD_LOCAL_FILES_DONE)) {
-            Text(stringResource(Res.string.ui_done))
+            Text(stringResource(DsRes.string.ui_done))
         }
     }
 }
@@ -156,7 +157,7 @@ private fun CancelledView(onPickAgain: () -> Unit, onNavigateBack: () -> Unit) {
         Button(onClick = onPickAgain, modifier = Modifier.testTag(TestTags.ADD_LOCAL_FILES_PICK_AGAIN)) {
             Text(stringResource(Res.string.ui_pick_a_folder))
         }
-        Button(onClick = onNavigateBack) { Text(stringResource(Res.string.ui_cancel)) }
+        Button(onClick = onNavigateBack) { Text(stringResource(DsRes.string.ui_cancel)) }
     }
 }
 
@@ -173,7 +174,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit, onNavigateBack: () -
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = onRetry) { Text(stringResource(Res.string.ui_try_again)) }
-        Button(onClick = onNavigateBack) { Text(stringResource(Res.string.ui_cancel)) }
+        Button(onClick = onRetry) { Text(stringResource(DsRes.string.ui_try_again)) }
+        Button(onClick = onNavigateBack) { Text(stringResource(DsRes.string.ui_cancel)) }
     }
 }

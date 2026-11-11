@@ -34,13 +34,14 @@ import com.riffle.feature.library.bookDownloadAffordances
 import com.riffle.feature.source.ui.MaterialGlyphs
 import com.riffle.feature.source.ui.generated.resources.Res
 import com.riffle.feature.source.ui.generated.resources.ic_readaloud
-import com.riffle.feature.source.ui.generated.resources.ui_download
 import com.riffle.feature.source.ui.generated.resources.ui_download_cached_item
 import com.riffle.feature.source.ui.generated.resources.ui_download_readaloud
 import com.riffle.feature.source.ui.generated.resources.ui_remove_download
 import com.riffle.feature.source.ui.generated.resources.ui_remove_readaloud_download
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_download
 
 /**
  * The per-format download controls for one library item: ebook, audiobook and readaloud bundle.
@@ -148,7 +149,7 @@ fun DownloadButton(
             ) {
                 Icon(
                     imageVector = MaterialGlyphs.ArrowDownward,
-                    contentDescription = stringResource(Res.string.ui_download),
+                    contentDescription = stringResource(DsRes.string.ui_download),
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(20.dp),
                 )
