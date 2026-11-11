@@ -125,6 +125,9 @@ import com.riffle.core.models.HighlightColor
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.RiffleTheme
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_readaloud
+import org.jetbrains.compose.resources.stringResource as dsStringResource
 import com.riffle.feature.reader.NOTE_GLYPH_DECORATION_GROUP
 import com.riffle.feature.reader.NarratedColumnProgression
 import com.riffle.feature.reader.RailSegment
@@ -932,7 +935,7 @@ fun EpubReaderScreen(
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_readaloud),
-                                contentDescription = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_readaloud),
+                                contentDescription = dsStringResource(DsRes.string.ui_readaloud),
                             )
                         }
                     }

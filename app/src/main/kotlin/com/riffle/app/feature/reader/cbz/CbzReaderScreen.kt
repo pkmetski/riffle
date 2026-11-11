@@ -33,6 +33,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import com.riffle.feature.designsystem.RiffleIcons
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.error_comic_page_load_failed
+import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
+import org.jetbrains.compose.resources.stringResource as dsStringResource
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
 import com.riffle.feature.reader.ui.CbzReaderScreen
@@ -171,7 +175,7 @@ fun CbzReaderScreen(
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(com.riffle.app.R.string.ui_report_panel_detection_issue)) },
+                        text = { Text(dsStringResource(DsRes.string.ui_report_panel_detection_issue)) },
                         onClick = {
                             menuOpen = false
                             coroutineScope.launch(Dispatchers.IO) {
@@ -255,7 +259,7 @@ private fun CbzAndroidPageContent(
     val imageRequest = remember(bitmap) { ImageRequest.Builder(context).data(bitmap).build() }
     when (cbzPageContent(bitmap != null, decode.settled)) {
         CbzPageContent.Loading -> CircularProgressIndicator()
-        CbzPageContent.Error -> Text(stringResource(com.riffle.app.R.string.error_comic_page_load_failed))
+        CbzPageContent.Error -> Text(dsStringResource(DsRes.string.error_comic_page_load_failed))
         CbzPageContent.Image -> SubcomposeAsyncImage(
             model = imageRequest,
             contentDescription = stringResource(com.riffle.app.R.string.ui_comic_page_number, page + 1),

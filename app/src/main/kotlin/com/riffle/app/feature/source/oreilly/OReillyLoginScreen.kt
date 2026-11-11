@@ -26,11 +26,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.stringResource as androidStringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.riffle.app.R
 import com.riffle.core.catalog.oreilly.parseOrmJwtFromCookieHeader
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_back
+import com.riffle.feature.designsystem.generated.resources.ui_try_again
+import org.jetbrains.compose.resources.stringResource
 import com.riffle.core.domain.OReillyWebSourceDescriptor
 import org.koin.androidx.compose.koinViewModel
 
@@ -49,12 +53,12 @@ fun OReillyLoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.ui_oreilly_sign_in_title)) },
+                title = { Text(androidStringResource(R.string.ui_oreilly_sign_in_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.ui_back),
+                            contentDescription = stringResource(DsRes.string.ui_back),
                         )
                     }
                 },
@@ -123,12 +127,12 @@ private fun SigningInOverlay() {
         ) {
             CircularProgressIndicator()
             Text(
-                stringResource(R.string.ui_oreilly_signing_in),
+                androidStringResource(R.string.ui_oreilly_signing_in),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 20.dp),
             )
             Text(
-                stringResource(R.string.ui_oreilly_signing_in_sub),
+                androidStringResource(R.string.ui_oreilly_signing_in_sub),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -146,12 +150,12 @@ private fun ErrorOverlay(onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                stringResource(R.string.ui_oreilly_sign_in_failed),
+                androidStringResource(R.string.ui_oreilly_sign_in_failed),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.error,
             )
             Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-                Text(stringResource(R.string.ui_try_again))
+                Text(stringResource(DsRes.string.ui_try_again))
             }
         }
     }
