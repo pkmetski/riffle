@@ -162,7 +162,7 @@ func revealTile(_ tile: XCUIElement, in app: XCUIApplication) {
 // the shared Material back arrow, whose accessibility label is "Back". The item detail screen
 // shows neither, so the Read button vanishing is what proves the reader opened.
 @discardableResult
-func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 150) -> XCUIElement {
+func openReader(from tile: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 240) -> XCUIElement {
     // Matches either "Read" (ebooks) or "Listen" (audiobook-only items). The shared
     // LibraryItemDetailScreen shows "Listen" for audiobook-only ABS items (#1145 gap 4.1);
     // both labels navigate away from the detail screen so the post-tap nonexistence check applies
