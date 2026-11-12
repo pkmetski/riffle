@@ -31,6 +31,7 @@ import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.generated.resources.error_comic_page_load_failed
+import com.riffle.feature.designsystem.generated.resources.ui_more_options
 import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
@@ -56,7 +57,6 @@ import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIAccessibilityIsReduceMotionEnabled
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
-import com.riffle.feature.designsystem.generated.resources.ui_more_options
 import com.riffle.feature.reader.ui.generated.resources.Res as ReaderRes
 import org.jetbrains.skia.Bitmap as SkiaBitmap
 import org.jetbrains.skia.Image as SkiaImage
