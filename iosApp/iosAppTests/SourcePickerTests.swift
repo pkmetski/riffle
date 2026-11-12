@@ -200,11 +200,8 @@ final class SourcePickerTests: XCTestCase {
         let settled = NSPredicate { _, _ in
             !self.app.staticTexts["No items in this library"].exists
         }
-        // Raised from 90 s: external catalogs (radio.es, Gutenberg) need a live network fetch on
-        // first browse; on loaded CI runners the fetch can take >90 s before items or an error
-        // surface. 150 s matches the headroom used elsewhere in this suite.
         XCTAssertEqual(
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 150),
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 90),
             .completed,
             "\(cardTitle)'s catalogue must resolve to items or a real error — a permanently empty "
                 + "grid with no error is the #1071 §17 defect (no CatalogFactory registered)",
