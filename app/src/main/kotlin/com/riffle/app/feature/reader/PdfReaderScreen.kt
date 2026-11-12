@@ -44,6 +44,9 @@ import com.riffle.feature.settings.ui.readersettings.formatting.RenderCapabiliti
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_could_not_sync_reading_progress
+import org.jetbrains.compose.resources.stringResource as dsStringResource
 import com.riffle.feature.reader.PdfOutlineNode
 import com.riffle.feature.reader.PdfReaderState
 import com.riffle.feature.reader.PdfReaderViewModel
@@ -142,7 +145,7 @@ fun PdfReaderScreen(
         }
     }
 
-    val syncProgressError = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_could_not_sync_reading_progress)
+    val syncProgressError = dsStringResource(DsRes.string.ui_could_not_sync_reading_progress)
     val messages = remember { TransientMessages() }
 
     LaunchedEffect(viewModel) {

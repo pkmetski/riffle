@@ -30,6 +30,7 @@ import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
 import com.riffle.feature.designsystem.TestTags
 import com.riffle.feature.designsystem.generated.resources.ui_book_not_found
+import com.riffle.feature.designsystem.generated.resources.ui_could_not_sync_reading_progress
 import com.riffle.feature.reader.ImmersiveModeState
 import com.riffle.feature.reader.PdfReaderState
 import com.riffle.feature.reader.PdfReaderViewModel
@@ -47,8 +48,6 @@ import com.riffle.feature.source.ui.CornerBookmarkIndicator
 import com.riffle.feature.source.ui.RiffleSnackbarHost
 import com.riffle.feature.source.ui.rememberTransientMessages
 import com.riffle.shared.IosAppActiveEvents
-import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.ui_could_not_sync_reading_progress
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -105,7 +104,7 @@ fun PdfReaderScreen(item: LibraryItem, onBack: () -> Unit) {
     val messages = rememberTransientMessages()
 
     val bookNotFound = stringResource(DsRes.string.ui_book_not_found)
-    val syncErrorText = stringResource(Res.string.ui_could_not_sync_reading_progress)
+    val syncErrorText = stringResource(DsRes.string.ui_could_not_sync_reading_progress)
 
     LaunchedEffect(state) {
         val awaiting = state as? PdfReaderState.AwaitingNavigator ?: return@LaunchedEffect

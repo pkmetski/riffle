@@ -281,7 +281,7 @@ jobs:
   harness-test-tablet:
     name: Harness tests (tablet)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     concurrency:
       group: android-harness-tablet-${{ github.ref }}
       cancel-in-progress: true

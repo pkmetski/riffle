@@ -31,6 +31,7 @@ import com.riffle.core.domain.comic.panel.PanelSource
 import com.riffle.core.models.LibraryItem
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.generated.resources.error_comic_page_load_failed
+import com.riffle.feature.designsystem.generated.resources.ui_more_options
 import com.riffle.feature.designsystem.generated.resources.ui_report_panel_detection_issue
 import com.riffle.feature.reader.CbzReaderState
 import com.riffle.feature.reader.CbzReaderViewModel
@@ -42,8 +43,6 @@ import com.riffle.feature.reader.ui.generated.resources.error_mark_false_panel
 import com.riffle.feature.reader.ui.generated.resources.error_select_failure_type
 import com.riffle.feature.settings.ui.panels.ComicFormattingSheet
 import com.riffle.shared.IosAppActiveEvents
-import com.riffle.shared.generated.resources.Res
-import com.riffle.shared.generated.resources.ui_more_options
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.delay
@@ -179,7 +178,7 @@ fun CbzReaderScreen(item: LibraryItem, onBack: () -> Unit) {
             if (developerModeEnabled && ready is CbzReaderState.Ready) {
                 var menuOpen by remember { mutableStateOf(false) }
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(RiffleIcons.MoreVert, contentDescription = stringResource(Res.string.ui_more_options))
+                    Icon(RiffleIcons.MoreVert, contentDescription = stringResource(DsRes.string.ui_more_options))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(

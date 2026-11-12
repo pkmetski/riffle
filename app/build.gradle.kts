@@ -201,6 +201,7 @@ dependencies {
     implementation(libs.androidx.compose.material3.window.size)
     implementation(libs.androidx.compose.material.icons.extended)
 
+    implementation(libs.compose.components.resources)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.jetbrains.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

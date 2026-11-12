@@ -103,4 +103,7 @@
     <string name="ui_split">Разделяне</string>
     <string name="ui_this_will_remove_all_downloaded_media_from_your_device">Това ще премахне всички изтеглени медии от вашето устройство.</string>
     <string name="ui_try_again">Опитайте отново</string>
+    <string name="ui_could_not_sync_reading_progress">Напредъкът при четене не можа да се синхронизира</string>
+    <string name="ui_more_options">Още опции</string>
+    <string name="ui_update_available">Налична е актуализация</string>
 </resources>

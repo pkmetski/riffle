@@ -62,6 +62,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             api(libs.androidx.lifecycle.viewmodel)
             api(libs.androidx.lifecycle.viewmodel.savedstate)
+            implementation(libs.koin.core)
         }
         iosMain.dependencies {
             // Coil's network fetcher is not auto-registered on Kotlin/Native the way it is on

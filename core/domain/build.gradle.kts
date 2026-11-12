@@ -14,6 +14,7 @@ kotlin {
             api(project(":core:models"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.koin.core)
             // Kotlin Multiplatform port of jsoup — used by the shared Ksoup-backed DOM/CFI
             // translators (KsoupEpubCfiTranslator, KsoupEpubChapterDomOps). Replaces the former
             // parallel jvmMain org.jsoup + iosMain ksoup split.
