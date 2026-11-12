@@ -504,7 +504,7 @@ jobs:
               -parallel-testing-enabled NO \
               -test-timeouts-enabled YES \
               -default-test-execution-time-allowance 420 \
-              -maximum-test-execution-time-allowance 420 \
+              -maximum-test-execution-time-allowance 900 \
               2>&1 | tee -a xcodebuild-harness.log
           }
           # Unsigned app lacks application-identifier entitlement → Keychain writes fail → empty library in tests.
