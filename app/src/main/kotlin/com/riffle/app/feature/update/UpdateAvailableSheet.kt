@@ -32,7 +32,10 @@ import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.feature.designsystem.RiffleIcons
 import com.riffle.feature.designsystem.TestTags
+import com.riffle.feature.designsystem.generated.resources.Res as DsRes
+import com.riffle.feature.designsystem.generated.resources.ui_retry
 import com.riffle.feature.shellui.UpdateState
+import org.jetbrains.compose.resources.stringResource as composeStringResource
 
 @Composable
 internal fun UpdateDrawerRow(
@@ -103,7 +106,7 @@ internal fun UpdateAvailableSheet(
                     )
                 is UpdateDownloadState.Failed ->
                     Button(onClick = { onUpdate(state.update) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.ui_retry))
+                        Text(composeStringResource(DsRes.string.ui_retry))
                     }
                 null ->
                     Button(onClick = { onUpdate(state.update) }, modifier = Modifier.fillMaxWidth()) {
