@@ -1550,6 +1550,13 @@ private fun EpubNavigatorView(
     // rect and let Readium's native ActionMode callback populate outRect, then only clamp its
     // bottom into the visible band.
     val readiumIsScrollMode = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // The last onGetContentRect output converted to window/screen coordinates. Stored so the
+    // annotation popup can use the same correctly-positioned rect as the action-mode toolbar
+    // — the two coordinate paths (paginated: CSS rect × DPR; vertical: Readium's native scroll-
+    // aware callback) are already applied by the interceptor and produce a correct screen rect.
+    // Written on the main thread inside onGetContentRect; read on the main thread in the action
+    // item coroutine.
+    val lastActionModeWindowRect = remember { AtomicReference<IntRect?>(null) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -1750,9 +1757,19 @@ private fun EpubNavigatorView(
                         coroutineScope.launch {
                             try {
                                 val selection = selectable.currentSelection() ?: return@launch
-                                val rawRect = selection.rect
-                                    ?: run { selectable.clearSelection(); return@launch }
-                                val rect = rawRect.toWindowIntRect(container)
+                                // Prefer the action-mode toolbar's screen rect: it was already
+                                // computed via the correct path (CSS × DPR for paginated, Readium's
+                                // native scroll-aware callback for vertical), so it is correct in
+                                // both modes. selection.rect.toWindowIntRect() is document-relative
+                                // in vertical/scroll mode (WebView native scroll is not reflected in
+                                // getBoundingClientRect), placing the popup at the screen bottom.
+                                val loc = IntArray(2)
+                                container.getLocationOnScreen(loc)
+                                val rect = resolveReadiumAnnotationAnchorRect(
+                                    lastActionModeWindowRect.get(),
+                                    selection.rect,
+                                    loc[0], loc[1],
+                                ) ?: run { selectable.clearSelection(); return@launch }
                                 currentOnHighlight(selection.locator, rect)
                                 selectable.clearSelection()
                             } finally {
@@ -2791,6 +2808,19 @@ private fun EpubNavigatorView(
                                     // on edge-to-edge layouts). Preserves the framework's above-
                                     // placement anchor when the selection is already inside the band.
                                     clampReaderSelectionRectBottom(view, outRect)
+                                    // Store outRect in window/screen coordinates so the annotation
+                                    // popup can use the same correctly-positioned rect. The action-
+                                    // mode interceptor already chose the right path (CSS rect for
+                                    // paginated, Readium native for scroll); converting to screen
+                                    // coords here makes it usable by the Compose Popup.
+                                    val loc = IntArray(2)
+                                    view.getLocationOnScreen(loc)
+                                    lastActionModeWindowRect.set(
+                                        IntRect(
+                                            outRect.left + loc[0], outRect.top + loc[1],
+                                            outRect.right + loc[0], outRect.bottom + loc[1],
+                                        )
+                                    )
                                 }
                                 override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onCreateActionMode(mode, menu)
                                 override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onPrepareActionMode(mode, menu)

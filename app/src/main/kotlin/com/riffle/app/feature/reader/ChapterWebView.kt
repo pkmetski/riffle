@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.annotation.SuppressLint
+import androidx.compose.ui.unit.IntRect
 import com.riffle.feature.reader.ContinuousScriptInjector
 import android.content.Context
 import android.webkit.JavascriptInterface
@@ -158,6 +159,15 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      */
     internal var windowOffsetPx: Int = 0
 
+    /**
+     * Last text-selection action-mode rect in screen coordinates, captured in
+     * [wrapSelectionCallback]'s [android.view.ActionMode.Callback2.onGetContentRect] after
+     * the native selection geometry is known and scroll has stabilised. Snapshotted synchronously
+     * in [onActionItemClicked] before the async JS call, so the popup anchor is never racing with
+     * action-mode teardown that may call [android.view.ActionMode.Callback2.onGetContentRect] again.
+     */
+    private var lastActionModeScreenRect: IntRect? = null
+
     /** Uptime of the last managed content-height change; internal-scroll reports shortly after it
      *  are Chromium re-clamping, not gestures (see [ContinuousPositionTracker.internalScrollCorrection]). */
     internal var contentHeightChangedAtMs: Long = 0L
@@ -187,7 +197,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * `before` / `after` document-text context windows used to disambiguate which occurrence
      * the user picked when the selected text repeats in the chapter.
      */
-    override var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
+    override var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String, anchorHint: IntRect?) -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps an injected annotation mark (`<mark
@@ -703,6 +713,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 )
                 outRect.top = clamped.first
                 outRect.bottom = clamped.second
+                // Convert view-local outRect to screen coords and stash for the popup anchor.
+                // This rect is accurate even for tall sliding-window chapters because it comes
+                // from the action mode's native selection geometry (not from getBoundingClientRect,
+                // which lags window.scrollY by one Chromium frame relative to translationY).
+                val locScreen = IntArray(2)
+                getLocationOnScreen(locScreen)
+                lastActionModeScreenRect = IntRect(
+                    left = locScreen[0] + outRect.left,
+                    top = locScreen[1] + outRect.top,
+                    right = locScreen[0] + outRect.right,
+                    bottom = locScreen[1] + outRect.bottom,
+                )
             }
 
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
@@ -727,7 +749,16 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
                     MENU_COPY -> withSelectionText { copyToClipboard(it) }
-                    MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog, rect, before, after -> onHighlight?.invoke(text, prog, rect, before, after) }
+                    MENU_HIGHLIGHT -> {
+                        // Snapshot synchronously before withSelectionTextAndProgression posts its
+                        // async evaluateJavascript call. Action-mode teardown (triggered by
+                        // mode.finish() below) can invoke onGetContentRect again with a collapsed
+                        // rect, overwriting lastActionModeScreenRect before the JS callback fires.
+                        val anchorSnapshot = lastActionModeScreenRect
+                        withSelectionTextAndProgression { text, prog, rect, before, after ->
+                            onHighlight?.invoke(text, prog, rect, before, after, anchorSnapshot)
+                        }
+                    }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
                     MENU_PLAY -> withSelectionText { text ->

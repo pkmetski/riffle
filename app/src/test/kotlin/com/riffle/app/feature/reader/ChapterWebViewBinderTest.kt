@@ -31,7 +31,7 @@ class ChapterWebViewBinderTest {
         override var annotationsAvailable: Boolean = false
         override var readaloudAvailable: Boolean = false
         override var onSelectionActiveChanged: ((Boolean) -> Unit)? = null
-        override var onHighlight: ((String, Double, Rect, String, String) -> Unit)? = null
+        override var onHighlight: ((String, Double, Rect, String, String, IntRect?) -> Unit)? = null
         override var onAnnotationTap: ((String, Rect) -> Unit)? = null
         override var onAnnotationNoteTap: ((String, Rect) -> Unit)? = null
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
@@ -40,6 +40,8 @@ class ChapterWebViewBinderTest {
         override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
 
         fun emitTap() = onTap?.invoke()
+        fun emitHighlight(text: String, prog: Double, rect: Rect, before: String = "", after: String = "", anchorHint: IntRect? = null) =
+            onHighlight?.invoke(text, prog, rect, before, after, anchorHint)
         fun emitAnnotationTap(id: String, rect: Rect) = onAnnotationTap?.invoke(id, rect)
         fun emitAnnotationNoteTap(id: String, rect: Rect) = onAnnotationNoteTap?.invoke(id, rect)
         fun emitFootnoteContent(content: FootnoteContent) = onFootnoteContent?.invoke(content)
@@ -57,9 +59,10 @@ class ChapterWebViewBinderTest {
         val taps = mutableListOf<Pair<String, IntRect>>()
         val notes = mutableListOf<Pair<String, IntRect>>()
         val plays = mutableListOf<String>()
+        val highlights = mutableListOf<Pair<Locator, IntRect>>()
         override fun onAnnotationTap(id: String, rect: IntRect) { taps += id to rect }
         override fun onAnnotationNoteTap(id: String, rect: IntRect) { notes += id to rect }
-        override fun onHighlight(locator: Locator, rect: IntRect) = error("not used in this test")
+        override fun onHighlight(locator: Locator, rect: IntRect) { highlights += locator to rect }
         override fun onPlayFromHere(fragmentRef: String) { plays += fragmentRef }
     }
 
@@ -191,6 +194,28 @@ class ChapterWebViewBinderTest {
         assertEquals(payload, recvPayload)
         // CSS px * density(2) = device px (20,40)-(80,120); screenRectOf adds (100,200).
         assertEquals(IntRect(120, 240, 180, 320), rect)
+    }
+
+    @Test
+    fun `resolveHighlightAnchor prefers anchorHint over screenRectOf`() {
+        // Regression: in tall chapters the sliding-window translationY and window.scrollY diverge
+        // by one Chromium frame, shifting the popup anchor by windowOffsetPx. The anchorHint is
+        // snapshotted synchronously in onActionItemClicked before the async JS call; using it
+        // bypasses both the CSS lag and the action-mode teardown race.
+        val fake = FakeChapterWebView(chapterHref = "chapter-1.xhtml")
+        val anchorHint = IntRect(50, 300, 250, 320)
+        // screenRectOf returns something completely different — must NOT be used when anchorHint is available.
+        val result = resolveHighlightAnchor(anchorHint, fake, rectOf(0, 0, 100, 20)) { _, _ -> rectOf(0, 9999, 100, 10019) }
+        assertEquals(IntRect(50, 300, 250, 320), result)
+    }
+
+    @Test
+    fun `resolveHighlightAnchor falls back to screenRectOf when anchorHint is null`() {
+        val fake = FakeChapterWebView(chapterHref = "chapter-1.xhtml")
+        val result = resolveHighlightAnchor(null, fake, rectOf(0, 0, 100, 20)) { _, r ->
+            rectOf(r.left + 10, r.top + 20, r.right + 10, r.bottom + 20)
+        }
+        assertEquals(IntRect(10, 20, 110, 40), result)
     }
 
     @Test
