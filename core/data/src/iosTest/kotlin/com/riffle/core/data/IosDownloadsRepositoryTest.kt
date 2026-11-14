@@ -49,7 +49,7 @@ class IosDownloadsRepositoryTest {
         writeFile(store, NS_CBZ_CACHE, "src/cbz-cache.cbz")
         writeAudiobook(store, NS_AUDIOBOOK_CACHE, "src", "audio-cache")
 
-        val repo = IosDownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
+        val repo = DownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
 
         assertEquals(
             setOf(
@@ -77,7 +77,7 @@ class IosDownloadsRepositoryTest {
         writeFile(store, NS_EPUB_DOWNLOADS, "src/book.epub", payload = "download")
         writeFile(store, NS_EPUB_CACHE, "src/book.epub", payload = "cache")
 
-        val repo = IosDownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
+        val repo = DownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
 
         assertEquals(listOf(StoredItemRef("src", "book")), repo.getDownloadedItems())
         assertTrue(repo.getCachedItems().isEmpty(), "a downloaded item must not also show up as cached")
@@ -92,7 +92,7 @@ class IosDownloadsRepositoryTest {
         writeAudiobook(store, NS_AUDIOBOOK_CACHE, "src", "audio")
         val events = RecordingAvailabilityEvents()
 
-        val repo = IosDownloadsRepositoryImpl(store, events)
+        val repo = DownloadsRepositoryImpl(store, events)
         repo.removeDownload("src", "book")
         repo.removeDownload("src", "audio")
 
@@ -109,7 +109,7 @@ class IosDownloadsRepositoryTest {
         writeFile(store, NS_PDF_DOWNLOADS, "src/book.pdf", payload = "1234567890")
         writeFile(store, NS_PDF_CACHE, "src/book.pdf", payload = "12345")
 
-        val repo = IosDownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
+        val repo = DownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
 
         assertEquals(15L, repo.sizeOf("src", "book"))
     }
@@ -121,7 +121,7 @@ class IosDownloadsRepositoryTest {
         writeFile(store, NS_CBZ_CACHE, "src/comic.cbz")
         val events = RecordingAvailabilityEvents()
 
-        val repo = IosDownloadsRepositoryImpl(store, events)
+        val repo = DownloadsRepositoryImpl(store, events)
         repo.removeCached("src", "comic")
 
         assertTrue(repo.getCachedItems().isEmpty())
@@ -138,7 +138,7 @@ class IosDownloadsRepositoryTest {
         writeFile(store, NS_CBZ_CACHE, "src/c.cbz")
         writeAudiobook(store, NS_AUDIOBOOK_CACHE, "src", "b")
 
-        val repo = IosDownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
+        val repo = DownloadsRepositoryImpl(store, RecordingAvailabilityEvents())
         repo.removeAllDownloads()
         repo.clearAllCached()
 

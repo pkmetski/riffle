@@ -18,8 +18,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import platform.Foundation.NSFileManager
 
-const val NS_READALOUD_SIDECARS = "readaloud-sidecars"
-
 /**
  * iOS counterpart to `ReadaloudSidecarStore` (ADR 0040): caches the Readaloud sidecar — the
  * `/synced` bundle minus its audio — and prepares it **ahead of playback**, so tapping Play does
