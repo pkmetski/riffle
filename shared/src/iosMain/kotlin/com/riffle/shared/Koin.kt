@@ -20,6 +20,7 @@ import com.riffle.core.data.AnnotationSyncController
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncTargetHolder
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
+import com.riffle.core.data.AppUpdatePreferencesStoreImpl
 import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
@@ -27,11 +28,10 @@ import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.CatalogRemoteProgressIndex
-import com.riffle.core.data.CrossEpubIndexStoreImpl
-import com.riffle.core.data.DaoDirtyAnnotationLedger
-import com.riffle.core.data.AppUpdatePreferencesStoreImpl
 import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.ContentCacheSettingsStoreImpl
+import com.riffle.core.data.CrossEpubIndexStoreImpl
+import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
