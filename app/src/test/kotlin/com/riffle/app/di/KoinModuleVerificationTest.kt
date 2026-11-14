@@ -51,6 +51,8 @@ class KoinModuleVerificationTest {
         "com.riffle.core.sync.ProgressSweep.bookmarkLedger",
         "com.riffle.core.sync.ProgressSweep.bookmarkReconcile",
         "com.riffle.core.data.dictionary.PackDownloader.converter",
+        // KeyValueStore is provided inline as AndroidKeyValueStore(...) in the module lambda.
+        "com.riffle.core.data.FormattingPreferencesStoreImpl.store",
         // Built inline from SavedStateHandle in the viewModel{} lambda (nav arg), not from get().
         "com.riffle.feature.library.LibrarySectionViewModel.sectionType",
         // Constructed inline as ProgressSweepRunner { get<ProgressSweep>().run() }, not via get().

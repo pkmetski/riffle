@@ -20,10 +20,12 @@ class HighlightsResumeStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = HighlightsResumeStore(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("highlights_resume_prefs.preferences_pb") },
+    private fun buildStore() = HighlightsResumeStoreImpl(
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("highlights_resume_prefs.preferences_pb") },
+            )
         )
     )
 
