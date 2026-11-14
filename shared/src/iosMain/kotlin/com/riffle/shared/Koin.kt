@@ -246,9 +246,9 @@ import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.audiobook.IosBundleAudioExtractor
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
-import com.riffle.shared.library.IosEpubRepositoryImpl
+import com.riffle.core.data.EpubRepositoryImpl
+import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.shared.library.IosPdfPageCountExtractor
-import com.riffle.shared.library.IosPdfRepositoryImpl
 import com.riffle.shared.library.IosReadaloudHandoff
 import com.riffle.shared.library.IosReadaloudOfflineDownloader
 import com.riffle.shared.readaloud.IosReadaloudBridge
@@ -1059,11 +1059,12 @@ private fun iosLibraryModule(
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
     single<EpubRepository> {
-        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get())
+        EpubRepositoryImpl(fileStore = get(), catalogRegistry = get(), positionStore = get(), localAvailabilityEvents = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
-    single { IosPdfRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get(), localAvailabilityEvents = get()) }
-    single<PdfRepository> { get<IosPdfRepositoryImpl>() }
+    single<PdfRepository> {
+        PdfRepositoryImpl(fileStore = get(), catalogRegistry = get(), positionStore = get(), localAvailabilityEvents = get())
+    }
     single { IosPdfSharedRepository(libraryObserver = get(), downloader = get(), positionStore = get()) }
     single<SharedPdfRepository> { get<IosPdfSharedRepository>() }
     factory { params ->

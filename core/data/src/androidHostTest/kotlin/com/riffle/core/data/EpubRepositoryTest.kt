@@ -59,13 +59,10 @@ class EpubRepositoryTest {
         downloadsStore = LocalStoreImpl(downloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePositionStore()
         val sourceRepo = fakeServerRepository(source.url("/").toString().trimEnd('/'))
-        repo = EpubRepositoryImpl(
+        repo = JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = sourceRepo,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
     }
 
@@ -168,14 +165,11 @@ class EpubRepositoryTest {
     @Test
     fun `openEpub with cache miss notifies local availability changed`() = runTest {
         val events = RecordingLocalAvailabilityEvents()
-        repo = EpubRepositoryImpl(
+        repo = JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(fakeServerRepository(source.url("/").toString().trimEnd('/')), mapOf("source-1" to "test-token")),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = fakeServerRepository(source.url("/").toString().trimEnd('/')),
             localAvailabilityEvents = events,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
 
@@ -433,13 +427,10 @@ class EpubRepositoryTest {
     )
 
     private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): JvmEpubRepository =
-        EpubRepositoryImpl(
+        JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = sourceRepository,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
 
     @Test

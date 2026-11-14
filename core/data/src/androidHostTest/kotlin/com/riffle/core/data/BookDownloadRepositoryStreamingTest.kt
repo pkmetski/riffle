@@ -45,12 +45,9 @@ class BookDownloadRepositoryStreamingTest {
         val epubCacheDir = tmp.newFolder("epub-cache")
         val epubDownloadsDir = tmp.newFolder("epub-downloads")
         val repository = EpubRepositoryImpl(
-            registry,
-            LocalStoreImpl(epubCacheDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
-            LocalStoreImpl(epubDownloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
-            positionStore,
-            sourceRepository,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = epubDownloadsDir, cacheDir = epubCacheDir),
+            fileStore = AndroidEpubFileStore(downloadsDir = epubDownloadsDir, cacheDir = epubCacheDir),
+            catalogRegistry = registry,
+            positionStore = positionStore,
         )
 
         val result = repository.downloadEpub(item(EbookFormat.Epub)) { downloaded, total ->
@@ -65,12 +62,12 @@ class BookDownloadRepositoryStreamingTest {
     @Test
     fun `PDF download consumes response-scoped stream with cumulative progress`() = runTest {
         val progress = mutableListOf<Pair<Long, Long>>()
+        val pdfCacheDir = tmp.newFolder("pdf-cache")
+        val pdfDownloadsDir = tmp.newFolder("pdf-downloads")
         val repository = PdfRepositoryImpl(
-            registry,
-            store("pdf-cache", ".pdf"),
-            store("pdf-downloads", ".pdf"),
-            positionStore,
-            sourceRepository,
+            fileStore = AndroidPdfFileStore(downloadsDir = pdfDownloadsDir, cacheDir = pdfCacheDir),
+            catalogRegistry = registry,
+            positionStore = positionStore,
         )
 
         val result = repository.downloadPdf(item(EbookFormat.Pdf)) { downloaded, total ->

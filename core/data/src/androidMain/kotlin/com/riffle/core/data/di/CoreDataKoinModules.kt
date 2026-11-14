@@ -56,7 +56,10 @@ import com.riffle.core.data.DeviceLabelStoreImpl
 import com.riffle.core.data.EmphasisPreferencesStoreImpl
 import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.DownloadsRepositoryImpl
-import com.riffle.core.data.EpubRepositoryImpl
+import com.riffle.core.data.AndroidEpubFileStore
+import com.riffle.core.data.AndroidPdfFileStore
+import com.riffle.core.data.JvmEpubRepositoryImpl
+import com.riffle.core.data.JvmPdfRepositoryImpl
 import com.riffle.core.data.FilesdirFileStore
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreProviderImpl
@@ -79,7 +82,6 @@ import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.LocalToReadStoreImpl
 import com.riffle.core.data.OfflineAvailabilitySnapshot
 import com.riffle.core.data.PanelViewPreferencesStoreImpl
-import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PlaylistsRepositoryImpl
@@ -739,32 +741,29 @@ private val coreDataRepositoriesModule = module {
 
     single<JvmEpubRepository> {
         val ctx = androidContext()
-        EpubRepositoryImpl(
-            catalogRegistry = get(),
-            cacheStore = get(named(EPUB_CACHE_STORE)),
-            downloadsStore = get(named(EPUB_DOWNLOADS_STORE)),
-            positionStore = get(),
-            sourceRepository = get(),
-            localAvailabilityEvents = get(),
-            contentCacheAccessStore = get(),
-            epubFileStore = com.riffle.core.data.AndroidEpubFileStore(
+        JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(
                 downloadsDir = ctx.filesDir.resolve("downloads/epubs").also { it.mkdirs() },
                 cacheDir = ctx.cacheDir.resolve("epubs").also { it.mkdirs() },
             ),
+            catalogRegistry = get(),
+            positionStore = get(),
+            localAvailabilityEvents = get(),
+            contentCacheAccessStore = get(),
         )
     }
     single<EpubRepository> { get<JvmEpubRepository>() }
 
     single<JvmPdfRepository> {
-        PdfRepositoryImpl(
+        val ctx = androidContext()
+        JvmPdfRepositoryImpl(
+            fileStore = AndroidPdfFileStore(
+                downloadsDir = ctx.filesDir.resolve("downloads/pdfs").also { it.mkdirs() },
+                cacheDir = ctx.cacheDir.resolve("pdfs").also { it.mkdirs() },
+            ),
             catalogRegistry = get(),
-            cacheStore = get(named(PDF_CACHE_STORE)),
-            downloadsStore = get(named(PDF_DOWNLOADS_STORE)),
             positionStore = get(),
-            sourceRepository = get(),
             localAvailabilityEvents = get(),
-            contentCacheAccessStore = get(),
-            connectivityObserver = get(),
         )
     }
     single<PdfRepository> { get<JvmPdfRepository>() }

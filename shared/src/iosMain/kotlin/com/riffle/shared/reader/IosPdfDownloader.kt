@@ -13,7 +13,6 @@ import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.LibraryItem
-import com.riffle.shared.library.IosPdfPaths
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -64,13 +63,13 @@ class IosPdfDownloader(
 ) {
     @OptIn(ExperimentalForeignApi::class)
     suspend fun localPath(item: LibraryItem): String? {
-        val downloadPath = fileStore.resolve(NS_PDF_DOWNLOADS, IosPdfPaths.downloadRelativePath(item.sourceId, item.id))
+        val downloadPath = fileStore.resolve(NS_PDF_DOWNLOADS, IosItemFiles.relativePath(item.sourceId, item.id, ".pdf"))
         if (NSFileManager.defaultManager.fileExistsAtPath(downloadPath)) {
             if (isValidPdf(downloadPath)) return downloadPath
             NSFileManager.defaultManager.removeItemAtPath(downloadPath, error = null)
         }
 
-        val cachePath = fileStore.resolve(NS_PDF_CACHE, IosPdfPaths.cacheRelativePath(item.sourceId, item.id))
+        val cachePath = fileStore.resolve(NS_PDF_CACHE, IosItemFiles.relativePath(item.sourceId, item.id, ".pdf"))
         if (NSFileManager.defaultManager.fileExistsAtPath(cachePath)) {
             if (isValidPdf(cachePath)) {
                 contentCacheAccessStore.markAccessed(ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Pdf))
