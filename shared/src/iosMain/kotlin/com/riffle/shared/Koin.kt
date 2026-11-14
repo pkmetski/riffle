@@ -29,19 +29,15 @@ import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DaoDirtyAnnotationLedger
-import com.riffle.core.data.DeviceMetaSentinelWriter
-import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.AppUpdatePreferencesStoreImpl
 import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.ContentCacheSettingsStoreImpl
-import com.riffle.core.data.IosKeyValueStore
-import com.riffle.core.data.LastOpenedLibraryStoreImpl
-import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
+import com.riffle.core.data.DeviceMetaSentinelWriter
+import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
-// IosContentCacheAccessStoreImpl removed — replaced by commonMain ContentCacheAccessStoreImpl
 import com.riffle.core.data.IosContentCacheArtifactScannerImpl
 import com.riffle.core.data.IosCrashReportRecorder
 import com.riffle.core.data.IosCrashReportRepositoryImpl
@@ -49,14 +45,14 @@ import com.riffle.core.data.IosCrossEpubIndexBuilderService
 import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
-// IosLastOpenedLibraryStoreImpl removed — replaced by commonMain LastOpenedLibraryStoreImpl
-// IosLibraryVisibilityPreferencesStoreImpl removed — replaced by commonMain LibraryVisibilityPreferencesStoreImpl
+import com.riffle.core.data.IosKeyValueStore
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
-// IosPanelViewPreferencesStoreImpl removed — replaced by commonMain PanelViewPreferencesStoreImpl (in iosDataModule)
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
+import com.riffle.core.data.LastOpenedLibraryStoreImpl
+import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
@@ -149,7 +145,6 @@ import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelReportRepository
-import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
