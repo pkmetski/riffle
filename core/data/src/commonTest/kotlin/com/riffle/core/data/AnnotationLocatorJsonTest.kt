@@ -86,6 +86,40 @@ class AnnotationLocatorJsonTest {
     }
 
     @Test
+    fun `annotationDecorationLocatorJson normalizes newlines in textSnippet textBefore and textAfter`() {
+        // Annotations created in continuous mode capture literal \n via window.getSelection() when
+        // the selection spans a paragraph boundary. Readium's TextQuoteSelector concatenates
+        // adjacent block nodes without any separator, so a \n in highlight extends the matched
+        // range past the intended endpoint and degrades before/after disambiguation scores.
+        val json = annotationDecorationLocatorJson(
+            chapterHref = "EPUB/chapter3.xhtml",
+            cfi = "epubcfi(/6/8!/4/2)",
+            progression = 0.6,
+            textSnippet = "first paragraph.\nSecond paragraph starts here",
+            textBefore = "end of earlier paragraph.\nBeginning of context ",
+            textAfter = " rest of context.\n\nAnother paragraph.",
+            fragmentAnchor = null,
+        )
+        val root = Json.parseToJsonElement(json).jsonObject
+        val textObj = root["text"]?.jsonObject
+        assertEquals(
+            "first paragraph. Second paragraph starts here",
+            textObj?.get("highlight")?.jsonPrimitive?.content,
+            "newlines in textSnippet must be collapsed to spaces",
+        )
+        assertEquals(
+            "end of earlier paragraph. Beginning of context ",
+            textObj?.get("before")?.jsonPrimitive?.content,
+            "newlines in textBefore must be collapsed to spaces",
+        )
+        assertEquals(
+            " rest of context. Another paragraph.",
+            textObj?.get("after")?.jsonPrimitive?.content,
+            "newlines in textAfter must be collapsed to spaces",
+        )
+    }
+
+    @Test
     fun `annotationDecorationLocatorJson for figure without caption omits text block`() {
         val json = annotationDecorationLocatorJson(
             chapterHref = "EPUB/chapter2.xhtml",

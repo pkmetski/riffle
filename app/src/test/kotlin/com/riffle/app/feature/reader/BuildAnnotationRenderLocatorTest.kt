@@ -33,7 +33,7 @@ class BuildAnnotationRenderLocatorTest {
     }
 
     @Test
-    fun `buildAnnotationRenderLocator normalizes newlines in before to single spaces`() {
+    fun `buildAnnotationRenderLocator normalizes newlines in before and after to single spaces`() {
         buildAnnotationRenderLocator(
             href = testHref,
             cfi = testCfi,
@@ -56,6 +56,32 @@ class BuildAnnotationRenderLocatorTest {
             "newlines in after must be collapsed to spaces so Readium text-search matches",
             "rest of text. Another paragraph.",
             text.optString("after"),
+        )
+    }
+
+    @Test
+    fun `buildAnnotationRenderLocator normalizes newlines in highlight to single spaces`() {
+        // A highlight created in continuous mode via window.getSelection() captures literal \n
+        // when the selection spans a paragraph boundary. Readium's TextQuoteSelector concatenates
+        // adjacent block nodes without any separator, so a \n in the highlight causes the matched
+        // range to extend past the intended end of the highlighted text.
+        buildAnnotationRenderLocator(
+            href = testHref,
+            cfi = testCfi,
+            progression = 0.3,
+            before = "text before ",
+            highlight = "first paragraph.\nSecond paragraph starts here",
+            after = " and continues.",
+            locatorFromJson = capturingFactory,
+        )
+        val json = capturedJson
+        assertNotNull("locatorFromJson must be invoked", json)
+        val text = json!!.optJSONObject("text")
+        assertNotNull(text)
+        assertEquals(
+            "newlines in highlight must be collapsed to spaces so Readium text-search matches the right range",
+            "first paragraph. Second paragraph starts here",
+            text!!.optString("highlight"),
         )
     }
 

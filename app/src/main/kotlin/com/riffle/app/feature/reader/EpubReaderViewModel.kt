@@ -3482,14 +3482,20 @@ class EpubReaderViewModel constructor(
         } else {
             splitSnippetForFiguresAt(a.textSnippet, offsets)
         }
+        // Track which non-blank segment is first so textBefore goes to the actual first rendered
+        // segment, not to index==0 which may be blank (e.g. charOffset=0 caption-highlights where
+        // splitSnippetForFiguresAt produces ["", captionText] — the blank segment is skipped but
+        // index==0 would have consumed textBefore, leaving the caption render with before="").
+        var isFirstNonBlankSegment = true
         val renders = segments
             .mapIndexedNotNull { index, segmentText ->
                 if (segmentText.isBlank()) return@mapIndexedNotNull null
+                val isFirst = isFirstNonBlankSegment.also { isFirstNonBlankSegment = false }
                 val locator = buildAnnotationRenderLocator(
                     href = href,
                     cfi = a.cfi,
                     progression = progression,
-                    before = if (index == 0) a.textBefore else "",
+                    before = if (isFirst) a.textBefore else "",
                     highlight = segmentText,
                     after = if (index == segments.lastIndex) a.textAfter else "",
                 ) ?: return@mapIndexedNotNull null
@@ -4246,14 +4252,21 @@ internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>,
     com.riffle.feature.reader.highlights.highlightsResumeAnnotationIdForHref(chapters, href)
 
 /**
- * Builds the Readium [Locator] for a persisted annotation's [HighlightRender]. The CFI is
- * included in `locations.fragments` so Readium uses CFI-based decoration positioning rather than
- * text search. Text-search positioning fails for continuous-mode annotations whose selection text
- * (from JavaScript `window.getSelection().toString()`) may contain invisible characters (soft
- * hyphens, ZWSPs) that differ from the XHTML source, causing decorations to silently not appear
- * when switching from continuous to paginated mode.
+ * Builds the Readium [Locator] for a persisted annotation's [HighlightRender].
  *
- * `internal` so the CFI-in-fragments contract is unit-testable without constructing the ViewModel.
+ * CFI is intentionally NOT in `locations.fragments`: the CFI is built by ksoup from the raw XHTML,
+ * but Readium serves a modified DOM (injected scripts/CSS) with different element indices, causing
+ * silent decoration failures. Readium falls back to text search, which works once whitespace is
+ * normalised.
+ *
+ * All three text fields — before, highlight, after — are whitespace-normalised (collapsing `\n`
+ * and other whitespace runs to a single space) so Readium's TextQuoteSelector can find them even
+ * when the annotation was created in continuous mode (where `window.getSelection().toString()`
+ * captures literal `\n` between paragraphs, but Readium's DOM text-search concatenates adjacent
+ * block nodes without any separator). Un-normalised `\n` in the highlight field extends the matched
+ * range past the intended endpoint.
+ *
+ * `internal` so the normalisation contract is unit-testable without constructing the ViewModel.
  * [locatorFromJson] is injected so tests can bypass `android.net.Uri` (unavailable in JVM stubs).
  */
 internal fun buildAnnotationRenderLocator(
@@ -4266,10 +4279,13 @@ internal fun buildAnnotationRenderLocator(
     locatorFromJson: (org.json.JSONObject) -> org.readium.r2.shared.publication.Locator? =
         { json -> org.readium.r2.shared.publication.Locator.fromJSON(json) },
 ): org.readium.r2.shared.publication.Locator? = try {
-    // Whitespace-normalize before/after so Readium's text-search can match them even when
-    // the annotation was created in continuous mode (where window.getSelection() captures
-    // literal \n between paragraphs, but Readium's DOM search collapses whitespace).
+    // Whitespace-normalize before/highlight/after so Readium's text-search can match them even
+    // when the annotation was created in continuous mode (where window.getSelection() captures
+    // literal \n between paragraphs, but Readium's DOM text-search concatenates adjacent block
+    // nodes without any separator). Normalizing only before/after while leaving \n in highlight
+    // caused the TextQuoteSelector to extend the matched range past the intended endpoint.
     val normalizedBefore = before.replace(Regex("\\s+"), " ")
+    val normalizedHighlight = highlight.replace(Regex("\\s+"), " ")
     val normalizedAfter = after.replace(Regex("\\s+"), " ")
     locatorFromJson(
         org.json.JSONObject()
@@ -4279,7 +4295,7 @@ internal fun buildAnnotationRenderLocator(
                 .put("progression", progression))
             .put("text", org.json.JSONObject()
                 .put("before", normalizedBefore)
-                .put("highlight", highlight)
+                .put("highlight", normalizedHighlight)
                 .put("after", normalizedAfter)),
     )
 } catch (_: Exception) {
