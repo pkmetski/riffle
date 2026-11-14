@@ -4266,17 +4266,21 @@ internal fun buildAnnotationRenderLocator(
     locatorFromJson: (org.json.JSONObject) -> org.readium.r2.shared.publication.Locator? =
         { json -> org.readium.r2.shared.publication.Locator.fromJSON(json) },
 ): org.readium.r2.shared.publication.Locator? = try {
+    // Whitespace-normalize before/after so Readium's text-search can match them even when
+    // the annotation was created in continuous mode (where window.getSelection() captures
+    // literal \n between paragraphs, but Readium's DOM search collapses whitespace).
+    val normalizedBefore = before.replace(Regex("\\s+"), " ")
+    val normalizedAfter = after.replace(Regex("\\s+"), " ")
     locatorFromJson(
         org.json.JSONObject()
             .put("href", href)
             .put("type", "application/xhtml+xml")
             .put("locations", org.json.JSONObject()
-                .put("fragments", org.json.JSONArray().put(cfi))
                 .put("progression", progression))
             .put("text", org.json.JSONObject()
-                .put("before", before)
+                .put("before", normalizedBefore)
                 .put("highlight", highlight)
-                .put("after", after)),
+                .put("after", normalizedAfter)),
     )
 } catch (_: Exception) {
     null

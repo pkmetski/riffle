@@ -3,19 +3,23 @@ package com.riffle.app.feature.reader
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Pins the CFI-in-fragments contract for [buildAnnotationRenderLocator].
+ * Pins the whitespace-normalization contract for [buildAnnotationRenderLocator].
  *
- * Root cause: annotations created in continuous mode use JavaScript's
- * window.getSelection().toString() which may include invisible characters (soft hyphens, ZWSPs)
- * absent from the XHTML source. Readium's decoration text search then fails to match the snippet,
- * so decorations silently do not appear when switching from continuous to paginated mode.
- * Including the CFI in locations.fragments lets Readium use CFI-based positioning instead.
+ * Root cause: annotations created in continuous mode capture text via window.getSelection()
+ * which includes literal \n between paragraphs. Readium's text-search engine collapses
+ * whitespace during matching, so the stored \n causes a mismatch and decorations are silently
+ * dropped. The fix normalizes before/after to single spaces so Readium's search can match.
  *
- * The [locatorFromJson] seam is used so tests can inspect the raw JSON without hitting
- * android.net.Uri (unavailable in the JVM test stub jar).
+ * CFI is intentionally NOT included in locations.fragments: the CFI is built by ksoup from
+ * the raw XHTML, but Readium serves a modified DOM (injected scripts/CSS) with different element
+ * indices. Using the ksoup CFI causes Readium's decoration positioning to fail silently; omitting
+ * it lets Readium fall back to its text-search path, which is robust once whitespace is normalized.
+ *
+ * The [locatorFromJson] seam lets tests inspect the raw JSON without hitting android.net.Uri.
  */
 class BuildAnnotationRenderLocatorTest {
 
@@ -29,7 +33,34 @@ class BuildAnnotationRenderLocatorTest {
     }
 
     @Test
-    fun `buildAnnotationRenderLocator includes CFI in locations fragments`() {
+    fun `buildAnnotationRenderLocator normalizes newlines in before to single spaces`() {
+        buildAnnotationRenderLocator(
+            href = testHref,
+            cfi = testCfi,
+            progression = 0.3,
+            before = "end of paragraph.\nStart of next paragraph. Some ",
+            highlight = "selected word",
+            after = "rest of text.\n\nAnother paragraph.",
+            locatorFromJson = capturingFactory,
+        )
+        val json = capturedJson
+        assertNotNull("locatorFromJson must be invoked", json)
+        val text = json!!.optJSONObject("text")
+        assertNotNull(text)
+        assertEquals(
+            "newlines in before must be collapsed to spaces so Readium text-search matches",
+            "end of paragraph. Start of next paragraph. Some ",
+            text!!.optString("before"),
+        )
+        assertEquals(
+            "newlines in after must be collapsed to spaces so Readium text-search matches",
+            "rest of text. Another paragraph.",
+            text.optString("after"),
+        )
+    }
+
+    @Test
+    fun `buildAnnotationRenderLocator does not include CFI in locations fragments`() {
         buildAnnotationRenderLocator(
             href = testHref,
             cfi = testCfi,
@@ -42,8 +73,10 @@ class BuildAnnotationRenderLocatorTest {
         val json = capturedJson
         assertNotNull("locatorFromJson must be invoked", json)
         val fragments = json!!.optJSONObject("locations")?.optJSONArray("fragments")
-        assertNotNull("locations.fragments must be present so Readium uses CFI-based positioning", fragments)
-        assertEquals("CFI must be the sole fragment entry", testCfi, fragments!!.getString(0))
+        assertNull(
+            "fragments must be absent so Readium uses text-search rather than a ksoup-built CFI that mismatches the served DOM",
+            fragments,
+        )
     }
 
     @Test
