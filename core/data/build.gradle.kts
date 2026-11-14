@@ -25,6 +25,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okio.fakefilesystem)
             // Tests that verify descriptor-to-catalog-ROOT alignment (e.g. SingletonWebSourceInstallerTest).
             implementation(project(":core:catalog-chitanka"))
             implementation(project(":core:catalog-gutenberg"))
@@ -35,6 +36,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.okio)
             implementation(project(":core:common"))
             implementation(project(":core:domain"))
             implementation(project(":core:models"))

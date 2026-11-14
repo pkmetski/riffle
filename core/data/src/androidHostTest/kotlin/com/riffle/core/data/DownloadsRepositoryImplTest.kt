@@ -1,18 +1,19 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.FileStore
 import com.riffle.core.data.AudiobookFilenames.MANIFEST
-import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.StoredMediaType
 import kotlinx.coroutines.test.runTest
+import okio.Buffer
+import okio.sink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.ByteArrayInputStream
 import java.io.File
 
 class DownloadsRepositoryImplTest {
@@ -20,19 +21,55 @@ class DownloadsRepositoryImplTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    private fun fileStore(root: File): FileStore = object : FileStore {
+        override fun resolve(namespace: String, relativePath: String): String {
+            val base = root.resolve(namespace)
+            return if (relativePath.isEmpty()) {
+                base.apply { mkdirs() }.absolutePath
+            } else {
+                File(base, relativePath).also { it.parentFile?.mkdirs() }.absolutePath
+            }
+        }
+        override fun exists(namespace: String, relativePath: String) =
+            File(resolve(namespace, relativePath)).exists()
+    }
+
+    private fun repo(root: File): DownloadsRepositoryImpl = DownloadsRepositoryImpl(fileStore(root))
+
+    private fun writeEpub(root: File, namespace: String, sourceId: String, itemId: String) {
+        root.resolve(namespace).resolve(sourceId).resolve("$itemId.epub").also { it.parentFile?.mkdirs() }.writeText("epub-content")
+    }
+
+    private fun writePdf(root: File, namespace: String, sourceId: String, itemId: String) {
+        root.resolve(namespace).resolve(sourceId).resolve("$itemId.pdf").also { it.parentFile?.mkdirs() }.writeText("pdf-content")
+    }
+
+    private fun writeCbz(root: File, namespace: String, sourceId: String, itemId: String) {
+        root.resolve(namespace).resolve(sourceId).resolve("$itemId.cbz").also { it.parentFile?.mkdirs() }.writeText("cbz-content")
+    }
+
+    private fun writeAudiobook(root: File, namespace: String, sourceId: String, itemId: String, trackPayload: String) {
+        val dir = root.resolve(namespace).resolve(sourceId).resolve(itemId).also { it.mkdirs() }
+        dir.resolve("track-0").writeText(trackPayload)
+        dir.resolve(MANIFEST).writeText("""{"tracks":[{"index":0,"file":"track-0"}],"chapters":[],"durationSec":1.0}""")
+    }
+
+    private fun directorySize(dir: File): Long =
+        dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
     @Test
     fun `lists audiobook downloads and caches alongside file backed stores`() = runTest {
-        val stores = stores()
-        stores.epubDownloads.save("srv", "epub-down", ByteArrayInputStream("epub".toByteArray()))
-        stores.pdfDownloads.save("srv", "pdf-down", ByteArrayInputStream("pdf".toByteArray()))
-        stores.cbzDownloads.save("srv", "cbz-down", ByteArrayInputStream("cbz".toByteArray()))
-        stores.epubCache.save("srv", "epub-cache", ByteArrayInputStream("cache".toByteArray()))
-        stores.pdfCache.save("srv", "pdf-cache", ByteArrayInputStream("cache".toByteArray()))
-        stores.cbzCache.save("srv", "cbz-cache", ByteArrayInputStream("cache".toByteArray()))
-        writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio-down", "downloaded-track")
-        writeAudiobook(stores.audiobookCacheDir, "srv", "audio-cache", "cached-track")
+        val root = tmp.newFolder()
+        writeEpub(root, NS_EPUB_DOWNLOADS, "srv", "epub-down")
+        writePdf(root, NS_PDF_DOWNLOADS, "srv", "pdf-down")
+        writeCbz(root, NS_CBZ_DOWNLOADS, "srv", "cbz-down")
+        writeEpub(root, NS_EPUB_CACHE, "srv", "epub-cache")
+        writePdf(root, NS_PDF_CACHE, "srv", "pdf-cache")
+        writeCbz(root, NS_CBZ_CACHE, "srv", "cbz-cache")
+        writeAudiobook(root, NS_AUDIOBOOK_DOWNLOADS, "srv", "audio-down", "downloaded-track")
+        writeAudiobook(root, NS_AUDIOBOOK_CACHE, "srv", "audio-cache", "cached-track")
 
-        val repo = repo(stores)
+        val repo = repo(root)
 
         assertEquals(
             setOf(
@@ -74,31 +111,31 @@ class DownloadsRepositoryImplTest {
 
     @Test
     fun `removeDownload clears matching cache entries so items do not reappear as cached`() = runTest {
-        val stores = stores()
-        stores.epubDownloads.save("srv", "ebook", ByteArrayInputStream("download".toByteArray()))
-        stores.epubCache.save("srv", "ebook", ByteArrayInputStream("cache".toByteArray()))
-        writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio", "downloaded-track")
-        writeAudiobook(stores.audiobookCacheDir, "srv", "audio", "cached-track")
-        val repo = repo(stores)
+        val root = tmp.newFolder()
+        writeEpub(root, NS_EPUB_DOWNLOADS, "srv", "ebook")
+        writeEpub(root, NS_EPUB_CACHE, "srv", "ebook")
+        writeAudiobook(root, NS_AUDIOBOOK_DOWNLOADS, "srv", "audio", "downloaded-track")
+        writeAudiobook(root, NS_AUDIOBOOK_CACHE, "srv", "audio", "cached-track")
+        val repo = repo(root)
 
         repo.removeDownload("srv", "ebook")
         repo.removeDownload("srv", "audio")
 
         assertTrue(repo.getDownloadedItems().none { it.sourceId == "srv" && it.itemId in setOf("ebook", "audio") })
         assertTrue(repo.getCachedItems().none { it.sourceId == "srv" && it.itemId in setOf("ebook", "audio") })
-        assertFalse(stores.audiobookDownloadsDir.resolve("srv").resolve("audio").exists())
-        assertFalse(stores.audiobookCacheDir.resolve("srv").resolve("audio").exists())
+        assertFalse(root.resolve(NS_AUDIOBOOK_DOWNLOADS).resolve("srv").resolve("audio").exists())
+        assertFalse(root.resolve(NS_AUDIOBOOK_CACHE).resolve("srv").resolve("audio").exists())
     }
 
     @Test
     fun `size and removals include directory backed audiobook artifacts`() = runTest {
-        val stores = stores()
-        writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio-down", "downloaded-track")
-        writeAudiobook(stores.audiobookCacheDir, "srv", "audio-cache", "cached-track")
+        val root = tmp.newFolder()
+        writeAudiobook(root, NS_AUDIOBOOK_DOWNLOADS, "srv", "audio-down", "downloaded-track")
+        writeAudiobook(root, NS_AUDIOBOOK_CACHE, "srv", "audio-cache", "cached-track")
 
-        val repo = repo(stores)
-        val downloadDir = stores.audiobookDownloadsDir.resolve("srv").resolve("audio-down")
-        val cacheDir = stores.audiobookCacheDir.resolve("srv").resolve("audio-cache")
+        val repo = repo(root)
+        val downloadDir = root.resolve(NS_AUDIOBOOK_DOWNLOADS).resolve("srv").resolve("audio-down")
+        val cacheDir = root.resolve(NS_AUDIOBOOK_CACHE).resolve("srv").resolve("audio-cache")
 
         assertEquals(directorySize(downloadDir), repo.sizeOf("srv", "audio-down"))
         assertEquals(directorySize(cacheDir), repo.sizeOf("srv", "audio-cache"))
@@ -109,58 +146,13 @@ class DownloadsRepositoryImplTest {
         assertFalse(downloadDir.exists())
         assertFalse(cacheDir.exists())
 
-        writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio-down-2", "downloaded-track")
-        writeAudiobook(stores.audiobookCacheDir, "srv", "audio-cache-2", "cached-track")
+        writeAudiobook(root, NS_AUDIOBOOK_DOWNLOADS, "srv", "audio-down-2", "downloaded-track")
+        writeAudiobook(root, NS_AUDIOBOOK_CACHE, "srv", "audio-cache-2", "cached-track")
 
         repo.removeAllDownloads()
         repo.clearAllCached()
 
-        assertTrue(stores.audiobookDownloadsDir.listFiles().isNullOrEmpty())
-        assertTrue(stores.audiobookCacheDir.listFiles().isNullOrEmpty())
+        assertTrue(root.resolve(NS_AUDIOBOOK_DOWNLOADS).listFiles().isNullOrEmpty())
+        assertTrue(root.resolve(NS_AUDIOBOOK_CACHE).listFiles().isNullOrEmpty())
     }
-
-    private fun directorySize(dir: File): Long =
-        dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-
-    private fun writeAudiobook(root: File, sourceId: String, itemId: String, trackPayload: String) {
-        val dir = root.resolve(sourceId).resolve(itemId).also { it.mkdirs() }
-        dir.resolve("track-0").writeText(trackPayload)
-        dir.resolve(MANIFEST).writeText("""{"tracks":[{"index":0,"file":"track-0"}],"chapters":[],"durationSec":1.0}""")
-    }
-
-    private fun repo(stores: TestStores): DownloadsRepositoryImpl = DownloadsRepositoryImpl(
-        epubCacheStore = stores.epubCache,
-        epubDownloadsStore = stores.epubDownloads,
-        pdfCacheStore = stores.pdfCache,
-        pdfDownloadsStore = stores.pdfDownloads,
-        cbzCacheStore = stores.cbzCache,
-        cbzDownloadsStore = stores.cbzDownloads,
-        audiobookCacheDir = stores.audiobookCacheDir,
-        audiobookDownloadsDir = stores.audiobookDownloadsDir,
-    )
-
-    private fun stores(): TestStores = TestStores(
-        epubCache = store("epub-cache"),
-        epubDownloads = store("epub-downloads"),
-        pdfCache = store("pdf-cache", ".pdf"),
-        pdfDownloads = store("pdf-downloads", ".pdf"),
-        cbzCache = store("cbz-cache", ".cbz"),
-        cbzDownloads = store("cbz-downloads", ".cbz"),
-        audiobookCacheDir = tmp.newFolder("audiobook-cache"),
-        audiobookDownloadsDir = tmp.newFolder("audiobook-downloads"),
-    )
-
-    private fun store(name: String, extension: String = ".epub") =
-        LocalStoreImpl(tmp.newFolder(name), extension, DefaultDispatcherProvider)
-
-    private data class TestStores(
-        val epubCache: LocalStoreImpl,
-        val epubDownloads: LocalStoreImpl,
-        val pdfCache: LocalStoreImpl,
-        val pdfDownloads: LocalStoreImpl,
-        val cbzCache: LocalStoreImpl,
-        val cbzDownloads: LocalStoreImpl,
-        val audiobookCacheDir: File,
-        val audiobookDownloadsDir: File,
-    )
 }

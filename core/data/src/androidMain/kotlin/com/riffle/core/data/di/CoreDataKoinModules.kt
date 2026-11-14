@@ -26,7 +26,9 @@ import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.AudiobookCacheRepositoryImpl
+import com.riffle.core.data.AudiobookTrackDownloader
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
+import com.riffle.core.data.AndroidCrashReportRepositoryImpl
 import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
@@ -43,7 +45,6 @@ import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.ContentCacheSettingsStoreImpl
 import com.riffle.core.data.ContentCacheArtifactScannerImpl
 import com.riffle.core.data.CoverGridDensityStoreImpl
-import com.riffle.core.data.CrashReportRepositoryImpl
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.CrossEpubIndexBuilderService
 import com.riffle.core.data.CrossEpubIndexStoreImpl
@@ -189,7 +190,6 @@ import com.riffle.core.domain.FormattingPreferencesStoreProvider
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.JvmAudiobookCacheRepository
-import com.riffle.core.domain.JvmAudiobookDownloadRepository
 import com.riffle.core.domain.JvmCbzRepository
 import com.riffle.core.domain.JvmEpubRepository
 import com.riffle.core.domain.JvmPdfRepository
@@ -496,14 +496,7 @@ private val coreDataLocalStoreModule = module {
 
     single<DownloadsRepository> {
         DownloadsRepositoryImpl(
-            epubCacheStore = get(named(EPUB_CACHE_STORE)),
-            epubDownloadsStore = get(named(EPUB_DOWNLOADS_STORE)),
-            pdfCacheStore = get(named(PDF_CACHE_STORE)),
-            pdfDownloadsStore = get(named(PDF_DOWNLOADS_STORE)),
-            cbzCacheStore = get(named(CBZ_CACHE_STORE)),
-            cbzDownloadsStore = get(named(CBZ_DOWNLOADS_STORE)),
-            audiobookCacheDir = get(named(AUDIOBOOK_CACHE_DIR)),
-            audiobookDownloadsDir = get(named(AUDIOBOOK_DOWNLOADS_DIR)),
+            fileStore = get(),
             localAvailabilityEvents = get(),
         )
     }
@@ -715,7 +708,8 @@ private val coreDataRepositoriesModule = module {
             logger = get(),
         )
     }
-    single<CrashReportRepository> { CrashReportRepositoryImpl(get(named(CRASH_REPORT_DIR))) }
+    single { AndroidCrashReportRepositoryImpl(get()) }
+    single<CrashReportRepository> { get<AndroidCrashReportRepositoryImpl>() }
     single<CrossEpubIndexBuildTrigger> {
         CrossEpubIndexBuilderService(
             catalogRegistry = get(),
@@ -873,18 +867,16 @@ private val coreDataCatalogModule = module {
 
 private val coreDataStreamingAudioModule = module {
     single<AudiobookRepository> { AudiobookRepositoryImpl(get(), get()) }
-    single { com.riffle.core.data.AudiobookTrackDownloader(get(named(STREAMING_HTTP_CLIENT)), get()) }
-    single<JvmAudiobookDownloadRepository> {
+    single { AudiobookTrackDownloader(get(named(STREAMING_HTTP_CLIENT)), get()) }
+    single<AudiobookDownloadRepository> {
         AudiobookDownloadRepositoryImpl(
             audiobookRepository = get(),
-            trackDownloader = get(),
-            cacheDir = get(named(AUDIOBOOK_CACHE_DIR)),
-            downloadsDir = get(named(AUDIOBOOK_DOWNLOADS_DIR)),
+            fileStore = get(),
             dispatchers = get(),
             localAvailabilityEvents = get(),
+            httpClient = get(named(STREAMING_HTTP_CLIENT)),
         )
     }
-    single<AudiobookDownloadRepository> { get<JvmAudiobookDownloadRepository>() }
     single<JvmAudiobookCacheRepository> {
         AudiobookCacheRepositoryImpl(
             cacheDir = get(named(AUDIOBOOK_CACHE_DIR)),

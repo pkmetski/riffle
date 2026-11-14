@@ -36,13 +36,13 @@ import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
-import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
+import com.riffle.core.data.AudiobookDownloadRepositoryImpl
+import com.riffle.core.data.CrashReportRepositoryImpl
+import com.riffle.core.data.DownloadsRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheArtifactScannerImpl
 import com.riffle.core.data.IosCrashReportRecorder
-import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
-import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosKeyValueStore
@@ -845,7 +845,7 @@ private fun iosLibraryModule(
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
-    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get(), get()) }
+    single<DownloadsRepository> { DownloadsRepositoryImpl(fileStore = get(), localAvailabilityEvents = get()) }
     single<ContentCacheSettingsStore> { ContentCacheSettingsStoreImpl(IosKeyValueStore()) }
     single<ContentCacheArtifactScanner> { IosContentCacheArtifactScannerImpl(get()) }
     // The cleaner is shared (core:domain commonMain) — iOS has no BGTaskScheduler, so it runs
@@ -928,8 +928,8 @@ private fun iosLibraryModule(
             contentCacheSettingsStore = get(),
         )
     }
-    single { IosCrashReportRepositoryImpl(get()) }
-    single<CrashReportRepository> { get<IosCrashReportRepositoryImpl>() }
+    single { CrashReportRepositoryImpl(get()) }
+    single<CrashReportRepository> { get<CrashReportRepositoryImpl>() }
     single<AppUpdateRepository> { IosAppUpdateRepositoryImpl(get(), get()) }
     single<AppUpdatePreferencesStore> { AppUpdatePreferencesStoreImpl(IosKeyValueStore()) }
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
@@ -1096,12 +1096,12 @@ private fun iosLibraryModule(
     // one shared track downloader feeds both the explicit user download and the background cache.
     single { IosAudiobookTrackDownloader(get(), get()) }
     single<AudiobookDownloadRepository> {
-        IosAudiobookDownloadRepositoryImpl(
+        AudiobookDownloadRepositoryImpl(
             audiobookRepository = get(),
-            trackDownloader = get(),
             fileStore = get(),
             dispatchers = get(),
             localAvailabilityEvents = get(),
+            httpClient = get(),
         )
     }
     single<AudiobookCacheRepository> {
@@ -1561,7 +1561,7 @@ internal fun startKoinWithDatabase(
     // Settings read "No crashes recorded" forever. Android installs its equivalent from
     // RiffleApplication; this is the iOS counterpart and belongs at the same point in startup.
     IosCrashReportRecorder.install(
-        repository = app.koin.get<IosCrashReportRepositoryImpl>(),
+        repository = app.koin.get<CrashReportRepositoryImpl>(),
         clock = app.koin.get<Clock>(),
     )
 }
