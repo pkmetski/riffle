@@ -30,6 +30,7 @@ import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
+import com.riffle.core.data.AndroidKeyValueStore
 import com.riffle.core.data.AudiobookSleepStopStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.CatalogProgressRemoteFactory
@@ -39,6 +40,7 @@ import com.riffle.core.data.CbzRepositoryImpl
 import com.riffle.core.data.ComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.ContentCacheAccessStoreImpl
+import com.riffle.core.data.ContentCacheSettingsStoreImpl
 import com.riffle.core.data.ContentCacheArtifactScannerImpl
 import com.riffle.core.data.CoverGridDensityStoreImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
@@ -50,12 +52,15 @@ import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
 import com.riffle.core.data.DeviceIdStoreImpl
 import com.riffle.core.data.DeviceLabelStoreImpl
+import com.riffle.core.data.EmphasisPreferencesStoreImpl
 import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.DownloadsRepositoryImpl
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FilesdirFileStore
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreProviderImpl
+import com.riffle.core.data.HighlightColorPreferencesStoreImpl
+import com.riffle.core.data.HighlightsResumeStoreImpl
 import com.riffle.core.data.ItemProgressPuller
 import com.riffle.core.data.KeystoreEncryptedKeyValueStore
 import com.riffle.core.data.KeystoreTokenStorage
@@ -72,6 +77,7 @@ import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.LocalToReadStoreImpl
 import com.riffle.core.data.OfflineAvailabilitySnapshot
+import com.riffle.core.data.PanelViewPreferencesStoreImpl
 import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
@@ -80,6 +86,7 @@ import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudMatchingService
+import com.riffle.core.data.ReadaloudPreferencesStoreImpl
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadaloudSidecarStore
@@ -95,6 +102,7 @@ import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.TocRepositoryImpl
+import com.riffle.core.data.AppUpdatePreferencesStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
@@ -404,8 +412,8 @@ private val coreDataLocalStoreModule = module {
 
     single<AudiobookBookmarkStore> { com.riffle.core.data.AudiobookBookmarkStoreImpl(get()) }
     single<ReadaloudResumeStore> { ReadaloudResumeStoreImpl(get(), get()) }
-    single<DeviceIdStore> { DeviceIdStoreImpl(get(named(DS_DEVICE_ID))) }
-    single<DeviceLabelStore> { DeviceLabelStoreImpl(get(named(DS_DEVICE_LABEL))) }
+    single<DeviceIdStore> { DeviceIdStoreImpl(AndroidKeyValueStore(get(named(DS_DEVICE_ID)))) }
+    single<DeviceLabelStore> { DeviceLabelStoreImpl(AndroidKeyValueStore(get(named(DS_DEVICE_LABEL)))) }
     single<DeviceLabelResolver> { AndroidDeviceLabelResolver(androidContext(), get()) }
     single<ContentCacheArtifactScanner> {
         ContentCacheArtifactScannerImpl(
@@ -554,7 +562,7 @@ private val coreDataPreferencesModule = module {
     single(named(DS_AUDIOBOOK_SLEEP_STOP)) { androidContext().audiobookSleepStopDataStore }
 
     // Preference store implementations — concrete registration first where needed as dependency
-    single { FormattingPreferencesStoreImpl(get(named(DS_FORMATTING))) }
+    single { FormattingPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_FORMATTING)))) }
     single<FormattingPreferencesStore> { get<FormattingPreferencesStoreImpl>() }
 
     single<FormattingPreferencesStoreProvider> {
@@ -564,23 +572,23 @@ private val coreDataPreferencesModule = module {
     single<BookFormattingPreferencesStore> { BookFormattingPreferencesStoreImpl(get()) }
     single<AudioPlaybackPreferencesStore> { AudioPlaybackPreferencesStoreImpl(get()) }
     single<LibraryVisibilityPreferencesStore> {
-        LibraryVisibilityPreferencesStoreImpl(get(named(DS_LIBRARY_VISIBILITY)))
+        LibraryVisibilityPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_LIBRARY_VISIBILITY))))
     }
     single<LibraryFilterPreferencesStore> {
-        LibraryFilterPreferencesStoreImpl(get(named(DS_LIBRARY_FILTER)))
+        LibraryFilterPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_LIBRARY_FILTER))))
     }
     single<LibraryOrderPreferencesStore> {
-        LibraryOrderPreferencesStoreImpl(get(named(DS_LIBRARY_ORDER)))
+        LibraryOrderPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_LIBRARY_ORDER))))
     }
-    single<LastOpenedLibraryStore> { LastOpenedLibraryStoreImpl(get(named(DS_LAST_OPENED_LIBRARY))) }
-    single<ListeningPreferencesStore> { ListeningPreferencesStoreImpl(get(named(DS_LISTENING))) }
-    single<VolumeKeyPreferencesStore> { VolumeKeyPreferencesStoreImpl(get(named(DS_VOLUME_KEY))) }
-    single<ContentCacheAccessStore> { ContentCacheAccessStoreImpl(get(named(DS_CONTENT_CACHE_ACCESS)), get()) }
+    single<LastOpenedLibraryStore> { LastOpenedLibraryStoreImpl(AndroidKeyValueStore(get(named(DS_LAST_OPENED_LIBRARY)))) }
+    single<ListeningPreferencesStore> { ListeningPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_LISTENING)))) }
+    single<VolumeKeyPreferencesStore> { VolumeKeyPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_VOLUME_KEY)))) }
+    single<ContentCacheAccessStore> { ContentCacheAccessStoreImpl(AndroidKeyValueStore(get(named(DS_CONTENT_CACHE_ACCESS))), get()) }
     single<ComicFormattingPreferencesStore> {
-        ComicFormattingPreferencesStoreImpl(get(named(DS_COMIC_FORMATTING)))
+        ComicFormattingPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_COMIC_FORMATTING))))
     }
     single<com.riffle.core.domain.AudiobookSleepStopStore> {
-        AudiobookSleepStopStoreImpl(get(named(DS_AUDIOBOOK_SLEEP_STOP)))
+        AudiobookSleepStopStoreImpl(AndroidKeyValueStore(get(named(DS_AUDIOBOOK_SLEEP_STOP))))
     }
 
     // Single-key DataStore wrappers
@@ -593,22 +601,22 @@ private val coreDataPreferencesModule = module {
         com.riffle.core.data.WakeLockPreferencesStore(get(named(DS_WAKE_LOCK)))
     }
     single<ReadaloudPreferencesStore> {
-        com.riffle.core.data.ReadaloudPreferencesStore(get(named(DS_READALOUD)))
+        ReadaloudPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_READALOUD))))
     }
     single<HighlightColorPreferencesStore> {
-        com.riffle.core.data.HighlightColorPreferencesStore(get(named(DS_HIGHLIGHT_COLOR)))
+        HighlightColorPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_HIGHLIGHT_COLOR))))
     }
     single<EmphasisPreferencesStore> {
-        com.riffle.core.data.EmphasisPreferencesStore(get(named(DS_HIGHLIGHT_COLOR)))
+        EmphasisPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_HIGHLIGHT_COLOR))))
     }
     single<HighlightsResumeStore> {
-        com.riffle.core.data.HighlightsResumeStore(get(named(DS_HIGHLIGHTS_RESUME)))
+        HighlightsResumeStoreImpl(AndroidKeyValueStore(get(named(DS_HIGHLIGHTS_RESUME))))
     }
     single<AppUpdatePreferencesStore> {
-        com.riffle.core.data.AppUpdatePreferencesStore(get(named(DS_APP_UPDATE)))
+        AppUpdatePreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_APP_UPDATE))))
     }
     single<ContentCacheSettingsStore> {
-        com.riffle.core.data.ContentCacheSettingsStore(get(named(DS_CONTENT_CACHE_SETTINGS)))
+        ContentCacheSettingsStoreImpl(AndroidKeyValueStore(get(named(DS_CONTENT_CACHE_SETTINGS))))
     }
 }
 
@@ -1221,7 +1229,7 @@ private val coreDataPanelModule = module {
     single<PageImageDecoder> { AndroidPageImageDecoder() }
     single<ColorPageDecoder> { AndroidColorPageDecoder() }
     single<PanelMaskService> { AndroidPanelMaskServiceImpl(get(), get(), get()) }
-    single<PanelViewPreferencesStore> { com.riffle.core.data.PanelViewPreferencesStoreImpl(get(named(DS_PANEL_VIEW))) }
+    single<PanelViewPreferencesStore> { PanelViewPreferencesStoreImpl(AndroidKeyValueStore(get(named(DS_PANEL_VIEW)))) }
     single<BookComicFormattingPreferencesStore> { com.riffle.core.data.BookComicFormattingPreferencesStoreImpl(get()) }
 
     single<PanelStore> { JsonPanelStore(File(androidContext().filesDir, "comic-panels").also { it.mkdirs() }) }

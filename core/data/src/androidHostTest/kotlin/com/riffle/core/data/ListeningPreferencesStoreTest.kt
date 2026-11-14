@@ -25,9 +25,11 @@ class ListeningPreferencesStoreTest {
     private val testScope = TestScope(dispatcher)
 
     private fun buildStore() = ListeningPreferencesStoreImpl(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("listening_prefs.preferences_pb") },
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("listening_prefs.preferences_pb") },
+            )
         )
     )
 
@@ -86,7 +88,7 @@ class ListeningPreferencesStoreTest {
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
             val store = ListeningPreferencesStoreImpl(
-                PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file })
+                AndroidKeyValueStore(PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file }))
             )
             store.setDefaultPlaybackSpeed(2.0f)
             store.setSkipIntervalSeconds(45)
@@ -97,7 +99,7 @@ class ListeningPreferencesStoreTest {
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         val store2 = ListeningPreferencesStoreImpl(
-            PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file })
+            AndroidKeyValueStore(PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file }))
         )
         assertEquals(2.0f, runBlocking { store2.defaultPlaybackSpeed.first() })
         assertEquals(45, runBlocking { store2.skipIntervalSeconds.first() })

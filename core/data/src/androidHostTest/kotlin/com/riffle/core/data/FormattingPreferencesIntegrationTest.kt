@@ -28,9 +28,11 @@ class FormattingPreferencesIntegrationTest {
     @Test
     fun `DataStore write emits updated value through Flow`() = testScope.runTest {
         val store = FormattingPreferencesStoreImpl(
-            PreferenceDataStoreFactory.create(
-                scope = testScope.backgroundScope,
-                produceFile = { tmp.newFile("integration.preferences_pb") },
+            AndroidKeyValueStore(
+                PreferenceDataStoreFactory.create(
+                    scope = testScope.backgroundScope,
+                    produceFile = { tmp.newFile("integration.preferences_pb") },
+                )
             )
         )
 

@@ -25,9 +25,11 @@ class VolumeKeyPreferencesStoreTest {
     private val testScope = TestScope(dispatcher)
 
     private fun buildStore() = VolumeKeyPreferencesStoreImpl(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("volume_key_prefs.preferences_pb") },
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("volume_key_prefs.preferences_pb") },
+            )
         )
     )
 
@@ -78,9 +80,11 @@ class VolumeKeyPreferencesStoreTest {
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
             val store = VolumeKeyPreferencesStoreImpl(
-                PreferenceDataStoreFactory.create(
-                    scope = writeScope,
-                    produceFile = { file },
+                AndroidKeyValueStore(
+                    PreferenceDataStoreFactory.create(
+                        scope = writeScope,
+                        produceFile = { file },
+                    )
                 )
             )
             store.setVolumeKeyNavigationEnabled(false)
@@ -90,9 +94,11 @@ class VolumeKeyPreferencesStoreTest {
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         val store2 = VolumeKeyPreferencesStoreImpl(
-            PreferenceDataStoreFactory.create(
-                scope = readScope,
-                produceFile = { file },
+            AndroidKeyValueStore(
+                PreferenceDataStoreFactory.create(
+                    scope = readScope,
+                    produceFile = { file },
+                )
             )
         )
         assertEquals(false, runBlocking { store2.volumeKeyNavigationEnabled.first() })

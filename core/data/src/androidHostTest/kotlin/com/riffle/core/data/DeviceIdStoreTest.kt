@@ -25,9 +25,11 @@ class DeviceIdStoreTest {
     private val testScope = TestScope(dispatcher)
 
     private fun buildStore() = DeviceIdStoreImpl(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("device_id.preferences_pb") },
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("device_id.preferences_pb") },
+            )
         )
     )
 
@@ -52,7 +54,7 @@ class DeviceIdStoreTest {
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         val minted = runBlocking {
             DeviceIdStoreImpl(
-                PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file })
+                AndroidKeyValueStore(PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file }))
             ).getOrCreate()
         }
         writeScope.cancel()
@@ -60,7 +62,7 @@ class DeviceIdStoreTest {
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         val reread = runBlocking {
             DeviceIdStoreImpl(
-                PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file })
+                AndroidKeyValueStore(PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file }))
             ).getOrCreate()
         }
         readScope.cancel()

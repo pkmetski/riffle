@@ -5,42 +5,45 @@ import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
 import com.riffle.core.common.IosRandomProvider
 import com.riffle.core.common.RandomProvider
+import com.riffle.core.data.AppUpdatePreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
+import com.riffle.core.data.AudiobookSleepStopStoreImpl
 import com.riffle.core.data.BookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.CatalogProgressRemoteFactory
 import com.riffle.core.data.CatalogSyncSourceResolver
+import com.riffle.core.data.ComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.DaoDirtyBookmarkLedger
 import com.riffle.core.data.DaoDirtyProgressLedger
-import com.riffle.core.data.IosAudiobookSleepStopStoreImpl
-import com.riffle.core.data.IosComicFormattingPreferencesStoreImpl
+import com.riffle.core.data.DeviceIdStoreImpl
+import com.riffle.core.data.DeviceLabelStoreImpl
+import com.riffle.core.data.EmphasisPreferencesStoreImpl
+import com.riffle.core.data.FormattingPreferencesStoreImpl
+import com.riffle.core.data.HighlightColorPreferencesStoreImpl
+import com.riffle.core.data.HighlightsResumeStoreImpl
 import com.riffle.core.data.IosConnectivityObserver
 import com.riffle.core.data.IosCoverGridDensityStoreImpl
-import com.riffle.core.data.IosDeviceIdStoreImpl
 import com.riffle.core.data.IosDeviceLabelResolver
-import com.riffle.core.data.IosDeviceLabelStoreImpl
-import com.riffle.core.data.IosEmphasisPreferencesStoreImpl
 import com.riffle.core.data.IosFileStore
-import com.riffle.core.data.IosFormattingPreferencesStoreImpl
-import com.riffle.core.data.IosHighlightColorPreferencesStoreImpl
-import com.riffle.core.data.IosHighlightsResumeStore
-import com.riffle.core.data.IosLibraryFilterPreferencesStoreImpl
-import com.riffle.core.data.IosLibraryOrderPreferencesStoreImpl
+import com.riffle.core.data.IosKeyValueStore
 import com.riffle.core.data.IosLibraryRefresherImpl
-import com.riffle.core.data.IosListeningPreferencesStoreImpl
 import com.riffle.core.data.IosPackDownloaderImpl
 import com.riffle.core.data.IosPackStoreImpl
-import com.riffle.core.data.IosReadaloudPreferencesStoreImpl
 import com.riffle.core.data.IosSourceFilesCleaner
 import com.riffle.core.data.IosTokenStorage
-import com.riffle.core.data.IosVolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.ItemProgressPuller
+import com.riffle.core.data.LibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.LibraryItemUiProgressSink
+import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryRepositoryImpl
+import com.riffle.core.data.ListeningPreferencesStoreImpl
+import com.riffle.core.data.PanelViewPreferencesStoreImpl
+import com.riffle.core.data.ReadaloudPreferencesStoreImpl
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
+import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WebSourceLibraryItemMaterializer
 import com.riffle.core.data.comic.panel.IosColorPageDecoder
 import com.riffle.core.data.comic.panel.IosJsonPanelStore
@@ -77,6 +80,7 @@ import com.riffle.core.database.SeriesDao
 import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.dictionary.PackStore
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -116,6 +120,7 @@ import com.riffle.core.domain.comic.panel.PanelEngine
 import com.riffle.core.domain.comic.panel.PanelMaskService
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelStore
+import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.logging.Logger
 import com.riffle.core.network.AbsLibraryApi
@@ -138,7 +143,7 @@ val iosDataModule = module {
     single<FileStore> { IosFileStore() }
     single<SourceFilesCleaner> { IosSourceFilesCleaner(get(), get()) }
     single<DeviceLabelResolver> { IosDeviceLabelResolver() }
-    single<DeviceLabelStore> { IosDeviceLabelStoreImpl() }
+    single<DeviceLabelStore> { DeviceLabelStoreImpl(IosKeyValueStore()) }
 
     single<FolderPickerInterface> { IosFolderPicker() }
     single { IosFolderWalker(get()) }
@@ -152,10 +157,10 @@ val iosDataModule = module {
     single<ManagedImportsFolder> { IosManagedImportsFolder(get()) }
     single<OpenInImporter> { SharedOpenInImporter(importsFolder = get(), installer = get()) }
     single { OpenInImportFeed() }
-    single<DeviceIdStore> { IosDeviceIdStoreImpl() }
-    single<HighlightsResumeStore> { IosHighlightsResumeStore() }
-    single<HighlightColorPreferencesStore> { IosHighlightColorPreferencesStoreImpl() }
-    single<EmphasisPreferencesStore> { IosEmphasisPreferencesStoreImpl() }
+    single<DeviceIdStore> { DeviceIdStoreImpl(IosKeyValueStore()) }
+    single<HighlightsResumeStore> { HighlightsResumeStoreImpl(IosKeyValueStore()) }
+    single<HighlightColorPreferencesStore> { HighlightColorPreferencesStoreImpl(IosKeyValueStore()) }
+    single<EmphasisPreferencesStore> { EmphasisPreferencesStoreImpl(IosKeyValueStore()) }
     single<PackStore> { IosPackStoreImpl(get(), get()) }
     single<PackDownloaderInterface> { IosPackDownloaderImpl(get(), get(), get(), get()) }
     single<ColorPageDecoder> { IosColorPageDecoder() }
@@ -174,7 +179,7 @@ val iosDataModule = module {
     single<AudiobookPositionStore> { get<AudiobookPositionStoreImpl>() }
     single<SyncPositionStore<Double>> { get<AudiobookPositionStoreImpl>() }
     single<ReadaloudResumeStore> { ReadaloudResumeStoreImpl(get<ReadaloudResumePositionDao>(), get<Clock>()) }
-    single<com.riffle.core.domain.AudiobookSleepStopStore> { IosAudiobookSleepStopStoreImpl() }
+    single<com.riffle.core.domain.AudiobookSleepStopStore> { AudiobookSleepStopStoreImpl(IosKeyValueStore()) }
 
     single { ReconcileLocks() }
     single<PositionTombstoneWriter> {
@@ -224,18 +229,6 @@ val iosDataModule = module {
 
     // The durable, book-independent dirty sweep of ADR 0036 — the same ProgressSweep Android
     // binds in CoreDataKoinModules, over the same commonMain ledger/resolver/reconcilers.
-    //
-    // Until #1071 §14 iOS had *nothing* that retried a failed push: session close was the only
-    // trigger, so a position or bookmark saved while offline (or while ABS was down) stayed dirty
-    // forever unless the user happened to reopen that exact book while online. Now `ProgressSweep`
-    // is real on iOS, driven from three places that stand in for Android's WorkManager jobs —
-    // app start and app foreground (`RiffleAppRoot`), and the validated offline→online edge
-    // (`kickSweepsOnReconnect`, also shared).
-    //
-    // One constructor argument stays at its default:
-    // `postSweepMaterializer` is now wired to WebSourceLibraryItemMaterializer (moved to commonMain
-    // in the 2026-10-13 parity sweep) so web-source items synced via any future iOS transport are
-    // materialised immediately after the sweep.
     single<DirtyProgressLedger> { DaoDirtyProgressLedger(get<ReadingPositionDao>(), get<AudiobookPositionDao>()) }
     single<SyncSourceResolver> { CatalogSyncSourceResolver(get<CatalogRegistry>(), get<SourceRepository>()) }
     single<RandomProvider> { IosRandomProvider }
@@ -261,19 +254,16 @@ val iosDataModule = module {
             bookmarkReconcile = BookmarkReconcile { sourceId, itemId ->
                 get<AudiobookBookmarkReconciler>().reconcile(sourceId, itemId)
             },
-            // Was left at RemoteProgressIndex.EMPTY because the WebDAV enumerator it needs was
-            // jvmMain-only (#1072). Without it the sweep only ever visits locally-dirty rows, so
-            // a position advanced on another device against a *clean* local row was never pulled
-            // back — the exact "clean-row gap" ADR 0063 added the index for.
             remoteIndex = get<RemoteProgressIndex>(),
             postSweepMaterializer = get<PostSweepMaterializer>(),
         )
     }
 
-    single<FormattingPreferencesStore> { IosFormattingPreferencesStoreImpl() }
+    single { FormattingPreferencesStoreImpl(IosKeyValueStore()) }
+    single<FormattingPreferencesStore> { get<FormattingPreferencesStoreImpl>() }
     single<BookFormattingPreferencesStore> { BookFormattingPreferencesStoreImpl(get<BookFormattingPreferencesDao>()) }
     single<BookComicFormattingPreferencesStore> { BookComicFormattingPreferencesStoreImpl(get<BookComicFormattingPreferencesDao>()) }
-    single<ComicFormattingPreferencesStore> { IosComicFormattingPreferencesStoreImpl() }
+    single<ComicFormattingPreferencesStore> { ComicFormattingPreferencesStoreImpl(IosKeyValueStore()) }
     single {
         LibraryRepositoryImpl(
             catalogRegistry = get<CatalogRegistry>(),
@@ -310,10 +300,12 @@ val iosDataModule = module {
     single<ReadingSpeedStore> { com.riffle.core.data.ReadingSpeedStore() }
     single<WakeLockPreferencesStore> { com.riffle.core.data.WakeLockPreferencesStore() }
     single<CoverGridDensityStore> { IosCoverGridDensityStoreImpl(get<CoverGridScaleDao>()) }
-    single<LibraryFilterPreferencesStore> { IosLibraryFilterPreferencesStoreImpl() }
-    single<LibraryOrderPreferencesStore> { IosLibraryOrderPreferencesStoreImpl() }
-    single<ListeningPreferencesStore> { IosListeningPreferencesStoreImpl() }
-    single<VolumeKeyPreferencesStore> { IosVolumeKeyPreferencesStoreImpl() }
-    single<ReadaloudPreferencesStore> { IosReadaloudPreferencesStoreImpl() }
+    single<LibraryFilterPreferencesStore> { LibraryFilterPreferencesStoreImpl(IosKeyValueStore()) }
+    single<LibraryOrderPreferencesStore> { LibraryOrderPreferencesStoreImpl(IosKeyValueStore()) }
+    single<ListeningPreferencesStore> { ListeningPreferencesStoreImpl(IosKeyValueStore()) }
+    single<VolumeKeyPreferencesStore> { VolumeKeyPreferencesStoreImpl(IosKeyValueStore()) }
+    single<ReadaloudPreferencesStore> { ReadaloudPreferencesStoreImpl(IosKeyValueStore()) }
+    single<PanelViewPreferencesStore> { PanelViewPreferencesStoreImpl(IosKeyValueStore()) }
+    single<AppUpdatePreferencesStore> { AppUpdatePreferencesStoreImpl(IosKeyValueStore()) }
     single<DeveloperOptionsRepository> { IosDeveloperOptionsRepositoryImpl() }
 }

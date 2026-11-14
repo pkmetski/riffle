@@ -21,9 +21,11 @@ class ComicFormattingPreferencesStoreImplTest {
     private val testScope = TestScope(UnconfinedTestDispatcher())
 
     private fun newStore() = ComicFormattingPreferencesStoreImpl(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("comic-formatting.preferences_pb") },
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("comic-formatting.preferences_pb") },
+            ),
         ),
     )
 
