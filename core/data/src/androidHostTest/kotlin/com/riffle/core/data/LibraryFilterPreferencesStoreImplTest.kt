@@ -26,9 +26,11 @@ class LibraryFilterPreferencesStoreImplTest {
 
     private fun buildStore(fileName: String = "library_filter_preferences.preferences_pb") =
         LibraryFilterPreferencesStoreImpl(
-            PreferenceDataStoreFactory.create(
-                scope = testScope.backgroundScope,
-                produceFile = { tmp.newFile(fileName) },
+            AndroidKeyValueStore(
+                PreferenceDataStoreFactory.create(
+                    scope = testScope.backgroundScope,
+                    produceFile = { tmp.newFile(fileName) },
+                ),
             ),
         )
 
@@ -82,14 +84,14 @@ class LibraryFilterPreferencesStoreImplTest {
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
             LibraryFilterPreferencesStoreImpl(
-                PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file }),
+                AndroidKeyValueStore(PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file })),
             ).setSelectedFacetKey("src-1", "lib-1", "genre:audio")
         }
         writeScope.cancel()
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         val store = LibraryFilterPreferencesStoreImpl(
-            PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file }),
+            AndroidKeyValueStore(PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file })),
         )
         assertEquals("genre:audio", runBlocking { store.preferences("src-1", "lib-1").first().selectedFacetKey })
         readScope.cancel()

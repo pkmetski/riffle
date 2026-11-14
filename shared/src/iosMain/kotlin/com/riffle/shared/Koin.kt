@@ -31,12 +31,17 @@ import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.IosAnnotationSyncConfigStore
-import com.riffle.core.data.IosAppUpdatePreferencesStoreImpl
+import com.riffle.core.data.AppUpdatePreferencesStoreImpl
+import com.riffle.core.data.ContentCacheAccessStoreImpl
+import com.riffle.core.data.ContentCacheSettingsStoreImpl
+import com.riffle.core.data.IosKeyValueStore
+import com.riffle.core.data.LastOpenedLibraryStoreImpl
+import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
 import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
-import com.riffle.core.data.IosContentCacheAccessStoreImpl
+// IosContentCacheAccessStoreImpl removed — replaced by commonMain ContentCacheAccessStoreImpl
 import com.riffle.core.data.IosContentCacheArtifactScannerImpl
 import com.riffle.core.data.IosCrashReportRecorder
 import com.riffle.core.data.IosCrashReportRepositoryImpl
@@ -44,11 +49,11 @@ import com.riffle.core.data.IosCrossEpubIndexBuilderService
 import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
-import com.riffle.core.data.IosLastOpenedLibraryStoreImpl
-import com.riffle.core.data.IosLibraryVisibilityPreferencesStoreImpl
+// IosLastOpenedLibraryStoreImpl removed — replaced by commonMain LastOpenedLibraryStoreImpl
+// IosLibraryVisibilityPreferencesStoreImpl removed — replaced by commonMain LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
-import com.riffle.core.data.IosPanelViewPreferencesStoreImpl
+// IosPanelViewPreferencesStoreImpl removed — replaced by commonMain PanelViewPreferencesStoreImpl (in iosDataModule)
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosReadaloudSidecarStore
 import com.riffle.core.data.IosSourceRepositoryImpl
@@ -244,7 +249,7 @@ import com.riffle.shared.audiobook.IosAbsAudiobookRepository
 import com.riffle.shared.audiobook.IosAudioPlayerBridgeFactory
 import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.audiobook.IosBundleAudioExtractor
-import com.riffle.shared.library.IosContentCacheSettingsStoreImpl
+// IosContentCacheSettingsStoreImpl removed — replaced by commonMain ContentCacheSettingsStoreImpl
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
 import com.riffle.shared.library.IosEpubRepositoryImpl
@@ -340,8 +345,8 @@ private fun iosLibraryModule(
             filesCleaner = get(),
         )
     }
-    single<LastOpenedLibraryStore> { IosLastOpenedLibraryStoreImpl() }
-    single<LibraryVisibilityPreferencesStore> { IosLibraryVisibilityPreferencesStoreImpl() }
+    single<LastOpenedLibraryStore> { LastOpenedLibraryStoreImpl(IosKeyValueStore()) }
+    single<LibraryVisibilityPreferencesStore> { LibraryVisibilityPreferencesStoreImpl(IosKeyValueStore()) }
     single { RefreshLibraries(get()) }
     single { HomeViewModel(get(), get(), get(), get(), get(), get()) }
     single { com.riffle.feature.navigation.NowPlayingNavigator() }
@@ -573,7 +578,7 @@ private fun iosLibraryModule(
         )
     }
     single { UpdateReadingProgress(get()) }
-    single<PanelViewPreferencesStore> { IosPanelViewPreferencesStoreImpl() }
+    // PanelViewPreferencesStore is bound in iosDataModule via PanelViewPreferencesStoreImpl(IosKeyValueStore())
     single<AppearanceCoordinator> {
         AppearanceCoordinatorImpl(
             appThemeStore = get(),
@@ -653,7 +658,7 @@ private fun iosLibraryModule(
             ),
         )
     }
-    single<ContentCacheAccessStore> { IosContentCacheAccessStoreImpl(get()) }
+    single<ContentCacheAccessStore> { ContentCacheAccessStoreImpl(IosKeyValueStore(), get()) }
     single<com.riffle.core.domain.AudioIdentityResolver> {
         AudioIdentityResolverImpl(get<ReadaloudLinkDao>(), get<LibraryItemDao>())
     }
@@ -847,7 +852,7 @@ private fun iosLibraryModule(
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
     single<DownloadsRepository> { IosDownloadsRepositoryImpl(get(), get()) }
-    single<ContentCacheSettingsStore> { IosContentCacheSettingsStoreImpl() }
+    single<ContentCacheSettingsStore> { ContentCacheSettingsStoreImpl(IosKeyValueStore()) }
     single<ContentCacheArtifactScanner> { IosContentCacheArtifactScannerImpl(get()) }
     // The cleaner is shared (core:domain commonMain) — iOS has no BGTaskScheduler, so it runs
     // once per foreground pass from RiffleAppRoot instead of on a periodic WorkManager job.
@@ -932,7 +937,7 @@ private fun iosLibraryModule(
     single { IosCrashReportRepositoryImpl(get()) }
     single<CrashReportRepository> { get<IosCrashReportRepositoryImpl>() }
     single<AppUpdateRepository> { IosAppUpdateRepositoryImpl(get(), get()) }
-    single<AppUpdatePreferencesStore> { IosAppUpdatePreferencesStoreImpl() }
+    single<AppUpdatePreferencesStore> { AppUpdatePreferencesStoreImpl(IosKeyValueStore()) }
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
     single<ReadaloudReviewRepository> { get<ReadaloudReviewRepositoryImpl>() }
     single<ReadaloudReviewMutator> { get<ReadaloudReviewRepositoryImpl>() }

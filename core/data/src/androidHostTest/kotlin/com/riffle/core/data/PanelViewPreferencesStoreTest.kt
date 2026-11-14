@@ -18,9 +18,11 @@ class PanelViewPreferencesStoreTest {
     private val testScope = TestScope(UnconfinedTestDispatcher())
 
     private fun newStore() = PanelViewPreferencesStoreImpl(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("panel-view.preferences_pb") },
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("panel-view.preferences_pb") },
+            ),
         ),
     )
 

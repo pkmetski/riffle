@@ -40,7 +40,7 @@ class FormattingPreferencesStoreTest {
             produceFile = { tmp.newFile("prefs.preferences_pb") },
         )
 
-    private fun buildStore() = FormattingPreferencesStoreImpl(buildDataStore())
+    private fun buildStore() = FormattingPreferencesStoreImpl(AndroidKeyValueStore(buildDataStore()))
 
     @Test
     fun `default preferences returned when DataStore is empty`() = testScope.runTest {
@@ -173,7 +173,7 @@ class FormattingPreferencesStoreTest {
             prefs[stringPreferencesKey("theme_schedule_night_theme")] = schedule.nightTheme.name
         }
 
-        val loaded = FormattingPreferencesStoreImpl(dataStore).preferences.first()
+        val loaded = FormattingPreferencesStoreImpl(AndroidKeyValueStore(dataStore)).preferences.first()
 
         assertEquals(ReaderTheme.Auto, loaded.theme)
         assertEquals(AutoReaderThemeMode.Schedule, loaded.autoReaderThemeMode)

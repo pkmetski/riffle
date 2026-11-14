@@ -24,10 +24,12 @@ class ReadaloudPreferencesStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = ReadaloudPreferencesStore(
-        PreferenceDataStoreFactory.create(
-            scope = testScope.backgroundScope,
-            produceFile = { tmp.newFile("readaloud_prefs.preferences_pb") },
+    private fun buildStore() = ReadaloudPreferencesStoreImpl(
+        AndroidKeyValueStore(
+            PreferenceDataStoreFactory.create(
+                scope = testScope.backgroundScope,
+                produceFile = { tmp.newFile("readaloud_prefs.preferences_pb") },
+            )
         )
     )
 
@@ -52,7 +54,7 @@ class ReadaloudPreferencesStoreTest {
             produceFile = { tmp.newFile("readaloud_prefs_fallback.preferences_pb") },
         )
         rawStore.edit { it[stringPreferencesKey("highlight_color")] = "NOT_A_COLOR" }
-        val store = ReadaloudPreferencesStore(rawStore)
+        val store = ReadaloudPreferencesStoreImpl(AndroidKeyValueStore(rawStore))
         assertEquals(HighlightColor.BLUE, store.preferences.first().highlightColor)
     }
 
@@ -68,7 +70,7 @@ class ReadaloudPreferencesStoreTest {
             produceFile = { tmp.newFile("readaloud_prefs_pink.preferences_pb") },
         )
         rawStore.edit { it[stringPreferencesKey("highlight_color")] = "PINK" }
-        val store = ReadaloudPreferencesStore(rawStore)
+        val store = ReadaloudPreferencesStoreImpl(AndroidKeyValueStore(rawStore))
         assertEquals(HighlightColor.BLUE, store.preferences.first().highlightColor)
     }
 
@@ -79,7 +81,7 @@ class ReadaloudPreferencesStoreTest {
             produceFile = { tmp.newFile("readaloud_prefs_purple.preferences_pb") },
         )
         rawStore.edit { it[stringPreferencesKey("highlight_color")] = "PURPLE" }
-        val store = ReadaloudPreferencesStore(rawStore)
+        val store = ReadaloudPreferencesStoreImpl(AndroidKeyValueStore(rawStore))
         assertEquals(HighlightColor.BLUE, store.preferences.first().highlightColor)
     }
 
@@ -92,14 +94,14 @@ class ReadaloudPreferencesStoreTest {
             produceFile = { tmp.newFile("readaloud_prefs_repick.preferences_pb") },
         )
         rawStore.edit { it[stringPreferencesKey("highlight_color")] = "PURPLE" }
-        val store = ReadaloudPreferencesStore(rawStore)
+        val store = ReadaloudPreferencesStoreImpl(AndroidKeyValueStore(rawStore))
         assertEquals(HighlightColor.BLUE, store.preferences.first().highlightColor)
 
         store.update(ReadaloudPreferences(highlightColor = HighlightColor.GREEN))
         assertEquals(HighlightColor.GREEN, store.preferences.first().highlightColor)
 
         // A fresh store instance reading the same DataStore must see GREEN, not fall back to BLUE.
-        val reopened = ReadaloudPreferencesStore(rawStore)
+        val reopened = ReadaloudPreferencesStoreImpl(AndroidKeyValueStore(rawStore))
         assertEquals(HighlightColor.GREEN, reopened.preferences.first().highlightColor)
     }
 }

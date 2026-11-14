@@ -9,13 +9,6 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Regression coverage for IosVolumeKeyPreferencesStoreImpl: verifies default values, round-trips,
- * and cross-instance persistence.
- *
- * Note: volume-key interception is not exposed in the iOS UI (the OS owns hardware keys), but the
- * preference is stored so both platforms report the same values for a shared account.
- */
 class IosVolumeKeyPreferencesStoreImplTest {
 
     private val keys = listOf("volume_key_navigation_enabled", "invert_volume_keys")
@@ -26,45 +19,45 @@ class IosVolumeKeyPreferencesStoreImplTest {
     @AfterTest
     fun cleanup() = keys.forEach { NSUserDefaults.standardUserDefaults.removeObjectForKey(it) }
 
+    private fun buildStore() = VolumeKeyPreferencesStoreImpl(IosKeyValueStore())
+
     @Test
     fun defaultVolumeKeyNavigationEnabledIsTrue() = runTest {
-        val store = IosVolumeKeyPreferencesStoreImpl()
-        assertTrue(store.volumeKeyNavigationEnabled.first())
+        assertTrue(buildStore().volumeKeyNavigationEnabled.first())
     }
 
     @Test
     fun defaultInvertVolumeKeysIsFalse() = runTest {
-        val store = IosVolumeKeyPreferencesStoreImpl()
-        assertFalse(store.invertVolumeKeys.first())
+        assertFalse(buildStore().invertVolumeKeys.first())
     }
 
     @Test
     fun setVolumeKeyNavigationEnabledToFalseRoundtrips() = runTest {
-        val store = IosVolumeKeyPreferencesStoreImpl()
+        val store = buildStore()
         store.setVolumeKeyNavigationEnabled(false)
         assertFalse(store.volumeKeyNavigationEnabled.first())
     }
 
     @Test
     fun setInvertVolumeKeysToTrueRoundtrips() = runTest {
-        val store = IosVolumeKeyPreferencesStoreImpl()
+        val store = buildStore()
         store.setInvertVolumeKeys(true)
         assertTrue(store.invertVolumeKeys.first())
     }
 
     @Test
     fun volumeKeyNavigationEnabledPersistsAcrossStoreInstances() = runTest {
-        IosVolumeKeyPreferencesStoreImpl().setVolumeKeyNavigationEnabled(false)
+        buildStore().setVolumeKeyNavigationEnabled(false)
 
-        val reopened = IosVolumeKeyPreferencesStoreImpl()
+        val reopened = buildStore()
         assertFalse(reopened.volumeKeyNavigationEnabled.first(), "disabled state must survive a new instance")
     }
 
     @Test
     fun invertVolumeKeysPersistsAcrossStoreInstances() = runTest {
-        IosVolumeKeyPreferencesStoreImpl().setInvertVolumeKeys(true)
+        buildStore().setInvertVolumeKeys(true)
 
-        val reopened = IosVolumeKeyPreferencesStoreImpl()
+        val reopened = buildStore()
         assertTrue(reopened.invertVolumeKeys.first(), "inverted state must survive a new instance")
     }
 }
