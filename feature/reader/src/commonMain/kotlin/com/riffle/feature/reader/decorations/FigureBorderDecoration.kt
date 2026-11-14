@@ -42,9 +42,10 @@ object FigureBorderDecoration {
     /**
      * Per-figure raster match — filename suffix (for CSS `[src$=…]` matching), the annotation's
      * CSS-ready color, and whether the annotation carries a note (drives the note-glyph badge).
-     * [tintCaption] is always true: the CSS `tintCaptionFor` pass styles the entire caption
-     * element so the legend appears visually highlighted as part of the annotation, regardless of
-     * whether the caption text was selected.
+     * [tintCaption] drives the CSS `tintCaptionFor` pass that styles the entire caption element.
+     * It is false when the annotation segment already starts at the figure with no stored caption
+     * text, meaning Readium's text-quote decoration covers the full caption element and a CSS
+     * background tint would create a double visual effect.
      */
     data class RasterMark(
         val filename: String,
@@ -69,7 +70,11 @@ object FigureBorderDecoration {
                     a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true) }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { fig ->
                     fig.href?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true)
+                        // charOffset=0 with no stored caption means the annotation segment starts
+                        // at the figure; Readium's text-quote decoration already covers the full
+                        // caption element, so an additional CSS tint creates a double visual.
+                        val tintCaption = !(fig.charOffset == 0L && fig.caption.isEmpty())
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = tintCaption)
                     }
                 }
             }
@@ -138,7 +143,8 @@ object FigureBorderDecoration {
                 }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
                     figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true)
+                        val tintCaption = !(figure.charOffset == 0L && figure.caption.isEmpty())
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = tintCaption)
                     }
                 }
             }
