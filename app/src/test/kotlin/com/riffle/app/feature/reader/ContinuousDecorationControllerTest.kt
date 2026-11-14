@@ -37,7 +37,7 @@ class ContinuousDecorationControllerTest {
         override var annotationsAvailable: Boolean = false
         override var readaloudAvailable: Boolean = false
         override var onSelectionActiveChanged: ((Boolean) -> Unit)? = null
-        override var onHighlight: ((String, Double, android.graphics.Rect, String, String) -> Unit)? = null
+        override var onHighlight: ((String, Double, android.graphics.Rect, String, String, androidx.compose.ui.unit.IntRect?) -> Unit)? = null
         override var onAnnotationTap: ((String, android.graphics.Rect) -> Unit)? = null
         override var onAnnotationNoteTap: ((String, android.graphics.Rect) -> Unit)? = null
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
