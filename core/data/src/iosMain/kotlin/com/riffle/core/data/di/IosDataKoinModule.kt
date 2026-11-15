@@ -28,9 +28,6 @@ import com.riffle.core.data.IosDeviceLabelResolver
 import com.riffle.core.data.IosFileStore
 import com.riffle.core.data.IosKeyValueStore
 import com.riffle.core.data.IosLibraryRefresherImpl
-import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
-import com.riffle.core.data.dictionary.PackDownloaderImpl
-import com.riffle.core.data.dictionary.PackStoreImpl
 import com.riffle.core.data.IosSourceFilesCleaner
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.ItemProgressPuller
@@ -51,6 +48,9 @@ import com.riffle.core.data.comic.panel.IosJsonPanelStore
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
 import com.riffle.core.data.comic.panel.IosPanelMaskServiceImpl
 import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
+import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
+import com.riffle.core.data.dictionary.PackDownloaderImpl
+import com.riffle.core.data.dictionary.PackStoreImpl
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.IosCopyInService
 import com.riffle.core.data.localfiles.IosFolderPicker
