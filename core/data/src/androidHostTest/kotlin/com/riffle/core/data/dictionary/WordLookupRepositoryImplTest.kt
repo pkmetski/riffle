@@ -1,6 +1,7 @@
 package com.riffle.core.data.dictionary
 
 import com.riffle.core.common.Clock
+import com.riffle.core.common.FileStore
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.database.LookupHistoryDao
@@ -108,8 +109,17 @@ class WordLookupRepositoryImplTest {
         } else {
             every { sqliteStore.readerForLanguage(any()) } returns null
         }
-        every { sqliteStore.deletePackFile(any()) } returns Unit
-        return WordLookupRepositoryImpl(packDao, historyDao, sqliteStore, testDispatchers, testClock)
+        return WordLookupRepositoryImpl(
+            dictionaryPackDao = packDao,
+            fileStore = object : FileStore {
+                override fun resolve(namespace: String, relativePath: String) = "/tmp/$namespace/$relativePath"
+                override fun exists(namespace: String, relativePath: String) = false
+            },
+            lookupHistoryDao = historyDao,
+            packSqliteStore = sqliteStore,
+            dispatchers = testDispatchers,
+            clock = testClock,
+        )
     }
 }
 

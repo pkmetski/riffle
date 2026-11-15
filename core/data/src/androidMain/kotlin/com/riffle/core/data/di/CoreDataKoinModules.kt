@@ -119,9 +119,10 @@ import com.riffle.core.data.credentialed.CredentialedSourceInstaller
 import com.riffle.core.data.developer.AndroidPatStore
 import com.riffle.core.data.developer.DeveloperOptionsRepositoryImpl
 import com.riffle.core.data.developer.PatStore
+import com.riffle.core.data.dictionary.AndroidDictFileStore
 import com.riffle.core.data.dictionary.DictionaryPackSqliteStore
-import com.riffle.core.data.dictionary.KaikkiJsonlToSqliteConverter
-import com.riffle.core.data.dictionary.PackDownloader
+import com.riffle.core.data.dictionary.JvmJsonlToSqliteConverter
+import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.data.localfiles.AndroidCopyInService
 import com.riffle.core.data.localfiles.AndroidLocalFilesFileReader
@@ -1356,6 +1357,7 @@ private val coreDataMiscModule = module {
     single {
         WordLookupRepositoryImpl(
             dictionaryPackDao = get(),
+            fileStore = AndroidDictFileStore(androidContext().filesDir),
             lookupHistoryDao = get(),
             packSqliteStore = get(),
             dispatchers = get(),
@@ -1367,12 +1369,12 @@ private val coreDataMiscModule = module {
 
     single { DictionaryPackSqliteStore(androidContext().filesDir) }
     single<PackDownloaderInterface> {
-        PackDownloader(
-            filesDir = androidContext().filesDir,
+        PackDownloaderImpl(
+            fileStore = AndroidDictFileStore(androidContext().filesDir),
             httpClient = get<JvmHttpClientPool>().fileTransferClient(),
             dictionaryPackDao = get(),
             clock = get(),
-            converter = KaikkiJsonlToSqliteConverter(),
+            converter = JvmJsonlToSqliteConverter(),
         )
     }
 }

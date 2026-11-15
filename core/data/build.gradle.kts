@@ -42,6 +42,7 @@ kotlin {
             implementation(project(":core:models"))
             implementation(project(":core:database-api"))
             implementation(project(":core:catalog"))
+            implementation(project(":core:dictionary"))
             // SingletonWebSourceInstaller (commonMain since the Add-Source picker went shared)
             // logs through the typed Logger channels.
             implementation(project(":core:logging"))
@@ -60,7 +61,6 @@ kotlin {
             implementation(project(":core:catalog-komga"))
         }
         androidMain.dependencies {
-            implementation(project(":core:dictionary"))
             implementation(project(":core:sources"))
             implementation(project(":core:network"))
             implementation(project(":core:database"))
@@ -84,7 +84,6 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.koin.core)
             implementation(project(":core:database"))
-            implementation(project(":core:dictionary"))
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
         }

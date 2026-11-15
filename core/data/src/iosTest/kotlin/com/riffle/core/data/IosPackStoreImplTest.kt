@@ -4,6 +4,7 @@ import com.riffle.core.common.FileStore
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.database.deleteRiffleDatabase
 import com.riffle.core.database.openRiffleDatabase
+import com.riffle.core.data.dictionary.PackStoreImpl
 import com.riffle.core.dictionary.DictionaryPackState
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.first
@@ -18,14 +19,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Regression: IosPackStoreImpl was a no-op that always emitted NOT_INSTALLED / empty list.
- * After downloading a dict pack the UI showed no installed packs and the state never changed.
- *
- * These tests drive the real iOS code path: Room DAO backed by BundledSQLiteDriver.
- */
 @OptIn(ExperimentalForeignApi::class)
-class IosPackStoreImplTest {
+class PackStoreImplTest {
 
     private lateinit var databaseName: String
     private val tempFiles = mutableListOf<String>()
@@ -78,7 +73,7 @@ class IosPackStoreImplTest {
     fun observePackState_returnsNotInstalled_whenDaoIsEmpty() = runTest {
         val db = openRiffleDatabase(databaseName)
         try {
-            val store = IosPackStoreImpl(db.dictionaryPackDao(), tempFileStore())
+            val store = PackStoreImpl(db.dictionaryPackDao(), tempFileStore())
             val state = store.observePackState("en").first()
             assertEquals(DictionaryPackState.NOT_INSTALLED, state)
         } finally {
@@ -92,7 +87,7 @@ class IosPackStoreImplTest {
         try {
             val dao = db.dictionaryPackDao()
             dao.upsert(entity("en", DictionaryPackState.INSTALLED))
-            val store = IosPackStoreImpl(dao, tempFileStore())
+            val store = PackStoreImpl(dao, tempFileStore())
             val state = store.observePackState("en").first()
             assertEquals(DictionaryPackState.INSTALLED, state)
         } finally {
@@ -104,7 +99,7 @@ class IosPackStoreImplTest {
     fun observeInstalledPacks_returnsEmpty_whenNoPacks() = runTest {
         val db = openRiffleDatabase(databaseName)
         try {
-            val store = IosPackStoreImpl(db.dictionaryPackDao(), tempFileStore())
+            val store = PackStoreImpl(db.dictionaryPackDao(), tempFileStore())
             val packs = store.observeInstalledPacks().first()
             assertTrue(packs.isEmpty())
         } finally {
@@ -119,7 +114,7 @@ class IosPackStoreImplTest {
             val dao = db.dictionaryPackDao()
             dao.upsert(entity("en", DictionaryPackState.INSTALLED))
             dao.upsert(entity("fr", DictionaryPackState.DOWNLOADING))
-            val store = IosPackStoreImpl(dao, tempFileStore())
+            val store = PackStoreImpl(dao, tempFileStore())
             val packs = store.observeInstalledPacks().first()
             assertEquals(1, packs.size)
             assertEquals("en", packs.first().languageTag)
@@ -134,7 +129,7 @@ class IosPackStoreImplTest {
         try {
             val dao = db.dictionaryPackDao()
             dao.upsert(entity("en", DictionaryPackState.INSTALLED))
-            val store = IosPackStoreImpl(dao, tempFileStore())
+            val store = PackStoreImpl(dao, tempFileStore())
             store.deleteInstalledPack("en")
             val packs = store.observeInstalledPacks().first()
             assertTrue(packs.isEmpty(), "Pack should be removed from the store after delete")
@@ -154,7 +149,7 @@ class IosPackStoreImplTest {
 
             val dao = db.dictionaryPackDao()
             dao.upsert(entity("en"))
-            val store = IosPackStoreImpl(dao, fileStore)
+            val store = PackStoreImpl(dao, fileStore)
             store.deleteInstalledPack("en")
 
             assertFalse(NSFileManager.defaultManager.fileExistsAtPath(dictPath), "dict file should be removed after delete")
