@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
-import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
@@ -124,9 +123,12 @@ class AudiobookDownloadRepositoryImpl(
 
     private fun directorySize(dirPath: String): Long {
         val path = dirPath.toPath()
-        return if (!fileSystem.exists(path)) 0L
-        else fileSystem.listRecursively(path).sumOf { p ->
-            if (fileSystem.metadata(p).isRegularFile) fileSystem.metadata(p).size ?: 0L else 0L
+        return if (!fileSystem.exists(path)) {
+            0L
+        } else {
+            fileSystem.listRecursively(path).sumOf { p ->
+                if (fileSystem.metadata(p).isRegularFile) fileSystem.metadata(p).size ?: 0L else 0L
+            }
         }
     }
 }

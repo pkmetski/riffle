@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.DeviceLabelStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 
 class DeviceLabelStoreImpl(private val store: KeyValueStore) : DeviceLabelStore {
 

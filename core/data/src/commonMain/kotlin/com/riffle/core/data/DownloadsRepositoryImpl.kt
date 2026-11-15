@@ -131,11 +131,14 @@ internal class OkioAudiobookArtifactStore(
 
     override fun sizeOf(sourceId: String, itemId: String): Long {
         val dir = itemDir(sourceId, itemId).toPath()
-        return if (!fileSystem.exists(dir)) 0L
-        else runCatching { fileSystem.listRecursively(dir) }.getOrElse { emptySequence() }
-            .sumOf { p ->
-                if (fileSystem.metadata(p).isRegularFile) fileSystem.metadata(p).size ?: 0L else 0L
-            }
+        return if (!fileSystem.exists(dir)) {
+            0L
+        } else {
+            runCatching { fileSystem.listRecursively(dir) }.getOrElse { emptySequence() }
+                .sumOf { p ->
+                    if (fileSystem.metadata(p).isRegularFile) fileSystem.metadata(p).size ?: 0L else 0L
+                }
+        }
     }
 
     override fun delete(sourceId: String, itemId: String) {

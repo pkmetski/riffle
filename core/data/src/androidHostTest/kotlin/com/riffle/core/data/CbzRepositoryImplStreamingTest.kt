@@ -42,7 +42,8 @@ class CbzRepositoryImplStreamingTest {
 
         override val sourceType: SourceType = SourceType.KOMGA
         override suspend fun listRoots(): List<CatalogRoot> = emptyList()
-        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?):
+            List<CatalogItem> = emptyList()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not used")
@@ -61,7 +62,8 @@ class CbzRepositoryImplStreamingTest {
     private val basicCatalog = object : Catalog {
         override val sourceType: SourceType = SourceType.KOMGA
         override suspend fun listRoots(): List<CatalogRoot> = emptyList()
-        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?):
+            List<CatalogItem> = emptyList()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not used")
@@ -110,8 +112,14 @@ class CbzRepositoryImplStreamingTest {
         val cacheDir = tmp.newFolder("cache")
         val downloadsDir = tmp.newFolder("downloads")
         val store = makeFileStore(cacheDir, downloadsDir)
-        val cacheFile = File(store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")).also { it.parentFile.mkdirs(); it.writeText("x") }
-        val dlFile = File(store.resolve(NS_CBZ_DOWNLOADS, "src1/item1.cbz")).also { it.parentFile.mkdirs(); it.writeText("x") }
+        val cacheFile = File(store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")).also {
+            it.parentFile.mkdirs()
+            it.writeText("x")
+        }
+        val dlFile = File(store.resolve(NS_CBZ_DOWNLOADS, "src1/item1.cbz")).also {
+            it.parentFile.mkdirs()
+            it.writeText("x")
+        }
         val repo = makeRepo(store, null)
 
         repo.removeDownload("src1", "item1")
@@ -126,7 +134,10 @@ class CbzRepositoryImplStreamingTest {
         val cacheDir = tmp.newFolder("cache")
         val downloadsDir = tmp.newFolder("downloads")
         val store = makeFileStore(cacheDir, downloadsDir)
-        val cacheFile = File(store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")).also { it.parentFile.mkdirs(); it.writeText("cached") }
+        val cacheFile = File(store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")).also {
+            it.parentFile.mkdirs()
+            it.writeText("cached")
+        }
         val repo = makeRepo(store, basicCatalog)
 
         val result = repo.downloadCbz(fakeItem("src1"))

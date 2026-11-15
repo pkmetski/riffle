@@ -2,11 +2,11 @@ package com.riffle.core.data
 
 import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
+import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.database.countDictSqliteEntries
 import com.riffle.core.database.deleteRiffleDatabase
 import com.riffle.core.database.openRiffleDatabase
-import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
-import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import io.ktor.client.HttpClient

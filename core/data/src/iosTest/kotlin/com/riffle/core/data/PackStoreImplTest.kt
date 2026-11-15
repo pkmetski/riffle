@@ -1,10 +1,10 @@
 package com.riffle.core.data
 
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.dictionary.PackStoreImpl
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.database.deleteRiffleDatabase
 import com.riffle.core.database.openRiffleDatabase
-import com.riffle.core.data.dictionary.PackStoreImpl
 import com.riffle.core.dictionary.DictionaryPackState
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.first

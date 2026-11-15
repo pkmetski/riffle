@@ -6,8 +6,6 @@ import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.StoredMediaType
 import kotlinx.coroutines.test.runTest
-import okio.Buffer
-import okio.sink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

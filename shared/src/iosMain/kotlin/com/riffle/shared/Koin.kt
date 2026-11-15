@@ -36,6 +36,7 @@ import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.DownloadsRepositoryImpl
+import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
@@ -56,6 +57,7 @@ import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
+import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PlaylistsRepositoryImpl
@@ -245,8 +247,6 @@ import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.audiobook.IosBundleAudioExtractor
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
-import com.riffle.core.data.EpubRepositoryImpl
-import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.shared.library.IosPdfPageCountExtractor
 import com.riffle.shared.library.IosReadaloudHandoff
 import com.riffle.shared.library.IosReadaloudOfflineDownloader

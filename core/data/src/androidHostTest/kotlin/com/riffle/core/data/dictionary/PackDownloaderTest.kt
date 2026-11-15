@@ -122,30 +122,30 @@ private class FakeJsonlConverter : JsonlToSqliteConverter {
 }
 
 private class FakePackDao : DictionaryPackDao {
-    private val _flow = MutableStateFlow<DictionaryPackEntity?>(null)
+    private val packFlow = MutableStateFlow<DictionaryPackEntity?>(null)
     var lastUpserted: DictionaryPackEntity? = null
     var lastState: String? = null
     var firstUpsertedState: String? = null
     var throwOnSecondUpsert = false
     private var upsertCount = 0
 
-    override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = _flow
-    override fun observeAll(): Flow<List<DictionaryPackEntity>> = flowOf(listOfNotNull(_flow.value))
+    override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = packFlow
+    override fun observeAll(): Flow<List<DictionaryPackEntity>> = flowOf(listOfNotNull(packFlow.value))
 
     override suspend fun upsert(entity: DictionaryPackEntity) {
         upsertCount++
         if (upsertCount == 1) firstUpsertedState = entity.state
         if (upsertCount == 2 && throwOnSecondUpsert) throw RuntimeException("DAO error on second upsert")
         lastUpserted = entity
-        _flow.value = entity
+        packFlow.value = entity
     }
 
     override suspend fun updateState(languageTag: String, state: String) {
         lastState = state
-        _flow.value = _flow.value?.copy(state = state)
+        packFlow.value = packFlow.value?.copy(state = state)
     }
 
     override suspend fun delete(languageTag: String) {
-        _flow.value = null
+        packFlow.value = null
     }
 }

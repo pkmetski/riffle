@@ -65,8 +65,11 @@ class AndroidKeyValueStore(private val dataStore: DataStore<Preferences>) : KeyV
 
     override suspend fun setString(key: String, value: String?) {
         dataStore.edit { prefs ->
-            if (value == null) prefs.remove(stringPreferencesKey(key))
-            else prefs[stringPreferencesKey(key)] = value
+            if (value == null) {
+                prefs.remove(stringPreferencesKey(key))
+            } else {
+                prefs[stringPreferencesKey(key)] = value
+            }
         }
     }
 

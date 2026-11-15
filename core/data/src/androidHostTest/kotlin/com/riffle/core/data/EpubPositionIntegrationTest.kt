@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
-import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
