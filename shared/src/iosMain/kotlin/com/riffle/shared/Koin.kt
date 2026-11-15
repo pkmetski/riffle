@@ -165,7 +165,6 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.KomgaServerInfoApi
@@ -258,8 +257,7 @@ import com.riffle.shared.readaloud.IosReadaloudPlayerController
 import com.riffle.shared.readaloud.IosReadaloudSidecarDelegate
 import com.riffle.shared.readaloud.IosReadaloudStreamingSessionFactory
 import com.riffle.shared.readaloud.IosStorytellerSyncDelegate
-import com.riffle.shared.reader.IosCbzDownloader
-import com.riffle.shared.reader.IosCbzRepository
+import com.riffle.shared.reader.IosCbzRepositoryImpl
 import com.riffle.shared.reader.IosEbookCfiTranslatorFactory
 import com.riffle.shared.reader.IosElidedPdfBridge
 import com.riffle.shared.reader.IosEpubDownloader
@@ -314,8 +312,6 @@ private fun iosLibraryModule(
     single<AbsServerInfoApi> { get<AbsApiClient>() }
     single { KomgaLibraryApiClient(get()) }
     single<KomgaLibraryApi> { get<KomgaLibraryApiClient>() }
-    single<KomgaCbzApi> { get<KomgaLibraryApiClient>() }
-
     single<DispatcherProvider> { IosDispatcherProvider }
     // The Komga version probe and the per-source-type remote-id resolvers are the same
     // commonMain classes Android binds (#1101): iOS used to answer `null` for every version and
@@ -545,18 +541,13 @@ private fun iosLibraryModule(
     single { IosPdfDownloader(catalogRegistry = get(), fileStore = get(), contentCacheAccessStore = get(), localAvailabilityEvents = get()) }
 
     // CBZ reader
-    single { IosCbzDownloader(get(), get(), get()) }
     single<CbzRepository> {
-        IosCbzRepository(
-            sourceRepository = get(),
-            tokenStorage = get(),
-            cbzApi = get(),
-            downloader = get(),
-            positionStore = get(),
+        IosCbzRepositoryImpl(
             fileStore = get(),
             catalogRegistry = get(),
-            contentCacheAccessStore = get(),
+            positionStore = get(),
             localAvailabilityEvents = get(),
+            contentCacheAccessStore = get(),
             dispatchers = get(),
         )
     }

@@ -38,7 +38,7 @@ import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.CatalogProgressRemoteFactory
 import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.CatalogSyncSourceResolver
-import com.riffle.core.data.CbzRepositoryImpl
+import com.riffle.core.data.AndroidCbzFileStore
 import com.riffle.core.data.ComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.ContentCacheAccessStoreImpl
@@ -58,6 +58,7 @@ import com.riffle.core.data.DeviceMetaSentinelWriter
 import com.riffle.core.data.DownloadsRepositoryImpl
 import com.riffle.core.data.AndroidEpubFileStore
 import com.riffle.core.data.AndroidPdfFileStore
+import com.riffle.core.data.JvmCbzRepositoryImpl
 import com.riffle.core.data.JvmEpubRepositoryImpl
 import com.riffle.core.data.JvmPdfRepositoryImpl
 import com.riffle.core.data.FilesdirFileStore
@@ -769,15 +770,17 @@ private val coreDataRepositoriesModule = module {
     single<PdfRepository> { get<JvmPdfRepository>() }
 
     single<JvmCbzRepository> {
-        CbzRepositoryImpl(
+        val ctx = androidContext()
+        JvmCbzRepositoryImpl(
+            fileStore = AndroidCbzFileStore(
+                downloadsDir = ctx.filesDir.resolve("downloads/cbz").also { it.mkdirs() },
+                cacheDir = ctx.cacheDir.resolve("cbz").also { it.mkdirs() },
+            ),
             catalogRegistry = get(),
-            cacheStore = get(named(CBZ_CACHE_STORE)),
-            downloadsStore = get(named(CBZ_DOWNLOADS_STORE)),
             positionStore = get(),
-            sourceRepository = get(),
-            dispatchers = get(),
             localAvailabilityEvents = get(),
             contentCacheAccessStore = get(),
+            dispatchers = get(),
         )
     }
     single<CbzRepository> { get<JvmCbzRepository>() }

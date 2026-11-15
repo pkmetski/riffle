@@ -1,39 +1,31 @@
 package com.riffle.shared.reader
 
+import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.common.FileStore
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
-import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.LocalAvailabilityEvents
-import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StoredItemRef
-import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.models.Source
-import com.riffle.core.models.SourceUrl
-import com.riffle.core.network.KomgaCbzApi
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.SourceType
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
-import platform.Foundation.NSUUID
+import okio.Path.Companion.toPath
+import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -44,73 +36,27 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The iOS CBZ download/cache stores (#1101). Before this change `awaitCachedSource` was `= null`,
- * `isCached`/`isDownloaded` were `false` and `downloadCbz` answered NetworkError without
- * fetching anything, so the CBZ reader streamed forever and nothing could be read offline. Every
- * test drives the real repository over a temp-dir [FileStore] and Ktor's MockEngine.
+ * iOS CBZ download/cache/open behaviour via [IosCbzRepositoryImpl]. Exercises the shared base
+ * class ([com.riffle.core.data.CbzRepositoryImpl]) on the iOS code path using a [FakeFileSystem].
  */
-@OptIn(ExperimentalForeignApi::class)
 class IosCbzRepositoryTest {
 
-    private val roots = mutableListOf<String>()
+    private val fakeFs = FakeFileSystem()
 
     @AfterTest
     fun cleanUp() {
-        roots.forEach { NSFileManager.defaultManager.removeItemAtPath(it, error = null) }
+        fakeFs.checkNoOpenFiles()
     }
 
-    private inner class TempFileStore : FileStore {
-        private val root = NSTemporaryDirectory() + "cbz_test_" + NSUUID().UUIDString()
-
-        init {
-            roots += root
-        }
-
+    private inner class FakeFsFileStore : FileStore {
         override fun resolve(namespace: String, relativePath: String): String {
-            val base = "$root/$namespace"
-            NSFileManager.defaultManager.createDirectoryAtPath(base, withIntermediateDirectories = true, attributes = null, error = null)
+            val base = "/riffle/$namespace"
+            fakeFs.createDirectories(base.toPath())
             return if (relativePath.isEmpty()) base else "$base/$relativePath"
         }
 
         override fun exists(namespace: String, relativePath: String): Boolean =
-            NSFileManager.defaultManager.fileExistsAtPath(resolve(namespace, relativePath))
-    }
-
-    private val source = Source(
-        id = "src-1",
-        url = SourceUrl.parse("https://abs.example.test/")!!,
-        isActive = true,
-        insecureConnectionAllowed = false,
-        username = "reader",
-    )
-
-    private val sourceRepository = object : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
-        override suspend fun getActive(): Source? = source
-        override suspend fun getById(sourceId: String): Source? = source.takeIf { it.id == sourceId }
-        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-            CommitSourceResult.Failure(UnsupportedOperationException())
-        override suspend fun setActive(sourceId: String) {}
-        override suspend fun remove(sourceId: String) {}
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
-    private val tokenStorage = object : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) {}
-        override suspend fun getToken(sourceId: String): String? = "tok"
-        override suspend fun deleteToken(sourceId: String) {}
-    }
-
-    private val noopCbzApi = object : KomgaCbzApi {
-        override suspend fun fetchCbzPageCount(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): Int = 0
-        override suspend fun fetchCbzPage(
-            baseUrl: String,
-            bookId: String,
-            pageIndex: Int,
-            maxWidth: Int?,
-            token: String,
-            insecureAllowed: Boolean,
-        ): ByteArray = byteArrayOf()
+            fakeFs.exists(resolve(namespace, relativePath).toPath())
     }
 
     private val noopPositionStore = object : ReadingPositionStore {
@@ -123,20 +69,10 @@ class IosCbzRepositoryTest {
         override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {}
     }
 
-    private val noCatalogs = object : CatalogRegistry {
-        override suspend fun forActive(): Catalog? = null
-        override suspend fun forSource(source: Source): Catalog? = null
-        override suspend fun forSourceId(sourceId: String): Catalog? = null
-    }
-
     private class RecordingAccessStore : ContentCacheAccessStore {
         val marked = mutableListOf<ContentCacheKey>()
-        override suspend fun markAccessed(key: ContentCacheKey) {
-            marked += key
-        }
-        override suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long) {
-            marked += key
-        }
+        override suspend fun markAccessed(key: ContentCacheKey) { marked += key }
+        override suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long) { marked += key }
         override suspend fun lastAccessedAt(key: ContentCacheKey): Long? = null
         override suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?> = emptyMap()
         override suspend fun forget(key: ContentCacheKey) {}
@@ -146,15 +82,51 @@ class IosCbzRepositoryTest {
         val notified = mutableListOf<Pair<String, String>>()
         private val _changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 8)
         override val changes: SharedFlow<StoredItemRef> get() = _changes
-        override fun notifyChanged(sourceId: String, itemId: String) {
-            notified += sourceId to itemId
-        }
+        override fun notifyChanged(sourceId: String, itemId: String) { notified += sourceId to itemId }
+    }
+
+    private abstract class StubCatalog : Catalog {
+        override val sourceType: SourceType get() = SourceType.KOMGA
+        override suspend fun listRoots(): List<CatalogRoot> = emptyList()
+        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not implemented")
+    }
+
+    private fun servingCatalog(bytes: ByteArray): Catalog = object : StubCatalog() {
+        override suspend fun <T> withFileStream(
+            itemId: String,
+            format: BookFormat,
+            handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = block(object : CatalogFileStream {
+            override val contentLength: Long get() = bytes.size.toLong()
+            override val channel: ByteReadChannel get() = ByteReadChannel(bytes)
+        })
+        override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
+    }
+
+    private fun failingCatalog(): Catalog = object : StubCatalog() {
+        override suspend fun <T> withFileStream(
+            itemId: String,
+            format: BookFormat,
+            handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = throw RuntimeException("network unavailable")
+        override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = false)
+    }
+
+    private fun catalogRegistryFor(catalog: Catalog?) = object : CatalogRegistry {
+        override suspend fun forActive(): Catalog? = catalog
+        override suspend fun forSource(source: Source): Catalog? = catalog
+        override suspend fun forSourceId(sourceId: String): Catalog? = catalog
     }
 
     private val item = LibraryItem(
         id = "item-1",
         libraryId = "lib-1",
-        title = "Test CBZ Book",
+        title = "CBZ Test Book",
         author = "Author",
         coverUrl = null,
         readingProgress = 0f,
@@ -178,78 +150,59 @@ class IosCbzRepositoryTest {
 
     private val archiveBytes = storedZip("001.png" to byteArrayOf(1, 2, 3, 4), "002.png" to byteArrayOf(5, 6))
 
-    private fun servingClient(requests: MutableList<String> = mutableListOf()) = HttpClient(
-        MockEngine { request ->
-            requests += request.url.toString()
-            respond(
-                content = archiveBytes,
-                status = HttpStatusCode.OK,
-                headers = headersOf("Content-Length", archiveBytes.size.toString()),
-            )
-        },
-    )
-
-    private fun failingClient() = HttpClient(MockEngine { respond(content = ByteArray(0), status = HttpStatusCode.InternalServerError) })
-
     private fun repo(
-        client: HttpClient,
-        fileStore: FileStore,
+        catalog: Catalog?,
+        fileStore: FileStore = FakeFsFileStore(),
         access: RecordingAccessStore = RecordingAccessStore(),
         events: RecordingAvailabilityEvents = RecordingAvailabilityEvents(),
-    ) = IosCbzRepository(
-        sourceRepository = sourceRepository,
-        tokenStorage = tokenStorage,
-        cbzApi = noopCbzApi,
-        downloader = IosCbzDownloader(client, sourceRepository, tokenStorage),
-        positionStore = noopPositionStore,
+    ) = IosCbzRepositoryImpl(
         fileStore = fileStore,
-        catalogRegistry = noCatalogs,
+        catalogRegistry = catalogRegistryFor(catalog),
+        positionStore = noopPositionStore,
         contentCacheAccessStore = access,
         localAvailabilityEvents = events,
+        fileSystem = fakeFs,
         dispatchers = IosDispatcherProvider,
     )
 
     @Test
     fun awaitCachedSourceDownloadsTheArchiveIntoTheCacheAndOpensIt() = runTest {
-        val store = TempFileStore()
-        val requests = mutableListOf<String>()
+        val store = FakeFsFileStore()
         val access = RecordingAccessStore()
         val events = RecordingAvailabilityEvents()
-        val repo = repo(servingClient(requests), store, access, events)
+        val repo = repo(servingCatalog(archiveBytes), store, access, events)
 
         val local = repo.awaitCachedSource(item)
 
         assertNotNull(local, "a successful download must yield a local source")
         assertEquals(2, local.pageCount)
         assertEquals(listOf(1, 2, 3, 4).map { it.toByte() }.toByteArray().toList(), local.imageSource.imageBytes(0).toList())
-        assertEquals(listOf("https://abs.example.test/api/items/item-1/file/ino-1"), requests)
         assertTrue(repo.isCached("src-1", "item-1"), "the archive is now in the cache store")
         assertFalse(repo.isDownloaded("src-1", "item-1"), "a background cache fill is not a user download")
-        assertTrue(NSFileManager.defaultManager.fileExistsAtPath(store.resolve("cbz-cache", "src-1/item-1.cbz")))
+        assertTrue(fakeFs.exists(store.resolve("cbz-cache", "src-1/item-1.cbz").toPath()))
         assertEquals(listOf("src-1" to "item-1"), events.notified)
         assertEquals(1, access.marked.size)
     }
 
     @Test
     fun awaitCachedSourceAndOpenCbzServeTheCachedArchiveWithoutTheNetwork() = runTest {
-        val store = TempFileStore()
-        repo(servingClient(), store).awaitCachedSource(item)
+        val store = FakeFsFileStore()
+        repo(servingCatalog(archiveBytes), store).awaitCachedSource(item)
 
-        // A second repository whose HTTP client fails every request: only the cache can answer.
-        val offline = repo(failingClient(), store)
+        val offline = repo(failingCatalog(), store)
         val local = offline.awaitCachedSource(item)
         assertNotNull(local)
         assertEquals(2, local.pageCount)
 
         val opened = offline.openCbz(item)
-        assertIs<CbzOpenResult.Success>(opened, "openCbz must open the cached archive instead of streaming")
+        assertIs<CbzOpenResult.Success>(opened, "openCbz must open the cached archive instead of network-streaming")
         assertEquals(2, opened.pageCount)
     }
 
     @Test
     fun awaitCachedSourceReturnsNullAndLeavesNoFileWhenTheDownloadFails() = runTest {
-        val store = TempFileStore()
-        val repo = repo(failingClient(), store)
+        val store = FakeFsFileStore()
+        val repo = repo(failingCatalog(), store)
 
         assertNull(repo.awaitCachedSource(item))
         assertFalse(repo.isCached("src-1", "item-1"))
@@ -257,23 +210,23 @@ class IosCbzRepositoryTest {
 
     @Test
     fun aCorruptCachedFileIsDiscardedAndReplacedFromTheNetwork() = runTest {
-        val store = TempFileStore()
-        val serving = repo(servingClient(), store)
-        val path = store.resolve("cbz-cache", "src-1/item-1.cbz")
-        IosCbzFiles(store).writeBytes(path, byteArrayOf(0, 1, 2))
+        val store = FakeFsFileStore()
+        val path = store.resolve("cbz-cache", "src-1/item-1.cbz").toPath()
+        fakeFs.createDirectories(path.parent!!)
+        fakeFs.write(path) { write(byteArrayOf(0, 1, 2)) }
 
-        val local = serving.awaitCachedSource(item)
+        val local = repo(servingCatalog(archiveBytes), store).awaitCachedSource(item)
 
         assertNotNull(local)
         assertEquals(2, local.pageCount)
-        assertEquals(archiveBytes.toList(), IosCbzFiles(store).readBytes(path)!!.toList(), "the truncated file was replaced")
+        assertEquals(archiveBytes.toList(), fakeFs.read(path) { readByteArray() }.toList(), "the truncated file was replaced")
     }
 
     @Test
     fun downloadCbzWritesThePinnedDownloadAndReportsAlreadyDownloadedOnRepeat() = runTest {
-        val store = TempFileStore()
+        val store = FakeFsFileStore()
         val events = RecordingAvailabilityEvents()
-        val repo = repo(servingClient(), store, events = events)
+        val repo = repo(servingCatalog(archiveBytes), store, events = events)
         var progress: Pair<Long, Long>? = null
 
         val result = repo.downloadCbz(item) { d, t -> progress = d to t }
@@ -283,22 +236,22 @@ class IosCbzRepositoryTest {
         assertEquals(archiveBytes.size.toLong() to archiveBytes.size.toLong(), progress)
         assertEquals(listOf("src-1" to "item-1"), events.notified)
         assertIs<CbzDownloadResult.AlreadyDownloaded>(repo.downloadCbz(item) { _, _ -> })
-        assertIs<CbzOpenResult.Success>(repo(failingClient(), store).openCbz(item), "downloaded archive opens offline")
+        assertIs<CbzOpenResult.Success>(repo(failingCatalog(), store).openCbz(item), "downloaded archive opens offline")
     }
 
     @Test
     fun downloadCbzReturnsNetworkErrorWhenTheDownloadFails() = runTest {
-        val store = TempFileStore()
-        val result = repo(failingClient(), store).downloadCbz(item) { _, _ -> }
+        val store = FakeFsFileStore()
+        val result = repo(failingCatalog(), store).downloadCbz(item) { _, _ -> }
 
         assertIs<CbzDownloadResult.NetworkError>(result, "Success must never be reported without bytes on disk")
-        assertFalse(repo(failingClient(), store).isDownloaded("src-1", "item-1"))
+        assertFalse(repo(failingCatalog(), store).isDownloaded("src-1", "item-1"))
     }
 
     @Test
     fun removeDownloadDeletesBothTiers() = runTest {
-        val store = TempFileStore()
-        val repo = repo(servingClient(), store)
+        val store = FakeFsFileStore()
+        val repo = repo(servingCatalog(archiveBytes), store)
         repo.downloadCbz(item) { _, _ -> }
         repo.awaitCachedSource(item)
 
@@ -339,7 +292,6 @@ class IosCbzRepositoryTest {
         for ((name, data) in entries) {
             val nameBytes = name.encodeToByteArray()
             val offset = out.size
-            // Local file header: signature, version, flags, method, time, date, crc, sizes, name/extra lengths.
             out.u32(0x04034B50)
             listOf(20, 0, 0, 0, 0).forEach { out.u16(it) }
             out.u32(0)
@@ -349,7 +301,6 @@ class IosCbzRepositoryTest {
             out.u16(0)
             out.raw(nameBytes)
             out.raw(data)
-            // Central directory entry.
             central.u32(0x02014B50)
             listOf(20, 20, 0, 0, 0, 0).forEach { central.u16(it) }
             central.u32(0)
@@ -362,7 +313,6 @@ class IosCbzRepositoryTest {
         }
         val cdOffset = out.size
         out.append(central)
-        // End of central directory.
         out.u32(0x06054B50)
         listOf(0, 0, entries.size, entries.size).forEach { out.u16(it) }
         out.u32(central.size)
