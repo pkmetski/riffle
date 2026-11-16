@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,12 +47,12 @@ class IosDownloadManagerImplTest {
             release.await()
             DownloadState.Downloaded
         }
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertEquals(listOf<Int?>(50, 75), seen, "byte counts must surface as percentages")
 
         release.complete(Unit)
-        advanceUntilIdle()
+        testScheduler.runCurrent()
         assertEquals(DownloadState.Downloaded, downloads.states.value["k"], "terminal state must win")
     }
 
@@ -73,14 +72,14 @@ class IosDownloadManagerImplTest {
             release.await()
             DownloadState.Downloaded
         }
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         val inProgress = observed as? DownloadState.InProgress
         assertTrue(inProgress != null, "an unknown total must still read as InProgress")
         assertEquals(null, inProgress.percent, "an unknown total must not invent a percentage")
 
         release.complete(Unit)
-        advanceUntilIdle()
+        testScheduler.runCurrent()
     }
 
     /**
@@ -99,11 +98,11 @@ class IosDownloadManagerImplTest {
             release.await()
             DownloadState.Downloaded
         }
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertEquals(100, (observed as? DownloadState.InProgress)?.percent)
 
         release.complete(Unit)
-        advanceUntilIdle()
+        testScheduler.runCurrent()
     }
 }
