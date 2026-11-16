@@ -77,9 +77,9 @@ class JvmEpubRepositoryImpl(
                     fileSystem.createDirectories(destPath.parent!!)
                     fileSystem.write(destPath) {
                         val buffer = ByteArray(CHUNK_BYTES)
-                        while (!stream.channel.isClosedForRead) {
+                        while (true) {
                             val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                            if (read <= 0) continue
+                            if (read <= 0) break
                             write(buffer, 0, read)
                         }
                     }
@@ -123,9 +123,9 @@ class JvmEpubRepositoryImpl(
                 catalog.withFileStream(item.id, BookFormat.Epub, item.ebookFileIno) { stream ->
                     temp.outputStream().use { output ->
                         val buffer = ByteArray(CHUNK_BYTES)
-                        while (!stream.channel.isClosedForRead) {
+                        while (true) {
                             val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                            if (read <= 0) continue
+                            if (read <= 0) break
                             output.write(buffer, 0, read)
                         }
                     }
