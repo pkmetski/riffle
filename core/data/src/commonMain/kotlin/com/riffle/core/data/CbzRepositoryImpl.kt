@@ -113,7 +113,7 @@ abstract class CbzRepositoryImpl(
                 fileSystem.createDirectories(destPath.parent!!)
                 fileSystem.write(destPath) {
                     val buf = ByteArray(CHUNK_BYTES)
-                    while (!stream.channel.isClosedForRead) {
+                    while (true) {
                         val read = stream.channel.readAvailable(buf, 0, buf.size)
                         if (read <= 0) break
                         write(buf, 0, read)
@@ -152,7 +152,7 @@ abstract class CbzRepositoryImpl(
                 fileSystem.createDirectories(destPath.parent!!)
                 fileSystem.write(destPath) {
                     val buf = ByteArray(CHUNK_BYTES)
-                    while (!stream.channel.isClosedForRead) {
+                    while (true) {
                         val read = stream.channel.readAvailable(buf, 0, buf.size)
                         if (read <= 0) break
                         write(buf, 0, read)
@@ -260,7 +260,7 @@ abstract class CbzRepositoryImpl(
                 fileSystem.createDirectories(destPath.parent!!)
                 fileSystem.write(destPath) {
                     val buf = ByteArray(CHUNK_BYTES)
-                    while (!stream.channel.isClosedForRead) {
+                    while (true) {
                         val read = stream.channel.readAvailable(buf, 0, buf.size)
                         if (read <= 0) break
                         write(buf, 0, read)

@@ -125,7 +125,7 @@ class PackDownloaderImpl(
         destPath.parent?.let { fileSystem.createDirectories(it) }
         fileSystem.write(destPath) {
             val buf = ByteArray(65_536)
-            while (!channel.isClosedForRead) {
+            while (true) {
                 val read = channel.readAvailable(buf)
                 if (read <= 0) break
                 write(buf, 0, read)
