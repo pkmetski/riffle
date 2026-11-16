@@ -77,7 +77,7 @@ open class EpubRepositoryImpl(
                         val buffer = ByteArray(CHUNK_BYTES)
                         while (!stream.channel.isClosedForRead) {
                             val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                            if (read <= 0) continue
+                            if (read <= 0) break
                             write(buffer, 0, read)
                             progress.record(read.toLong())
                         }

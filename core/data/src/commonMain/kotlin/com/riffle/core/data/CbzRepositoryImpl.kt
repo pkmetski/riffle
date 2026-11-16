@@ -115,7 +115,7 @@ abstract class CbzRepositoryImpl(
                     val buf = ByteArray(CHUNK_BYTES)
                     while (!stream.channel.isClosedForRead) {
                         val read = stream.channel.readAvailable(buf, 0, buf.size)
-                        if (read <= 0) continue
+                        if (read <= 0) break
                         write(buf, 0, read)
                     }
                 }
@@ -154,7 +154,7 @@ abstract class CbzRepositoryImpl(
                     val buf = ByteArray(CHUNK_BYTES)
                     while (!stream.channel.isClosedForRead) {
                         val read = stream.channel.readAvailable(buf, 0, buf.size)
-                        if (read <= 0) continue
+                        if (read <= 0) break
                         write(buf, 0, read)
                         progress.record(read.toLong())
                     }
@@ -262,7 +262,7 @@ abstract class CbzRepositoryImpl(
                     val buf = ByteArray(CHUNK_BYTES)
                     while (!stream.channel.isClosedForRead) {
                         val read = stream.channel.readAvailable(buf, 0, buf.size)
-                        if (read <= 0) continue
+                        if (read <= 0) break
                         write(buf, 0, read)
                     }
                 }
