@@ -1,4 +1,4 @@
-package com.riffle.core.data
+package com.riffle.core.data.dictionary
 
 import com.riffle.core.common.FileStore
 import com.riffle.core.database.DictionaryPackDao
@@ -7,12 +7,15 @@ import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.PackStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import okio.FileSystem
+import okio.Path.Companion.toPath
 
 private const val DICT_NAMESPACE = "dicts"
 
-internal class IosPackStoreImpl(
-    private val dictionaryPackDao: DictionaryPackDao,
-    private val fileStore: FileStore,
+open class PackStoreImpl(
+    protected val dictionaryPackDao: DictionaryPackDao,
+    protected val fileStore: FileStore,
+    protected val fileSystem: FileSystem = FileSystem.SYSTEM,
 ) : PackStore {
 
     override fun observePackState(languageTag: String): Flow<DictionaryPackState> =
@@ -38,6 +41,8 @@ internal class IosPackStoreImpl(
 
     override suspend fun deleteInstalledPack(languageTag: String) {
         dictionaryPackDao.delete(languageTag)
-        IosItemFiles.delete(fileStore.resolve(DICT_NAMESPACE, "$languageTag.db"))
+        runCatching {
+            fileSystem.delete(fileStore.resolve(DICT_NAMESPACE, "$languageTag.db").toPath())
+        }
     }
 }

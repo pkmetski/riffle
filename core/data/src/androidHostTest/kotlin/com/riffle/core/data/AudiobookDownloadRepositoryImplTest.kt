@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.FileStore
 import com.riffle.core.data.AudiobookFilenames.MANIFEST
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
@@ -43,23 +44,35 @@ class AudiobookDownloadRepositoryImplTest {
         override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) = Unit
     }
 
+    private fun fileStore(downloadsRoot: File, cacheRoot: File): FileStore = object : FileStore {
+        override fun resolve(namespace: String, relativePath: String): String {
+            val base = when (namespace) {
+                NS_AUDIOBOOK_DOWNLOADS -> downloadsRoot
+                NS_AUDIOBOOK_CACHE -> cacheRoot
+                else -> error("Unexpected namespace: $namespace")
+            }
+            return if (relativePath.isEmpty()) {
+                base.apply { mkdirs() }.absolutePath
+            } else {
+                File(base, relativePath).also { it.parentFile?.mkdirs() }.absolutePath
+            }
+        }
+        override fun exists(namespace: String, relativePath: String) =
+            File(resolve(namespace, relativePath)).exists()
+    }
+
     private fun repo(
-        root: File,
+        downloadsRoot: File,
         cacheRoot: File = tmp.newFolder(),
         audiobookRepository: AudiobookRepository = NoopAudiobookRepository,
         localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
-    ): AudiobookDownloadRepositoryImpl {
-        val httpClient = createStreamingHttpClient()
-        val trackDownloader = AudiobookTrackDownloader(httpClient, com.riffle.core.domain.DefaultDispatcherProvider)
-        return AudiobookDownloadRepositoryImpl(
-            audiobookRepository,
-            trackDownloader,
-            cacheRoot,
-            root,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-            localAvailabilityEvents,
-        )
-    }
+    ): AudiobookDownloadRepositoryImpl = AudiobookDownloadRepositoryImpl(
+        audiobookRepository = audiobookRepository,
+        fileStore = fileStore(downloadsRoot, cacheRoot),
+        dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+        localAvailabilityEvents = localAvailabilityEvents,
+        httpClient = createStreamingHttpClient(),
+    )
 
     private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
         val refs = mutableListOf<StoredItemRef>()
@@ -69,7 +82,6 @@ class AudiobookDownloadRepositoryImplTest {
         }
     }
 
-    /** Write a completed download (track files + manifest) for (srv, it) under [root]. */
     private fun writeDownload(root: File) {
         val dir = File(root, "srv/it").apply { mkdirs() }
         File(dir, "track-0").writeBytes(ByteArray(10))
@@ -109,7 +121,7 @@ class AudiobookDownloadRepositoryImplTest {
         assertEquals(listOf(0.0, 100.0), s.tracks.map { it.startOffsetSec })
         assertEquals(300.0, s.timeline.durationSec, 0.0)
         assertEquals(listOf("One", "Two"), s.timeline.chapters.map { it.title })
-        assertEquals(0.0, s.serverCurrentTimeSec, 0.0) // resume comes from progress sync, not the manifest
+        assertEquals(0.0, s.serverCurrentTimeSec, 0.0)
     }
 
     @Test
@@ -291,8 +303,6 @@ class AudiobookDownloadRepositoryImplTest {
 
     @Test
     fun `download uses downloadTrackUrls instead of trackUrls when set`() = runTest {
-        // O'Reilly sessions carry HLS stream URLs in trackUrls and downloadable MP4 URLs in
-        // downloadTrackUrls. The downloader must use the latter to actually write bytes to disk.
         val server = MockWebServer()
         server.start()
         try {
@@ -316,7 +326,6 @@ class AudiobookDownloadRepositoryImplTest {
 
             assertEquals(AudiobookDownloadResult.Success, result)
             assertEquals("mp4-audio-bytes", File(root, "srv/it/track-0").readText())
-            // Only the MP4 URL was fetched — the HLS URL was never requested.
             val requested = server.takeRequest()
             assertTrue(requested.path?.endsWith("track.mp4") == true)
             assertEquals(0, server.requestCount - 1)

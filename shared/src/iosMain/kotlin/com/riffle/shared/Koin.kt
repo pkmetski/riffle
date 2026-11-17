@@ -26,23 +26,24 @@ import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
+import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.CatalogRemoteProgressIndex
 import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.ContentCacheSettingsStoreImpl
+import com.riffle.core.data.CrashReportRepositoryImpl
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DaoDirtyAnnotationLedger
 import com.riffle.core.data.DeviceMetaSentinelWriter
+import com.riffle.core.data.DownloadsRepositoryImpl
+import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.IosAnnotationSyncConfigStore
 import com.riffle.core.data.IosAppUpdateRepositoryImpl
 import com.riffle.core.data.IosAudiobookCacheRepositoryImpl
-import com.riffle.core.data.IosAudiobookDownloadRepositoryImpl
 import com.riffle.core.data.IosAudiobookTrackDownloader
 import com.riffle.core.data.IosContentCacheArtifactScannerImpl
 import com.riffle.core.data.IosCrashReportRecorder
-import com.riffle.core.data.IosCrashReportRepositoryImpl
 import com.riffle.core.data.IosCrossEpubIndexBuilderService
-import com.riffle.core.data.IosDownloadsRepositoryImpl
 import com.riffle.core.data.IosEncryptedKeyValueStore
 import com.riffle.core.data.IosEpubAnalyzer
 import com.riffle.core.data.IosKeyValueStore
@@ -56,6 +57,7 @@ import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
 import com.riffle.core.data.LocalToReadStore
 import com.riffle.core.data.OfflineAvailabilitySnapshot
+import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.PlaylistSweep
 import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.PlaylistsRepositoryImpl
@@ -165,7 +167,6 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.KomgaCbzApi
 import com.riffle.core.network.KomgaLibraryApi
 import com.riffle.core.network.KomgaLibraryApiClient
 import com.riffle.core.network.KomgaServerInfoApi
@@ -246,9 +247,7 @@ import com.riffle.shared.audiobook.IosAudioPlayerController
 import com.riffle.shared.audiobook.IosBundleAudioExtractor
 import com.riffle.shared.library.IosCoverImageCopier
 import com.riffle.shared.library.IosDownloadManagerImpl
-import com.riffle.shared.library.IosEpubRepositoryImpl
 import com.riffle.shared.library.IosPdfPageCountExtractor
-import com.riffle.shared.library.IosPdfRepositoryImpl
 import com.riffle.shared.library.IosReadaloudHandoff
 import com.riffle.shared.library.IosReadaloudOfflineDownloader
 import com.riffle.shared.readaloud.IosReadaloudBridge
@@ -258,8 +257,7 @@ import com.riffle.shared.readaloud.IosReadaloudPlayerController
 import com.riffle.shared.readaloud.IosReadaloudSidecarDelegate
 import com.riffle.shared.readaloud.IosReadaloudStreamingSessionFactory
 import com.riffle.shared.readaloud.IosStorytellerSyncDelegate
-import com.riffle.shared.reader.IosCbzDownloader
-import com.riffle.shared.reader.IosCbzRepository
+import com.riffle.shared.reader.IosCbzRepositoryImpl
 import com.riffle.shared.reader.IosEbookCfiTranslatorFactory
 import com.riffle.shared.reader.IosElidedPdfBridge
 import com.riffle.shared.reader.IosEpubDownloader
@@ -314,8 +312,6 @@ private fun iosLibraryModule(
     single<AbsServerInfoApi> { get<AbsApiClient>() }
     single { KomgaLibraryApiClient(get()) }
     single<KomgaLibraryApi> { get<KomgaLibraryApiClient>() }
-    single<KomgaCbzApi> { get<KomgaLibraryApiClient>() }
-
     single<DispatcherProvider> { IosDispatcherProvider }
     // The Komga version probe and the per-source-type remote-id resolvers are the same
     // commonMain classes Android binds (#1101): iOS used to answer `null` for every version and
@@ -545,18 +541,13 @@ private fun iosLibraryModule(
     single { IosPdfDownloader(catalogRegistry = get(), fileStore = get(), contentCacheAccessStore = get(), localAvailabilityEvents = get()) }
 
     // CBZ reader
-    single { IosCbzDownloader(get(), get(), get()) }
     single<CbzRepository> {
-        IosCbzRepository(
-            sourceRepository = get(),
-            tokenStorage = get(),
-            cbzApi = get(),
-            downloader = get(),
-            positionStore = get(),
+        IosCbzRepositoryImpl(
             fileStore = get(),
             catalogRegistry = get(),
-            contentCacheAccessStore = get(),
+            positionStore = get(),
             localAvailabilityEvents = get(),
+            contentCacheAccessStore = get(),
             dispatchers = get(),
         )
     }
@@ -845,7 +836,7 @@ private fun iosLibraryModule(
     single { RefreshLibraryItems(get(), get(), get(), get()) }
     single { RefreshCollections(get()) }
     single { RefreshSeries(get()) }
-    single<DownloadsRepository> { IosDownloadsRepositoryImpl(get(), get()) }
+    single<DownloadsRepository> { DownloadsRepositoryImpl(fileStore = get(), localAvailabilityEvents = get()) }
     single<ContentCacheSettingsStore> { ContentCacheSettingsStoreImpl(IosKeyValueStore()) }
     single<ContentCacheArtifactScanner> { IosContentCacheArtifactScannerImpl(get()) }
     // The cleaner is shared (core:domain commonMain) — iOS has no BGTaskScheduler, so it runs
@@ -928,8 +919,8 @@ private fun iosLibraryModule(
             contentCacheSettingsStore = get(),
         )
     }
-    single { IosCrashReportRepositoryImpl(get()) }
-    single<CrashReportRepository> { get<IosCrashReportRepositoryImpl>() }
+    single { CrashReportRepositoryImpl(get()) }
+    single<CrashReportRepository> { get<CrashReportRepositoryImpl>() }
     single<AppUpdateRepository> { IosAppUpdateRepositoryImpl(get(), get()) }
     single<AppUpdatePreferencesStore> { AppUpdatePreferencesStoreImpl(IosKeyValueStore()) }
     single { ReadaloudReviewRepositoryImpl(get(), get(), get(), get(), get(), get<Clock>()) }
@@ -1059,11 +1050,12 @@ private fun iosLibraryModule(
 
     // LibraryItemDetailViewModel dependencies — real implementations on iOS
     single<EpubRepository> {
-        IosEpubRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get())
+        EpubRepositoryImpl(fileStore = get(), catalogRegistry = get(), positionStore = get(), localAvailabilityEvents = get())
     }
     single<EbookCfiTranslatorFactory> { IosEbookCfiTranslatorFactory(get()) }
-    single { IosPdfRepositoryImpl(positionStore = get(), fileStore = get(), catalogRegistry = get(), localAvailabilityEvents = get()) }
-    single<PdfRepository> { get<IosPdfRepositoryImpl>() }
+    single<PdfRepository> {
+        PdfRepositoryImpl(fileStore = get(), catalogRegistry = get(), positionStore = get(), localAvailabilityEvents = get())
+    }
     single { IosPdfSharedRepository(libraryObserver = get(), downloader = get(), positionStore = get()) }
     single<SharedPdfRepository> { get<IosPdfSharedRepository>() }
     factory { params ->
@@ -1096,12 +1088,12 @@ private fun iosLibraryModule(
     // one shared track downloader feeds both the explicit user download and the background cache.
     single { IosAudiobookTrackDownloader(get(), get()) }
     single<AudiobookDownloadRepository> {
-        IosAudiobookDownloadRepositoryImpl(
+        AudiobookDownloadRepositoryImpl(
             audiobookRepository = get(),
-            trackDownloader = get(),
             fileStore = get(),
             dispatchers = get(),
             localAvailabilityEvents = get(),
+            httpClient = get(),
         )
     }
     single<AudiobookCacheRepository> {
@@ -1561,7 +1553,7 @@ internal fun startKoinWithDatabase(
     // Settings read "No crashes recorded" forever. Android installs its equivalent from
     // RiffleApplication; this is the iOS counterpart and belongs at the same point in startup.
     IosCrashReportRecorder.install(
-        repository = app.koin.get<IosCrashReportRepositoryImpl>(),
+        repository = app.koin.get<CrashReportRepositoryImpl>(),
         clock = app.koin.get<Clock>(),
     )
 }

@@ -2,47 +2,41 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.network.withHttpByteStream
+import com.riffle.core.network.HttpChannelException
+import com.riffle.core.network.withHttpChannelStream
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareHead
 import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.IOException
+import okio.FileSystem
+import okio.Path.Companion.toPath
 
 /**
  * Downloads all tracks in an [AudiobookSession] to a directory. Used by both
  * [AudiobookDownloadRepositoryImpl] (explicit user download) and [AudiobookCacheRepositoryImpl]
  * (background auto-cache). Tracks are fetched serially: some ABS backends reject concurrent pulls
  * for the same book, and a single shared helper must not break either explicit download or
- * play-time auto-cache. Returns the [AudiobookDownloadManifest.ManifestTrack] list ordered by track
- * index; throws on any per-track failure (the caller must clean up the dir).
+ * play-time auto-cache. Returns the [AudiobookDownloadManifest.ManifestTrack] list ordered by
+ * track index; throws on any per-track failure (the caller must clean up the dir).
  */
-class AudiobookTrackDownloader constructor(
+internal class AudiobookTrackDownloader(
     private val httpClient: HttpClient,
     private val dispatchers: DispatcherProvider,
+    private val fileSystem: FileSystem = FileSystem.SYSTEM,
 ) {
-    /**
-     * @param interTrackDelayMs Extra delay to insert between consecutive track downloads. Use 0
-     *   for explicit user-initiated downloads (fastest, shows progress to the user). Use a jittered
-     *   value for background caching to avoid triggering anti-abuse rate limits on the CDN.
-     */
+
     internal suspend fun download(
         session: AudiobookSession,
-        dir: File,
+        dirPath: String,
         progress: CumulativeDownloadProgress,
         interTrackDelayMs: Long = 0L,
     ): List<AudiobookDownloadManifest.ManifestTrack> = withContext(dispatchers.io) {
-        // For multi-track sources (e.g. Radio.es podcasts) whose catalog doesn't provide a
-        // fingerprint size, pre-scan all track URLs in parallel via HEAD to establish the cumulative
-        // total before any bytes flow. Skipped when a fingerprint-based total is already known so
-        // sources like ABS don't pay extra HEAD round-trips. If any track lacks a Content-Length
-        // the pre-scan is skipped and progress stays indeterminate for that download.
         if (session.trackUrls.size > 1 && !progress.hasKnownTotal()) {
             val headLengths = coroutineScope {
                 session.trackUrls.map { url -> async { headContentLength(url) } }.awaitAll()
@@ -51,30 +45,10 @@ class AudiobookTrackDownloader constructor(
                 progress.establishTotal(headLengths.sumOf { it!! })
             }
         }
-
         buildList(session.trackUrls.size) {
             session.trackUrls.forEachIndexed { i, url ->
                 val fileName = "track-$i"
-                val out = File(dir, fileName)
-                httpClient.withHttpByteStream(
-                    url = url,
-                    httpFailure = { failure -> IOException("HTTP ${failure.code} for track $i") },
-                ) { response ->
-                    if (session.trackUrls.size == 1) {
-                        progress.establishTotal(response.contentLength)
-                    }
-                    response.inputStream.use { input ->
-                        out.outputStream().use { output ->
-                            val buf = ByteArray(64 * 1024)
-                            while (true) {
-                                val read = input.read(buf)
-                                if (read < 0) break
-                                output.write(buf, 0, read)
-                                progress.record(read.toLong())
-                            }
-                        }
-                    }
-                }
+                downloadOne(url, "$dirPath/$fileName", singleTrack = session.trackUrls.size == 1, progress = progress)
                 val span = session.tracks.getOrNull(i)
                 add(
                     AudiobookDownloadManifest.ManifestTrack(
@@ -91,9 +65,48 @@ class AudiobookTrackDownloader constructor(
         }
     }
 
+    private suspend fun downloadOne(
+        url: String,
+        outPath: String,
+        singleTrack: Boolean,
+        progress: CumulativeDownloadProgress,
+    ) {
+        var attempt = 0
+        while (true) {
+            try {
+                httpClient.withHttpChannelStream(url = url) { stream ->
+                    if (singleTrack) progress.establishTotal(stream.contentLength)
+                    val outFile = outPath.toPath()
+                    fileSystem.createDirectories(outFile.parent!!)
+                    fileSystem.write(outFile) {
+                        val buffer = ByteArray(CHUNK_BYTES)
+                        while (true) {
+                            val read = stream.channel.readAvailable(buffer, 0, buffer.size)
+                            if (read <= 0) break
+                            write(buffer, 0, read)
+                            progress.record(read.toLong())
+                        }
+                    }
+                }
+                return
+            } catch (e: Exception) {
+                if (attempt >= MAX_RETRY_ATTEMPTS || e is HttpChannelException) throw e
+                delay(minOf(RETRY_BASE_DELAY_MS shl attempt, RETRY_MAX_DELAY_MS))
+                attempt++
+            }
+        }
+    }
+
     private suspend fun headContentLength(url: String): Long? = runCatching {
         httpClient.prepareHead(url).execute { response ->
             if (response.status.isSuccess()) response.contentLength() else null
         }
     }.getOrNull()
+
+    private companion object {
+        const val CHUNK_BYTES = 64 * 1024
+        const val MAX_RETRY_ATTEMPTS = 5
+        const val RETRY_BASE_DELAY_MS = 2_000L
+        const val RETRY_MAX_DELAY_MS = 30_000L
+    }
 }

@@ -1,4 +1,4 @@
-package com.riffle.shared.reader
+package com.riffle.core.data.comic
 
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.comic.ComicPageSource
@@ -13,8 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * [ComicPageSource] backed by on-demand network fetches via [CbzRepository]. iOS counterpart to
- * Android's `NetworkComicPageSource`.
+ * [ComicPageSource] backed by on-demand network fetches via [CbzRepository.fetchStreamingPageImage].
  *
  * Pass [thumbnailWidth] (e.g. 300) to request a downscaled image — use this for the thumbnail
  * strip to avoid downloading full-resolution pages for small previews.
@@ -27,7 +26,7 @@ import kotlinx.coroutines.sync.withLock
  * are served from cache rather than waiting for a cold full-resolution download. [close] cancels
  * the scope.
  */
-internal class IosNetworkComicPageSource(
+internal class NetworkComicPageSource(
     private val sourceId: String,
     private val itemId: String,
     private val count: Int,
@@ -117,10 +116,10 @@ internal class IosNetworkComicPageSource(
 
     private fun evictIfNeeded() {
         while (byteCache.size > maxCacheEntries) {
-            val eldest = byteCache.iterator()
-            if (eldest.hasNext()) {
-                eldest.next()
-                eldest.remove()
+            val iter = byteCache.iterator()
+            if (iter.hasNext()) {
+                iter.next()
+                iter.remove()
             }
         }
     }

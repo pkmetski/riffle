@@ -21,6 +21,8 @@ import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -43,9 +45,8 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTest {
 
-    // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
-    // dispatcher so the init coroutine is *deferred* (letting us observe the Loading state) and
-    // advanced deterministically via testScheduler.advanceUntilIdle().
+    // K/N runTest reuses Dispatchers.Main's scheduler; cancel viewModelScope before the body
+    // returns so advanceUntilIdle cleanup only drains finite cancellation tasks, not stateIn.
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -207,55 +208,59 @@ class LibraryItemDetailViewModelTest {
     )
 
     @Test
-    fun initialStateIsLoading() = runTest(mainDispatcher) {
+    fun initialStateIsLoading() = runTest {
         val vm = makeViewModel()
-        // Loading is the synchronous initial value before the coroutine runs
         assertIs<LibraryItemDetailUiState.Loading>(vm.uiState.value)
+        vm.viewModelScope.cancel()
     }
 
     @Test
-    fun stateBecomesReadyWhenItemFound() = runTest(mainDispatcher) {
+    fun stateBecomesReadyWhenItemFound() = runTest {
         val vm = makeViewModel(item = fakeItem)
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Ready>(vm.uiState.value)
+        vm.viewModelScope.cancel()
     }
 
     @Test
-    fun stateBecomesErrorWhenItemNotFound() = runTest(mainDispatcher) {
+    fun stateBecomesErrorWhenItemNotFound() = runTest {
         val vm = makeViewModel(item = null, itemId = "missing")
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Error>(vm.uiState.value)
+        vm.viewModelScope.cancel()
     }
 
     @Test
-    fun toggleToReadFlipsIsInToRead() = runTest(mainDispatcher) {
+    fun toggleToReadFlipsIsInToRead() = runTest {
         val vm = makeViewModel(inToRead = false)
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertFalse(ready.isInToRead, "Expected isInToRead=false before toggle")
 
         vm.toggleToRead()
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
 
         val toggled = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(toggled.isInToRead, "Expected isInToRead=true after toggle")
+        vm.viewModelScope.cancel()
     }
 
     @Test
-    fun bookImportFailureEmitsSnackbar() = runTest(mainDispatcher) {
+    fun bookImportFailureEmitsSnackbar() = runTest {
         val importManager = FakeBookImportManager()
         val vm = makeViewModel(bookImportManager = importManager)
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
 
         val snackbars = mutableListOf<String>()
         val job = launch { vm.snackbarEvents.collect { snackbars.add(it) } }
 
         // key must start with "import:source1:item1:" — the prefix importKeyPrefix(fakeItem) uses
         importManager.emit("import:source1:item1:dest:lib", BookImportState.Failed("Upload failed"))
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
 
         assertEquals(listOf("Upload failed"), snackbars)
         job.cancel()
+        vm.viewModelScope.cancel()
     }
 
     // Regression: when sourceId is null (browse navigation for web-source items like Chitanka),
@@ -263,7 +268,7 @@ class LibraryItemDetailViewModelTest {
     // param. The iOS Koin factory used to resolve both String params to the first value (itemId)
     // via type-based matching, causing a FK violation on the reading_positions insert.
     @Test
-    fun markAsReadWithNullSourceIdUsesItemSourceId() = runTest(mainDispatcher) {
+    fun markAsReadWithNullSourceIdUsesItemSourceId() = runTest {
         val recordingMarkRead = RecordingMarkReadAcrossDimensions()
         val vmDirect = LibraryItemDetailViewModel(
             itemId = fakeItem.id,
@@ -309,11 +314,11 @@ class LibraryItemDetailViewModelTest {
                 override val default = d
             },
         )
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Ready>(vmDirect.uiState.value)
 
         vmDirect.markAsRead()
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
 
         assertEquals(1, recordingMarkRead.calls.size, "markAsRead must invoke MarkReadAcrossDimensions exactly once")
         val (usedSourceId, usedItemId, finished) = recordingMarkRead.calls.first()
@@ -324,24 +329,26 @@ class LibraryItemDetailViewModelTest {
         )
         assertEquals(fakeItem.id, usedItemId)
         assertTrue(finished)
+        vmDirect.viewModelScope.cancel()
     }
 
     @Test
-    fun capabilitiesHasReadaloudFalseWhenNoLink() = runTest(mainDispatcher) {
+    fun capabilitiesHasReadaloudFalseWhenNoLink() = runTest {
         val vm = makeViewModel(
             sourceRepository = makeActiveSourceRepository(),
             readaloudLinkRepository = FakeReadaloudLinkRepository,
         )
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertFalse(
             ready.capabilities.hasReadaloud,
             "hasReadaloud must be false when the item has no readaloud link",
         )
+        vm.viewModelScope.cancel()
     }
 
     @Test
-    fun capabilitiesHasReadaloudTrueWhenLinkExists() = runTest(mainDispatcher) {
+    fun capabilitiesHasReadaloudTrueWhenLinkExists() = runTest {
         val link = ReadaloudLink(
             storytellerSourceId = "st-source",
             storytellerBookId = "st-book",
@@ -353,11 +360,12 @@ class LibraryItemDetailViewModelTest {
             sourceRepository = makeActiveSourceRepository(),
             readaloudLinkRepository = makeLinkReturningRepository(link),
         )
-        testScheduler.advanceUntilIdle()
+        mainDispatcher.scheduler.runCurrent()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(
             ready.capabilities.hasReadaloud,
             "hasReadaloud must be true when the item has a readaloud link",
         )
+        vm.viewModelScope.cancel()
     }
 }

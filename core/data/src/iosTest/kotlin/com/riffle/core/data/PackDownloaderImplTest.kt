@@ -2,6 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
+import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.database.countDictSqliteEntries
 import com.riffle.core.database.deleteRiffleDatabase
 import com.riffle.core.database.openRiffleDatabase
@@ -25,15 +27,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Regression: IosPackDownloaderImpl was a no-op that always returned false, so tapping
- * "Download" in the dictionary packs screen never installed a pack on iOS.
- *
- * These tests drive the real iOS code path: Ktor MockEngine serves a JSONL payload, the
- * downloader converts it to SQLite, and the DAO reflects INSTALLED state.
- */
 @OptIn(ExperimentalForeignApi::class)
-class IosPackDownloaderImplTest {
+class PackDownloaderImplTest {
 
     private val roots = mutableListOf<String>()
     private lateinit var databaseName: String
@@ -104,11 +99,12 @@ class IosPackDownloaderImplTest {
                     headers = headersOf("Content-Length", bodyBytes.size.toString()),
                 )
             }
-            val downloader = IosPackDownloaderImpl(
+            val downloader = PackDownloaderImpl(
                 fileStore = TempFileStore(),
                 httpClient = HttpClient(mockEngine),
                 dictionaryPackDao = dao,
                 clock = fixedClock(),
+                converter = IosJsonlToSqliteConverter(),
             )
 
             val result = downloader.download(sampleEntry()) { _, _ -> }
@@ -136,11 +132,12 @@ class IosPackDownloaderImplTest {
                     headers = headersOf("Content-Length", bodyBytes.size.toString()),
                 )
             }
-            val downloader = IosPackDownloaderImpl(
+            val downloader = PackDownloaderImpl(
                 fileStore = fileStore,
                 httpClient = HttpClient(mockEngine),
                 dictionaryPackDao = dao,
                 clock = fixedClock(),
+                converter = IosJsonlToSqliteConverter(),
             )
 
             val result = downloader.download(sampleEntry("test-lang")) { _, _ -> }
@@ -167,11 +164,12 @@ class IosPackDownloaderImplTest {
             val mockEngine = MockEngine { _ ->
                 respond(content = ByteArray(0), status = HttpStatusCode.NotFound)
             }
-            val downloader = IosPackDownloaderImpl(
+            val downloader = PackDownloaderImpl(
                 fileStore = TempFileStore(),
                 httpClient = HttpClient(mockEngine),
                 dictionaryPackDao = dao,
                 clock = fixedClock(),
+                converter = IosJsonlToSqliteConverter(),
             )
             val result = downloader.download(sampleEntry("fr")) { _, _ -> }
             assertFalse(result, "download should return false on HTTP error")

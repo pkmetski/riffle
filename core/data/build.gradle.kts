@@ -25,6 +25,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okio.fakefilesystem)
             // Tests that verify descriptor-to-catalog-ROOT alignment (e.g. SingletonWebSourceInstallerTest).
             implementation(project(":core:catalog-chitanka"))
             implementation(project(":core:catalog-gutenberg"))
@@ -35,11 +36,13 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.okio)
             implementation(project(":core:common"))
             implementation(project(":core:domain"))
             implementation(project(":core:models"))
             implementation(project(":core:database-api"))
             implementation(project(":core:catalog"))
+            implementation(project(":core:dictionary"))
             // SingletonWebSourceInstaller (commonMain since the Add-Source picker went shared)
             // logs through the typed Logger channels.
             implementation(project(":core:logging"))
@@ -58,7 +61,6 @@ kotlin {
             implementation(project(":core:catalog-komga"))
         }
         androidMain.dependencies {
-            implementation(project(":core:dictionary"))
             implementation(project(":core:sources"))
             implementation(project(":core:network"))
             implementation(project(":core:database"))
@@ -82,7 +84,6 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.koin.core)
             implementation(project(":core:database"))
-            implementation(project(":core:dictionary"))
             implementation(project(":core:net"))
             implementation(project(":core:logging"))
         }

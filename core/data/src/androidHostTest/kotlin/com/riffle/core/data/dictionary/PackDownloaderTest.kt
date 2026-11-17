@@ -30,7 +30,7 @@ class PackDownloaderTest {
     private val server = MockWebServer()
     private lateinit var dao: FakePackDao
     private lateinit var filesDir: File
-    private lateinit var downloader: PackDownloader
+    private lateinit var downloader: PackDownloaderImpl
 
     private val fakeConverter = FakeJsonlConverter()
 
@@ -39,8 +39,8 @@ class PackDownloaderTest {
         server.start()
         dao = FakePackDao()
         filesDir = tmpDir.newFolder("files")
-        downloader = PackDownloader(
-            filesDir = filesDir,
+        downloader = PackDownloaderImpl(
+            fileStore = AndroidDictFileStore(filesDir),
             httpClient = createTestHttpClient(),
             dictionaryPackDao = dao,
             clock = object : Clock {
@@ -71,10 +71,9 @@ class PackDownloaderTest {
         val result = downloader.download(testEntry())
         assertTrue(result)
         assertEquals(DictionaryPackState.INSTALLED.name, dao.lastUpserted?.state)
-        val finalFile = File(filesDir, "dicts/fr.db")
-        assertTrue("final .db file should exist", finalFile.exists())
-        assertFalse("tmp json file should be gone", File(filesDir, "dicts/fr.tmp.json").exists())
-        assertFalse("tmp db file should be gone", File(filesDir, "dicts/fr.tmp.db").exists())
+        assertTrue("final .db file should exist", File(filesDir, "dicts/fr.db").exists())
+        assertFalse("tmp jsonl file should be gone", File(filesDir, "dicts/fr.db.tmp.jsonl").exists())
+        assertFalse("tmp db file should be gone", File(filesDir, "dicts/fr.db.tmp.db").exists())
     }
 
     @Test
@@ -92,8 +91,8 @@ class PackDownloaderTest {
         val result = downloader.download(testEntry())
         assertFalse(result)
         assertEquals(DictionaryPackState.FAILED.name, dao.lastState)
-        assertFalse("tmp json should be cleaned up", File(filesDir, "dicts/fr.tmp.json").exists())
-        assertFalse("tmp db should be cleaned up", File(filesDir, "dicts/fr.tmp.db").exists())
+        assertFalse("tmp jsonl should be cleaned up", File(filesDir, "dicts/fr.db.tmp.jsonl").exists())
+        assertFalse("tmp db should be cleaned up", File(filesDir, "dicts/fr.db.tmp.db").exists())
     }
 
     @Test
@@ -116,37 +115,37 @@ class PackDownloaderTest {
 
 private class FakeJsonlConverter : JsonlToSqliteConverter {
     var throwOnConvert = false
-    override fun convert(jsonlFile: File, dbFile: File, onProgress: (Long, Long) -> Unit) {
+    override suspend fun convert(jsonlPath: String, dbPath: String, onProgress: (Long, Long) -> Unit) {
         if (throwOnConvert) throw RuntimeException("converter error")
-        dbFile.createNewFile()
+        java.io.File(dbPath).createNewFile()
     }
 }
 
 private class FakePackDao : DictionaryPackDao {
-    private val _flow = MutableStateFlow<DictionaryPackEntity?>(null)
+    private val packFlow = MutableStateFlow<DictionaryPackEntity?>(null)
     var lastUpserted: DictionaryPackEntity? = null
     var lastState: String? = null
     var firstUpsertedState: String? = null
     var throwOnSecondUpsert = false
     private var upsertCount = 0
 
-    override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = _flow
-    override fun observeAll(): Flow<List<DictionaryPackEntity>> = flowOf(listOfNotNull(_flow.value))
+    override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = packFlow
+    override fun observeAll(): Flow<List<DictionaryPackEntity>> = flowOf(listOfNotNull(packFlow.value))
 
     override suspend fun upsert(entity: DictionaryPackEntity) {
         upsertCount++
         if (upsertCount == 1) firstUpsertedState = entity.state
         if (upsertCount == 2 && throwOnSecondUpsert) throw RuntimeException("DAO error on second upsert")
         lastUpserted = entity
-        _flow.value = entity
+        packFlow.value = entity
     }
 
     override suspend fun updateState(languageTag: String, state: String) {
         lastState = state
-        _flow.value = _flow.value?.copy(state = state)
+        packFlow.value = packFlow.value?.copy(state = state)
     }
 
     override suspend fun delete(languageTag: String) {
-        _flow.value = null
+        packFlow.value = null
     }
 }

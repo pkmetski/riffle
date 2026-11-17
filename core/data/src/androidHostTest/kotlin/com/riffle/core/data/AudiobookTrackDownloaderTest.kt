@@ -65,7 +65,7 @@ class AudiobookTrackDownloaderTest {
 
             downloader.download(
                 session = session,
-                dir = tmp.newFolder(),
+                dirPath = tmp.newFolder().absolutePath,
                 progress = CumulativeDownloadProgress(0L, onProgress = { d, t -> progressUpdates.add(d to t) }),
             )
 
@@ -123,7 +123,7 @@ class AudiobookTrackDownloaderTest {
 
             downloader.download(
                 session = session,
-                dir = tmp.newFolder(),
+                dirPath = tmp.newFolder().absolutePath,
                 progress = CumulativeDownloadProgress(0L, onProgress = { d, t -> progressUpdates.add(d to t) }),
             )
 
@@ -169,7 +169,7 @@ class AudiobookTrackDownloaderTest {
 
             val tracks = downloader.download(
                 session = session,
-                dir = tmp.newFolder(),
+                dirPath = tmp.newFolder().absolutePath,
                 progress = CumulativeDownloadProgress(0L, onProgress = { _, _ -> }),
             )
 

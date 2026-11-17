@@ -121,6 +121,7 @@ kotlin {
         }
         iosTest.dependencies {
             implementation(libs.ktor.client.mock)
+            implementation(libs.okio.fakefilesystem)
         }
     }
 }

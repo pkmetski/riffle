@@ -30,7 +30,7 @@ object IosCrashReportRecorder {
      * needs no guard of its own. (Kotlin/Native itself does *not* refuse a second
      * `setUnhandledExceptionHook`; it replaces the current one and hands the old one back.)
      */
-    fun install(repository: IosCrashReportRepositoryImpl, clock: Clock) {
+    fun install(repository: CrashReportRepositoryImpl, clock: Clock) {
         if (installed) return
         installed = true
         previousHook = setUnhandledExceptionHook { throwable ->

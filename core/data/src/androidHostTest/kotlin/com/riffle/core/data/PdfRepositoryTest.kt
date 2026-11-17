@@ -35,6 +35,8 @@ class PdfRepositoryTest {
     val tmp = TemporaryFolder()
 
     private lateinit var source: MockWebServer
+    private lateinit var cacheDir: java.io.File
+    private lateinit var downloadsDir: java.io.File
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePdfPositionStore
@@ -46,16 +48,16 @@ class PdfRepositoryTest {
     fun setUp() {
         source = MockWebServer()
         source.start()
-        cacheStore = LocalStoreImpl(tmp.newFolder("pdf-cache"), ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
-        downloadsStore = LocalStoreImpl(tmp.newFolder("pdf-downloads"), ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
+        cacheDir = tmp.newFolder("pdf-cache")
+        downloadsDir = tmp.newFolder("pdf-downloads")
+        cacheStore = LocalStoreImpl(cacheDir, ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
+        downloadsStore = LocalStoreImpl(downloadsDir, ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePdfPositionStore()
         val sourceRepo = fakeServerRepository(source.url("/").toString().trimEnd('/'))
-        repo = PdfRepositoryImpl(
+        repo = JvmPdfRepositoryImpl(
+            fileStore = AndroidPdfFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = sourceRepo,
         )
     }
 
@@ -287,12 +289,10 @@ class PdfRepositoryTest {
     )
 
     private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): JvmPdfRepository =
-        PdfRepositoryImpl(
+        JvmPdfRepositoryImpl(
+            fileStore = AndroidPdfFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = sourceRepository,
         )
 
     @Test

@@ -1,10 +1,9 @@
-package com.riffle.core.data
+package com.riffle.core.data.dictionary
 
 import com.riffle.core.common.Clock
 import com.riffle.core.common.FileStore
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.DictionaryPackEntity
-import com.riffle.core.database.createDictSqliteFromJsonl
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.core.dictionary.PackDownloaderInterface
@@ -12,18 +11,20 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.isSuccess
-import kotlinx.cinterop.ExperimentalForeignApi
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
-import platform.Foundation.NSFileManager
+import okio.FileSystem
+import okio.Path.Companion.toPath
 
 private const val DICT_NAMESPACE = "dicts"
 
-@OptIn(ExperimentalForeignApi::class)
-internal class IosPackDownloaderImpl(
+class PackDownloaderImpl(
     private val fileStore: FileStore,
     private val httpClient: HttpClient,
     private val dictionaryPackDao: DictionaryPackDao,
     private val clock: Clock,
+    private val converter: JsonlToSqliteConverter,
+    private val fileSystem: FileSystem = FileSystem.SYSTEM,
 ) : PackDownloaderInterface {
 
     override suspend fun download(
@@ -55,7 +56,7 @@ internal class IosPackDownloaderImpl(
             }
 
             try {
-                createDictSqliteFromJsonl(tmpJsonlPath, tmpDbPath, onProgress)
+                converter.convert(tmpJsonlPath, tmpDbPath, onProgress)
             } catch (e: CancellationException) {
                 remove(tmpJsonlPath)
                 remove(tmpDbPath)
@@ -68,18 +69,30 @@ internal class IosPackDownloaderImpl(
             }
             remove(tmpJsonlPath)
 
-            if (!IosItemFiles.move(tmpDbPath, finalPath)) {
+            val finalOkioPath = finalPath.toPath()
+            try {
+                finalOkioPath.parent?.let { fileSystem.createDirectories(it) }
+                try {
+                    fileSystem.atomicMove(tmpDbPath.toPath(), finalOkioPath)
+                } catch (_: Exception) {
+                    fileSystem.copy(tmpDbPath.toPath(), finalOkioPath)
+                    remove(tmpDbPath)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
                 remove(tmpDbPath)
                 dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
                 return false
             }
 
+            val sizeBytes = runCatching { fileSystem.metadata(finalOkioPath).size ?: 0L }.getOrDefault(0L)
             dictionaryPackDao.upsert(
                 DictionaryPackEntity(
                     languageTag = entry.languageTag,
                     packVersion = epochDateString(clock.nowMs()),
                     installedAt = clock.nowMs(),
-                    sizeBytes = IosItemFiles.size(finalPath),
+                    sizeBytes = sizeBytes,
                     attributionHtml = entry.attributionHtml,
                     licenseUrl = entry.licenseUrl,
                     state = DictionaryPackState.INSTALLED.name,
@@ -93,6 +106,7 @@ internal class IosPackDownloaderImpl(
         } catch (_: Exception) {
             remove(tmpJsonlPath)
             remove(tmpDbPath)
+            remove(finalPath)
             dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
             false
         }
@@ -105,11 +119,25 @@ internal class IosPackDownloaderImpl(
     ): Boolean = httpClient.prepareGet(entry.jsonlUrl).execute { response ->
         if (!response.status.isSuccess()) return@execute false
         val total = response.headers["Content-Length"]?.toLong() ?: entry.approximateSizeBytes
-        IosItemFiles.writeChannel(path, response.bodyAsChannel(), total, onProgress)
+        var bytesRead = 0L
+        val channel = response.bodyAsChannel()
+        val destPath = path.toPath()
+        destPath.parent?.let { fileSystem.createDirectories(it) }
+        fileSystem.write(destPath) {
+            val buf = ByteArray(65_536)
+            while (true) {
+                val read = channel.readAvailable(buf)
+                if (read <= 0) break
+                write(buf, 0, read)
+                bytesRead += read
+                onProgress(bytesRead, total)
+            }
+        }
+        true
     }
 
     private fun remove(path: String) {
-        NSFileManager.defaultManager.removeItemAtPath(path, error = null)
+        runCatching { fileSystem.delete(path.toPath()) }
     }
 }
 
