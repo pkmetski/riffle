@@ -45,7 +45,7 @@ class LibraryItemDetailViewModelTest {
 
     // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
     // dispatcher so the init coroutine is *deferred* (letting us observe the Loading state) and
-    // advanced deterministically via testScheduler.advanceUntilIdle().
+    // advanced deterministically via testScheduler.runCurrent().
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -216,26 +216,26 @@ class LibraryItemDetailViewModelTest {
     @Test
     fun stateBecomesReadyWhenItemFound() = runTest(mainDispatcher) {
         val vm = makeViewModel(item = fakeItem)
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Ready>(vm.uiState.value)
     }
 
     @Test
     fun stateBecomesErrorWhenItemNotFound() = runTest(mainDispatcher) {
         val vm = makeViewModel(item = null, itemId = "missing")
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Error>(vm.uiState.value)
     }
 
     @Test
     fun toggleToReadFlipsIsInToRead() = runTest(mainDispatcher) {
         val vm = makeViewModel(inToRead = false)
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertFalse(ready.isInToRead, "Expected isInToRead=false before toggle")
 
         vm.toggleToRead()
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
 
         val toggled = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(toggled.isInToRead, "Expected isInToRead=true after toggle")
@@ -245,14 +245,14 @@ class LibraryItemDetailViewModelTest {
     fun bookImportFailureEmitsSnackbar() = runTest(mainDispatcher) {
         val importManager = FakeBookImportManager()
         val vm = makeViewModel(bookImportManager = importManager)
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
 
         val snackbars = mutableListOf<String>()
         val job = launch { vm.snackbarEvents.collect { snackbars.add(it) } }
 
         // key must start with "import:source1:item1:" — the prefix importKeyPrefix(fakeItem) uses
         importManager.emit("import:source1:item1:dest:lib", BookImportState.Failed("Upload failed"))
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertEquals(listOf("Upload failed"), snackbars)
         job.cancel()
@@ -309,11 +309,11 @@ class LibraryItemDetailViewModelTest {
                 override val default = d
             },
         )
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Ready>(vmDirect.uiState.value)
 
         vmDirect.markAsRead()
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertEquals(1, recordingMarkRead.calls.size, "markAsRead must invoke MarkReadAcrossDimensions exactly once")
         val (usedSourceId, usedItemId, finished) = recordingMarkRead.calls.first()
@@ -332,7 +332,7 @@ class LibraryItemDetailViewModelTest {
             sourceRepository = makeActiveSourceRepository(),
             readaloudLinkRepository = FakeReadaloudLinkRepository,
         )
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertFalse(
             ready.capabilities.hasReadaloud,
@@ -353,7 +353,7 @@ class LibraryItemDetailViewModelTest {
             sourceRepository = makeActiveSourceRepository(),
             readaloudLinkRepository = makeLinkReturningRepository(link),
         )
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         val ready = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(
             ready.capabilities.hasReadaloud,
