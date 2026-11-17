@@ -45,14 +45,8 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryItemDetailViewModelTest {
 
-    // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
-    // dispatcher so the init coroutine is *deferred* (letting us observe the Loading state) and
-    // advanced deterministically via mainDispatcher.scheduler.runCurrent().
-    // Each test must call vm.viewModelScope.cancel() before the runTest body returns so that
-    // runTest's advanceUntilIdle() cleanup (which re-uses mainDispatcher.scheduler via
-    // Dispatchers.Main on K/N) only sees finite cancellation tasks — not the ViewModel's
-    // never-ending stateIn(SharingStarted.Eagerly) collectors. ViewModel.close() is not
-    // accessible from K/N commonTest; viewModelScope.cancel() achieves the same effect.
+    // K/N runTest reuses Dispatchers.Main's scheduler; cancel viewModelScope before the body
+    // returns so advanceUntilIdle cleanup only drains finite cancellation tasks, not stateIn.
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
