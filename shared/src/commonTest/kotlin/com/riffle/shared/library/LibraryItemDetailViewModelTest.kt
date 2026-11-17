@@ -46,9 +46,9 @@ class LibraryItemDetailViewModelTest {
     // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
     // dispatcher so the init coroutine is *deferred* (letting us observe the Loading state) and
     // advanced deterministically via mainDispatcher.scheduler.runCurrent().
-    // runTest is called without mainDispatcher so its own advanceUntilIdle() runs on the
-    // UnconfinedTestDispatcher's scheduler (empty) — not on mainDispatcher.scheduler — avoiding
-    // the K/N cooperative-scheduler hang caused by the ViewModel's never-ending stateIn collectors.
+    // Each test must call vm.close() before the runTest body returns so that runTest's own
+    // advanceUntilIdle() (which re-uses mainDispatcher.scheduler via Dispatchers.Main on K/N) only
+    // sees finite cancellation tasks — not the ViewModel's never-ending stateIn collectors.
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -212,8 +212,8 @@ class LibraryItemDetailViewModelTest {
     @Test
     fun initialStateIsLoading() = runTest {
         val vm = makeViewModel()
-        // Loading is the synchronous initial value before the coroutine runs
         assertIs<LibraryItemDetailUiState.Loading>(vm.uiState.value)
+        vm.close()
     }
 
     @Test
@@ -221,6 +221,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeViewModel(item = fakeItem)
         mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Ready>(vm.uiState.value)
+        vm.close()
     }
 
     @Test
@@ -228,6 +229,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeViewModel(item = null, itemId = "missing")
         mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Error>(vm.uiState.value)
+        vm.close()
     }
 
     @Test
@@ -242,6 +244,7 @@ class LibraryItemDetailViewModelTest {
 
         val toggled = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(toggled.isInToRead, "Expected isInToRead=true after toggle")
+        vm.close()
     }
 
     @Test
@@ -259,6 +262,7 @@ class LibraryItemDetailViewModelTest {
 
         assertEquals(listOf("Upload failed"), snackbars)
         job.cancel()
+        vm.close()
     }
 
     // Regression: when sourceId is null (browse navigation for web-source items like Chitanka),
@@ -327,6 +331,7 @@ class LibraryItemDetailViewModelTest {
         )
         assertEquals(fakeItem.id, usedItemId)
         assertTrue(finished)
+        vmDirect.close()
     }
 
     @Test
@@ -341,6 +346,7 @@ class LibraryItemDetailViewModelTest {
             ready.capabilities.hasReadaloud,
             "hasReadaloud must be false when the item has no readaloud link",
         )
+        vm.close()
     }
 
     @Test
@@ -362,5 +368,6 @@ class LibraryItemDetailViewModelTest {
             ready.capabilities.hasReadaloud,
             "hasReadaloud must be true when the item has a readaloud link",
         )
+        vm.close()
     }
 }
