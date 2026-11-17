@@ -21,6 +21,8 @@ import com.riffle.feature.library.BookImportState
 import com.riffle.feature.library.FetchAudiobookChaptersUseCase
 import com.riffle.feature.library.LibraryItemDetailUiState
 import com.riffle.feature.library.LibraryItemDetailViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -46,9 +48,11 @@ class LibraryItemDetailViewModelTest {
     // viewModelScope launches on Dispatchers.Main; back it with a scheduler-controlled test
     // dispatcher so the init coroutine is *deferred* (letting us observe the Loading state) and
     // advanced deterministically via mainDispatcher.scheduler.runCurrent().
-    // Each test must call vm.close() before the runTest body returns so that runTest's own
-    // advanceUntilIdle() (which re-uses mainDispatcher.scheduler via Dispatchers.Main on K/N) only
-    // sees finite cancellation tasks — not the ViewModel's never-ending stateIn collectors.
+    // Each test must call vm.viewModelScope.cancel() before the runTest body returns so that
+    // runTest's advanceUntilIdle() cleanup (which re-uses mainDispatcher.scheduler via
+    // Dispatchers.Main on K/N) only sees finite cancellation tasks — not the ViewModel's
+    // never-ending stateIn(SharingStarted.Eagerly) collectors. ViewModel.close() is not
+    // accessible from K/N commonTest; viewModelScope.cancel() achieves the same effect.
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -213,7 +217,7 @@ class LibraryItemDetailViewModelTest {
     fun initialStateIsLoading() = runTest {
         val vm = makeViewModel()
         assertIs<LibraryItemDetailUiState.Loading>(vm.uiState.value)
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -221,7 +225,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeViewModel(item = fakeItem)
         mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Ready>(vm.uiState.value)
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -229,7 +233,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeViewModel(item = null, itemId = "missing")
         mainDispatcher.scheduler.runCurrent()
         assertIs<LibraryItemDetailUiState.Error>(vm.uiState.value)
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -244,7 +248,7 @@ class LibraryItemDetailViewModelTest {
 
         val toggled = vm.uiState.value as LibraryItemDetailUiState.Ready
         assertTrue(toggled.isInToRead, "Expected isInToRead=true after toggle")
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -262,7 +266,7 @@ class LibraryItemDetailViewModelTest {
 
         assertEquals(listOf("Upload failed"), snackbars)
         job.cancel()
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 
     // Regression: when sourceId is null (browse navigation for web-source items like Chitanka),
@@ -331,7 +335,7 @@ class LibraryItemDetailViewModelTest {
         )
         assertEquals(fakeItem.id, usedItemId)
         assertTrue(finished)
-        vmDirect.close()
+        vmDirect.viewModelScope.cancel()
     }
 
     @Test
@@ -346,7 +350,7 @@ class LibraryItemDetailViewModelTest {
             ready.capabilities.hasReadaloud,
             "hasReadaloud must be false when the item has no readaloud link",
         )
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -368,6 +372,6 @@ class LibraryItemDetailViewModelTest {
             ready.capabilities.hasReadaloud,
             "hasReadaloud must be true when the item has a readaloud link",
         )
-        vm.close()
+        vm.viewModelScope.cancel()
     }
 }
