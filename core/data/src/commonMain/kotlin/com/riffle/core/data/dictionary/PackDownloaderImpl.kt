@@ -102,6 +102,7 @@ class PackDownloaderImpl(
         } catch (e: CancellationException) {
             remove(tmpJsonlPath)
             remove(tmpDbPath)
+            remove(finalPath)
             throw e
         } catch (_: Exception) {
             remove(tmpJsonlPath)
