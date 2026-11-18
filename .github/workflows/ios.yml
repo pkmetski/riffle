@@ -125,8 +125,8 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    # 90 min: K/N compilation of 29 modules + XCTest unit target; raised from 65 (suite runs ~46 min on fast runners, hits the limit on slow/constrained runners).
-    timeout-minutes: 90
+    # 120 min: K/N compilation of 29 modules + XCTest unit target; raised from 65→90→120 (suite runs ~46 min on fast runners, consistently hits 90 min on loaded runners).
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
