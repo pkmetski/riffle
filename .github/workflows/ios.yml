@@ -125,9 +125,10 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    # 150 min: K/N compilation of 29 modules only (xcodebuild split to xctest-unit-tests job).
-    # Raised 65→90→120→150: on loaded runners K/N alone hits 118+ min; xcodebuild now runs in parallel.
-    timeout-minutes: 150
+    # 240 min: :shared:iosSimulatorArm64Test alone takes 2h+ (largest K/N module; test binary links all transitive deps).
+    # Other 28 modules complete in ~21 min. xcodebuild split to xctest-unit-tests job which runs in parallel.
+    # Raised 65→90→120→150→240 to accommodate :shared K/N test compilation on loaded runners.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
