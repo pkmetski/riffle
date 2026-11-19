@@ -125,18 +125,16 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: macos-15
-    # 65 min: K/N compilation of 29 modules + XCTest unit target; raised from 50 (suite runs ~46 min on fast runners, exceeds limit on slow ones).
-    timeout-minutes: 65
+    # 240 min: :shared:iosSimulatorArm64Test alone takes 2h+ (largest K/N module; test binary links all transitive deps).
+    # Other 28 modules complete in ~21 min. xcodebuild split to xctest-unit-tests job which runs in parallel.
+    # Raised 65→90→120→150→240 to accommodate :shared K/N test compilation on loaded runners.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-gradle
         with:
           java-version: '17'
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-
-      - name: Read Xcode version
-        id: xcode-version
-        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
 
       - name: Read Kotlin version
         id: kotlin-version
@@ -148,22 +146,6 @@ jobs:
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
-
-      - name: Cache SPM SourcePackages
-        uses: actions/cache@v6
-        with:
-          path: ~/spm-packages
-          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-
-
-      - name: Cache DerivedData
-        uses: actions/cache@v6
-        with:
-          path: ~/derived-data
-          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt', 'iosApp/iosApp/**/*.swift', 'iosApp/iosApp.xcodeproj/project.pbxproj') }}
-          restore-keys: |
-            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
       - name: Run iOS commonTest (all iOS-targeted modules)
         run: |
@@ -235,6 +217,50 @@ jobs:
             feature/settings-ui/build/reports/tests/
             feature/downloads/build/reports/tests/
           if-no-files-found: ignore
+
+  xctest-unit-tests:
+    name: XCTest unit tests (iOS)
+    runs-on: macos-15
+    # 90 min: framework link (~10 min) + xcodebuild test iosAppUnitTests (~46 min on fast runner).
+    # Runs in parallel with the unit-test job so K/N compilation no longer blocks xcodebuild.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-gradle
+        with:
+          java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Read Xcode version
+        id: xcode-version
+        run: echo "version=$(xcodebuild -version | head -1 | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Read Kotlin version
+        id: kotlin-version
+        run: |
+          echo "version=$(grep '^kotlin = ' gradle/libs.versions.toml | sed 's/kotlin = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
+      - name: Cache SPM SourcePackages
+        uses: actions/cache@v6
+        with:
+          path: ~/spm-packages
+          key: spm-${{ runner.os }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v6
+        with:
+          path: ~/derived-data
+          key: derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'shared/src/iosMain/**/*.kt', 'iosApp/iosApp/**/*.swift', 'iosApp/iosApp.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            derived-data-${{ runner.os }}-${{ steps.xcode-version.outputs.version }}-
 
       # Simulator slice only; assembleRiffleDebugXCFramework also links the device framework (~5 min) unused here.
       - name: Link Riffle simulator framework

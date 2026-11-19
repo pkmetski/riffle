@@ -8,8 +8,10 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
     // MARK: - Scenario: Annotate button appears in the selection strip on text selection
 
     func testAnnotateButtonAppearsOnTextSelection() throws {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load before looking for tile")
         let tile = app.buttons[StubAbsServer.testItemTitle].firstMatch
-        XCTAssertTrue(tile.waitForExistence(timeout: 30),
+        XCTAssertTrue(waitForLibraryTile(tile, in: app, timeout: 30),
                       "Test EPUB tile must appear in the library home")
 
         openReader(from: tile, in: app)
@@ -27,8 +29,10 @@ final class SelectionAnnotationTests: AbsHarnessTestCase {
     // MARK: - Scenario: Tapping Annotate opens the annotation colour sheet
 
     func testTappingAnnotateOpensColourSheet() throws {
+        _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
+        XCTAssertTrue(waitForLibraryHome(in: app), "Library home must load before looking for tile")
         let tile = app.buttons[StubAbsServer.testItemTitle].firstMatch
-        XCTAssertTrue(tile.waitForExistence(timeout: 30))
+        XCTAssertTrue(waitForLibraryTile(tile, in: app, timeout: 30))
 
         openReader(from: tile, in: app)
         waitForReaderContentLoaded()

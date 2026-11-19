@@ -6,13 +6,19 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
 
-interface JsonlToSqliteConverter {
-    fun convert(jsonlFile: File, dbFile: File, onProgress: (processed: Long, total: Long) -> Unit = { _, _ -> })
+internal class JvmJsonlToSqliteConverter : JsonlToSqliteConverter {
+
+    override suspend fun convert(
+        jsonlPath: String,
+        dbPath: String,
+        onProgress: (processed: Long, total: Long) -> Unit,
+    ) = KaikkiConverterCore.convert(File(jsonlPath), File(dbPath), onProgress)
 }
 
-internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
+private object KaikkiConverterCore {
+    private const val MAX_BUFFER_ENTRIES = 50_000
 
-    override fun convert(jsonlFile: File, dbFile: File, onProgress: (Long, Long) -> Unit) {
+    fun convert(jsonlFile: File, dbFile: File, onProgress: (Long, Long) -> Unit) {
         val db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         try {
             db.execSQL(
@@ -21,17 +27,13 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
                     pos     TEXT NOT NULL DEFAULT '',
                     glosses TEXT NOT NULL,
                     PRIMARY KEY (form, pos)
-                )"""
+                )""",
             )
             db.execSQL("CREATE INDEX entries_form ON entries(form COLLATE NOCASE)")
 
             val fileSize = jsonlFile.length().coerceAtLeast(1L)
             var bytesApprox = 0L
             var lineNum = 0
-
-            // Buffer accumulates (form, pos) → glosses for up to MAX_BUFFER_ENTRIES unique keys,
-            // then flushes to SQLite. Flushing uses INSERT OR IGNORE + append-via-UPDATE so
-            // cross-flush merges of the same (form, pos) key are preserved correctly.
             val buffer = HashMap<Pair<String, String>, JSONArray>(MAX_BUFFER_ENTRIES * 2)
 
             BufferedReader(jsonlFile.reader()).use { reader ->
@@ -51,27 +53,18 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
                             if (glosses.length() > 0) {
                                 val key = Pair(form, pos)
                                 val existing = buffer.getOrPut(key) { JSONArray() }
-                                for (i in 0 until glosses.length()) {
-                                    existing.put(glosses.getString(i))
-                                }
+                                for (i in 0 until glosses.length()) existing.put(glosses.getString(i))
                             }
                         }
-                    } catch (_: Exception) {
-                        // malformed line: skip
-                    }
+                    } catch (_: Exception) {}
 
-                    if (buffer.size >= MAX_BUFFER_ENTRIES) {
-                        flushBuffer(db, buffer)
-                    }
+                    if (buffer.size >= MAX_BUFFER_ENTRIES) flushBuffer(db, buffer)
 
                     line = reader.readLine()
                 }
             }
 
-            if (buffer.isNotEmpty()) {
-                flushBuffer(db, buffer)
-            }
-
+            if (buffer.isNotEmpty()) flushBuffer(db, buffer)
             onProgress(fileSize, fileSize)
 
             val count = db.rawQuery("SELECT COUNT(*) FROM entries", null).use { c ->
@@ -86,32 +79,22 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
     }
 
     private fun flushBuffer(db: SQLiteDatabase, buffer: HashMap<Pair<String, String>, JSONArray>) {
-        // INSERT OR IGNORE skips existing rows; UPDATE then appends glosses to any pre-existing row
-        // so cross-flush merges of the same (form, pos) pair are correct.
-        val insert = db.compileStatement(
-            "INSERT OR IGNORE INTO entries(form, pos, glosses) VALUES(?,?,?)"
-        )
+        val insert = db.compileStatement("INSERT OR IGNORE INTO entries(form, pos, glosses) VALUES(?,?,?)")
         val appendGlosses = db.compileStatement(
-            "UPDATE entries SET glosses = glosses || ? WHERE form = ? AND pos = ? AND glosses NOT LIKE '%' || ? || '%'"
+            "UPDATE entries SET glosses = glosses || ? WHERE form = ? AND pos = ? AND glosses NOT LIKE '%' || ? || '%'",
         )
-
-        var rowCount = 0
         db.beginTransaction()
         try {
             for ((key, glosses) in buffer) {
                 val (form, pos) = key
                 val glossesJson = glosses.toString()
-
                 insert.bindString(1, form)
                 insert.bindString(2, pos)
                 insert.bindString(3, glossesJson)
                 val inserted = insert.executeInsert()
-
                 if (inserted == -1L) {
-                    // Row existed from a prior flush — append new glosses entries individually
                     for (i in 0 until glosses.length()) {
                         val g = glosses.getString(i)
-                        // Append as a JSON fragment: strip trailing ] from stored, prepend comma+quoted entry
                         val fragment = ",${JSONObject.quote(g)}]"
                         appendGlosses.bindString(1, fragment)
                         appendGlosses.bindString(2, form)
@@ -120,19 +103,11 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
                         appendGlosses.execute()
                     }
                 }
-
-                rowCount++
-                if (rowCount % 10_000 == 0) {
-                    db.setTransactionSuccessful()
-                    db.endTransaction()
-                    db.beginTransaction()
-                }
             }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
-
         buffer.clear()
     }
 
@@ -142,16 +117,8 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
         for (i in 0 until senses.length()) {
             val sense = senses.optJSONObject(i) ?: continue
             val glosses = sense.optJSONArray("glosses") ?: continue
-            if (glosses.length() > 0) {
-                result.put(glosses.optString(0))
-            }
+            if (glosses.length() > 0) result.put(glosses.optString(0))
         }
         return result
-    }
-
-    companion object {
-        // Flush to SQLite after this many unique (form, pos) keys to cap heap usage.
-        // At ~200 bytes average per entry this keeps the buffer under ~10 MB.
-        private const val MAX_BUFFER_ENTRIES = 50_000
     }
 }

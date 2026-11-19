@@ -9,8 +9,11 @@ class HighlightColorPreferencesStoreImpl(private val store: KeyValueStore) : Hig
     override fun lastUsedColor(sourceId: String, itemId: String): Flow<HighlightColor> =
         store.observe {
             val name = store.getString(colorKey(sourceId, itemId))
-            if (name == null) HighlightColor.DEFAULT
-            else runCatching { HighlightColor.valueOf(name) }.getOrDefault(HighlightColor.DEFAULT)
+            if (name == null) {
+                HighlightColor.DEFAULT
+            } else {
+                runCatching { HighlightColor.valueOf(name) }.getOrDefault(HighlightColor.DEFAULT)
+            }
         }
 
     override suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor) =
@@ -20,8 +23,11 @@ class HighlightColorPreferencesStoreImpl(private val store: KeyValueStore) : Hig
         store.observe { store.getBoolean(noneKey(sourceId, itemId), false) }
 
     override suspend fun setLastUsedIsNone(sourceId: String, itemId: String, value: Boolean) {
-        if (value) store.setBoolean(noneKey(sourceId, itemId), true)
-        else store.remove(noneKey(sourceId, itemId))
+        if (value) {
+            store.setBoolean(noneKey(sourceId, itemId), true)
+        } else {
+            store.remove(noneKey(sourceId, itemId))
+        }
     }
 
     private fun colorKey(sourceId: String, itemId: String) =

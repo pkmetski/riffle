@@ -28,8 +28,6 @@ import com.riffle.core.data.IosDeviceLabelResolver
 import com.riffle.core.data.IosFileStore
 import com.riffle.core.data.IosKeyValueStore
 import com.riffle.core.data.IosLibraryRefresherImpl
-import com.riffle.core.data.IosPackDownloaderImpl
-import com.riffle.core.data.IosPackStoreImpl
 import com.riffle.core.data.IosSourceFilesCleaner
 import com.riffle.core.data.IosTokenStorage
 import com.riffle.core.data.ItemProgressPuller
@@ -50,6 +48,9 @@ import com.riffle.core.data.comic.panel.IosJsonPanelStore
 import com.riffle.core.data.comic.panel.IosPageImageDecoder
 import com.riffle.core.data.comic.panel.IosPanelMaskServiceImpl
 import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
+import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
+import com.riffle.core.data.dictionary.PackDownloaderImpl
+import com.riffle.core.data.dictionary.PackStoreImpl
 import com.riffle.core.data.localfiles.FolderPickerInterface
 import com.riffle.core.data.localfiles.IosCopyInService
 import com.riffle.core.data.localfiles.IosFolderPicker
@@ -161,8 +162,16 @@ val iosDataModule = module {
     single<HighlightsResumeStore> { HighlightsResumeStoreImpl(IosKeyValueStore()) }
     single<HighlightColorPreferencesStore> { HighlightColorPreferencesStoreImpl(IosKeyValueStore()) }
     single<EmphasisPreferencesStore> { EmphasisPreferencesStoreImpl(IosKeyValueStore()) }
-    single<PackStore> { IosPackStoreImpl(get(), get()) }
-    single<PackDownloaderInterface> { IosPackDownloaderImpl(get(), get(), get(), get()) }
+    single<PackStore> { PackStoreImpl(dictionaryPackDao = get(), fileStore = get()) }
+    single<PackDownloaderInterface> {
+        PackDownloaderImpl(
+            fileStore = get(),
+            httpClient = get(),
+            dictionaryPackDao = get(),
+            clock = get(),
+            converter = IosJsonlToSqliteConverter(),
+        )
+    }
     single<ColorPageDecoder> { IosColorPageDecoder() }
     single<PageImageDecoder> { IosPageImageDecoder() }
     single<PanelStore> { IosJsonPanelStore(get<FileStore>().resolve("comic-panels", "")) }

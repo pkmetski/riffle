@@ -4,7 +4,7 @@ import com.riffle.feature.settings.ui.dictionary.DictionaryPacksViewModel
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.riffle.app.feature.library.DownloadManager
 import com.riffle.feature.library.DownloadState
-import com.riffle.core.data.dictionary.PackDownloader
+import com.riffle.core.dictionary.PackDownloaderInterface
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.LanguageCatalog
@@ -88,7 +88,7 @@ class DictionaryPacksViewModelTest {
     @Test
     fun `enqueueUpdate delegates for known language`() = runTest {
         val callCount = AtomicInteger(0)
-        val downloader = mockk<PackDownloader>()
+        val downloader = mockk<PackDownloaderInterface>()
         coEvery { downloader.download(any(), any()) } coAnswers { callCount.incrementAndGet(); true }
         val vm = viewModel(downloader = downloader)
         vm.enqueueUpdate("fr")
@@ -99,7 +99,7 @@ class DictionaryPacksViewModelTest {
     @Test
     fun `enqueueUpdate is no-op for unknown language`() = runTest {
         val callCount = AtomicInteger(0)
-        val downloader = mockk<PackDownloader>()
+        val downloader = mockk<PackDownloaderInterface>()
         coEvery { downloader.download(any(), any()) } coAnswers { callCount.incrementAndGet(); true }
         val vm = viewModel(downloader = downloader)
         vm.enqueueUpdate("xx")
@@ -120,7 +120,7 @@ class DictionaryPacksViewModelTest {
     @Test
     fun `duplicate enqueueDownload while in progress is a no-op`() = runTest {
         val callCount = AtomicInteger(0)
-        val downloader = mockk<PackDownloader>()
+        val downloader = mockk<PackDownloaderInterface>()
         coEvery { downloader.download(any(), any()) } coAnswers { callCount.incrementAndGet(); true }
         val vm = viewModel(downloader = downloader)
         val frEntry = LanguageCatalog.entryFor("fr")!!
@@ -143,15 +143,15 @@ class DictionaryPacksViewModelTest {
 
     // --- Helpers ---
 
-    private fun mockDownloader(returns: Boolean): PackDownloader {
-        val downloader = mockk<PackDownloader>()
+    private fun mockDownloader(returns: Boolean): PackDownloaderInterface {
+        val downloader = mockk<PackDownloaderInterface>()
         coEvery { downloader.download(any(), any()) } returns returns
         return downloader
     }
 
     private fun viewModel(
         installed: List<InstalledPack> = emptyList(),
-        downloader: PackDownloader = mockDownloader(returns = true),
+        downloader: PackDownloaderInterface = mockDownloader(returns = true),
     ): DictionaryPacksViewModel {
         val packStore = object : PackStore {
             override fun observeInstalledPacks(): Flow<List<InstalledPack>> = flowOf(installed)

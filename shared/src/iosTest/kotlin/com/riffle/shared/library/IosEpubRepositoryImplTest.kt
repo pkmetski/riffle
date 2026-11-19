@@ -11,6 +11,7 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.NS_EPUB_CACHE
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.ReadingPositionStore
@@ -36,7 +37,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalForeignApi::class)
-class IosEpubRepositoryImplTest {
+class EpubRepositoryImplIosTest {
 
     private val roots = mutableListOf<String>()
 
@@ -132,8 +133,8 @@ class IosEpubRepositoryImplTest {
         override suspend fun forSourceId(sourceId: String): Catalog? = catalog
     }
 
-    private fun repo(store: TempFileStore, catalog: Catalog?): IosEpubRepositoryImpl =
-        IosEpubRepositoryImpl(NoOpPositionStore, store, registry(catalog))
+    private fun repo(store: TempFileStore, catalog: Catalog?): EpubRepositoryImpl =
+        EpubRepositoryImpl(fileStore = store, catalogRegistry = registry(catalog), positionStore = NoOpPositionStore)
 
     private fun writeCacheFile(store: TempFileStore, bytes: ByteArray): String {
         val path = store.resolve(

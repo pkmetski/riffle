@@ -101,9 +101,9 @@ class IosReadaloudAudioRepositoryImpl(
                 val chunks = mutableListOf<ByteArray>()
                 var downloaded = 0L
                 val buffer = ByteArray(64 * 1024)
-                while (!stream.channel.isClosedForRead) {
+                while (true) {
                     val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                    if (read <= 0) continue
+                    if (read <= 0) break
                     chunks += buffer.copyOfRange(0, read)
                     downloaded += read
                     onProgress(downloaded, stream.contentLength)

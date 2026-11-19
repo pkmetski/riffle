@@ -59,14 +59,14 @@ class IosCrashAndUpdateTest {
 
     @Test
     fun `no crashes recorded lists nothing`() {
-        assertEquals(emptyList(), IosCrashReportRepositoryImpl(TempFileStore()).listCrashReports())
+        assertEquals(emptyList(), CrashReportRepositoryImpl(TempFileStore()).listCrashReports())
     }
 
     @Test
     fun `a recorded crash is listed with its id and content`() {
-        val repo = IosCrashReportRepositoryImpl(TempFileStore())
+        val repo = CrashReportRepositoryImpl(TempFileStore())
 
-        assertTrue(repo.record("crash-1000", "boom\nstack line"))
+        repo.record("crash-1000", "boom\nstack line")
 
         val reports = repo.listCrashReports()
         assertEquals(1, reports.size)
@@ -76,7 +76,7 @@ class IosCrashAndUpdateTest {
 
     @Test
     fun `each crash gets its own report rather than overwriting`() {
-        val repo = IosCrashReportRepositoryImpl(TempFileStore())
+        val repo = CrashReportRepositoryImpl(TempFileStore())
 
         repo.record("crash-1000", "first")
         repo.record("crash-2000", "second")
@@ -86,7 +86,7 @@ class IosCrashAndUpdateTest {
 
     @Test
     fun `report file paths resolve only for ids that exist`() {
-        val repo = IosCrashReportRepositoryImpl(TempFileStore())
+        val repo = CrashReportRepositoryImpl(TempFileStore())
         repo.record("crash-1000", "first")
 
         val paths = repo.resolveReportFilePaths(listOf("crash-1000", "crash-absent"))
@@ -97,7 +97,7 @@ class IosCrashAndUpdateTest {
 
     @Test
     fun `clearing removes every report`() {
-        val repo = IosCrashReportRepositoryImpl(TempFileStore())
+        val repo = CrashReportRepositoryImpl(TempFileStore())
         repo.record("crash-1000", "first")
         repo.record("crash-2000", "second")
 

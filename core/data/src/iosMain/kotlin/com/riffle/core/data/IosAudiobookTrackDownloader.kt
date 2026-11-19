@@ -69,9 +69,9 @@ class IosAudiobookTrackDownloader(
                     val chunks = mutableListOf<ByteArray>()
                     var totalRead = 0
                     val buffer = ByteArray(64 * 1024)
-                    while (!stream.channel.isClosedForRead) {
+                    while (true) {
                         val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                        if (read <= 0) continue
+                        if (read <= 0) break
                         chunks += buffer.copyOfRange(0, read)
                         totalRead += read
                         progress.record(read.toLong())

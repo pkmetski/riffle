@@ -100,7 +100,7 @@ class IosAudiobookOfflineTest {
     private fun mockClient(body: ByteArray = ByteArray(1024) { 7 }, record: MutableList<String>? = null) =
         HttpClient(
             MockEngine { request ->
-                record?.add(request.url.toString())
+                if (record != null && request.method.value == "GET") record.add(request.url.toString())
                 respond(
                     content = body,
                     status = HttpStatusCode.OK,
@@ -114,12 +114,12 @@ class IosAudiobookOfflineTest {
         client: HttpClient = mockClient(),
         audiobookRepository: AudiobookRepository = FakeAudiobookRepository(null),
         events: LocalAvailabilityEvents = RecordingAvailabilityEvents(),
-    ) = IosAudiobookDownloadRepositoryImpl(
+    ) = AudiobookDownloadRepositoryImpl(
         audiobookRepository = audiobookRepository,
-        trackDownloader = IosAudiobookTrackDownloader(client, IosDispatcherProvider),
         fileStore = fileStore,
         dispatchers = IosDispatcherProvider,
         localAvailabilityEvents = events,
+        httpClient = client,
     )
 
     private fun cacheRepo(
