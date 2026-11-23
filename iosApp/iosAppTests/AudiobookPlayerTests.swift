@@ -81,11 +81,11 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
     /// a sleep-timer pill and the Chapters / bookmarks entry points (#1072 §3). Before the move to
     /// `:feature:player-ui` iOS had none of these.
     func testAudiobookPlayerShowsSpeedSleepAndListControls() throws {
-        // 900 s: the combined playPause wait (300 s) + pills wait (400 s) can reach 700 s under
+        // 1200 s: the combined playPause wait (300 s) + pills wait (600 s) can reach 900 s under
         // extreme CI load; the default XCTest execution allowance (420 s / 7 min) truncates the
         // pills wait before it can settle, producing "exceeded execution time allowance" failures
         // on main even when the app is working correctly.
-        executionTimeAllowance = 900
+        executionTimeAllowance = 1200
         _ = app.activityIndicators.firstMatch.waitForNonExistence(timeout: 15)
         // Gate on the home sections, not just the (absent) spinner: the 10 s tile wait below
         // starts counting from app launch otherwise and trips under CI clone contention.
@@ -121,16 +121,17 @@ final class AudiobookPlayerTests: AbsHarnessTestCase {
         let allPillsPresent = NSPredicate { _, _ in
             self.chaptersPill.exists && bookmarksPill.exists && sleepPill.exists && speedPill.exists
         }
-        // 400 s: playPause appeared but the CMP tree can still be settling under CI load; the old
+        // 600 s: playPause appeared but the CMP tree can still be settling under CI load; the old
         // 60 s cap caused a spurious fail, raised to 120 s, then to 180 s after observing ~149 s
         // total test times on Clone 1, then raised again to 240 s after observing 223 s total test
         // times on Clone 2 under heavy runner contention (both retry iterations timed out at 180 s).
         // Raised to 300 s after observing 286 s total test times when both previous iterations
         // timed out at 240 s under extreme runner contention (~292 s of prior sequential testing).
         // Raised to 400 s after observing 320 s total test time (pills wait exhausted at 300 s).
+        // Raised to 600 s after observing 420.911 s total test time (pills wait exhausted at 400 s).
         let pillsResult = XCTWaiter.wait(
             for: [XCTNSPredicateExpectation(predicate: allPillsPresent, object: nil)],
-            timeout: 400
+            timeout: 600
         )
         XCTAssertEqual(pillsResult, .completed,
                        "Player must offer Chapters, bookmarks, sleep-timer and speed controls")
