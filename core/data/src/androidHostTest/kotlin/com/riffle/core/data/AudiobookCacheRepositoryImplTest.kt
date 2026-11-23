@@ -7,8 +7,8 @@ import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.network.createStreamingHttpClient
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -50,7 +50,7 @@ class AudiobookCacheRepositoryImplTest {
 
     private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
         val refs = mutableListOf<StoredItemRef>()
-        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             refs += StoredItemRef(sourceId, itemId)
         }

@@ -13,8 +13,8 @@ import com.riffle.core.network.createStreamingHttpClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -76,7 +76,7 @@ class AudiobookDownloadRepositoryImplTest {
 
     private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
         val refs = mutableListOf<StoredItemRef>()
-        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             refs += StoredItemRef(sourceId, itemId)
         }

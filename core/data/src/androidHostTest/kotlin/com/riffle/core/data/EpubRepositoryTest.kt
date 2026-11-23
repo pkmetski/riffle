@@ -16,8 +16,7 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
@@ -118,7 +117,7 @@ class EpubRepositoryTest {
 
     private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
         val refs = mutableListOf<StoredItemRef>()
-        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             refs += StoredItemRef(sourceId, itemId)
         }

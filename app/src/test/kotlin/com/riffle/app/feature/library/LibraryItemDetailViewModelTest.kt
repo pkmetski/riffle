@@ -59,7 +59,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -260,7 +259,7 @@ class LibraryItemDetailViewModelTest {
 
     private class FakeLocalAvailabilityEvents : LocalAvailabilityEvents {
         private val _changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 16)
-        override val changes: SharedFlow<StoredItemRef> = _changes
+        override val changes: Flow<StoredItemRef> = _changes
 
         override fun notifyChanged(sourceId: String, itemId: String) {
             _changes.tryEmit(StoredItemRef(sourceId, itemId))

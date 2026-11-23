@@ -7,8 +7,8 @@ import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.StoredMediaType
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
@@ -184,8 +184,7 @@ class IosDownloadsRepositoryTest {
 
     private class RecordingAvailabilityEvents : LocalAvailabilityEvents {
         val notified = mutableListOf<Pair<String, String>>()
-        private val _changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 8)
-        override val changes: SharedFlow<StoredItemRef> get() = _changes
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             notified += sourceId to itemId
         }
