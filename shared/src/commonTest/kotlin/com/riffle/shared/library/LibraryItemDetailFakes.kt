@@ -62,9 +62,9 @@ import com.riffle.feature.library.PdfPageCountExtractor
 import com.riffle.feature.library.ReadaloudOfflineDownloader
 import com.riffle.feature.library.WebSourceLibraryItemUpserter
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 
 internal class FakeEpubRepository : EpubRepository {
@@ -134,7 +134,7 @@ internal class FakeAudiobookCacheRepository : AudiobookCacheRepository {
 }
 
 internal class FakeLocalAvailabilityEvents : LocalAvailabilityEvents {
-    override val changes: MutableSharedFlow<StoredItemRef> = MutableSharedFlow()
+    override val changes: Flow<StoredItemRef> = emptyFlow()
     override fun notifyChanged(sourceId: String, itemId: String) {}
 }
 
