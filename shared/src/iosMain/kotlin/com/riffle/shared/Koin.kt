@@ -53,9 +53,6 @@ import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
 import com.riffle.core.data.IosSidecarClipInspector
 import com.riffle.core.data.IosSourceRepositoryImpl
 import com.riffle.core.data.IosStorytellerSidecarFetcher
-import com.riffle.core.data.ReadaloudSidecarStore
-import com.riffle.core.data.SidecarClipInspector
-import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
@@ -69,9 +66,12 @@ import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
+import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.ReadingSessionRepositoryImpl
+import com.riffle.core.data.SidecarClipInspector
 import com.riffle.core.data.StorytellerBundleAudiobookSource
 import com.riffle.core.data.StorytellerReadaloudSyncer
+import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.TocRepositoryImpl
@@ -84,8 +84,8 @@ import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.localfiles.IosLocalFilesFileReader
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
-import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
+import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver
