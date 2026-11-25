@@ -231,7 +231,19 @@ abstract class CbzRepositoryImpl(
     }
 
     override suspend fun awaitCachedSource(item: LibraryItem): CbzLocalSource? {
-        val path = resolveLocalPath(item) ?: fetchToCache(item) ?: return null
+        val existing = resolveLocalPath(item)
+        if (existing != null) {
+            val result = openLocalArchive(existing, null)
+            if (result != null) {
+                return CbzLocalSource(
+                    imageSource = result.imageSource,
+                    pageCount = result.pageCount,
+                    bookmarks = result.bookmarks,
+                )
+            }
+            runCatching { fileSystem.delete(existing.toPath()) }
+        }
+        val path = fetchToCache(item) ?: return null
         val result = openLocalArchive(path, null) ?: return null
         return CbzLocalSource(
             imageSource = result.imageSource,
