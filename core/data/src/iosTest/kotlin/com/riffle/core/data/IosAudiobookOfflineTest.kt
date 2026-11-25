@@ -17,8 +17,8 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
@@ -66,8 +66,7 @@ class IosAudiobookOfflineTest {
 
     private class RecordingAvailabilityEvents : LocalAvailabilityEvents {
         val notified = mutableListOf<Pair<String, String>>()
-        private val _changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 8)
-        override val changes: SharedFlow<StoredItemRef> get() = _changes
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             notified += sourceId to itemId
         }
@@ -100,7 +99,7 @@ class IosAudiobookOfflineTest {
     private fun mockClient(body: ByteArray = ByteArray(1024) { 7 }, record: MutableList<String>? = null) =
         HttpClient(
             MockEngine { request ->
-                record?.add(request.url.toString())
+                if (record != null && request.method.value == "GET") record.add(request.url.toString())
                 respond(
                     content = body,
                     status = HttpStatusCode.OK,
@@ -114,12 +113,12 @@ class IosAudiobookOfflineTest {
         client: HttpClient = mockClient(),
         audiobookRepository: AudiobookRepository = FakeAudiobookRepository(null),
         events: LocalAvailabilityEvents = RecordingAvailabilityEvents(),
-    ) = IosAudiobookDownloadRepositoryImpl(
+    ) = AudiobookDownloadRepositoryImpl(
         audiobookRepository = audiobookRepository,
-        trackDownloader = IosAudiobookTrackDownloader(client, IosDispatcherProvider),
         fileStore = fileStore,
         dispatchers = IosDispatcherProvider,
         localAvailabilityEvents = events,
+        httpClient = client,
     )
 
     private fun cacheRepo(

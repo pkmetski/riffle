@@ -10,7 +10,9 @@ class FakeKeyValueStore : KeyValueStore {
     private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val changes: Flow<Unit> = _changes.asSharedFlow()
 
-    private fun emit() { _changes.tryEmit(Unit) }
+    private fun emit() {
+        _changes.tryEmit(Unit)
+    }
 
     override suspend fun getBoolean(key: String, default: Boolean) =
         (map[key] as? Boolean) ?: default
@@ -35,19 +37,40 @@ class FakeKeyValueStore : KeyValueStore {
     override suspend fun getStringSet(key: String) =
         (map[key] as? Set<String>) ?: emptySet()
 
-    override suspend fun setBoolean(key: String, value: Boolean) { map[key] = value; emit() }
-    override suspend fun setInt(key: String, value: Int) { map[key] = value; emit() }
-    override suspend fun setFloat(key: String, value: Float) { map[key] = value; emit() }
-    override suspend fun setDouble(key: String, value: Double) { map[key] = value; emit() }
-    override suspend fun setLong(key: String, value: Long) { map[key] = value; emit() }
-    override suspend fun setStringSet(key: String, value: Set<String>) { map[key] = value; emit() }
+    override suspend fun setBoolean(key: String, value: Boolean) {
+        map[key] = value
+        emit()
+    }
+    override suspend fun setInt(key: String, value: Int) {
+        map[key] = value
+        emit()
+    }
+    override suspend fun setFloat(key: String, value: Float) {
+        map[key] = value
+        emit()
+    }
+    override suspend fun setDouble(key: String, value: Double) {
+        map[key] = value
+        emit()
+    }
+    override suspend fun setLong(key: String, value: Long) {
+        map[key] = value
+        emit()
+    }
+    override suspend fun setStringSet(key: String, value: Set<String>) {
+        map[key] = value
+        emit()
+    }
 
     override suspend fun setString(key: String, value: String?) {
         if (value == null) map.remove(key) else map[key] = value
         emit()
     }
 
-    override suspend fun remove(key: String) { map.remove(key); emit() }
+    override suspend fun remove(key: String) {
+        map.remove(key)
+        emit()
+    }
 
     override suspend fun updateString(key: String, update: (String?) -> String): String {
         val updated = update(map[key] as? String)

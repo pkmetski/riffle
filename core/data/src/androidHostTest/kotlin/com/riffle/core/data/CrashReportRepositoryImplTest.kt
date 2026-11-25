@@ -1,25 +1,44 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.FileStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class CrashReportRepositoryImplTest {
 
     @get:Rule
     val tmpFolder = TemporaryFolder()
 
+    private fun fileStore(root: File): FileStore = object : FileStore {
+        override fun resolve(namespace: String, relativePath: String): String {
+            val base = root.resolve(namespace)
+            return if (relativePath.isEmpty()) {
+                base.apply { mkdirs() }.absolutePath
+            } else {
+                File(base, relativePath).also { it.parentFile?.mkdirs() }.absolutePath
+            }
+        }
+        override fun exists(namespace: String, relativePath: String) =
+            File(resolve(namespace, relativePath)).exists()
+    }
+
+    private fun androidRepo(root: File) = AndroidCrashReportRepositoryImpl(fileStore(root))
+    private fun repo(root: File) = CrashReportRepositoryImpl(fileStore(root))
+
     @Test
     fun `listCrashReports returns every txt file newest first`() {
-        val dir = tmpFolder.newFolder("crash_reports")
-        val older = dir.resolve("100-aaaaaaaa.txt").apply { writeText("older") }
+        val root = tmpFolder.newFolder()
+        val reportsDir = root.resolve(NS_CRASH_REPORTS).apply { mkdirs() }
+        val older = reportsDir.resolve("100-aaaaaaaa.txt").apply { writeText("older") }
         older.setLastModified(1000L)
-        val newer = dir.resolve("200-bbbbbbbb.txt").apply { writeText("newer") }
+        val newer = reportsDir.resolve("200-bbbbbbbb.txt").apply { writeText("newer") }
         newer.setLastModified(2000L)
 
-        val reports = CrashReportRepositoryImpl(dir).listCrashReports()
+        val reports = repo(root).listCrashReports()
 
         assertEquals(listOf("newer", "older"), reports.map { it.content })
         assertEquals(listOf("200-bbbbbbbb", "100-aaaaaaaa"), reports.map { it.id })
@@ -27,54 +46,54 @@ class CrashReportRepositoryImplTest {
 
     @Test
     fun `listCrashReports returns empty when directory has no txt files`() {
-        val dir = tmpFolder.newFolder("crash_reports")
-        // A non-txt sibling must be ignored — only ACRA-written reports are surfaced.
-        dir.resolve("README.md").writeText("ignored")
+        val root = tmpFolder.newFolder()
+        root.resolve(NS_CRASH_REPORTS).apply { mkdirs() }.resolve("README.md").writeText("ignored")
 
-        assertTrue(CrashReportRepositoryImpl(dir).listCrashReports().isEmpty())
+        assertTrue(repo(root).listCrashReports().isEmpty())
     }
 
     @Test
     fun `listCrashReports returns empty when directory does not exist yet`() {
-        val dir = tmpFolder.root.resolve("never_created")
+        val root = tmpFolder.newFolder("never_created_root")
 
-        assertTrue(CrashReportRepositoryImpl(dir).listCrashReports().isEmpty())
+        assertTrue(repo(root).listCrashReports().isEmpty())
     }
 
     @Test
     fun `resolveReportFiles returns the on-disk files in request order`() {
-        val dir = tmpFolder.newFolder("crash_reports")
-        dir.resolve("a.txt").writeText("A")
-        dir.resolve("b.txt").writeText("B")
-        val repo = CrashReportRepositoryImpl(dir)
+        val root = tmpFolder.newFolder()
+        val r = androidRepo(root)
+        r.record("a", "A")
+        r.record("b", "B")
 
-        val files = repo.resolveReportFiles(listOf("b", "a"))
+        val files = r.resolveReportFiles(listOf("b", "a"))
 
         assertEquals(listOf("b.txt", "a.txt"), files.map { it.name })
     }
 
     @Test
     fun `resolveReportFiles drops ids that no longer have a file`() {
-        val dir = tmpFolder.newFolder("crash_reports")
-        dir.resolve("kept.txt").writeText("here")
-        val repo = CrashReportRepositoryImpl(dir)
+        val root = tmpFolder.newFolder()
+        val r = androidRepo(root)
+        r.record("kept", "here")
 
-        val files = repo.resolveReportFiles(listOf("kept", "missing"))
+        val files = r.resolveReportFiles(listOf("kept", "missing"))
 
         assertEquals(listOf("kept.txt"), files.map { it.name })
     }
 
     @Test
     fun `clearAllCrashReports removes every txt file but leaves siblings alone`() {
-        val dir = tmpFolder.newFolder("crash_reports")
-        dir.resolve("one.txt").writeText("one")
-        dir.resolve("two.txt").writeText("two")
-        val keep = dir.resolve("README.md").apply { writeText("don't touch") }
-        val repo = CrashReportRepositoryImpl(dir)
+        val root = tmpFolder.newFolder()
+        val r = repo(root)
+        r.record("one", "one")
+        r.record("two", "two")
+        val reportsDir = root.resolve(NS_CRASH_REPORTS).apply { mkdirs() }
+        val keep = reportsDir.resolve("README.md").apply { writeText("don't touch") }
 
-        repo.clearAllCrashReports()
+        r.clearAllCrashReports()
 
-        assertTrue(repo.listCrashReports().isEmpty())
+        assertTrue(r.listCrashReports().isEmpty())
         assertTrue(keep.exists())
     }
 }

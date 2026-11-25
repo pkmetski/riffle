@@ -72,6 +72,9 @@ class SearchHarnessTest : KoinTest {
         assertReaderReady()
 
         showTopAppBar()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
 
         // Search field must appear
@@ -137,6 +140,9 @@ class SearchHarnessTest : KoinTest {
         assertReaderReady()
 
         showTopAppBar()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -163,6 +169,9 @@ class SearchHarnessTest : KoinTest {
         assertReaderReady()
 
         showTopAppBar()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = 5_000) {

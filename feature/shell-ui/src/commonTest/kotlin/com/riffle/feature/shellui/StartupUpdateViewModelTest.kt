@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -95,7 +94,7 @@ class StartupUpdateViewModelTest {
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             prefs = MutableFakePrefs(autoEnabled = false),
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertNull(vm.updateState.value)
     }
@@ -103,7 +102,7 @@ class StartupUpdateViewModelTest {
     @Test
     fun `updateState is null when no releases are newer`() = runTest {
         val vm = viewModel(repo = fakeRepo(emptyList()))
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertNull(vm.updateState.value)
     }
@@ -113,7 +112,7 @@ class StartupUpdateViewModelTest {
         val vm = viewModel(
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600, downloadUrl = ""))),
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertNull(vm.updateState.value)
     }
@@ -123,7 +122,7 @@ class StartupUpdateViewModelTest {
         val vm = viewModel(
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600, "Release notes"))),
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         val state = vm.updateState.value
         assertNotNull(state)
@@ -138,7 +137,7 @@ class StartupUpdateViewModelTest {
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             prefs = prefs,
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertTrue(vm.showDot.value)
     }
@@ -150,7 +149,7 @@ class StartupUpdateViewModelTest {
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             prefs = prefs,
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertFalse(vm.showDot.value)
     }
@@ -162,11 +161,11 @@ class StartupUpdateViewModelTest {
             repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             prefs = prefs,
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
         assertTrue(vm.showDot.value)
 
         vm.markUpdateSeen()
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertFalse(vm.showDot.value)
         assertEquals(10600, prefs.seenFlow.first())
@@ -184,16 +183,16 @@ class StartupUpdateViewModelTest {
             override suspend fun listReleasesSince(sinceVersionCode: Int) = releasesFlow.value
         }
         val vm = viewModel(repo = repo, prefs = prefs, clock = clock)
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         vm.markUpdateSeen()
-        advanceUntilIdle()
+        testScheduler.runCurrent()
         assertFalse(vm.showDot.value)
 
         clock.timeMs = StartupUpdateViewModel.AUTO_CHECK_INTERVAL_MS + 1
         releasesFlow.value = listOf(releaseInfo("1.7.0", 10700))
         vm.checkNow()
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertTrue(vm.showDot.value)
     }
@@ -201,7 +200,7 @@ class StartupUpdateViewModelTest {
     @Test
     fun `showUpdateSheet sets showSheet to true`() = runTest {
         val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         vm.showUpdateSheet()
 
@@ -211,7 +210,7 @@ class StartupUpdateViewModelTest {
     @Test
     fun `dismissSheet sets showSheet to false when not downloading`() = runTest {
         val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
-        advanceUntilIdle()
+        testScheduler.runCurrent()
         vm.showUpdateSheet()
         assertTrue(vm.showSheet.value)
 
@@ -235,7 +234,7 @@ class StartupUpdateViewModelTest {
         val vm = viewModel(repo = repo)
         vm.showUpdateSheet()
         vm.startUpdate(AvailableUpdate("1.6.0", 10600, "https://x/1.6.0.apk", 1000L))
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         vm.dismissSheet()
 
@@ -245,12 +244,12 @@ class StartupUpdateViewModelTest {
     @Test
     fun `sheet auto-dismisses after installer is handed off`() = runTest {
         val vm = viewModel(repo = fakeRepo(listOf(releaseInfo("1.6.0", 10600))))
-        advanceUntilIdle()
+        testScheduler.runCurrent()
         vm.showUpdateSheet()
         assertTrue(vm.showSheet.value)
 
         vm.startUpdate(AvailableUpdate("1.6.0", 10600, "https://x/1.6.0.apk", 1000L))
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         assertFalse(vm.showSheet.value)
     }
@@ -271,7 +270,7 @@ class StartupUpdateViewModelTest {
                 )
             ),
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         val state = vm.updateState.value
         assertNotNull(state)
@@ -288,7 +287,7 @@ class StartupUpdateViewModelTest {
                 ),
             ),
         )
-        advanceUntilIdle()
+        testScheduler.runCurrent()
 
         val state = vm.updateState.value
         assertNotNull(state)

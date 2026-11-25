@@ -12,65 +12,57 @@ import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.domain.CbzOpenResult
-import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import io.ktor.utils.io.ByteReadChannel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import okio.FileSystem
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
+/**
+ * Tests that [JvmCbzRepositoryImpl] correctly handles corrupt/truncated CBZ archives. Pins the
+ * corruption-detection behaviour from #1101 (truncated downloads silently failed to open, leaving
+ * the reader in a broken state) on the new okio-backed implementation.
+ *
+ * Uses real temporary directories rather than FakeFileSystem because [JvmCbzRepositoryImpl.openLocalArchive]
+ * reads archives via java.io.File, which only sees the real filesystem.
+ */
 class CbzRepositoryImplCorruptionTest {
 
-    @get:Rule val tmp = TemporaryFolder()
+    @get:Rule
+    val tmpDir = TemporaryFolder()
 
-    // --- File helpers ---
-
-    /** A file with valid ZIP magic bytes but no EOCD — simulates a truncated download. */
-    private fun truncatedZip(): File = tmp.newFile("corrupt.cbz").also { f ->
-        f.writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(100) { it.toByte() })
+    private inner class TempFileStore : com.riffle.core.common.FileStore {
+        override fun resolve(namespace: String, relativePath: String): String {
+            val base = File(tmpDir.root, namespace)
+            base.mkdirs()
+            return if (relativePath.isEmpty()) base.absolutePath else File(base, relativePath).absolutePath
+        }
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            File(resolve(namespace, relativePath)).exists()
     }
 
-    /** A minimal valid ZIP (one dummy entry). */
-    private fun validZip(): File = tmp.newFile("valid.cbz").also { f ->
-        ZipOutputStream(f.outputStream()).use { zos ->
+    private fun truncatedZipBytes(): ByteArray =
+        byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(100) { it.toByte() }
+
+    private fun validZipBytes(): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        ZipOutputStream(out).use { zos ->
             zos.putNextEntry(ZipEntry("page.jpg"))
-            zos.write(byteArrayOf(0xFF.toByte(), 0xD8.toByte())) // JPEG magic
+            zos.write(byteArrayOf(0xFF.toByte(), 0xD8.toByte()))
             zos.closeEntry()
         }
+        return out.toByteArray()
     }
-
-    // --- Fakes ---
-
-    private fun storeFor(file: File?): TrackingStore = TrackingStore(file)
-
-    inner class TrackingStore(private val file: File?) : LocalStore {
-        var deleted = false
-        override fun get(sourceId: String, itemId: String): File? = file
-        override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File =
-            throw UnsupportedOperationException()
-        override fun delete(sourceId: String, itemId: String) {
-            deleted = true
-        }
-        override fun deleteSource(sourceId: String) {}
-        override fun clear() {}
-        override fun listItems() = emptyList<com.riffle.core.domain.StoredItemRef>()
-    }
-
-    private val emptyStore = storeFor(null)
 
     private val streamingCatalog = object : Catalog, CbzPageStreamCapability {
         override val sourceType: SourceType = SourceType.KOMGA
@@ -78,14 +70,17 @@ class CbzRepositoryImplCorruptionTest {
         override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?): List<CatalogItem> = emptyList()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
-        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not used")
+        override suspend fun <T> withFileStream(
+            itemId: String, format: BookFormat, handleHint: String?,
+            block: suspend (CatalogFileStream) -> T,
+        ): T = error("not used")
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
         override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray = byteArrayOf()
         override suspend fun fetchCbzPageCount(itemId: String): Int = 10
     }
 
-    private fun registryFor(catalog: Catalog) = object : CatalogRegistry {
+    private fun registryFor(catalog: Catalog?) = object : CatalogRegistry {
         override suspend fun forActive(): Catalog? = catalog
         override suspend fun forSource(source: Source): Catalog? = catalog
         override suspend fun forSourceId(sourceId: String): Catalog? = catalog
@@ -101,99 +96,79 @@ class CbzRepositoryImplCorruptionTest {
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
     }
 
-    private val noActiveSource = object : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
-        override suspend fun getActive(): Source? = null
-        override suspend fun getById(sourceId: String): Source? = null
-        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
-        override suspend fun setActive(sourceId: String) {}
-        override suspend fun remove(sourceId: String) {}
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
     private fun fakeItem(sourceId: String = "src1") = LibraryItem(
         id = "item1", libraryId = "lib1", title = "Comic", author = "Author",
         coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
         ebookFormat = EbookFormat.Cbz, sourceId = sourceId,
     )
 
-    // --- Tests ---
+    private fun makeRepo(
+        fileStore: com.riffle.core.common.FileStore = TempFileStore(),
+        catalog: Catalog? = streamingCatalog,
+    ) = JvmCbzRepositoryImpl(
+        fileStore = fileStore,
+        catalogRegistry = registryFor(catalog),
+        positionStore = noPosition,
+        fileSystem = FileSystem.SYSTEM,
+        dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+    )
 
-    @Test fun `openCbz falls back to Streaming when cached file is truncated`() = runTest {
-        val corruptCache = storeFor(truncatedZip())
-        val repo = CbzRepositoryImpl(
-            registryFor(streamingCatalog), corruptCache, emptyStore, noPosition, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
+    private fun writeFileToStore(store: com.riffle.core.common.FileStore, namespace: String, bytes: ByteArray): String {
+        val path = store.resolve(namespace, "src1/item1.cbz")
+        File(path).also { it.parentFile?.mkdirs() }.writeBytes(bytes)
+        return path
+    }
+
+    @Test
+    fun `openCbz falls back to Streaming when cached file is truncated`() = runTest {
+        val store = TempFileStore()
+        writeFileToStore(store, NS_CBZ_CACHE, truncatedZipBytes())
+        val repo = makeRepo(store)
+
         val result = repo.openCbz(fakeItem())
         assertTrue("expected Streaming but got $result", result is CbzOpenResult.Streaming)
     }
 
-    @Test fun `openCbz deletes corrupt cached file so next open can re-cache`() = runTest {
-        val corruptCache = storeFor(truncatedZip())
-        val repo = CbzRepositoryImpl(
-            registryFor(streamingCatalog), corruptCache, emptyStore, noPosition, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        repo.openCbz(fakeItem())
-        assertTrue("corrupt cache file must be deleted", corruptCache.deleted)
+    @Test
+    fun `openCbz deletes corrupt cached file so next open can re-cache`() = runTest {
+        val store = TempFileStore()
+        val path = writeFileToStore(store, NS_CBZ_CACHE, truncatedZipBytes())
+        makeRepo(store).openCbz(fakeItem())
+
+        assertTrue("corrupt cache file must be deleted", !File(path).exists())
     }
 
-    @Test fun `openCbz deletes corrupt downloaded file so streaming path is unblocked`() = runTest {
-        val corruptDownload = storeFor(truncatedZip())
-        val repo = CbzRepositoryImpl(
-            registryFor(streamingCatalog), emptyStore, corruptDownload, noPosition, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        repo.openCbz(fakeItem())
-        assertTrue("corrupt downloads file must be deleted", corruptDownload.deleted)
+    @Test
+    fun `openCbz deletes corrupt downloaded file so streaming path is unblocked`() = runTest {
+        val store = TempFileStore()
+        val path = writeFileToStore(store, NS_CBZ_DOWNLOADS, truncatedZipBytes())
+        makeRepo(store).openCbz(fakeItem())
+
+        assertTrue("corrupt downloads file must be deleted", !File(path).exists())
     }
 
-    @Test fun `openCbz returns Success for a valid cached file`() = runTest {
-        val goodCache = storeFor(validZip())
-        val repo = CbzRepositoryImpl(
-            registryFor(streamingCatalog), goodCache, emptyStore, noPosition, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        val result = repo.openCbz(fakeItem())
+    @Test
+    fun `openCbz returns Success for a valid cached file`() = runTest {
+        val store = TempFileStore()
+        writeFileToStore(store, NS_CBZ_CACHE, validZipBytes())
+        val result = makeRepo(store).openCbz(fakeItem())
+
         assertTrue("expected Success but got $result", result is CbzOpenResult.Success)
     }
 
-    @Test fun `awaitCachedFile deletes partial file on download failure`() = runTest {
-        var deleted = false
-        val failingCacheStore = object : LocalStore {
-            override fun get(sourceId: String, itemId: String): File? = null
-            override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File =
-                throw RuntimeException("network cut")
-            override fun delete(sourceId: String, itemId: String) {
-                deleted = true
-            }
-            override fun deleteSource(sourceId: String) {}
-            override fun clear() {}
-            override fun listItems() = emptyList<com.riffle.core.domain.StoredItemRef>()
-        }
-        val failingCatalog = object : Catalog, CbzPageStreamCapability by streamingCatalog {
-            override val sourceType: SourceType = SourceType.KOMGA
-            override suspend fun listRoots(): List<CatalogRoot> = emptyList()
-            override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?): List<CatalogItem> = emptyList()
-            override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
-            override suspend fun getItem(itemId: String): CatalogItem? = null
-            override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
+    @Test
+    fun `awaitCachedSource returns null and leaves no file when download stream errors`() = runTest {
+        val store = TempFileStore()
+        val failingCatalog = object : Catalog by streamingCatalog {
             override suspend fun <T> withFileStream(
                 itemId: String, format: BookFormat, handleHint: String?,
                 block: suspend (CatalogFileStream) -> T,
-            ): T = block(object : CatalogFileStream {
-                override val contentLength: Long get() = 10L
-                override val channel: ByteReadChannel = ByteReadChannel(ByteArray(10))
-            })
-            override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
+            ): T = throw RuntimeException("network cut")
         }
-        val repo = CbzRepositoryImpl(
-            registryFor(failingCatalog), failingCacheStore, emptyStore, noPosition, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        val result = repo.awaitCachedSource(fakeItem())
+        val result = makeRepo(store, failingCatalog).awaitCachedSource(fakeItem())
+
         assertNull("should return null on failure", result)
-        assertTrue("partial cache file must be deleted on failure", deleted)
+        val cachePath = store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")
+        assertTrue("partial cache file must not exist after failure", !File(cachePath).exists())
     }
 }

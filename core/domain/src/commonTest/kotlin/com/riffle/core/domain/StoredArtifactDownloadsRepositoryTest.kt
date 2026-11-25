@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -168,7 +168,7 @@ class StoredArtifactDownloadsRepositoryTest {
 
     private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
         val notified = mutableListOf<StoredItemRef>()
-        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             notified += StoredItemRef(sourceId, itemId)
         }

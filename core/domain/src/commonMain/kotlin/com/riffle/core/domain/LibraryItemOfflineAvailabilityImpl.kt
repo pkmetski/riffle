@@ -4,7 +4,7 @@ import com.riffle.core.common.Clock
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,7 +37,7 @@ class LibraryItemOfflineAvailabilityImpl(
     private val cbzRepository: CbzRepository,
     private val audiobookDownloadRepository: AudiobookDownloadRepository,
     private val bundleAudiobookSource: BundleAudiobookSource,
-    availabilityChanges: SharedFlow<StoredItemRef>? = null,
+    availabilityChanges: Flow<StoredItemRef>? = null,
     invalidationScope: CoroutineScope? = null,
     private val ttlMillis: Long = 30_000,
     private val clock: Clock,

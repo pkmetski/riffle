@@ -1,8 +1,8 @@
 package com.riffle.core.domain
 
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
 
 interface LocalAvailabilityEvents {
-    val changes: SharedFlow<StoredItemRef>
+    val changes: Flow<StoredItemRef>
     fun notifyChanged(sourceId: String, itemId: String)
 }

@@ -13,14 +13,10 @@ import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
-import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import io.ktor.utils.io.ByteReadChannel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -36,7 +32,6 @@ class BookDownloadRepositoryStreamingTest {
     private val payload = ByteArray(128 * 1024) { (it % 251).toByte() }
     private val catalog = StreamingOnlyCatalog(payload)
     private val registry = InlineCatalogRegistry(catalog)
-    private val sourceRepository = TestSourceRepository()
     private val positionStore = EmptyPositionStore()
 
     @Test
@@ -45,12 +40,9 @@ class BookDownloadRepositoryStreamingTest {
         val epubCacheDir = tmp.newFolder("epub-cache")
         val epubDownloadsDir = tmp.newFolder("epub-downloads")
         val repository = EpubRepositoryImpl(
-            registry,
-            LocalStoreImpl(epubCacheDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
-            LocalStoreImpl(epubDownloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
-            positionStore,
-            sourceRepository,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = epubDownloadsDir, cacheDir = epubCacheDir),
+            fileStore = AndroidEpubFileStore(downloadsDir = epubDownloadsDir, cacheDir = epubCacheDir),
+            catalogRegistry = registry,
+            positionStore = positionStore,
         )
 
         val result = repository.downloadEpub(item(EbookFormat.Epub)) { downloaded, total ->
@@ -65,12 +57,12 @@ class BookDownloadRepositoryStreamingTest {
     @Test
     fun `PDF download consumes response-scoped stream with cumulative progress`() = runTest {
         val progress = mutableListOf<Pair<Long, Long>>()
+        val pdfCacheDir = tmp.newFolder("pdf-cache")
+        val pdfDownloadsDir = tmp.newFolder("pdf-downloads")
         val repository = PdfRepositoryImpl(
-            registry,
-            store("pdf-cache", ".pdf"),
-            store("pdf-downloads", ".pdf"),
-            positionStore,
-            sourceRepository,
+            fileStore = AndroidPdfFileStore(downloadsDir = pdfDownloadsDir, cacheDir = pdfCacheDir),
+            catalogRegistry = registry,
+            positionStore = positionStore,
         )
 
         val result = repository.downloadPdf(item(EbookFormat.Pdf)) { downloaded, total ->
@@ -85,13 +77,13 @@ class BookDownloadRepositoryStreamingTest {
     @Test
     fun `CBZ download consumes response-scoped stream with cumulative progress`() = runTest {
         val progress = mutableListOf<Pair<Long, Long>>()
-        val repository = CbzRepositoryImpl(
-            registry,
-            store("cbz-cache", ".cbz"),
-            store("cbz-downloads", ".cbz"),
-            positionStore,
-            sourceRepository,
-            com.riffle.core.domain.DefaultDispatcherProvider,
+        val cbzCacheDir = tmp.newFolder("cbz-cache")
+        val cbzDownloadsDir = tmp.newFolder("cbz-downloads")
+        val repository = JvmCbzRepositoryImpl(
+            fileStore = AndroidCbzFileStore(downloadsDir = cbzDownloadsDir, cacheDir = cbzCacheDir),
+            catalogRegistry = registry,
+            positionStore = positionStore,
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         val result = repository.downloadCbz(item(EbookFormat.Cbz)) { downloaded, total ->
@@ -110,9 +102,6 @@ class BookDownloadRepositoryStreamingTest {
         assertEquals("100% must only be reported at completion", 1, progress.count { it.first >= it.second })
         assertEquals(payload.size.toLong(), progress.last().first)
     }
-
-    private fun store(folder: String, extension: String) =
-        LocalStoreImpl(tmp.newFolder(folder), extension, com.riffle.core.domain.DefaultDispatcherProvider)
 
     private fun item(format: EbookFormat) = LibraryItem(
         id = "item",
@@ -159,24 +148,6 @@ class BookDownloadRepositoryStreamingTest {
             )
         }
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
-    }
-
-    private class TestSourceRepository : SourceRepository {
-        private val source = Source(
-            id = SOURCE_ID,
-            url = com.riffle.core.models.SourceUrl.parse("https://example.test")!!,
-            isActive = true,
-            insecureConnectionAllowed = false,
-            username = "",
-        )
-        override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
-        override suspend fun getActive(): Source = source
-        override suspend fun getById(sourceId: String): Source? = source.takeIf { it.id == sourceId }
-        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
-            com.riffle.core.domain.CommitSourceResult.Success(source)
-        override suspend fun setActive(sourceId: String) = Unit
-        override suspend fun remove(sourceId: String) = Unit
-        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private class EmptyPositionStore : ReadingPositionStore {

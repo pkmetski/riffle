@@ -230,10 +230,12 @@ func tapBackToLibrary(_ back: XCUIElement, in app: XCUIApplication,
     // the reader pops — if the button isn't found the second back never fires. Increased from 30 s
     // after a CI failure where item detail appeared at ~31 s, causing the retry to be skipped.
     if retryBack.waitForExistence(timeout: 60) { retryBack.tap() }
-    // 120 s: two-level navigation (reader → ItemDetail → library) under CI clone contention.
-    // waitForLibraryHome now checks the burger button first (fast path, data-independent), so
-    // the full budget is rarely consumed; the cap guards against extreme load spikes.
-    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 120),
+    // 180 s: two-level navigation (reader → ItemDetail → library) under CI clone contention.
+    // Raised from 120 s after observing a 189 s total test time for the audiobook back-nav test
+    // on a loaded iOS CI runner where the library home never appeared within the 120 s budget.
+    // waitForLibraryHome checks the burger button first (fast path, data-independent), so the
+    // full budget is rarely consumed; the cap guards against extreme load spikes.
+    XCTAssertTrue(waitForLibraryHome(in: app, timeout: 180),
                   "Tapping back from the reader should return to library home", file: file, line: line)
 }
 

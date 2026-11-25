@@ -2,6 +2,8 @@ package com.riffle.shared.library
 
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.common.FileStore
+import com.riffle.core.data.IosItemFiles
+import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.ReadingPositionStore
@@ -25,6 +27,7 @@ import platform.PDFKit.PDFPage
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -83,7 +86,7 @@ class IosPdfAndCoverTest {
     }
 
     private fun pdfRepo(fileStore: FileStore) =
-        IosPdfRepositoryImpl(NoopPositionStore, fileStore, NoopCatalogRegistry)
+        PdfRepositoryImpl(fileStore = fileStore, catalogRegistry = NoopCatalogRegistry, positionStore = NoopPositionStore)
 
     private fun downloader(fileStore: FileStore) =
         IosPdfDownloader(NoopCatalogRegistry, fileStore)
@@ -133,25 +136,25 @@ class IosPdfAndCoverTest {
         val fileStore = TempFileStore()
         val repo = pdfRepo(fileStore)
 
-        assertTrue(!repo.isDownloaded("s1", "i1"))
-        assertNull(repo.localPath("s1", "i1"))
+        assertFalse(repo.isDownloaded("s1", "i1"))
+        assertFalse(repo.isCached("s1", "i1"))
     }
 
     @Test
     fun `pdf repository sees a downloaded file and prefers it over the cache copy`() {
         val fileStore = TempFileStore()
         val repo = pdfRepo(fileStore)
-        val downloadPath = fileStore.resolve("pdf-downloads", IosPdfPaths.downloadRelativePath("s1", "i1"))
+        val downloadPath = fileStore.resolve("pdf-downloads", IosItemFiles.relativePath("s1", "i1", ".pdf"))
         assertTrue(writePdf(downloadPath, pages = 1), "precondition: wrote the PDF")
 
         assertTrue(repo.isDownloaded("s1", "i1"))
-        assertEquals(downloadPath, repo.localPath("s1", "i1"))
+        assertFalse(repo.isCached("s1", "i1"))
     }
 
     @Test
     fun `page count extractor reads the real page count through PDFKit`() = runTest {
         val fileStore = TempFileStore()
-        writePdf(fileStore.resolve("pdf-downloads", IosPdfPaths.downloadRelativePath("s1", "i1")), pages = 3)
+        writePdf(fileStore.resolve("pdf-downloads", IosItemFiles.relativePath("s1", "i1", ".pdf")), pages = 3)
         val metrics = RecordingMetricsRepository()
 
         val count = IosPdfPageCountExtractor(downloader(fileStore), metrics).extract(item())
@@ -175,7 +178,7 @@ class IosPdfAndCoverTest {
     @Test
     fun `page count extractor ignores a cached count from a different file inode`() = runTest {
         val fileStore = TempFileStore()
-        writePdf(fileStore.resolve("pdf-downloads", IosPdfPaths.downloadRelativePath("s1", "i1")), pages = 2)
+        writePdf(fileStore.resolve("pdf-downloads", IosItemFiles.relativePath("s1", "i1", ".pdf")), pages = 2)
         val metrics = RecordingMetricsRepository(PublicationMetrics(ebookFileIno = "stale-ino", pageCount = 99))
 
         val count = IosPdfPageCountExtractor(downloader(fileStore), metrics).extract(item(inode = "ino-1"))

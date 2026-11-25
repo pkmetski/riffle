@@ -18,8 +18,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import platform.Foundation.NSFileManager
 
-const val NS_READALOUD_SIDECARS = "readaloud-sidecars"
-
 /**
  * iOS counterpart to `ReadaloudSidecarStore` (ADR 0040): caches the Readaloud sidecar — the
  * `/synced` bundle minus its audio — and prepares it **ahead of playback**, so tapping Play does
@@ -123,9 +121,9 @@ class IosReadaloudSidecarStore(
                 val chunks = mutableListOf<ByteArray>()
                 var total = 0
                 val buffer = ByteArray(64 * 1024)
-                while (!stream.channel.isClosedForRead) {
+                while (true) {
                     val read = stream.channel.readAvailable(buffer, 0, buffer.size)
-                    if (read <= 0) continue
+                    if (read <= 0) break
                     chunks += buffer.copyOfRange(0, read)
                     total += read
                 }

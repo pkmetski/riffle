@@ -16,8 +16,7 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
@@ -59,13 +58,10 @@ class EpubRepositoryTest {
         downloadsStore = LocalStoreImpl(downloadsDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePositionStore()
         val sourceRepo = fakeServerRepository(source.url("/").toString().trimEnd('/'))
-        repo = EpubRepositoryImpl(
+        repo = JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = sourceRepo,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
     }
 
@@ -121,7 +117,7 @@ class EpubRepositoryTest {
 
     private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
         val refs = mutableListOf<StoredItemRef>()
-        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override val changes: Flow<StoredItemRef> = emptyFlow()
         override fun notifyChanged(sourceId: String, itemId: String) {
             refs += StoredItemRef(sourceId, itemId)
         }
@@ -168,14 +164,11 @@ class EpubRepositoryTest {
     @Test
     fun `openEpub with cache miss notifies local availability changed`() = runTest {
         val events = RecordingLocalAvailabilityEvents()
-        repo = EpubRepositoryImpl(
+        repo = JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(fakeServerRepository(source.url("/").toString().trimEnd('/')), mapOf("source-1" to "test-token")),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = fakeServerRepository(source.url("/").toString().trimEnd('/')),
             localAvailabilityEvents = events,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
 
@@ -433,13 +426,10 @@ class EpubRepositoryTest {
     )
 
     private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): JvmEpubRepository =
-        EpubRepositoryImpl(
+        JvmEpubRepositoryImpl(
+            fileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
             catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
-            cacheStore = cacheStore,
-            downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = sourceRepository,
-            epubFileStore = AndroidEpubFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir),
         )
 
     @Test

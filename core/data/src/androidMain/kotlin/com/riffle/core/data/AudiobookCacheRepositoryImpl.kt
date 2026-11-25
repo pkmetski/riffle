@@ -11,7 +11,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class AudiobookCacheRepositoryImpl constructor(
+class AudiobookCacheRepositoryImpl internal constructor(
     private val cacheDir: File,
     private val trackDownloader: AudiobookTrackDownloader,
     private val dispatchers: DispatcherProvider,
@@ -69,7 +69,7 @@ class AudiobookCacheRepositoryImpl constructor(
             } else {
                 minInterTrackDelayMs + kotlin.random.Random.nextLong(maxInterTrackDelayMs - minInterTrackDelayMs + 1)
             }
-            val manifestTracks = trackDownloader.download(downloadSession, dir, progress, interTrackDelay)
+            val manifestTracks = trackDownloader.download(downloadSession, dir.absolutePath, progress, interTrackDelay)
             val manifest = AudiobookDownloadManifest.from(session, manifestTracks)
             // Written last → atomic completion marker (same pattern as AudiobookDownloadRepositoryImpl).
             manifestFile(sourceId, itemId).writeText(json.encodeToString(manifest))

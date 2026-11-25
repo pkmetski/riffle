@@ -87,7 +87,7 @@ class IosAnnotationSweepEnqueuerTest {
         assertEquals(1, runs, "the driver's pass waits behind the in-flight enqueue")
 
         gate.complete(Unit)
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         testScheduler.runCurrent()
         assertEquals(2, runs, "then runs once the lock is free")
         assertEquals(1, maxConcurrent, "never two sweeps at once")

@@ -10,17 +10,14 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.common.FileStore
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
-import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -31,32 +28,28 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.io.InputStream
 
 class CbzRepositoryImplStreamingTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
 
-    // --- Fakes ---
-
     private val streamingCatalog = object : Catalog, CbzPageStreamCapability {
         val imageBytes = byteArrayOf(1, 2, 3, 4)
         var lastItemId: String? = null
         var lastPageIndex: Int = -1
+        var lastMaxWidth: Int? = null
 
         override val sourceType: SourceType = SourceType.KOMGA
         override suspend fun listRoots(): List<CatalogRoot> = emptyList()
-        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?):
+            List<CatalogItem> = emptyList()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
-        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun <T> withFileStream(
-            itemId: String, format: BookFormat, handleHint: String?,
-            block: suspend (CatalogFileStream) -> T,
-        ): T = throw UnsupportedOperationException()
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not used")
+        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T =
+            error("not used")
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
-        var lastMaxWidth: Int? = null
         override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
             lastItemId = itemId
             lastPageIndex = pageIndex
@@ -69,14 +62,13 @@ class CbzRepositoryImplStreamingTest {
     private val basicCatalog = object : Catalog {
         override val sourceType: SourceType = SourceType.KOMGA
         override suspend fun listRoots(): List<CatalogRoot> = emptyList()
-        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?): List<CatalogItem> = emptyList()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?):
+            List<CatalogItem> = emptyList()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
         override suspend fun getItem(itemId: String): CatalogItem? = null
-        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun <T> withFileStream(
-            itemId: String, format: BookFormat, handleHint: String?,
-            block: suspend (CatalogFileStream) -> T,
-        ): T = throw UnsupportedOperationException("no streaming support")
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = error("not used")
+        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T =
+            error("no streaming support")
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
     }
 
@@ -84,15 +76,6 @@ class CbzRepositoryImplStreamingTest {
         override suspend fun forActive(): Catalog? = catalog
         override suspend fun forSource(source: Source): Catalog? = if (source.id == matchingSourceId) catalog else null
         override suspend fun forSourceId(sourceId: String): Catalog? = if (sourceId == matchingSourceId) catalog else null
-    }
-
-    private val emptyStore = object : LocalStore {
-        override fun get(sourceId: String, itemId: String): File? = null
-        override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File = throw UnsupportedOperationException()
-        override fun delete(sourceId: String, itemId: String) {}
-        override fun deleteSource(sourceId: String) {}
-        override fun clear() {}
-        override fun listItems() = emptyList<com.riffle.core.domain.StoredItemRef>()
     }
 
     private val emptyPositionStore = object : ReadingPositionStore {
@@ -105,132 +88,105 @@ class CbzRepositoryImplStreamingTest {
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
     }
 
-    private val noActiveSource = object : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
-        override suspend fun getActive(): Source? = null
-        override suspend fun getById(sourceId: String): Source? = null
-        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
-        override suspend fun setActive(sourceId: String) {}
-        override suspend fun remove(sourceId: String) {}
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
     private fun fakeItem(sourceId: String = "src1") = LibraryItem(
         id = "item1", libraryId = "lib1", title = "Comic", author = "Author",
         coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
         ebookFormat = EbookFormat.Cbz, sourceId = sourceId,
     )
 
-    // --- Tests ---
+    private fun makeFileStore(cacheDir: File, downloadsDir: File): FileStore =
+        AndroidCbzFileStore(downloadsDir = downloadsDir, cacheDir = cacheDir)
 
-    @Test fun `removeDownload deletes file from downloads and cache stores`() = runTest {
-        val cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
-        val downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", null),
-            cacheStore,
-            downloadsStore,
-            emptyPositionStore,
-            noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        cacheStore.save("src1", "item1", "cache".byteInputStream())
-        downloadsStore.save("src1", "item1", "download".byteInputStream())
+    private fun makeRepo(
+        fileStore: FileStore,
+        catalog: Catalog?,
+        sourceId: String = "src1",
+    ) = JvmCbzRepositoryImpl(
+        fileStore = fileStore,
+        catalogRegistry = registryFor(sourceId, catalog),
+        positionStore = emptyPositionStore,
+        dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+    )
+
+    @Test fun `removeDownload deletes file from downloads and cache dirs`() = runTest {
+        val cacheDir = tmp.newFolder("cache")
+        val downloadsDir = tmp.newFolder("downloads")
+        val store = makeFileStore(cacheDir, downloadsDir)
+        val cacheFile = File(store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")).also {
+            it.parentFile.mkdirs()
+            it.writeText("x")
+        }
+        val dlFile = File(store.resolve(NS_CBZ_DOWNLOADS, "src1/item1.cbz")).also {
+            it.parentFile.mkdirs()
+            it.writeText("x")
+        }
+        val repo = makeRepo(store, null)
 
         repo.removeDownload("src1", "item1")
 
+        assertFalse(cacheFile.exists())
+        assertFalse(dlFile.exists())
         assertFalse(repo.isDownloaded("src1", "item1"))
         assertFalse(repo.isCached("src1", "item1"))
     }
 
     @Test fun `downloadCbz promotes cached file to downloads without fetching from catalog`() = runTest {
-        val cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
-        val downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", basicCatalog),
-            cacheStore,
-            downloadsStore,
-            emptyPositionStore,
-            noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        cacheStore.save("src1", "item1", "cache".byteInputStream())
+        val cacheDir = tmp.newFolder("cache")
+        val downloadsDir = tmp.newFolder("downloads")
+        val store = makeFileStore(cacheDir, downloadsDir)
+        val cacheFile = File(store.resolve(NS_CBZ_CACHE, "src1/item1.cbz")).also {
+            it.parentFile.mkdirs()
+            it.writeText("cached")
+        }
+        val repo = makeRepo(store, basicCatalog)
 
         val result = repo.downloadCbz(fakeItem("src1"))
 
         assertEquals(CbzDownloadResult.Success, result)
         assertTrue(repo.isDownloaded("src1", "item1"))
-        assertFalse(repo.isCached("src1", "item1"))
+        assertFalse(cacheFile.exists())
     }
 
     @Test fun `supportsStreaming returns true when catalog implements CbzPageStreamCapability`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", streamingCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        assertTrue(repo.supportsStreaming("src1"))
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        assertTrue(makeRepo(store, streamingCatalog).supportsStreaming("src1"))
     }
 
     @Test fun `supportsStreaming returns false when catalog lacks capability`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", basicCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        assertFalse(repo.supportsStreaming("src1"))
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        assertFalse(makeRepo(store, basicCatalog).supportsStreaming("src1"))
     }
 
     @Test fun `supportsStreaming returns false when no catalog for sourceId`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("other", streamingCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        assertFalse(repo.supportsStreaming("src1"))
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        assertFalse(makeRepo(store, streamingCatalog, "other").supportsStreaming("src1"))
     }
 
     @Test fun `openCbz returns Streaming when no local file and catalog supports streaming`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", streamingCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        val result = repo.openCbz(fakeItem("src1"))
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        val result = makeRepo(store, streamingCatalog).openCbz(fakeItem("src1"))
         assertTrue("Expected Streaming but got $result", result is CbzOpenResult.Streaming)
         assertEquals(20, (result as CbzOpenResult.Streaming).pageCount)
         assertNull(result.lastPosition)
     }
 
     @Test fun `openCbz returns NetworkError when no local file and no streaming support`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", basicCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        val result = repo.openCbz(fakeItem("src1"))
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        val result = makeRepo(store, basicCatalog).openCbz(fakeItem("src1"))
         assertTrue("Expected NetworkError but got $result", result is CbzOpenResult.NetworkError)
     }
 
     @Test fun `fetchStreamingPageImage delegates to catalog capability`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("src1", streamingCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        val bytes = repo.fetchStreamingPageImage("src1", "item1", 3)
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        val bytes = makeRepo(store, streamingCatalog).fetchStreamingPageImage("src1", "item1", 3)
         assertArrayEquals(streamingCatalog.imageBytes, bytes)
         assertEquals("item1", streamingCatalog.lastItemId)
         assertEquals(3, streamingCatalog.lastPageIndex)
     }
 
-    @Test fun `awaitCachedFile returns null when no catalog for sourceId`() = runTest {
-        val repo = CbzRepositoryImpl(
-            registryFor("other", streamingCatalog),
-            emptyStore, emptyStore, emptyPositionStore, noActiveSource,
-            com.riffle.core.domain.DefaultDispatcherProvider,
-        )
-        val result = repo.awaitCachedSource(fakeItem("src1"))
+    @Test fun `awaitCachedSource returns null when no catalog for sourceId`() = runTest {
+        val store = makeFileStore(tmp.newFolder("cache"), tmp.newFolder("dl"))
+        val result = makeRepo(store, streamingCatalog, "other").awaitCachedSource(fakeItem("src1"))
         assertNull(result)
     }
 }
