@@ -125,10 +125,12 @@ import com.riffle.core.data.dictionary.JvmJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.data.localfiles.AndroidCopyInService
+import com.riffle.core.data.localfiles.AndroidLocalBookMetadataReader
 import com.riffle.core.data.localfiles.AndroidLocalFilesFileReader
 import com.riffle.core.data.localfiles.AndroidManagedImportsFolder
 import com.riffle.core.data.localfiles.CopyInService
 import com.riffle.core.data.localfiles.FolderWalker
+import com.riffle.core.data.localfiles.LocalBookMetadataReader
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
@@ -1273,6 +1275,7 @@ private val coreDataMiscModule = module {
     single<OpenInImporter> { SharedOpenInImporter(importsFolder = get(), installer = get()) }
     single { OpenInImportFeed() }
     single<CopyInService> { AndroidCopyInService(androidContext()) }
+    single<LocalBookMetadataReader> { AndroidLocalBookMetadataReader(pdfMetadata = get()) }
     single {
         LocalFilesFolderRepository(
             context = androidContext(),
@@ -1290,7 +1293,8 @@ private val coreDataMiscModule = module {
             libraryItemDao = get(),
             walker = get(),
             copyIn = get(),
-            pdfMetadata = get(),
+            metadataReader = get(),
+            dispatchers = get(),
             clock = get(),
             logger = get(),
         )

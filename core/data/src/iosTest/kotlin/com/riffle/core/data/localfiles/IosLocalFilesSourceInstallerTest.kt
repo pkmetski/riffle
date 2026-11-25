@@ -5,6 +5,7 @@ import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.TestClock
+import com.riffle.core.logging.NoopLogger
 import com.riffle.core.models.SourceType
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -34,7 +35,7 @@ import kotlin.test.assertTrue
  * iOS class itself.
  *
  * The `installFolder*` cases go further than the Android suite and drive the whole iOS chain —
- * installer → [IosLocalFilesFolderRepository] → [IosLocalFilesScanner] → [IosCopyInService] — over
+ * installer → [IosLocalFilesFolderRepository] → [LocalFilesScanner] → [IosCopyInService] — over
  * real files, which is the path `SourceOnboardingHost` takes when a user picks a folder on iOS.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -160,15 +161,17 @@ class IosLocalFilesSourceInstallerTest {
         return IosLocalFilesSourceInstaller(
             sourceDao = sourceDao,
             folderRepository = IosLocalFilesFolderRepository(folderDao, libraryDao, fileFolderDao, clock),
-            scanner = IosLocalFilesScanner(
+            scanner = LocalFilesScanner(
                 folderDao,
                 fileDao,
                 fileFolderDao,
                 libraryItemDao,
                 IosFolderWalker(dispatchers),
                 IosCopyInService(dispatchers),
+                IosLocalBookMetadataReader(),
                 dispatchers,
                 clock,
+                NoopLogger,
             ),
         )
     }

@@ -3,8 +3,10 @@ package com.riffle.core.data.localfiles
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okio.Source
+import okio.buffer
+import okio.sink
 import java.io.File
-import java.io.InputStream
 
 /**
  * Copies bytes into `filesDir/localfiles/<sourceId>/`. Books land as `<hash>.<ext>`; covers as
@@ -18,17 +20,17 @@ class AndroidCopyInService constructor(
         sourceId: String,
         sourceItemId: String,
         extension: String,
-        stream: InputStream,
-    ): File = withContext(Dispatchers.IO) {
+        source: Source,
+    ): String = withContext(Dispatchers.IO) {
         val out = bookFile(sourceId, sourceItemId, extension)
         out.parentFile?.mkdirs()
         try {
-            out.outputStream().use { dst -> stream.copyTo(dst) }
+            source.use { src -> out.sink().buffer().use { dst -> dst.writeAll(src) } }
         } catch (e: Exception) {
             out.delete()
             throw e
         }
-        out
+        out.absolutePath
     }
 
     override suspend fun writeCover(
@@ -36,18 +38,16 @@ class AndroidCopyInService constructor(
         sourceItemId: String,
         extension: String,
         bytes: ByteArray,
-    ): File = withContext(Dispatchers.IO) {
+    ): String = withContext(Dispatchers.IO) {
         val out = coverFile(sourceId, sourceItemId, extension)
         out.parentFile?.mkdirs()
         try {
             out.writeBytes(bytes)
         } catch (e: Exception) {
-            // A partial-write file would otherwise be surfaced to the library grid as a broken
-            // cover on subsequent scans (identity is unchanged so no re-extraction happens).
             out.delete()
             throw e
         }
-        out
+        out.absolutePath
     }
 
     override suspend fun deleteBook(sourceId: String, sourceItemId: String): Unit = withContext(Dispatchers.IO) {

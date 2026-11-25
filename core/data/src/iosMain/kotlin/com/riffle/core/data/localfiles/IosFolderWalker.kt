@@ -6,6 +6,8 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.coroutines.withContext
+import okio.FileSystem
+import okio.Path.Companion.toPath
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSFileType
@@ -14,7 +16,7 @@ import platform.Foundation.NSNumber
 import platform.posix.lstat
 
 @OptIn(ExperimentalForeignApi::class)
-class IosFolderWalker(private val dispatchers: DispatcherProvider) {
+class IosFolderWalker(private val dispatchers: DispatcherProvider) : FolderWalker {
 
     /**
      * Walks [folderPath] recursively.
@@ -29,13 +31,13 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
      *
      * An unreadable sub-directory is skipped rather than fatal, matching Android's behaviour.
      */
-    suspend fun walk(folderPath: String): List<IosWalkedFile> = withContext(dispatchers.io) {
-        val scopedFolder = IosFolderPicker.resolveBookmark(folderPath)
-            ?: throw IllegalStateException("Cannot resolve folder: $folderPath")
+    override suspend fun walk(treeUri: String): List<WalkedFile> = withContext(dispatchers.io) {
+        val scopedFolder = IosFolderPicker.resolveBookmark(treeUri)
+            ?: throw IllegalStateException("Cannot resolve folder: $treeUri")
         val started = scopedFolder.startAccessing()
-        if (!started) throw IllegalStateException("Cannot access security-scoped folder: $folderPath")
+        if (!started) throw IllegalStateException("Cannot access security-scoped folder: $treeUri")
         try {
-            val out = mutableListOf<IosWalkedFile>()
+            val out = mutableListOf<WalkedFile>()
             if (!walkDirectory(scopedFolder.path, out)) {
                 throw IllegalStateException("Cannot list folder: ${scopedFolder.path}")
             }
@@ -45,7 +47,7 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
         }
     }
 
-    private fun walkDirectory(dirPath: String, out: MutableList<IosWalkedFile>): Boolean {
+    private fun walkDirectory(dirPath: String, out: MutableList<WalkedFile>): Boolean {
         val manager = NSFileManager.defaultManager
 
         @Suppress("UNCHECKED_CAST")
@@ -67,11 +69,12 @@ class IosFolderWalker(private val dispatchers: DispatcherProvider) {
                         0L
                     }
                 }
-                out += IosWalkedFile(
-                    path = childPath,
+                out += WalkedFile(
+                    originalUri = childPath,
                     displayName = name,
                     sizeBytes = size,
                     mtimeEpochMs = mtime,
+                    openSource = { FileSystem.SYSTEM.source(childPath.toPath()) },
                 )
             }
         }

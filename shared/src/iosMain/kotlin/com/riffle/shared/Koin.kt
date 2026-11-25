@@ -80,7 +80,7 @@ import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.localfiles.IosLocalFilesFileReader
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
-import com.riffle.core.data.localfiles.IosLocalFilesScanner
+import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
@@ -933,7 +933,7 @@ private fun iosLibraryModule(
     }
     single<LocalFilesFolderHealthCheckerInterface> { IosLocalFilesFolderHealthChecker() }
     single<LocalFilesScannerInterface> {
-        val scanner = get<IosLocalFilesScanner>()
+        val scanner = get<LocalFilesScanner>()
         object : LocalFilesScannerInterface {
             override suspend fun scan(sourceId: String) { scanner.scan(sourceId) }
         }

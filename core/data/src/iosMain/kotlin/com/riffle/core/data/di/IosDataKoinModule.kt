@@ -51,15 +51,19 @@ import com.riffle.core.data.developer.IosDeveloperOptionsRepositoryImpl
 import com.riffle.core.data.dictionary.IosJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.data.dictionary.PackStoreImpl
+import com.riffle.core.data.localfiles.CopyInService
 import com.riffle.core.data.localfiles.FolderPickerInterface
+import com.riffle.core.data.localfiles.FolderWalker
 import com.riffle.core.data.localfiles.IosCopyInService
 import com.riffle.core.data.localfiles.IosFolderPicker
 import com.riffle.core.data.localfiles.IosFolderWalker
+import com.riffle.core.data.localfiles.IosLocalBookMetadataReader
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
-import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.IosLocalFilesSourceInstaller
 import com.riffle.core.data.localfiles.IosManagedImportsFolder
+import com.riffle.core.data.localfiles.LocalBookMetadataReader
 import com.riffle.core.data.localfiles.LocalFilesInstallerInterface
+import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.ManagedImportsFolder
 import com.riffle.core.data.localfiles.OpenInImportFeed
 import com.riffle.core.data.localfiles.OpenInImporter
@@ -147,9 +151,23 @@ val iosDataModule = module {
     single<DeviceLabelStore> { DeviceLabelStoreImpl(IosKeyValueStore()) }
 
     single<FolderPickerInterface> { IosFolderPicker() }
-    single { IosFolderWalker(get()) }
-    single { IosCopyInService(get()) }
-    single { IosLocalFilesScanner(get(), get(), get(), get(), get(), get(), get(), get()) }
+    single<FolderWalker> { IosFolderWalker(get()) }
+    single<CopyInService> { IosCopyInService(get()) }
+    single<LocalBookMetadataReader> { IosLocalBookMetadataReader() }
+    single {
+        LocalFilesScanner(
+            folderDao = get(),
+            fileDao = get(),
+            fileFolderDao = get(),
+            libraryItemDao = get(),
+            walker = get(),
+            copyIn = get(),
+            metadataReader = get(),
+            dispatchers = get(),
+            clock = get(),
+            logger = get(),
+        )
+    }
     single { IosLocalFilesFolderRepository(get(), get(), get(), get()) }
     single<LocalFilesInstallerInterface> { IosLocalFilesSourceInstaller(get(), get(), get()) }
     // "Open in Riffle": the incoming file is copied into an app-owned folder that is then

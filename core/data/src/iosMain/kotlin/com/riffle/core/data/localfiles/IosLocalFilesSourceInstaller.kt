@@ -9,10 +9,10 @@ import platform.Foundation.NSUUID
 class IosLocalFilesSourceInstaller(
     private val sourceDao: SourceDao,
     private val folderRepository: IosLocalFilesFolderRepository,
-    private val scanner: IosLocalFilesScanner,
+    private val scanner: LocalFilesScanner,
 ) : LocalFilesInstallerInterface {
 
-    data class InstallResult(val sourceId: String, val libraryId: String, val scan: IosLocalFilesScanner.ScanReport,)
+    data class InstallResult(val sourceId: String, val libraryId: String, val scan: LocalFilesScanner.ScanReport,)
 
     override suspend fun installFolder(folderUri: FolderUri): LocalFilesInstallerInterface.InstallReport {
         val result = installFolderDetailed(folderUri)
