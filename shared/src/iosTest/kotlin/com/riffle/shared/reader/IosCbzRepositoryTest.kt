@@ -102,7 +102,7 @@ class IosCbzRepositoryTest {
             block: suspend (CatalogFileStream) -> T,
         ): T = block(object : CatalogFileStream {
             override val contentLength: Long get() = bytes.size.toLong()
-            override val channel: ByteReadChannel get() = ByteReadChannel(bytes)
+            override val channel: ByteReadChannel = ByteReadChannel(bytes)
         })
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
     }
