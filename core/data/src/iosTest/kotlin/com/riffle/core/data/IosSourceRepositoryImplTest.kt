@@ -101,6 +101,7 @@ class IosSourceRepositoryImplTest {
         ),
         dispatchers = dispatchers,
         filesCleaner = filesCleaner,
+        sidecarPurger = { com.riffle.core.domain.ReadaloudSidecarPurger {} },
     )
 
     private suspend fun seed(id: String, type: SourceType = SourceType.ABS, serverType: ServerType = ServerType.AUDIOBOOKSHELF) {

@@ -186,15 +186,14 @@ class ServerRepositoryTest {
 
     private fun fakeFilesCleaner() = RecordingFilesCleaner()
 
-    private class RecordingSidecarCache : com.riffle.core.domain.ReadaloudSidecarCache {
+    private class RecordingSidecarPurger : com.riffle.core.domain.ReadaloudSidecarPurger {
         val purgedSourceIds = mutableListOf<String>()
-        override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): java.io.File? = null
         override fun purgeSource(storytellerSourceId: String) {
             purgedSourceIds += storytellerSourceId
         }
     }
 
-    private fun fakeSidecarCache() = RecordingSidecarCache()
+    private fun fakeSidecarPurger() = RecordingSidecarPurger()
 
     private fun fakeLibraryItemDao() = object : com.riffle.core.database.LibraryItemDao {
         val deletedLibraryIds = mutableListOf<String>()
@@ -268,9 +267,9 @@ class ServerRepositoryTest {
         @Suppress("UNUSED_PARAMETER") libraryItemDao: com.riffle.core.database.LibraryItemDao,
         visibilityStore: LibraryVisibilityPreferencesStore,
         filesCleaner: SourceFilesCleaner,
-        sidecarCache: com.riffle.core.domain.ReadaloudSidecarCache = fakeSidecarCache(),
+        sidecarPurger: com.riffle.core.domain.ReadaloudSidecarPurger = fakeSidecarPurger(),
     ): SourceRepositoryImpl {
-        val sidecarCacheProvider = { sidecarCache }
+        val sidecarPurgerProvider = { sidecarPurger }
 
         // absApi/storytellerApi/libraryApi are still accepted so callers that don't hit the auth
         // path can leave them as `error`-throwing stubs unchanged. They're wired into the auth
@@ -305,7 +304,7 @@ class ServerRepositoryTest {
             serverInfoApi = serverInfoApi,
             komgaServerInfoApi = fakeKomgaServerInfoApi,
             filesCleaner = filesCleaner,
-            sidecarCache = sidecarCacheProvider,
+            sidecarPurger = sidecarPurgerProvider,
             installer = installer,
             remoteUserIdResolvers = resolvers,
         )

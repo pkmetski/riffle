@@ -4,7 +4,7 @@ import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.AudiobookIdentityResolver
 import com.riffle.core.data.IosMediaOverlayReader
-import com.riffle.core.data.IosReadaloudSidecarStore
+import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StreamingMediaPlan
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.ReadaloudLinkRepository
@@ -29,7 +29,7 @@ internal class IosReadaloudStreamingSessionFactory(
     private val audioIdentityResolver: AudioIdentityResolver,
     private val catalogRegistry: CatalogRegistry,
     private val storytellerApi: StorytellerLibraryApi,
-    private val sidecarStore: IosReadaloudSidecarStore,
+    private val sidecarStore: ReadaloudSidecarStore,
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val linkRepository: ReadaloudLinkRepository,
@@ -70,7 +70,7 @@ internal class IosReadaloudStreamingSessionFactory(
         val tracks = runCatching { audioCap.getTracks(audiobook.bookId) }.getOrNull()
             ?.takeIf { it.isNotEmpty() } ?: return null
 
-        val sidecarPath = sidecarStore.cachedSidecarPath(storytellerSourceId, storytellerBookId) ?: return null
+        val sidecarPath = sidecarStore.cachedPath(storytellerSourceId, storytellerBookId) ?: return null
         val bytes = sidecarStore.readSidecarBytes(storytellerSourceId, storytellerBookId) ?: return null
 
         val track = runCatching { IosMediaOverlayReader.readTrack(bytes) }.getOrNull()

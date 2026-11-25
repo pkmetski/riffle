@@ -1,12 +1,15 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.FileStore
+import com.riffle.core.data.testing.TestApplicationScope
 import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
-import com.riffle.core.network.StorytellerBundleApi
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -14,24 +17,39 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import java.io.ByteArrayOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
+import okio.Path.Companion.toPath
+import okio.fakefilesystem.FakeFileSystem
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.time.Clock
+import kotlin.time.Instant
 
+/**
+ * Shared behaviour of [ReadaloudSidecarStore] (ADR 0040) over an okio [FakeFileSystem]: retry/
+ * backoff, Failed-state no-retry, LRU eviction, purge-on-init of clipless sidecars, and
+ * listCached/purgeSource semantics. Runs on both JVM and iOS (`iosSimulatorArm64Test`), so the same
+ * assertions cover the shared state machine on both platforms.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadaloudSidecarStoreTest {
 
-    @get:Rule
-    val tmp = TemporaryFolder()
+    private val mutableClock = object : Clock {
+        var millis = 1_000L
+        override fun now(): Instant = Instant.fromEpochMilliseconds(millis)
+    }
+    private val fakeFs = FakeFileSystem(mutableClock)
 
     private val dispatcher = StandardTestDispatcher()
     private val testScope = TestScope(dispatcher)
+
+    private val testDispatchers = object : DispatcherProvider {
+        override val main: CoroutineDispatcher = dispatcher
+        override val mainImmediate: CoroutineDispatcher = dispatcher
+        override val io: CoroutineDispatcher = dispatcher
+        override val default: CoroutineDispatcher = dispatcher
+    }
 
     private val source = Source("srv", SourceUrl.parse("http://storyteller")!!, false, false, "")
 
@@ -44,42 +62,53 @@ class ReadaloudSidecarStoreTest {
         override suspend fun remove(sourceId: String) = Unit
         override suspend fun getSourceVersion(sourceId: String): String? = null
     }
+
     private val tokenStorage = object : TokenStorage {
         override suspend fun getToken(sourceId: String): String? = "tok"
         override suspend fun saveToken(sourceId: String, token: String) = Unit
         override suspend fun deleteToken(sourceId: String) = Unit
     }
 
-    private val validSidecar = zipOf(
-        "OEBPS/content.opf" to "<package/>".toByteArray(),
-        "MediaOverlays/c1.smil" to "<smil/>".toByteArray(),
-        "text/c1.html" to "<html/>".toByteArray(),
-    )
+    private val validSidecar = byteArrayOf(1, 2, 3, 4)
 
-    private fun store(fetcher: StorytellerSidecarFetcher) = ReadaloudSidecarStore(
-        cacheRootDir = tmp.root,
+    private inner class FakeFsFileStore : FileStore {
+        override fun resolve(namespace: String, relativePath: String): String {
+            val base = "/riffle/$namespace"
+            fakeFs.createDirectories(base.toPath())
+            return if (relativePath.isEmpty()) base else "$base/$relativePath"
+        }
+
+        override fun exists(namespace: String, relativePath: String): Boolean =
+            fakeFs.exists(resolve(namespace, relativePath).toPath())
+    }
+
+    private fun store(
+        fetcher: StorytellerSidecarFetcher,
+        clipInspector: SidecarClipInspector = SidecarClipInspector { true },
+    ) = ReadaloudSidecarStore(
         fetcher = fetcher,
+        clipInspector = clipInspector,
         sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
-        scope = testScope,
+        fileStore = FakeFsFileStore(),
+        applicationScope = TestApplicationScope(testScope),
+        dispatchers = testDispatchers,
+        fileSystem = fakeFs,
     )
 
-    private fun fetcher(block: (attempt: Int) -> ByteArray?): StorytellerSidecarFetcher {
-        var attempt = 0
-        return object : StorytellerSidecarFetcher(
-            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
-            bundleApi = StorytellerBundleApi {
-                    _,
-                    _,
-                    _,
-                    _
-                ->
-                error("unreachable in fake")
-            }
-        ) {
-            override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
-                block(attempt++)?.let { FetchResult.Success(it) } ?: FetchResult.NetworkError
+    private fun fetcher(block: (attempt: Int) -> ByteArray?): StorytellerSidecarFetcher =
+        object : StorytellerSidecarFetcher {
+            private var attempt = 0
+            override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): StorytellerSidecarFetcher.FetchResult =
+                block(attempt++)?.let { StorytellerSidecarFetcher.FetchResult.Success(it) }
+                    ?: StorytellerSidecarFetcher.FetchResult.NetworkError
         }
+
+    private fun seedSidecar(sourceId: String, bookId: String, bytes: ByteArray, mtimeMillis: Long? = null) {
+        val path = "/riffle/$NS_READALOUD_SIDECARS/$sourceId/$bookId.epub".toPath()
+        fakeFs.createDirectories(path.parent!!)
+        mtimeMillis?.let { mutableClock.millis = it }
+        fakeFs.write(path) { write(bytes) }
     }
 
     // --- basic success ---
@@ -90,7 +119,7 @@ class ReadaloudSidecarStoreTest {
         store.prepare("srv", "42")
         advanceUntilIdle()
         assertEquals(ReadaloudSidecarStore.State.Ready, store.stateOf("srv", "42"))
-        assertNotNull(store.cachedFile("srv", "42"))
+        assertNotNull(store.cachedPath("srv", "42"))
     }
 
     // --- retry: success on later attempt ---
@@ -101,7 +130,7 @@ class ReadaloudSidecarStoreTest {
         store.prepare("srv", "42")
         advanceUntilIdle()
         assertEquals(ReadaloudSidecarStore.State.Ready, store.stateOf("srv", "42"))
-        assertNotNull(store.cachedFile("srv", "42"))
+        assertNotNull(store.cachedPath("srv", "42"))
     }
 
     @Test
@@ -110,7 +139,7 @@ class ReadaloudSidecarStoreTest {
         store.prepare("srv", "42")
         advanceUntilIdle()
         assertEquals(ReadaloudSidecarStore.State.Ready, store.stateOf("srv", "42"))
-        assertNotNull(store.cachedFile("srv", "42"))
+        assertNotNull(store.cachedPath("srv", "42"))
     }
 
     // --- retry: all attempts exhausted ---
@@ -121,13 +150,13 @@ class ReadaloudSidecarStoreTest {
         store.prepare("srv", "42")
         advanceUntilIdle()
         assertEquals(ReadaloudSidecarStore.State.Failed, store.stateOf("srv", "42"))
-        assertNull(store.cachedFile("srv", "42"))
+        assertNull(store.cachedPath("srv", "42"))
     }
 
     // --- state during retry ---
 
     @Test
-    fun `state is Preparing immediately after prepare() is called`() = testScope.runTest {
+    fun `state is Preparing immediately after prepare is called`() = testScope.runTest {
         val store = store(fetcher { validSidecar })
         store.prepare("srv", "42")
         // Without advancing the dispatcher, the background coroutine hasn't run yet — but prepare()
@@ -147,26 +176,19 @@ class ReadaloudSidecarStoreTest {
     @Test
     fun `prepare fails immediately without retrying when fetch returns NotAligned`() = testScope.runTest {
         var fetchCount = 0
-        val store =
-            store(object : StorytellerSidecarFetcher(
-                dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
-                bundleApi = StorytellerBundleApi {
-                        _,
-                        _,
-                        _,
-                        _
-                    ->
-                    error("unreachable in fake")
+        val store = store(
+            object : StorytellerSidecarFetcher {
+                override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): StorytellerSidecarFetcher.FetchResult {
+                    fetchCount++
+                    return StorytellerSidecarFetcher.FetchResult.NotAligned
                 }
-            ) {
-                override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
-                    FetchResult.NotAligned.also { fetchCount++ }
-            })
+            },
+        )
         store.prepare("srv", "42")
         advanceUntilIdle()
         assertEquals(1, fetchCount) // single attempt, no retries
         assertEquals(ReadaloudSidecarStore.State.Failed, store.stateOf("srv", "42"))
-        assertNull(store.cachedFile("srv", "42"))
+        assertNull(store.cachedPath("srv", "42"))
     }
 
     @Test
@@ -176,7 +198,7 @@ class ReadaloudSidecarStoreTest {
             fetcher {
                 fetchCount++
                 null
-            }
+            },
         )
         store.prepare("srv", "42")
         advanceUntilIdle()
@@ -195,17 +217,48 @@ class ReadaloudSidecarStoreTest {
     @Test
     fun `purgeSource deletes only files owned by that source`() = testScope.runTest {
         val store = store(fetcher { validSidecar })
-        val dir = java.io.File(tmp.root, "readaloud-sidecars").apply { mkdirs() }
-        // Two sources, three books total.
-        java.io.File(dir, "srv-1.epub").writeBytes(byteArrayOf(1, 2, 3))
-        java.io.File(dir, "srv-2.epub").writeBytes(byteArrayOf(1, 2, 3))
-        java.io.File(dir, "other-9.epub").writeBytes(byteArrayOf(1, 2, 3))
+        seedSidecar("srv", "1", byteArrayOf(1, 2, 3))
+        seedSidecar("srv", "2", byteArrayOf(1, 2, 3))
+        seedSidecar("other", "9", byteArrayOf(1, 2, 3))
 
         store.purgeSource("srv")
 
-        assertNull(store.cachedFile("srv", "1"))
-        assertNull(store.cachedFile("srv", "2"))
-        assertNotNull(store.cachedFile("other", "9"))
+        assertNull(store.cachedPath("srv", "1"))
+        assertNull(store.cachedPath("srv", "2"))
+        assertNotNull(store.cachedPath("other", "9"))
+    }
+
+    // --- purge on init: clipless sidecars are unplayable and must be dropped ---
+
+    @Test
+    fun `purge on init deletes a cached sidecar with no clips`() = testScope.runTest {
+        seedSidecar("srv", "1", byteArrayOf(9, 9, 9))
+        seedSidecar("srv", "2", byteArrayOf(8, 8, 8))
+
+        // Inspector says book 1 has no clips (unplayable) but book 2 is fine.
+        val store = store(
+            fetcher { validSidecar },
+            clipInspector = SidecarClipInspector { bytes -> !bytes.contentEquals(byteArrayOf(9, 9, 9)) },
+        )
+        advanceUntilIdle()
+
+        assertNull(store.cachedPath("srv", "1"))
+        assertNotNull(store.cachedPath("srv", "2"))
+    }
+
+    // --- listCached ---
+
+    @Test
+    fun `listCached returns every cached sidecar keyed by source and book`() = testScope.runTest {
+        val store = store(fetcher { validSidecar })
+        seedSidecar("srv", "1", byteArrayOf(1, 2, 3))
+        seedSidecar("other", "9", byteArrayOf(1, 2, 3, 4, 5))
+
+        val cached = store.listCached().associateBy { it.storytellerSourceId to it.storytellerBookId }
+
+        assertEquals(2, cached.size)
+        assertEquals(3L, cached["srv" to "1"]?.sizeBytes)
+        assertEquals(5L, cached["other" to "9"]?.sizeBytes)
     }
 
     // --- LRU eviction ---
@@ -213,48 +266,28 @@ class ReadaloudSidecarStoreTest {
     @Test
     fun `enforceLruBudget evicts oldest files first once cap is exceeded`() = testScope.runTest {
         val store = store(fetcher { validSidecar })
-        val dir = java.io.File(tmp.root, "readaloud-sidecars").apply { mkdirs() }
         // Three 100-byte files with strictly-increasing mtimes. Cap of 250 must evict exactly one
         // (the oldest) to bring total from 300 → 200.
-        val oldest = java.io.File(dir, "srv-1.epub").apply { writeBytes(ByteArray(100)) }
-        val middle = java.io.File(dir, "srv-2.epub").apply { writeBytes(ByteArray(100)) }
-        val newest = java.io.File(dir, "srv-3.epub").apply { writeBytes(ByteArray(100)) }
-        oldest.setLastModified(1_000)
-        middle.setLastModified(2_000)
-        newest.setLastModified(3_000)
+        seedSidecar("srv", "1", ByteArray(100), mtimeMillis = 1_000)
+        seedSidecar("srv", "2", ByteArray(100), mtimeMillis = 2_000)
+        seedSidecar("srv", "3", ByteArray(100), mtimeMillis = 3_000)
 
         val evicted = store.enforceLruBudget(capBytes = 250)
 
-        // Oldest goes first. Once we're back under cap, no more evictions.
-        assertEquals(setOf("srv-1"), evicted)
-        assertEquals(false, oldest.exists())
-        assertEquals(true, middle.exists())
-        assertEquals(true, newest.exists())
+        assertEquals(setOf(store.key("srv", "1")), evicted)
+        assertNull(store.cachedPath("srv", "1"))
+        assertNotNull(store.cachedPath("srv", "2"))
+        assertNotNull(store.cachedPath("srv", "3"))
     }
 
     @Test
     fun `enforceLruBudget is a no-op when total is under cap`() = testScope.runTest {
         val store = store(fetcher { validSidecar })
-        val dir = java.io.File(tmp.root, "readaloud-sidecars").apply { mkdirs() }
-        java.io.File(dir, "srv-1.epub").writeBytes(ByteArray(50))
-        java.io.File(dir, "srv-2.epub").writeBytes(ByteArray(50))
+        seedSidecar("srv", "1", ByteArray(50))
+        seedSidecar("srv", "2", ByteArray(50))
 
         val evicted = store.enforceLruBudget(capBytes = 1_000)
 
-        assertEquals(emptySet<String>(), evicted)
-    }
-
-    // --- helpers ---
-
-    private fun zipOf(vararg entries: Pair<String, ByteArray>): ByteArray {
-        val bos = ByteArrayOutputStream()
-        ZipOutputStream(bos).use { zos ->
-            for ((name, bytes) in entries) {
-                zos.putNextEntry(ZipEntry(name))
-                zos.write(bytes)
-                zos.closeEntry()
-            }
-        }
-        return bos.toByteArray()
+        assertEquals(emptySet(), evicted)
     }
 }

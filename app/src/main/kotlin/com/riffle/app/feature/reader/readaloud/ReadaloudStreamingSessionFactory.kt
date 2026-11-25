@@ -89,7 +89,7 @@ class ReadaloudStreamingSessionFactory constructor(
         val tracks = runCatching { audioCap.getTracks(audiobook.bookId) }.getOrNull()?.takeIf { it.isNotEmpty() }
             ?: return@withContext null
 
-        val sidecarFile = sidecarStore.cachedFile(storytellerSourceId, storytellerBookId)
+        val sidecarFile = sidecarStore.cachedPath(storytellerSourceId, storytellerBookId)?.let { File(it) }
             ?: return@withContext null
 
         val networkTracks = tracks.map { t ->

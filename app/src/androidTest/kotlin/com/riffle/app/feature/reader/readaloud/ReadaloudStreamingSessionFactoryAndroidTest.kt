@@ -2,10 +2,12 @@ package com.riffle.app.feature.reader.readaloud
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.core.data.AndroidSidecarClipInspector
+import com.riffle.core.data.AndroidStorytellerSidecarFetcher
 import com.riffle.core.data.AudioIdentityResolverImpl
+import com.riffle.core.data.FilesdirFileStore
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudSidecarStore
-import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.database.RiffleDatabaseAccess
@@ -136,7 +138,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             allowMainThreadQueries = true,
         )
         // Start each test from an empty sidecar cache so a prior run's prepared file can't mask the flow.
-        java.io.File(ctx.cacheDir, "readaloud-sidecars").deleteRecursively()
+        java.io.File(ctx.filesDir, "readaloud-sidecars").deleteRecursively()
     }
 
     @After
@@ -165,7 +167,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
 
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
-        val fetcher = StorytellerSidecarFetcher(
+        val fetcher = AndroidStorytellerSidecarFetcher(
             bundleApi = StorytellerBundleApiImpl(createStreamingHttpClient(OkHttpClient())),
             dispatchers = DefaultDispatcherProvider,
         )
@@ -173,14 +175,19 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
         )
         sidecarStore = ReadaloudSidecarStore(
-            ctx, fetcher, repo, StubTokenStorage,
-            object : com.riffle.core.domain.ApplicationScope {
+            fetcher = fetcher,
+            clipInspector = AndroidSidecarClipInspector,
+            sourceRepository = repo,
+            tokenStorage = StubTokenStorage,
+            fileStore = FilesdirFileStore(ctx),
+            applicationScope = object : com.riffle.core.domain.ApplicationScope {
                 override val coroutineScope = sidecarScope
                 override fun launchSurvivable(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) =
                     sidecarScope.launch(block = block)
                 override suspend fun <T> withSurvivable(block: suspend kotlinx.coroutines.CoroutineScope.() -> T): T =
                     sidecarScope.async(block = block).await()
             },
+            dispatchers = DefaultDispatcherProvider,
         )
         val absApiClient = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
         val absEpubDownloadApi = com.riffle.core.network.AbsFileDownloadApiClient(

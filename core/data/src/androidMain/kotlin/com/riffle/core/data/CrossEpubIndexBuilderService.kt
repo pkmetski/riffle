@@ -77,7 +77,7 @@ class CrossEpubIndexBuilderService(
         // Storyteller text for the index: the downloaded bundle if present, otherwise the ~1 MB sidecar
         // (ADR 0040). Use ONLY the already-prepared sidecar (cachedFile, non-blocking) — never fetch here.
         val storytellerFile = cachedFile(link.storytellerSourceId, link.storytellerBookId)
-            ?: sidecarStore.cachedFile(link.storytellerSourceId, link.storytellerBookId)
+            ?: sidecarStore.cachedPath(link.storytellerSourceId, link.storytellerBookId)?.let { File(it) }
             ?: return null
 
         val absFile = absEpubFile(link.absSourceId, link.absLibraryItemId) ?: return null

@@ -313,7 +313,7 @@ val appKoinModule: Module = module {
         JvmLocalEpubLocator(
             cacheStore = get(named("epubCacheStore")),
             downloadsStore = get(named("epubDownloadsStore")),
-            sidecarCache = get(),
+            sidecarStore = get(),
         )
     }
     single<EpubAnalyzer> { JvmEpubAnalyzer }
