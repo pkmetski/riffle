@@ -274,8 +274,17 @@ fun EpubReaderScreen(
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> viewModel.onReaderClosed()
-                Lifecycle.Event.ON_START -> viewModel.onReaderResumed()
+                Lifecycle.Event.ON_STOP -> {
+                    viewModel.onReaderClosed()
+                    // Backgrounding leaves the auto-scroll ticker running off-screen, advancing the
+                    // reading position unseen. Park it; a user's explicit HUD-pill pause is scoped
+                    // out of the matching resume below so this cannot un-park it.
+                    viewModel.pauseAutoScroll(com.riffle.core.domain.autoscroll.PauseCause.AppBackgrounded)
+                }
+                Lifecycle.Event.ON_START -> {
+                    viewModel.onReaderResumed()
+                    viewModel.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.AppBackgrounded)
+                }
                 else -> {}
             }
         }

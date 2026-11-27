@@ -139,6 +139,8 @@ import com.riffle.feature.reader.annotationToNoteGlyphDecoration
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
+import com.riffle.feature.reader.autoscroll.pauseFor
+import com.riffle.feature.reader.autoscroll.resumeIfPausedBy
 import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
@@ -206,6 +208,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import platform.Foundation.NSNotificationCenter
+import platform.Foundation.NSOperationQueue
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import platform.UIKit.UIApplicationWillEnterForegroundNotification
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import kotlin.time.TimeSource
@@ -1174,6 +1180,26 @@ fun EpubReaderScreen(
     DisposableEffect(autoScroll) {
         onDispose { autoScroll.release() }
     }
+    // Pause Auto-Scroll while the app is backgrounded (locking the device backgrounds the app, so
+    // this covers screen-off too); resume on return. Scoped resume keeps a user's explicit HUD-pill
+    // park parked across the round-trip. Mirrors Android's ON_STOP/ON_START wiring.
+    DisposableEffect(autoScroll) {
+        val center = NSNotificationCenter.defaultCenter
+        val background = center.addObserverForName(
+            name = UIApplicationDidEnterBackgroundNotification,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { _ -> autoScroll.pauseFor(PauseCause.AppBackgrounded) }
+        val foreground = center.addObserverForName(
+            name = UIApplicationWillEnterForegroundNotification,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { _ -> autoScroll.resumeIfPausedBy(PauseCause.AppBackgrounded) }
+        onDispose {
+            center.removeObserver(background)
+            center.removeObserver(foreground)
+        }
+    }
 
     // ---- Cadence -----------------------------------------------------------------------------
     // Sentence-at-a-time hands-free reading (issue #403 / ADR 0047). Everything above the
@@ -1218,13 +1244,10 @@ fun EpubReaderScreen(
     LaunchedEffect(annotationsPanelOpen, settingsOpen, searchOpen, tocOpen) {
         val anyOpen = annotationsPanelOpen || settingsOpen || searchOpen || tocOpen
         if (anyOpen) {
-            autoScroll.dispatch(AutoScrollEvent.Pause(PauseCause.PanelOpen))
+            autoScroll.pauseFor(PauseCause.PanelOpen)
             cadence.pauseFor(CadencePauseCause.PanelOpen)
         } else {
-            val s = autoScroll.state.value
-            if (s is AutoScrollState.Paused && s.cause == PauseCause.PanelOpen) {
-                autoScroll.dispatch(AutoScrollEvent.Resume)
-            }
+            autoScroll.resumeIfPausedBy(PauseCause.PanelOpen)
             cadence.resumeIfPaused()
         }
     }
