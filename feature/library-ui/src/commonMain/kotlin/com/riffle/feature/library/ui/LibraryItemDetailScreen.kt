@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -52,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -1264,7 +1266,7 @@ internal fun SeriesLine(seriesName: String, seriesId: String?, onSeriesClick: (S
 private fun TocRow(tocState: TocState, onOpen: () -> Unit) {
     val ready = tocState as? TocState.Ready ?: return
     if (ready.entries.isEmpty()) return
-    val sectionCount = countFlatEntries(ready.entries)
+    val sectionCount = topLevelTocCount(ready.entries)
     ListItem(
         headlineContent = { Text(stringResource(Res.string.ui_sections_count, sectionCount)) },
         leadingContent = { Icon(RiffleIcons.Toc, contentDescription = null) },
@@ -1391,9 +1393,10 @@ private fun ItemTocSheet(
                         Text(
                             text = row.entry.title,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isActive) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
+                            color = if (isActive) MaterialTheme.colorScheme.primary else Color.Unspecified,
                         )
                     },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier
                         .padding(start = (row.depth * 16).dp)
                         .clickable { onEntryClick(row.entry) },
@@ -1419,6 +1422,7 @@ private fun ItemChaptersBottomSheet(
                 ListItem(
                     headlineContent = { Text(chapter.title, style = MaterialTheme.typography.bodyLarge) },
                     supportingContent = { Text(formatCompactDuration(chapter.startSec), style = MaterialTheme.typography.labelMedium) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { onChapterClick(chapter) },
                 )
             }
@@ -1435,8 +1439,7 @@ private data class FlatTocRow(val entry: TocEntry, val depth: Int)
 private fun flattenTocEntries(entries: List<TocEntry>, depth: Int = 0): List<FlatTocRow> =
     entries.flatMap { entry -> listOf(FlatTocRow(entry, depth)) + flattenTocEntries(entry.children, depth + 1) }
 
-private fun countFlatEntries(entries: List<TocEntry>): Int =
-    entries.sumOf { 1 + countFlatEntries(it.children) }
+internal fun topLevelTocCount(entries: List<TocEntry>): Int = entries.size
 
 /** Compact h/m duration string — local implementation since feature:player isn't on the classpath. */
 internal fun formatCompactDuration(durationSec: Double): String {
