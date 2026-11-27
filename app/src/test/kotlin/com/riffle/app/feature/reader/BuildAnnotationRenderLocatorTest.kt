@@ -142,4 +142,41 @@ class BuildAnnotationRenderLocatorTest {
         val progression = json!!.optJSONObject("locations")?.optDouble("progression")
         assertEquals(0.75, progression!!, 0.001)
     }
+
+    // ---- annotationSegmentContexts: before/after route to first/last NON-BLANK segment ----------
+    //
+    // splitSnippetForFiguresAt yields a blank boundary segment when a figure sits at the start
+    // (["", caption]) or end (["text", ""]) of a highlight. Keying textBefore/textAfter on raw
+    // index 0 / lastIndex drops the context onto a skipped blank segment, degrading Readium's
+    // TextQuoteSelector disambiguation. These pin the non-blank routing on both ends.
+
+    @Test
+    fun `annotationSegmentContexts routes textAfter to last non-blank when figure is at end`() {
+        // Figure at the end → trailing blank segment. textAfter must still attach to "text".
+        val contexts = annotationSegmentContexts(listOf("text", ""), "BEFORE", "AFTER")
+        assertEquals("only the non-blank segment is mapped", setOf(0), contexts.keys)
+        assertEquals("BEFORE" to "AFTER", contexts[0])
+    }
+
+    @Test
+    fun `annotationSegmentContexts routes textBefore to first non-blank when figure is at start`() {
+        // Figure at the start → leading blank segment. textBefore must attach to "caption".
+        val contexts = annotationSegmentContexts(listOf("", "caption"), "BEFORE", "AFTER")
+        assertEquals(setOf(1), contexts.keys)
+        assertEquals("BEFORE" to "AFTER", contexts[1])
+    }
+
+    @Test
+    fun `annotationSegmentContexts gives middle segments empty context and ends their own`() {
+        val contexts = annotationSegmentContexts(listOf("a", "b", "c"), "BEFORE", "AFTER")
+        assertEquals("BEFORE" to "", contexts[0])
+        assertEquals("" to "", contexts[1])
+        assertEquals("" to "AFTER", contexts[2])
+    }
+
+    @Test
+    fun `annotationSegmentContexts single segment carries both before and after`() {
+        val contexts = annotationSegmentContexts(listOf("only"), "BEFORE", "AFTER")
+        assertEquals("BEFORE" to "AFTER", contexts[0])
+    }
 }

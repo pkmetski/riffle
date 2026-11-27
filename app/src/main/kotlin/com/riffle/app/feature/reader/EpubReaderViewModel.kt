@@ -3482,22 +3482,23 @@ class EpubReaderViewModel constructor(
         } else {
             splitSnippetForFiguresAt(a.textSnippet, offsets)
         }
-        // Track which non-blank segment is first so textBefore goes to the actual first rendered
-        // segment, not to index==0 which may be blank (e.g. charOffset=0 caption-highlights where
-        // splitSnippetForFiguresAt produces ["", captionText] — the blank segment is skipped but
-        // index==0 would have consumed textBefore, leaving the caption render with before="").
-        var isFirstNonBlankSegment = true
+        // textBefore/textAfter must attach to the first/last NON-BLANK segment, not raw index 0 /
+        // lastIndex — splitSnippetForFiguresAt yields a blank boundary segment when a figure sits at
+        // the start (["", caption]) or the end (["text", ""]) of the highlight. Keying on raw indices
+        // drops the context onto a skipped blank segment, degrading Readium's TextQuoteSelector
+        // disambiguation the same way on both ends.
+        val contexts = annotationSegmentContexts(segments, a.textBefore, a.textAfter)
         val renders = segments
             .mapIndexedNotNull { index, segmentText ->
                 if (segmentText.isBlank()) return@mapIndexedNotNull null
-                val isFirst = isFirstNonBlankSegment.also { isFirstNonBlankSegment = false }
+                val (before, after) = contexts.getValue(index)
                 val locator = buildAnnotationRenderLocator(
                     href = href,
                     cfi = a.cfi,
                     progression = progression,
-                    before = if (isFirst) a.textBefore else "",
+                    before = before,
                     highlight = segmentText,
-                    after = if (index == segments.lastIndex) a.textAfter else "",
+                    after = after,
                 ) ?: return@mapIndexedNotNull null
                 val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
                 HighlightRender(decorationId, locator.toJSON().toString(), a.color, a.note, emphasisStyles = emphasisStyles)
@@ -4269,6 +4270,27 @@ internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>,
  * `internal` so the normalisation contract is unit-testable without constructing the ViewModel.
  * [locatorFromJson] is injected so tests can bypass `android.net.Uri` (unavailable in JVM stubs).
  */
+/**
+ * Maps each non-blank segment index to the (before, after) context it should carry.
+ *
+ * [textBefore] goes to the first non-blank segment and [textAfter] to the last non-blank segment;
+ * every segment in between gets empty context. Blank boundary segments (produced by
+ * [splitSnippetForFiguresAt] when a figure sits at the very start or end of a highlight) are
+ * excluded from the map so the context never lands on a segment that is skipped at render time.
+ */
+internal fun annotationSegmentContexts(
+    segments: List<String>,
+    textBefore: String,
+    textAfter: String,
+): Map<Int, Pair<String, String>> {
+    val nonBlank = segments.indices.filter { segments[it].isNotBlank() }
+    val first = nonBlank.firstOrNull()
+    val last = nonBlank.lastOrNull()
+    return nonBlank.associateWith { index ->
+        (if (index == first) textBefore else "") to (if (index == last) textAfter else "")
+    }
+}
+
 internal fun buildAnnotationRenderLocator(
     href: String,
     cfi: String,
