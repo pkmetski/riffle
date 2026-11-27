@@ -7,7 +7,7 @@ import com.riffle.core.data.sources.toDomain
 import com.riffle.core.database.SourceDao
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.ReadaloudSidecarCache
+import com.riffle.core.domain.ReadaloudSidecarPurger
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
@@ -31,9 +31,9 @@ class SourceRepositoryImpl constructor(
     private val filesCleaner: SourceFilesCleaner,
     // Lambda (not direct injection) breaks the SourceRepository ↔ ReadaloudSidecarStore DI
     // cycle: the sidecar store needs SourceRepository to look up per-source credentials, and the
-    // repository needs the cache to purge on source removal. Lazy resolution here means the store
-    // is only constructed on the removal path — long after graph resolution has settled.
-    private val sidecarCache: () -> ReadaloudSidecarCache,
+    // repository needs the purger to drop sidecars on source removal. Lazy resolution here means the
+    // store is only constructed on the removal path — long after graph resolution has settled.
+    private val sidecarPurger: () -> ReadaloudSidecarPurger,
     private val installer: CredentialedSourceInstaller,
     private val remoteUserIdResolvers: Map<SourceType, @JvmSuppressWildcards RemoteUserIdResolver>,
 ) : SourceRepository {
@@ -80,7 +80,7 @@ class SourceRepositoryImpl constructor(
         filesCleaner.deleteAllForSource(sourceId)
         // Readaloud sidecars live in the app cacheDir and are keyed to the storyteller source id;
         // a re-added source shouldn't inherit sidecars from its predecessor.
-        sidecarCache().purgeSource(sourceId)
+        sidecarPurger().purgeSource(sourceId)
     }
 
     // Both lookups are the shared commonMain algorithms iOS runs too (#1101).

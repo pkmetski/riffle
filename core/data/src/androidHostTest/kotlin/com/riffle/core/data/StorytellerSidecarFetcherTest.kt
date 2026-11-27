@@ -50,7 +50,7 @@ class StorytellerSidecarFetcherTest {
     private fun fetcher(
         bundleApi: StorytellerBundleApi,
         fullBundleApi: StorytellerBundleApi = bundleApi,
-    ) = StorytellerSidecarFetcher(
+    ) = AndroidStorytellerSidecarFetcher(
         bundleApi = bundleApi,
         fullBundleApi = fullBundleApi,
         tempDir = { tmp.root },

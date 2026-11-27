@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okio.source
 
 /**
  * Real [FolderWalker] backed by SAF `DocumentFile`. Walks recursively; yields every non-directory
@@ -33,12 +34,10 @@ class SafFolderWalker constructor(
                     displayName = name,
                     sizeBytes = child.length(),
                     mtimeEpochMs = child.lastModified(),
-                    openStream = {
-                        // Called on whatever dispatcher the caller (the scanner) uses. The scanner's
-                        // head-read + copy-in wraps their own IO in withContext(IO), so we don't
-                        // need to redispatch here.
-                        context.contentResolver.openInputStream(child.uri)
+                    openSource = {
+                        val stream = context.contentResolver.openInputStream(child.uri)
                             ?: throw IllegalStateException("Cannot open input stream: ${child.uri}")
+                        stream.source()
                     },
                 )
             }

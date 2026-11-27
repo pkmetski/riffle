@@ -31,7 +31,7 @@ import kotlinx.coroutines.sync.withLock
 class IosCrossEpubIndexBuilderService(
     private val fileStore: FileStore,
     private val store: CrossEpubIndexStore,
-    private val sidecarStore: IosReadaloudSidecarStore,
+    private val sidecarStore: ReadaloudSidecarStore,
     private val clock: () -> Long,
     private val applicationScope: ApplicationScope,
 ) : CrossEpubIndexBuildTrigger {
@@ -64,7 +64,7 @@ class IosCrossEpubIndexBuilderService(
         // Storyteller text: the downloaded bundle if present, otherwise the already-prepared
         // sidecar. Never fetch here — a missing prerequisite must defer, not block the refresh.
         val storytellerBytes = localEpubBytes(link.storytellerSourceId, link.storytellerBookId)
-            ?: sidecarStore.cachedSidecarPath(link.storytellerSourceId, link.storytellerBookId)
+            ?: sidecarStore.cachedPath(link.storytellerSourceId, link.storytellerBookId)
                 ?.let { IosAudiobookFiles.readBytes(it) }
             ?: return null
 

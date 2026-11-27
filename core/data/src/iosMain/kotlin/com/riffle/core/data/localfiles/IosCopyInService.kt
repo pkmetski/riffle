@@ -2,16 +2,15 @@ package com.riffle.core.data.localfiles
 
 import com.riffle.core.domain.DispatcherProvider
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.alloc
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
-import kotlinx.cinterop.value
 import kotlinx.coroutines.withContext
+import okio.FileSystem
+import okio.Path.Companion.toPath
+import okio.Source
+import okio.buffer
+import okio.use
 import platform.Foundation.NSDocumentDirectory
-import platform.Foundation.NSError
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
@@ -20,7 +19,7 @@ import platform.posix.fopen
 import platform.posix.fwrite
 
 @OptIn(ExperimentalForeignApi::class)
-class IosCopyInService(private val dispatchers: DispatcherProvider) {
+class IosCopyInService(private val dispatchers: DispatcherProvider) : CopyInService {
 
     private val documentsDir: String by lazy {
         @Suppress("UNCHECKED_CAST")
@@ -28,28 +27,26 @@ class IosCopyInService(private val dispatchers: DispatcherProvider) {
             .firstOrNull() ?: error("Cannot resolve iOS documents directory")
     }
 
-    suspend fun copyBook(
+    override suspend fun copyBook(
         sourceId: String,
         sourceItemId: String,
         extension: String,
-        sourcePath: String,
+        source: Source,
     ): String = withContext(dispatchers.io) {
         val dest = bookPath(sourceId, sourceItemId, extension)
         ensureParent(dest)
-        val manager = NSFileManager.defaultManager
-        if (manager.fileExistsAtPath(dest)) manager.removeItemAtPath(dest, error = null)
-        memScoped {
-            val err = alloc<ObjCObjectVar<NSError?>>()
-            val ok = manager.copyItemAtPath(sourcePath, toPath = dest, error = err.ptr)
-            if (!ok) {
-                val desc = err.value?.localizedDescription ?: "unknown error"
-                error("Failed to copy $sourcePath → $dest: $desc")
-            }
+        val destPath = dest.toPath()
+        if (FileSystem.SYSTEM.exists(destPath)) FileSystem.SYSTEM.delete(destPath)
+        try {
+            source.use { src -> FileSystem.SYSTEM.sink(destPath).buffer().use { sink -> sink.writeAll(src) } }
+        } catch (e: Exception) {
+            if (FileSystem.SYSTEM.exists(destPath)) FileSystem.SYSTEM.delete(destPath)
+            throw e
         }
         dest
     }
 
-    suspend fun writeCover(
+    override suspend fun writeCover(
         sourceId: String,
         sourceItemId: String,
         extension: String,
@@ -67,7 +64,7 @@ class IosCopyInService(private val dispatchers: DispatcherProvider) {
         dest
     }
 
-    suspend fun deleteBook(sourceId: String, sourceItemId: String) = withContext(dispatchers.io) {
+    override suspend fun deleteBook(sourceId: String, sourceItemId: String): Unit = withContext(dispatchers.io) {
         val dir = sourceDir(sourceId)
         val manager = NSFileManager.defaultManager
 
@@ -80,7 +77,7 @@ class IosCopyInService(private val dispatchers: DispatcherProvider) {
         }
     }
 
-    suspend fun deleteCover(sourceId: String, sourceItemId: String) = withContext(dispatchers.io) {
+    override suspend fun deleteCover(sourceId: String, sourceItemId: String): Unit = withContext(dispatchers.io) {
         val dir = "${sourceDir(sourceId)}/covers"
         val manager = NSFileManager.defaultManager
 

@@ -10,6 +10,7 @@ import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.ReadaloudSidecarPurger
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
@@ -33,6 +34,10 @@ class IosSourceRepositoryImpl(
     remoteUserIdResolvers: Map<SourceType, RemoteUserIdResolver>,
     private val dispatchers: DispatcherProvider,
     private val filesCleaner: SourceFilesCleaner,
+    // Lambda to break the SourceRepository ↔ ReadaloudSidecarStore DI cycle, matching Android's
+    // SourceRepositoryImpl: the store needs this repository for per-source credentials, and the
+    // repository needs the purger to drop sidecars on source removal.
+    private val sidecarPurger: () -> ReadaloudSidecarPurger,
 ) : SourceRepository {
 
     // The same commonMain lookups Android's SourceRepositoryImpl runs (#1101): the version used
@@ -102,6 +107,9 @@ class IosSourceRepositoryImpl(
         // The file stores live outside the database, so the graph delete above doesn't touch
         // them — purge the source's downloaded/cached files so they don't leak on disk (#1101).
         filesCleaner.deleteAllForSource(sourceId)
+        // Readaloud sidecars are keyed to the storyteller source id; a re-added source shouldn't
+        // inherit sidecars from its predecessor (parity with Android's SourceRepositoryImpl).
+        sidecarPurger().purgeSource(sourceId)
     }
 
     override suspend fun getSourceVersion(sourceId: String): String? {

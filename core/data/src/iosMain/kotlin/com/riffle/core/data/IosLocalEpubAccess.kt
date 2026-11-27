@@ -13,7 +13,7 @@ import com.riffle.core.domain.LocalEpubLocator
  */
 class IosLocalEpubLocator(
     private val fileStore: FileStore,
-    private val sidecarStore: IosReadaloudSidecarStore,
+    private val sidecarStore: ReadaloudSidecarStore,
 ) : LocalEpubLocator {
 
     override fun localEpubPath(sourceId: String, itemId: String): String? {
@@ -24,7 +24,7 @@ class IosLocalEpubLocator(
     }
 
     override fun sidecarEpubPath(storytellerSourceId: String, storytellerBookId: String): String? =
-        sidecarStore.cachedSidecarPath(storytellerSourceId, storytellerBookId)
+        sidecarStore.cachedPath(storytellerSourceId, storytellerBookId)
 }
 
 /**

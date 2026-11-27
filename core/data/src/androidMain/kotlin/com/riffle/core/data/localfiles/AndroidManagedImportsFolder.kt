@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
+import okio.source
 import java.io.File
 
 /**
@@ -79,7 +80,7 @@ class ManagedFolderWalker(
                     displayName = child.name,
                     sizeBytes = child.length(),
                     mtimeEpochMs = child.lastModified(),
-                    openStream = { child.inputStream() },
+                    openSource = { child.inputStream().source() },
                 )
             }
         }

@@ -18,6 +18,8 @@ import com.riffle.core.data.AndroidDeviceLabelResolver
 import com.riffle.core.data.AndroidEpubFileStore
 import com.riffle.core.data.AndroidKeyValueStore
 import com.riffle.core.data.AndroidPdfFileStore
+import com.riffle.core.data.AndroidSidecarClipInspector
+import com.riffle.core.data.AndroidStorytellerSidecarFetcher
 import com.riffle.core.data.AnnotationPullSweep
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AnnotationSweep
@@ -98,6 +100,7 @@ import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ReconcilingItemProgressPuller
+import com.riffle.core.data.SidecarClipInspector
 import com.riffle.core.data.SourceFilesCleanerImpl
 import com.riffle.core.data.SourceRepositoryImpl
 import com.riffle.core.data.StorytellerBundleAudiobookSource
@@ -125,10 +128,12 @@ import com.riffle.core.data.dictionary.JvmJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloaderImpl
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.data.localfiles.AndroidCopyInService
+import com.riffle.core.data.localfiles.AndroidLocalBookMetadataReader
 import com.riffle.core.data.localfiles.AndroidLocalFilesFileReader
 import com.riffle.core.data.localfiles.AndroidManagedImportsFolder
 import com.riffle.core.data.localfiles.CopyInService
 import com.riffle.core.data.localfiles.FolderWalker
+import com.riffle.core.data.localfiles.LocalBookMetadataReader
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
@@ -221,8 +226,8 @@ import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
+import com.riffle.core.domain.ReadaloudSidecarPurger
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
@@ -673,7 +678,7 @@ private val coreDataRepositoriesModule = module {
             serverInfoApi = get(),
             komgaServerInfoApi = get(),
             filesCleaner = get(),
-            sidecarCache = { get<ReadaloudSidecarCache>() },
+            sidecarPurger = { get<ReadaloudSidecarPurger>() },
             installer = get(),
             remoteUserIdResolvers = get(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)),
         )
@@ -908,8 +913,8 @@ private val coreDataStreamingAudioModule = module {
     single<AudioIdentityResolver> { AudioIdentityResolverImpl(get(), get()) }
     single<AudiobookChapterCacheRepository> { AudiobookChapterCacheRepositoryImpl(get(), get(), get()) }
 
-    single {
-        StorytellerSidecarFetcher(
+    single<StorytellerSidecarFetcher> {
+        AndroidStorytellerSidecarFetcher(
             bundleApi = { url, bookId, token, insecure ->
                 get<StorytellerBundleApiImpl>().streamSidecar(url, bookId, token, insecure)
             },
@@ -920,19 +925,23 @@ private val coreDataStreamingAudioModule = module {
             dispatchers = get(),
         )
     }
+    single<SidecarClipInspector> { AndroidSidecarClipInspector }
 
-    // ReadaloudSidecarStore implements ReadaloudSidecarPrefetcher and ReadaloudSidecarCache
+    // ReadaloudSidecarStore implements ReadaloudSidecarPrefetcher, ReadaloudSidecarDownloads and
+    // ReadaloudSidecarPurger — the single shared implementation (commonMain).
     single {
         ReadaloudSidecarStore(
-            androidContext(),
-            get<StorytellerSidecarFetcher>(),
-            get<SourceRepository>(),
-            get<TokenStorage>(),
-            get<ApplicationScope>(),
+            fetcher = get<StorytellerSidecarFetcher>(),
+            clipInspector = get<SidecarClipInspector>(),
+            sourceRepository = get<SourceRepository>(),
+            tokenStorage = get<TokenStorage>(),
+            fileStore = get<FileStore>(),
+            applicationScope = get<ApplicationScope>(),
+            dispatchers = get<DispatcherProvider>(),
         )
     }
     single<ReadaloudSidecarPrefetcher> { get<ReadaloudSidecarStore>() }
-    single<ReadaloudSidecarCache> { get<ReadaloudSidecarStore>() }
+    single<ReadaloudSidecarPurger> { get<ReadaloudSidecarStore>() }
     single<com.riffle.core.domain.ReadaloudSidecarDownloads> { get<ReadaloudSidecarStore>() }
 
     single {
@@ -1273,6 +1282,7 @@ private val coreDataMiscModule = module {
     single<OpenInImporter> { SharedOpenInImporter(importsFolder = get(), installer = get()) }
     single { OpenInImportFeed() }
     single<CopyInService> { AndroidCopyInService(androidContext()) }
+    single<LocalBookMetadataReader> { AndroidLocalBookMetadataReader(pdfMetadata = get()) }
     single {
         LocalFilesFolderRepository(
             context = androidContext(),
@@ -1290,7 +1300,8 @@ private val coreDataMiscModule = module {
             libraryItemDao = get(),
             walker = get(),
             copyIn = get(),
-            pdfMetadata = get(),
+            metadataReader = get(),
+            dispatchers = get(),
             clock = get(),
             logger = get(),
         )

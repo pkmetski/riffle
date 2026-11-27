@@ -30,7 +30,7 @@ class AndroidReadaloudSidecarDelegate(
     override fun key(sourceId: String, itemId: String): String = sidecarStore.key(sourceId, itemId)
 
     override fun cachedBundlePath(sourceId: String, itemId: String): String? =
-        sidecarStore.cachedFile(sourceId, itemId)?.absolutePath
+        sidecarStore.cachedPath(sourceId, itemId)
 
     override fun prepare(sourceId: String, itemId: String) = sidecarStore.prepare(sourceId, itemId)
 

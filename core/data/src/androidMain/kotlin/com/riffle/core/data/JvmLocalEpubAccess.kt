@@ -6,21 +6,20 @@ import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.ExtractedEpub
 import com.riffle.core.domain.LocalEpubLocator
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.ReadaloudSidecarCache
 import java.io.File
 
 /** [LocalEpubLocator] over the existing [LocalStore] pair plus the sidecar cache. */
 class JvmLocalEpubLocator(
     private val cacheStore: LocalStore,
     private val downloadsStore: LocalStore,
-    private val sidecarCache: ReadaloudSidecarCache,
+    private val sidecarStore: ReadaloudSidecarStore,
 ) : LocalEpubLocator {
 
     override fun localEpubPath(sourceId: String, itemId: String): String? =
         (downloadsStore.get(sourceId, itemId) ?: cacheStore.get(sourceId, itemId))?.absolutePath
 
     override fun sidecarEpubPath(storytellerSourceId: String, storytellerBookId: String): String? =
-        sidecarCache.cachedFile(storytellerSourceId, storytellerBookId)?.absolutePath
+        sidecarStore.cachedPath(storytellerSourceId, storytellerBookId)
 }
 
 /**

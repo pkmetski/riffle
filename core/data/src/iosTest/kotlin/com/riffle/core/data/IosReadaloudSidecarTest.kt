@@ -1,10 +1,17 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.IosZipArchive
 import com.riffle.core.domain.IosZipWriter
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -77,5 +84,66 @@ class IosReadaloudSidecarTest {
         val fromSidecar = IosMediaOverlayReader.readTrack(sidecar)
 
         assertEquals(fromBundle.clips, fromSidecar.clips, "the sidecar must be a drop-in for the bundle")
+    }
+
+    // --- real iOS clip-inspector seam (ReadaloudSidecarStore.purge-on-init) ---
+
+    @Test
+    fun `clip inspector reports clips for an aligned sidecar`() {
+        val sidecar = IosReadaloudSidecarReader.read(alignedBundle())!!
+
+        assertTrue(IosSidecarClipInspector.hasClips(sidecar), "aligned sidecar has <par> clips")
+    }
+
+    @Test
+    fun `clip inspector reports no clips for a sidecar whose smil has no par`() {
+        val smilNoPar =
+            """<smil xmlns="http://www.w3.org/ns/SMIL" version="3.0"><body><seq></seq></body></smil>"""
+        val sidecar = IosReadaloudSidecarReader.read(
+            bundle(
+                "OEBPS/smil/part0001.smil" to smilNoPar.encodeToByteArray(),
+                "OEBPS/text/c1.xhtml" to "<html/>".encodeToByteArray(),
+            ),
+        )!!
+
+        assertFalse(IosSidecarClipInspector.hasClips(sidecar), "a clipless sidecar is unplayable")
+    }
+
+    // --- real iOS fetcher seam (ReadaloudSidecarStore streaming/full-download) ---
+
+    private fun fetcherRespondingWith(bytes: ByteArray, status: HttpStatusCode = HttpStatusCode.OK) =
+        IosStorytellerSidecarFetcher(
+            httpClient = HttpClient(MockEngine { respond(content = bytes, status = status) }),
+            dispatchers = IosDispatcherProvider,
+        )
+
+    @Test
+    fun `fetcher returns Success with the audio-free sidecar for an aligned bundle`() = runTest {
+        val result = fetcherRespondingWith(alignedBundle()).fetch("http://st", "42", "tok", false)
+
+        val success = assertIs<StorytellerSidecarFetcher.FetchResult.Success>(result)
+        val names = IosZipArchive(success.bytes).entryNames()
+        assertTrue(names.contains("OEBPS/smil/part0001.smil"), "SMIL is kept")
+        assertFalse(names.any { it.endsWith(".mp3") || it.endsWith(".m4b") }, "audio is stripped")
+    }
+
+    @Test
+    fun `fetcher returns NotAligned when the bundle carries no smil`() = runTest {
+        val unaligned = bundle(
+            "OEBPS/text/c1.xhtml" to "<html/>".encodeToByteArray(),
+            "OEBPS/audio/c1.mp3" to ByteArray(1024),
+        )
+
+        val result = fetcherRespondingWith(unaligned).fetch("http://st", "42", "tok", false)
+
+        assertIs<StorytellerSidecarFetcher.FetchResult.NotAligned>(result)
+    }
+
+    @Test
+    fun `fetcher returns NetworkError when the transport fails`() = runTest {
+        val result = fetcherRespondingWith(ByteArray(0), HttpStatusCode.InternalServerError)
+            .fetch("http://st", "42", "tok", false)
+
+        assertIs<StorytellerSidecarFetcher.FetchResult.NetworkError>(result)
     }
 }

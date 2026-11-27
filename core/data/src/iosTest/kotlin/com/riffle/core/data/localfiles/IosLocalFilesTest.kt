@@ -6,6 +6,7 @@ import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.IosDispatcherProvider
 import com.riffle.core.domain.TestClock
+import com.riffle.core.logging.NoopLogger
 import com.riffle.core.models.EbookFormat
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -27,10 +28,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Regression coverage for #1056: `IosLocalFilesScanner` and `IosLocalFilesFolderRepository` are
- * fully-written iOS implementations that Koin used to shadow with no-op bindings, so the Local
- * Files source silently did nothing on iOS. These exercise the real classes end-to-end (real
- * filesystem I/O via NSFileManager/posix, same as production) the way Koin now wires them.
+ * Regression coverage for #1056: the common `LocalFilesScanner` and `IosLocalFilesFolderRepository`
+ * drive the real iOS backends (`IosFolderWalker`, `IosCopyInService`, `IosLocalBookMetadataReader`)
+ * end-to-end over real filesystem I/O (NSFileManager/posix, same as production) the way Koin wires
+ * them, guarding against the no-op bindings that once made the Local Files source do nothing.
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosLocalFilesTest {
@@ -39,6 +40,7 @@ class IosLocalFilesTest {
     private val dispatchers = IosDispatcherProvider
     private val walker = IosFolderWalker(dispatchers)
     private val copyIn = IosCopyInService(dispatchers)
+    private val metadataReader = IosLocalBookMetadataReader()
     private val tempDirs = mutableListOf<String>()
     private val copyInDirs = mutableListOf<String>()
 
@@ -70,8 +72,8 @@ class IosLocalFilesTest {
             fileDao = fileDao,
             fileFolderDao = fileFolderDao,
             libraryItemDao = libraryItemDao,
-            scanner = IosLocalFilesScanner(
-                folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, dispatchers, clock,
+            scanner = LocalFilesScanner(
+                folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, metadataReader, dispatchers, clock, NoopLogger,
             ),
         )
     }
@@ -83,7 +85,7 @@ class IosLocalFilesTest {
         val fileDao: InMemoryLocalFilesFileDao,
         val fileFolderDao: InMemoryLocalFilesFileFolderDao,
         val libraryItemDao: FakeLibraryItemDao,
-        val scanner: IosLocalFilesScanner,
+        val scanner: LocalFilesScanner,
     ) {
         suspend fun configureFolder(path: String, libraryId: String, addedAtEpochMs: Long = 0L) {
             folderDao.upsert(
@@ -130,7 +132,7 @@ class IosLocalFilesTest {
         val fileFolderDao = InMemoryLocalFilesFileFolderDao(fileDao)
         val libraryItemDao = FakeLibraryItemDao()
         val clock = TestClock(1_000L)
-        val scanner = IosLocalFilesScanner(folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, dispatchers, clock)
+        val scanner = LocalFilesScanner(folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, metadataReader, dispatchers, clock, NoopLogger)
 
         val folderPath = newFolder()
         writeFile(folderPath, "book.epub", epubBytes())
@@ -154,7 +156,7 @@ class IosLocalFilesTest {
         val fileFolderDao = InMemoryLocalFilesFileFolderDao(fileDao)
         val libraryItemDao = FakeLibraryItemDao()
         val clock = TestClock(1_000L)
-        val scanner = IosLocalFilesScanner(folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, dispatchers, clock)
+        val scanner = LocalFilesScanner(folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, metadataReader, dispatchers, clock, NoopLogger)
 
         val folderPath = newFolder()
         writeFile(folderPath, "book.epub", epubBytes(paddingByte = 1))
@@ -180,8 +182,8 @@ class IosLocalFilesTest {
         val fileDao = InMemoryLocalFilesFileDao()
         val fileFolderDao = InMemoryLocalFilesFileFolderDao(fileDao)
         val libraryItemDao = FakeLibraryItemDao()
-        val scanner = IosLocalFilesScanner(
-            folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, dispatchers, TestClock(1_000L),
+        val scanner = LocalFilesScanner(
+            folderDao, fileDao, fileFolderDao, libraryItemDao, walker, copyIn, metadataReader, dispatchers, TestClock(1_000L), NoopLogger,
         )
 
         folderDao.upsert(
@@ -230,7 +232,7 @@ class IosLocalFilesTest {
 
         val report = f.scanner.scan(f.sourceId)
 
-        assertEquals(IosLocalFilesScanner.ScanReport(0, 0, 0, emptyList()), report)
+        assertEquals(LocalFilesScanner.ScanReport(0, 0, 0, emptyList()), report)
         assertTrue(f.libraryItemDao.upserted.isEmpty())
     }
 

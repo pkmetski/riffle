@@ -50,8 +50,9 @@ import com.riffle.core.data.IosKeyValueStore
 import com.riffle.core.data.IosLocalEpubLocator
 import com.riffle.core.data.IosLocalToReadStore
 import com.riffle.core.data.IosReadaloudAudioRepositoryImpl
-import com.riffle.core.data.IosReadaloudSidecarStore
+import com.riffle.core.data.IosSidecarClipInspector
 import com.riffle.core.data.IosSourceRepositoryImpl
+import com.riffle.core.data.IosStorytellerSidecarFetcher
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalAvailabilityEventsImpl
@@ -65,9 +66,12 @@ import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
+import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.ReadingSessionRepositoryImpl
+import com.riffle.core.data.SidecarClipInspector
 import com.riffle.core.data.StorytellerBundleAudiobookSource
 import com.riffle.core.data.StorytellerReadaloudSyncer
+import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.TocRepositoryImpl
@@ -80,8 +84,8 @@ import com.riffle.core.data.di.iosDatabaseModule
 import com.riffle.core.data.localfiles.IosLocalFilesFileReader
 import com.riffle.core.data.localfiles.IosLocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.IosLocalFilesFolderRepository
-import com.riffle.core.data.localfiles.IosLocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
+import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver
@@ -137,6 +141,7 @@ import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudSidecarDownloads
 import com.riffle.core.domain.ReadaloudSidecarPrefetcher
+import com.riffle.core.domain.ReadaloudSidecarPurger
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.SourceRepository
@@ -333,6 +338,7 @@ private fun iosLibraryModule(
             remoteUserIdResolvers = get(named(REMOTE_USER_ID_RESOLVERS_BY_SOURCE_TYPE)),
             dispatchers = get(),
             filesCleaner = get(),
+            sidecarPurger = { get<ReadaloudSidecarPurger>() },
         )
     }
     single<LastOpenedLibraryStore> { LastOpenedLibraryStoreImpl(IosKeyValueStore()) }
@@ -906,9 +912,22 @@ private fun iosLibraryModule(
         driver
     }
 
-    // One IosReadaloudSidecarStore serves both roles, as ReadaloudSidecarStore does on Android.
-    single { IosReadaloudSidecarStore(get(), get(), get(), get(), get()) }
-    single<ReadaloudSidecarDownloads> { get<IosReadaloudSidecarStore>() }
+    // The single shared ReadaloudSidecarStore (commonMain), with the iOS fetcher + clip inspector.
+    single<StorytellerSidecarFetcher> { IosStorytellerSidecarFetcher(get<HttpClient>(), get()) }
+    single<SidecarClipInspector> { IosSidecarClipInspector }
+    single {
+        ReadaloudSidecarStore(
+            fetcher = get(),
+            clipInspector = get(),
+            sourceRepository = get(),
+            tokenStorage = get(),
+            fileStore = get(),
+            applicationScope = get(),
+            dispatchers = get(),
+        )
+    }
+    single<ReadaloudSidecarDownloads> { get<ReadaloudSidecarStore>() }
+    single<ReadaloudSidecarPurger> { get<ReadaloudSidecarStore>() }
     single {
         DownloadsViewModel(
             downloadsRepository = get(),
@@ -933,7 +952,7 @@ private fun iosLibraryModule(
     }
     single<LocalFilesFolderHealthCheckerInterface> { IosLocalFilesFolderHealthChecker() }
     single<LocalFilesScannerInterface> {
-        val scanner = get<IosLocalFilesScanner>()
+        val scanner = get<LocalFilesScanner>()
         object : LocalFilesScannerInterface {
             override suspend fun scan(sourceId: String) { scanner.scan(sourceId) }
         }
@@ -1174,7 +1193,7 @@ private fun iosLibraryModule(
     single<CatalogRegistry> {
         DefaultCatalogRegistry(get(named("catalogFactoriesBySourceType")), get())
     }
-    single<ReadaloudSidecarPrefetcher> { get<IosReadaloudSidecarStore>() }
+    single<ReadaloudSidecarPrefetcher> { get<ReadaloudSidecarStore>() }
     single<RecordItemOpened> { RecordItemOpened(get(), get()) }
     single<MarkReadAcrossDimensions> { MarkReadAcrossDimensions(get(), get(), get(), get()) }
     single<AudiobookChapterCacheRepository> { AudiobookChapterCacheRepositoryImpl(get(), get(), get()) }
