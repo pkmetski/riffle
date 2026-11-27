@@ -36,6 +36,9 @@ class BookFormattingPreferencesStoreImpl constructor(
             doublePageSpread = entity.doublePageSpread,
             justifyText = entity.justifyText,
             showReadingTimeEstimate = entity.showReadingTimeEstimate,
+            autoScrollWpm = entity.autoScrollWpm,
+            cadenceWpm = entity.cadenceWpm,
+            forcePaginatedInLandscape = entity.forcePaginatedInLandscape,
         )
     }
 
@@ -67,6 +70,9 @@ class BookFormattingPreferencesStoreImpl constructor(
                 doublePageSpread = overrides.doublePageSpread,
                 justifyText = overrides.justifyText,
                 showReadingTimeEstimate = overrides.showReadingTimeEstimate,
+                autoScrollWpm = overrides.autoScrollWpm,
+                cadenceWpm = overrides.cadenceWpm,
+                forcePaginatedInLandscape = overrides.forcePaginatedInLandscape,
             )
         )
     }

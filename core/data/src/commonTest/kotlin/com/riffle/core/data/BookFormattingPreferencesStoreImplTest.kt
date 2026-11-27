@@ -95,4 +95,39 @@ class BookFormattingPreferencesStoreImplTest {
         assertEquals(1.4f, store.load("src-A", "item-1", dim)?.fontSize)
         assertEquals(1.8f, store.load("src-B", "item-1", dim)?.fontSize)
     }
+
+    @Test
+    fun autoScrollAndCadencePacesRoundTripPerBook() = runTest {
+        val store = newStore()
+        val pacedOverrides = BookFormattingOverrides(
+            autoScrollWpm = 330,
+            cadenceWpm = 180,
+            forcePaginatedInLandscape = true,
+        )
+        store.save(sourceId, "item-1", dim, pacedOverrides)
+        val loaded = store.load(sourceId, "item-1", dim)
+        assertEquals(330, loaded?.autoScrollWpm)
+        assertEquals(180, loaded?.cadenceWpm)
+        assertEquals(true, loaded?.forcePaginatedInLandscape)
+    }
+
+    @Test
+    fun pacesAreNullForANeverNudgedBook() = runTest {
+        val store = newStore()
+        store.save(sourceId, "item-1", dim, BookFormattingOverrides(fontSize = 1.2f))
+        val loaded = store.load(sourceId, "item-1", dim)
+        assertNull(loaded?.autoScrollWpm)
+        assertNull(loaded?.cadenceWpm)
+        assertNull(loaded?.forcePaginatedInLandscape)
+    }
+
+    @Test
+    fun clearRemovesPacesForTheTargetedDimension() = runTest {
+        val store = newStore()
+        store.save(sourceId, "item-1", dim, BookFormattingOverrides(autoScrollWpm = 330, cadenceWpm = 180))
+
+        store.clear(sourceId, "item-1", dim)
+
+        assertNull(store.load(sourceId, "item-1", dim))
+    }
 }
