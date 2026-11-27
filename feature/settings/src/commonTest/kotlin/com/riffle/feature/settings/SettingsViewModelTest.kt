@@ -595,6 +595,32 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `hidden libraries under the Local Files source are reconciled visible`() = runTest {
+        serversFlow.value = listOf(server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES))
+        librariesFlow.value = listOf(library("folder-a"), library("folder-b"))
+        hiddenFlow.value = mapOf("lf-1" to setOf("folder-a"))
+        makeViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(emptySet(), hiddenFlow.value["lf-1"].orEmpty())
+    }
+
+    @Test
+    fun `reconciliation leaves a non-local source's hidden libraries untouched`() = runTest {
+        serversFlow.value = listOf(
+            server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES),
+            server("srv-1", active = true),
+        )
+        librariesFlow.value = listOf(library("folder-a"), library("lib-1"))
+        hiddenFlow.value = mapOf("lf-1" to setOf("folder-a"), "srv-1" to setOf("lib-1"))
+        makeViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(emptySet(), hiddenFlow.value["lf-1"].orEmpty())
+        assertEquals(setOf("lib-1"), hiddenFlow.value["srv-1"].orEmpty())
+    }
+
+    @Test
     fun `libraryUiItemsBySource omits Storyteller services`() = runTest {
         serversFlow.value = listOf(server("st-1", serverType = ServerType.STORYTELLER_SERVICE))
         librariesFlow.value = listOf(library("lib-1"))

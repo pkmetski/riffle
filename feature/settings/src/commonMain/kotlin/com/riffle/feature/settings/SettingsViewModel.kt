@@ -53,6 +53,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -326,6 +327,20 @@ class SettingsViewModel constructor(
                         val version = sourceRepository.getSourceVersion(server.id) ?: return@forEach
                         versionsCache[server.id] = version
                         _serverVersions.value = versionsCache.toMap()
+                    }
+                }
+        }
+        viewModelScope.launch {
+            localFilesSource
+                .flatMapLatest { source ->
+                    if (source == null) flowOf(null)
+                    else visibilityStore.hiddenLibraryIds(source.id).map { source.id to it }
+                }
+                .collect { reconciliation ->
+                    if (reconciliation == null) return@collect
+                    val (sourceId, hiddenLibraryIds) = reconciliation
+                    hiddenLibraryIds.forEach { libraryId ->
+                        visibilityStore.showLibrary(sourceId, libraryId)
                     }
                 }
         }
