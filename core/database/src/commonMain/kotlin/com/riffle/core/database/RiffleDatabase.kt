@@ -45,7 +45,7 @@ import androidx.sqlite.execSQL
         LookupHistoryEntity::class,
         CoverGridScaleEntity::class,
     ],
-    version = 76,
+    version = 77,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1973,6 +1973,14 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE book_comic_formatting_preferences ADD COLUMN show_page_progress INTEGER"
                 )
+            }
+        }
+
+        val MIGRATION_76_77 = object : Migration(76, 77) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL("ALTER TABLE book_formatting_preferences ADD COLUMN autoScrollWpm INTEGER")
+                db.execSQL("ALTER TABLE book_formatting_preferences ADD COLUMN cadenceWpm INTEGER")
+                db.execSQL("ALTER TABLE book_formatting_preferences ADD COLUMN forcePaginatedInLandscape INTEGER")
             }
         }
 

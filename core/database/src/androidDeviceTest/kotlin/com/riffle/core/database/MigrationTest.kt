@@ -1931,7 +1931,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 76, true,
+            TEST_DB, 77, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -2007,6 +2007,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_73_74,
             RiffleDatabase.MIGRATION_74_75,
             RiffleDatabase.MIGRATION_75_76,
+            RiffleDatabase.MIGRATION_76_77,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3426,6 +3427,34 @@ class MigrationTest {
                 assertEquals(1, c.getInt(0))
                 assertEquals("show_chapter_map defaults to null", true, c.isNull(1))
                 assertEquals("show_page_progress defaults to null", true, c.isNull(2))
+            }
+        }
+    }
+
+    @Test
+    fun migration76To77_addsAutoScrollCadenceAndLandscapeColumnsToBookFormatting() {
+        helper.createDatabase(TEST_DB, 76).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, screenDimensionBucket, fontSize) " +
+                    "VALUES ('src1', 'item1', 'bucket1', 1.5)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DB, 77, true, RiffleDatabase.MIGRATION_76_77
+        ).use { db ->
+            db.query(
+                "SELECT fontSize, autoScrollWpm, cadenceWpm, forcePaginatedInLandscape FROM book_formatting_preferences WHERE itemId = 'item1'"
+            ).use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals(1.5f, c.getFloat(0), 0.0001f)
+                assertTrue("autoScrollWpm defaults to null", c.isNull(1))
+                assertTrue("cadenceWpm defaults to null", c.isNull(2))
+                assertTrue("forcePaginatedInLandscape defaults to null", c.isNull(3))
             }
         }
     }

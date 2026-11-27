@@ -57,6 +57,7 @@ fun openRiffleDatabase(path: String): RiffleDatabaseAccess {
         .addMigrations(
             RiffleDatabase.MIGRATION_IOS_SQLDELIGHT_6_75,
             RiffleDatabase.MIGRATION_75_76,
+            RiffleDatabase.MIGRATION_76_77,
         )
         // Devices that were on SQLDelight schema versions 1–5 (very old iOS installs, pre-v4
         // of the iOS app) have no reading positions / audiobook positions / formatting prefs
