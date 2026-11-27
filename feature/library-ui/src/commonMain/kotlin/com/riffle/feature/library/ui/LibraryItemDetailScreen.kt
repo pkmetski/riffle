@@ -100,6 +100,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_audiobook_duration_l
 import com.riffle.feature.library.ui.generated.resources.ui_by
 import com.riffle.feature.library.ui.generated.resources.ui_cannot_upload_title
 import com.riffle.feature.library.ui.generated.resources.ui_chapters_count
+import com.riffle.feature.library.ui.generated.resources.ui_chapters_count_one
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total
 import com.riffle.feature.library.ui.generated.resources.ui_duration_total_remaining
 import com.riffle.feature.library.ui.generated.resources.ui_edit_metadata
@@ -122,6 +123,7 @@ import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimat
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated_total
 import com.riffle.feature.library.ui.generated.resources.ui_reading_time_estimated_total_remaining
 import com.riffle.feature.library.ui.generated.resources.ui_sections_count
+import com.riffle.feature.library.ui.generated.resources.ui_sections_count_one
 import com.riffle.feature.library.ui.generated.resources.ui_show_all_readalouds
 import com.riffle.feature.library.ui.generated.resources.ui_show_less
 import com.riffle.feature.library.ui.generated.resources.ui_show_more
@@ -1268,7 +1270,15 @@ private fun TocRow(tocState: TocState, onOpen: () -> Unit) {
     if (ready.entries.isEmpty()) return
     val sectionCount = topLevelTocCount(ready.entries)
     ListItem(
-        headlineContent = { Text(stringResource(Res.string.ui_sections_count, sectionCount)) },
+        headlineContent = {
+            Text(
+                if (sectionCount == 1) {
+                    stringResource(Res.string.ui_sections_count_one)
+                } else {
+                    stringResource(Res.string.ui_sections_count, sectionCount)
+                }
+            )
+        },
         leadingContent = { Icon(RiffleIcons.Toc, contentDescription = null) },
         trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
@@ -1280,7 +1290,15 @@ private fun ChaptersRow(chaptersState: ChaptersState, onOpen: () -> Unit) {
     val ready = chaptersState as? ChaptersState.Ready ?: return
     if (ready.chapters.isEmpty()) return
     ListItem(
-        headlineContent = { Text(stringResource(Res.string.ui_chapters_count, ready.chapters.size)) },
+        headlineContent = {
+            Text(
+                if (ready.chapters.size == 1) {
+                    stringResource(Res.string.ui_chapters_count_one)
+                } else {
+                    stringResource(Res.string.ui_chapters_count, ready.chapters.size)
+                }
+            )
+        },
         leadingContent = { Icon(RiffleIcons.Headphones, contentDescription = null) },
         trailingContent = { Icon(LibraryUiGlyphs.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onOpen),
@@ -1439,7 +1457,8 @@ private data class FlatTocRow(val entry: TocEntry, val depth: Int)
 private fun flattenTocEntries(entries: List<TocEntry>, depth: Int = 0): List<FlatTocRow> =
     entries.flatMap { entry -> listOf(FlatTocRow(entry, depth)) + flattenTocEntries(entry.children, depth + 1) }
 
-internal fun topLevelTocCount(entries: List<TocEntry>): Int = entries.size
+internal fun topLevelTocCount(entries: List<TocEntry>): Int =
+    entries.sumOf { if (it.title.isBlank()) topLevelTocCount(it.children) else 1 }
 
 /** Compact h/m duration string — local implementation since feature:player isn't on the classpath. */
 internal fun formatCompactDuration(durationSec: Double): String {

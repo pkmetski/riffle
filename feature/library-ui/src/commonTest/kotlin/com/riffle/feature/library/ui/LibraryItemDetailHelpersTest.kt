@@ -194,4 +194,30 @@ class LibraryItemDetailHelpersTest {
     fun topLevelTocCountEmptyIsZero() {
         assertEquals(0, topLevelTocCount(emptyList()))
     }
+
+    @Test
+    fun topLevelTocCountUnwrapsBlankTitleWrapper() {
+        val wrapped = listOf(
+            TocEntry(
+                title = "",
+                href = "nav",
+                children = listOf(
+                    TocEntry("Chapter 1", "c1", children = listOf(TocEntry("1.1", "c1-1"))),
+                    TocEntry("Chapter 2", "c2"),
+                    TocEntry("Chapter 3", "c3"),
+                ),
+            ),
+        )
+
+        assertEquals(3, topLevelTocCount(wrapped))
+    }
+
+    @Test
+    fun topLevelTocCountTitledContainerCountsAsOne() {
+        val named = listOf(
+            TocEntry("Part I", "p1", children = listOf(TocEntry("Chapter 1", "c1"), TocEntry("Chapter 2", "c2"))),
+        )
+
+        assertEquals(1, topLevelTocCount(named))
+    }
 }
