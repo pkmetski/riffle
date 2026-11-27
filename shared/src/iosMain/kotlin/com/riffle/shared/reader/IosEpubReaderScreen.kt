@@ -140,6 +140,7 @@ import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.autoscroll.pauseFor
+import com.riffle.feature.reader.autoscroll.pauseIfRunning
 import com.riffle.feature.reader.autoscroll.resumeIfPausedBy
 import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.buildRailSegments
@@ -1180,16 +1181,14 @@ fun EpubReaderScreen(
     DisposableEffect(autoScroll) {
         onDispose { autoScroll.release() }
     }
-    // Pause Auto-Scroll while the app is backgrounded (locking the device backgrounds the app, so
-    // this covers screen-off too); resume on return. Scoped resume keeps a user's explicit HUD-pill
-    // park parked across the round-trip. Mirrors Android's ON_STOP/ON_START wiring.
+    // Device lock backgrounds the app, so this also covers screen-off. Mirrors Android's lifecycle.
     DisposableEffect(autoScroll) {
         val center = NSNotificationCenter.defaultCenter
         val background = center.addObserverForName(
             name = UIApplicationDidEnterBackgroundNotification,
             `object` = null,
             queue = NSOperationQueue.mainQueue,
-        ) { _ -> autoScroll.pauseFor(PauseCause.AppBackgrounded) }
+        ) { _ -> autoScroll.pauseIfRunning(PauseCause.AppBackgrounded) }
         val foreground = center.addObserverForName(
             name = UIApplicationWillEnterForegroundNotification,
             `object` = null,

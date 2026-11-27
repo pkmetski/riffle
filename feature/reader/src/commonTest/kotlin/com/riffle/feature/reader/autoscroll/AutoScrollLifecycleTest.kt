@@ -19,7 +19,7 @@ class AutoScrollLifecycleTest {
         controller.setDefaultSpeed(AutoScrollSpeed.of(300))
         controller.dispatch(AutoScrollEvent.Start)
 
-        controller.pauseFor(PauseCause.AppBackgrounded)
+        controller.pauseIfRunning(PauseCause.AppBackgrounded)
         assertEquals(
             AutoScrollState.Paused(AutoScrollSpeed.of(300), PauseCause.AppBackgrounded),
             controller.state.value,
@@ -37,7 +37,7 @@ class AutoScrollLifecycleTest {
         controller.dispatch(AutoScrollEvent.Start)
         controller.pauseFor(PauseCause.UserPausedPill)
 
-        controller.pauseFor(PauseCause.AppBackgrounded)
+        controller.pauseIfRunning(PauseCause.AppBackgrounded)
         assertEquals(
             AutoScrollState.Paused(AutoScrollSpeed.of(250), PauseCause.UserPausedPill),
             controller.state.value,
@@ -48,6 +48,39 @@ class AutoScrollLifecycleTest {
             AutoScrollState.Paused(AutoScrollSpeed.of(250), PauseCause.UserPausedPill),
             controller.state.value,
         )
+        controller.release()
+    }
+
+    @Test
+    fun backgroundingDoesNotClobberAnOpenPanelPause() = runTest {
+        val controller = AutoScrollController.forTest(StandardTestDispatcher(testScheduler))
+        controller.setDefaultSpeed(AutoScrollSpeed.of(250))
+        controller.dispatch(AutoScrollEvent.Start)
+        controller.pauseFor(PauseCause.PanelOpen)
+
+        // No-op while already paused: overwriting the cause would let foreground un-pause the panel.
+        controller.pauseIfRunning(PauseCause.AppBackgrounded)
+        assertEquals(
+            AutoScrollState.Paused(AutoScrollSpeed.of(250), PauseCause.PanelOpen),
+            controller.state.value,
+        )
+
+        controller.resumeIfPausedBy(PauseCause.AppBackgrounded)
+        assertEquals(
+            AutoScrollState.Paused(AutoScrollSpeed.of(250), PauseCause.PanelOpen),
+            controller.state.value,
+        )
+
+        controller.resumeIfPausedBy(PauseCause.PanelOpen)
+        assertEquals(AutoScrollState.Running(AutoScrollSpeed.of(250)), controller.state.value)
+        controller.release()
+    }
+
+    @Test
+    fun pauseIfRunningFromIdleIsANoOp() = runTest {
+        val controller = AutoScrollController.forTest(StandardTestDispatcher(testScheduler))
+        controller.pauseIfRunning(PauseCause.AppBackgrounded)
+        assertEquals(AutoScrollState.Idle, controller.state.value)
         controller.release()
     }
 

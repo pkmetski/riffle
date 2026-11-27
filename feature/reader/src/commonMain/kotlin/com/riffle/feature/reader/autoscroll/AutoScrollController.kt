@@ -141,6 +141,16 @@ fun AutoScrollController.pauseFor(cause: PauseCause) {
 }
 
 /**
+ * Pause only when actively Running. A lifecycle pause (backgrounding, screen-off) just needs to
+ * stop the ticker; if a longer-lived pause such as [PauseCause.PanelOpen] is already in effect the
+ * ticker is already stopped, so overwriting its cause would let the matching lifecycle resume
+ * un-pause it while the panel is still open.
+ */
+fun AutoScrollController.pauseIfRunning(cause: PauseCause) {
+    if (state.value is AutoScrollState.Running) dispatch(AutoScrollEvent.Pause(cause))
+}
+
+/**
  * Lift a pause only when its [cause] matches the one being cleared. A user's explicit HUD-pill
  * park ([PauseCause.UserPausedPill]) therefore survives a transient system pause/resume cycle —
  * returning from the background must not silently un-park it. Both hosts call this so screen-off

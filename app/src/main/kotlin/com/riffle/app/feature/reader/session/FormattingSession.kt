@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
+import com.riffle.feature.reader.autoscroll.pauseIfRunning
 import com.riffle.feature.reader.autoscroll.resumeIfPausedBy
 
 /**
@@ -316,6 +317,10 @@ class FormattingSession constructor(
 
     fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) {
         autoScrollController.dispatch(AutoScrollEvent.Pause(cause))
+    }
+
+    fun pauseAutoScrollIfRunning(cause: com.riffle.core.domain.autoscroll.PauseCause) {
+        autoScrollController.pauseIfRunning(cause)
     }
 
     /**

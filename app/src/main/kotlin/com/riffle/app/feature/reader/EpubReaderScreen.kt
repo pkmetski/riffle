@@ -276,10 +276,8 @@ fun EpubReaderScreen(
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
                     viewModel.onReaderClosed()
-                    // Backgrounding leaves the auto-scroll ticker running off-screen, advancing the
-                    // reading position unseen. Park it; a user's explicit HUD-pill pause is scoped
-                    // out of the matching resume below so this cannot un-park it.
-                    viewModel.pauseAutoScroll(com.riffle.core.domain.autoscroll.PauseCause.AppBackgrounded)
+                    // Else the ticker scrolls on off-screen, advancing the position unseen.
+                    viewModel.pauseAutoScrollIfRunning(com.riffle.core.domain.autoscroll.PauseCause.AppBackgrounded)
                 }
                 Lifecycle.Event.ON_START -> {
                     viewModel.onReaderResumed()
@@ -300,7 +298,7 @@ fun EpubReaderScreen(
             override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
                 when (intent.action) {
                     android.content.Intent.ACTION_SCREEN_OFF ->
-                        viewModel.pauseAutoScroll(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+                        viewModel.pauseAutoScrollIfRunning(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
                     android.content.Intent.ACTION_SCREEN_ON ->
                         viewModel.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
                 }
