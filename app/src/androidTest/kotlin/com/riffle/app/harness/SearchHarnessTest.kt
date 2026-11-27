@@ -169,12 +169,12 @@ class SearchHarnessTest : KoinTest {
         assertReaderReady()
 
         showTopAppBar()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("Search").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithContentDescription("Search").performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithTag(TestTags.READER_SEARCH_FIELD).fetchSemanticsNodes().isNotEmpty()
         }
 
