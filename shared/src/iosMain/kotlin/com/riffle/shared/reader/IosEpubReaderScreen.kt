@@ -2243,8 +2243,8 @@ fun EpubReaderScreen(
             labels = cadenceHudLabels(),
             onPause = { cadence.pauseFor(CadencePauseCause.PanelOpen) },
             onResume = { cadence.resumeIfPaused() },
-            onSlower = { cadence.nudge(-AutoScrollSpeed.STEP_WPM, resolvedPrefs?.cadenceWpm ?: 0) },
-            onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, resolvedPrefs?.cadenceWpm ?: 0) },
+            onSlower = { cadence.nudge(-AutoScrollSpeed.STEP_WPM, (resolvedPrefs ?: FormattingPreferences()).cadenceWpm) },
+            onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, (resolvedPrefs ?: FormattingPreferences()).cadenceWpm) },
         )
 
         // Readaloud download confirmation dialog — shown as a dialog above everything.
