@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -99,6 +101,17 @@ class SourcesSectionIosTest {
     fun expandingTheLocalFilesRowRevealsItsFolders() = runComposeUiTest {
         setContent { section(folders = listOf(folder("/books", "lib-1", "Books")))() }
         onNodeWithTag("LocalFilesFolder./books").assertIsDisplayed()
+    }
+
+    @Test
+    fun theLocalFolderRowsHaveNoVisibilityToggle() = runComposeUiTest {
+        setContent {
+            section(
+                folders = listOf(folder("/books", "lib-1", "Books"), folder("/more", "lib-2", "More")),
+            )()
+        }
+        onNodeWithTag("LocalFilesFolder./books").assertIsDisplayed()
+        onAllNodes(isToggleable()).assertCountEquals(0)
     }
 
     @Test

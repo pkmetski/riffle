@@ -136,9 +136,6 @@ fun SourcesSection(
             onAddFolder = onNavigateToAddLocalFolder,
             onRemoveFolder = onRemoveLocalFolder,
             onRemoveSource = onRemoveLocalFilesSource,
-            onSetLibraryVisible = { libraryId, visible ->
-                onSetLibraryVisible(lfs.id, libraryId, visible)
-            },
             onReorderLibraries = { orderedIds ->
                 onReorderLibraries(lfs.id, orderedIds)
             },
@@ -317,7 +314,6 @@ fun LocalFilesSourceRow(
     onAddFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onRemoveSource: () -> Unit,
-    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
 ) {
     var pendingFolderRemoval by remember { mutableStateOf<LocalFilesFolderEntity?>(null) }
@@ -378,7 +374,6 @@ fun LocalFilesSourceRow(
                     lastLibraryIndex = libraryItems.lastIndex,
                     canRemove = folders.size > 1,
                     onRequestRemove = { pendingFolderRemoval = row.folder },
-                    onSetLibraryVisible = onSetLibraryVisible,
                     onReorderLibraries = { from, to -> onReorderLibraries(libraryItems.idsWithSwap(from, to)) },
                 )
             }
@@ -444,7 +439,6 @@ private fun LocalFilesFolderRow(
     lastLibraryIndex: Int,
     canRemove: Boolean,
     onRequestRemove: () -> Unit,
-    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
     onReorderLibraries: (from: Int, to: Int) -> Unit,
 ) {
     val folder = row.folder
@@ -493,13 +487,6 @@ private fun LocalFilesFolderRow(
                             contentDescription = stringResource(Res.string.ui_move_named_item_down, folder.displayName),
                         )
                     }
-                }
-                if (item != null) {
-                    Switch(
-                        checked = item.isVisible,
-                        onCheckedChange = { visible -> onSetLibraryVisible(item.library.id, visible) },
-                        enabled = item.switchEnabled,
-                    )
                 }
                 IconButton(
                     onClick = onRequestRemove,

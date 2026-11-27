@@ -1,8 +1,10 @@
 package com.riffle.app.feature.settings.sections
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -67,12 +69,31 @@ class LocalFilesSourceRowTrashTest {
                 onAddFolder = {},
                 onRemoveFolder = {},
                 onRemoveSource = {},
-                onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
             )
         }
 
         composeTestRule.onAllNodesWithContentDescription("Remove folder")[0].assertIsNotEnabled()
+    }
+
+    @Test
+    fun visibilityToggle_notShown_onLocalFolderRows() {
+        composeTestRule.setContent {
+            LocalFilesSourceRow(
+                source = source,
+                folders = listOf(folder(1), folder(2)),
+                folderHealth = emptyMap(),
+                libraryItems = listOf(libraryItem(1, itemCount = 2), libraryItem(2, itemCount = 2)),
+                isExpanded = true,
+                onToggleExpanded = {},
+                onAddFolder = {},
+                onRemoveFolder = {},
+                onRemoveSource = {},
+                onReorderLibraries = {},
+            )
+        }
+
+        composeTestRule.onAllNodes(isToggleable()).assertCountEquals(0)
     }
 
     @Test
@@ -88,7 +109,6 @@ class LocalFilesSourceRowTrashTest {
                 onAddFolder = {},
                 onRemoveFolder = {},
                 onRemoveSource = {},
-                onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
             )
         }
@@ -112,7 +132,6 @@ class LocalFilesSourceRowTrashTest {
                 onAddFolder = {},
                 onRemoveFolder = { removeCallCount++ },
                 onRemoveSource = {},
-                onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
             )
         }
@@ -142,7 +161,6 @@ class LocalFilesSourceRowTrashTest {
                 onAddFolder = {},
                 onRemoveFolder = {},
                 onRemoveSource = {},
-                onSetLibraryVisible = { _, _ -> },
                 onReorderLibraries = {},
             )
         }
