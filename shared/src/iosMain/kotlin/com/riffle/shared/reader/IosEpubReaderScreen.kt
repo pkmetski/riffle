@@ -209,12 +209,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import platform.UIKit.UIApplicationWillEnterForegroundNotification
-import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.koinInject
 import kotlin.time.TimeSource
 import com.riffle.core.domain.cadence.PauseCause as CadencePauseCause
 import com.riffle.feature.designsystem.generated.resources.Res as DsRes
