@@ -7,6 +7,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.localfiles.reconcileLocalFilesVisibility
 import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.models.SourceType
 import kotlinx.coroutines.flow.first
@@ -37,6 +38,7 @@ class HomeViewModel constructor(
             return@withContext StartDestination.Riffle
         }
         val servers = sourceRepository.observeAll().first()
+        reconcileLocalFilesVisibility(servers.firstOrNull { it.type == SourceType.LOCAL_FILES }, visibilityStore)
         if (servers.isEmpty()) return@withContext StartDestination.AddSource
 
         val activeServer = servers.firstOrNull { it.isActive } ?: servers.first()

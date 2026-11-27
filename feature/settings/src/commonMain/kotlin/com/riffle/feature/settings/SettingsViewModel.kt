@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
+import com.riffle.core.domain.localfiles.reconcileLocalFilesVisibility
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
@@ -53,7 +54,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -331,18 +331,7 @@ class SettingsViewModel constructor(
                 }
         }
         viewModelScope.launch {
-            localFilesSource
-                .flatMapLatest { source ->
-                    if (source == null) flowOf(null)
-                    else visibilityStore.hiddenLibraryIds(source.id).map { source.id to it }
-                }
-                .collect { reconciliation ->
-                    if (reconciliation == null) return@collect
-                    val (sourceId, hiddenLibraryIds) = reconciliation
-                    hiddenLibraryIds.forEach { libraryId ->
-                        visibilityStore.showLibrary(sourceId, libraryId)
-                    }
-                }
+            localFilesSource.collect { reconcileLocalFilesVisibility(it, visibilityStore) }
         }
     }
 
