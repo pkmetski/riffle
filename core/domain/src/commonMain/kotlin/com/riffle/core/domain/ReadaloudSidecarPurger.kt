@@ -1,9 +1,6 @@
 package com.riffle.core.domain
 
-/**
- * Source-removal seam: drop every cached sidecar owned by a removed source so a re-added source
- * doesn't inherit stale sidecars keyed to its predecessor's id.
- */
+// Source-removal seam: drop a removed source's cached sidecars so a re-added source can't inherit stale ones.
 fun interface ReadaloudSidecarPurger {
     fun purgeSource(storytellerSourceId: String)
 }

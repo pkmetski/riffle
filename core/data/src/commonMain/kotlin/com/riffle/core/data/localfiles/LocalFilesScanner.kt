@@ -17,17 +17,8 @@ import kotlinx.coroutines.withContext
 import okio.Buffer
 import okio.use
 
-/**
- * Walks the LocalFiles Source's configured folders, classifies supported book files (see
- * [FileClassifier.Kind]) by extension + magic bytes, computes a content-identity hash, and
- * idempotently upserts library_items, local_files_files and local_files_file_folders rows.
- *
- * A single scan pass runs across all configured folders. After a fully-clean walk, membership rows
- * whose lastSeenAt predates scanStart are hard-deleted; a file that loses its last membership takes
- * the library_items row, the file row, and the copied bytes with it.
- *
- * Not thread-safe: only one scan should be in-flight per source at a time.
- */
+// Idempotently ingests a LocalFiles source's folders; the stale sweep only runs after a fully-clean
+// walk so a transient folder error can't delete still-present books. Not thread-safe: one scan per source.
 class LocalFilesScanner(
     private val folderDao: LocalFilesFolderDao,
     private val fileDao: LocalFilesFileDao,

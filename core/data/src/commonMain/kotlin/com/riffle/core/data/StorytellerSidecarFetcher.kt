@@ -1,12 +1,7 @@
 package com.riffle.core.data
 
-/**
- * Fetches the Readaloud sidecar (SMIL + chapter text, ADR 0040) from the Storyteller `/synced`
- * bundle — the `/synced` bundle minus its audio, repackaged as a small audio-free EPUB.
- *
- * Platform backends: [com.riffle.core.data] Android streams the non-audio prefix with a
- * full-download fallback; iOS downloads the whole bundle and keeps the non-audio entries.
- */
+// Fetches the Readaloud sidecar (SMIL + chapter text, ADR 0040) as a small audio-free EPUB; platform
+// backends differ in how they obtain it (Android streams the prefix, iOS downloads the whole bundle).
 interface StorytellerSidecarFetcher {
     sealed interface FetchResult {
         /** Sidecar bytes ready to write to disk. */

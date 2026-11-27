@@ -21,20 +21,8 @@ import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 
-/**
- * Platform-neutral cache for the Readaloud sidecar (SMIL + chapter text, ADR 0040), backed by
- * [FileStore] + okio [FileSystem]. The sidecar is prepared **ahead of playback**: callers [prepare]
- * it the moment a matched book is opened (details or reader), so by the time the user taps Play the
- * streaming session can be built instantly from the cached file — no `/synced` fetch on the Play path.
- *
- * The fetch keeps only the ~1 MB non-audio prefix (see [StorytellerSidecarFetcher]); the audio is
- * streamed from ABS at play time, never bundled here. The store is a transparent, re-fetchable
- * CACHE: an OS eviction or a path change simply forces a fresh fetch, and a downloaded full bundle
- * supersedes it.
- *
- * Both irreducibly-platform-specific concerns are injected behind interfaces: [fetcher] (streaming
- * vs full download) and [clipInspector] (Readium SMIL reader on Android, ksoup on iOS).
- */
+// Platform-neutral re-fetchable cache for the Readaloud sidecar (SMIL + chapter text, ADR 0040),
+// prepared ahead of playback so Play builds a streaming session without a /synced fetch.
 class ReadaloudSidecarStore(
     private val fetcher: StorytellerSidecarFetcher,
     private val clipInspector: SidecarClipInspector,
@@ -60,9 +48,8 @@ class ReadaloudSidecarStore(
     val states: StateFlow<Map<String, State>> = _states
 
     init {
-        // Purge cached sidecars that are unplayable: SMIL present but with no <par> clips — fetched
-        // during an intermediate alignment stage. Such a file makes stateOf() return Ready and
-        // prepare() a no-op, so streaming always fails. Deleting forces a fresh fetch.
+        // A clipless sidecar (SMIL without <par>, fetched mid-alignment) makes stateOf() Ready and
+        // prepare() a no-op, so streaming always fails — delete it to force a fresh fetch.
         scope.launch {
             withContext(dispatchers.io) {
                 allSidecarFiles().forEach { file ->
@@ -105,13 +92,9 @@ class ReadaloudSidecarStore(
     /** Idempotently start (or join) a background prepare. No-op if already cached, already failed, or in flight. */
     override fun prepare(storytellerSourceId: String, storytellerBookId: String) {
         if (cachedPath(storytellerSourceId, storytellerBookId) != null) return
-        // Don't retry a book that already exhausted all attempts this session. The in-memory state
-        // resets on process restart, giving one fresh retry cycle per session. Without this guard,
-        // every navigation back to the book re-launches the full retry loop (4 × ~30 MB downloads).
+        // Failed is terminal for the session (state resets on process restart) — avoids re-launching the retry loop on every revisit.
         if (_states.value[key(storytellerSourceId, storytellerBookId)] == State.Failed) return
-        // Set Preparing synchronously so any stateOf() check after this call (but before the
-        // background coroutine runs) already sees Preparing — avoiding a window where the UI shows
-        // "Couldn't stream" instead of "Preparing…" when eviction+re-prepare happen on the Play path.
+        // Set Preparing synchronously so a stateOf() before the coroutine runs doesn't flash "Couldn't stream".
         setState(storytellerSourceId, storytellerBookId, State.Preparing)
         scope.launch { ensurePrepared(storytellerSourceId, storytellerBookId) }
     }
@@ -168,11 +151,7 @@ class ReadaloudSidecarStore(
         _states.value = _states.value + (key(sourceId, bookId) to state)
     }
 
-    /**
-     * All cached sidecars. The layout is `<NS_READALOUD_SIDECARS>/<storytellerSourceId>/
-     * <storytellerBookId><SIDECAR_EXTENSION>`, so the source id is the parent directory and the
-     * book id is the filename — no ambiguous separator parsing.
-     */
+    // Layout is <NS_READALOUD_SIDECARS>/<sourceId>/<bookId><SIDECAR_EXTENSION>: source id is the parent dir, book id the filename.
     override fun listCached(): List<ReadaloudSidecarDownloads.CachedSidecar> =
         allSidecarFiles().mapNotNull { file ->
             val size = sizeOf(file)
@@ -198,10 +177,7 @@ class ReadaloudSidecarStore(
         _states.value = emptyMap()
     }
 
-    /**
-     * Deletes every cached sidecar belonging to [storytellerSourceId]. Called from the source-removal
-     * path so a re-added source doesn't inherit stale sidecars keyed to its previous id.
-     */
+    // Source-removal path: drop all of a source's sidecars so a re-added source can't inherit stale ones.
     override fun purgeSource(storytellerSourceId: String) {
         runCatching {
             fileSystem.deleteRecursively(fileStore.resolve(NS_READALOUD_SIDECARS, storytellerSourceId).toPath())
@@ -209,13 +185,7 @@ class ReadaloudSidecarStore(
         _states.value = _states.value.filterKeys { it != key(storytellerSourceId, "") && !it.startsWith("$storytellerSourceId$KEY_SEPARATOR") }
     }
 
-    /**
-     * Evicts oldest sidecars until the on-disk footprint is within [capBytes]. Oldest is ordered by
-     * last-modified time; on a successful write the just-written file has the newest mtime, so it is
-     * only evicted if a single sidecar exceeds the cap (which shouldn't happen since the fetcher
-     * keeps only the ~1 MB non-audio prefix). Returns the set of evicted [key]s for test assertions
-     * and internal state cleanup.
-     */
+    // Evicts oldest-by-mtime sidecars until the footprint is within [capBytes]; returns evicted [key]s.
     internal fun enforceLruBudget(capBytes: Long = MAX_CACHE_BYTES): Set<String> {
         val files = allSidecarFiles().mapNotNull { path ->
             val md = fileSystem.metadataOrNull(path) ?: return@mapNotNull null
@@ -263,12 +233,10 @@ class ReadaloudSidecarStore(
         const val MAX_RETRIES = 3
         val RETRY_BACKOFF_MS = longArrayOf(30_000L, 60_000L, 120_000L)
 
-        // 200 MB cap. A sidecar is the ~1 MB non-audio prefix, so this comfortably holds 100+ books
-        // before eviction kicks in.
+        // 200 MB cap holds 100+ of the ~1 MB sidecar prefixes before eviction.
         const val MAX_CACHE_BYTES: Long = 200L * 1024L * 1024L
 
-        // The extension is .epub because the sidecar is an EPUB container carrying only the SMIL +
-        // text prefix (no audio).
+        // .epub: the sidecar is an EPUB container with only the SMIL + text prefix, no audio.
         const val SIDECAR_EXTENSION: String = ".epub"
         const val KEY_SEPARATOR: String = "-"
     }

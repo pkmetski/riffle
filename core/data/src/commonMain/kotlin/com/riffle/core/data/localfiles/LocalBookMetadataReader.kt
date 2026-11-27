@@ -21,10 +21,7 @@ data class LocalCbzMetadata(val coverBytes: ByteArray?, val coverExtension: Stri
     }
 }
 
-/**
- * Reads book metadata from a copied-in file on disk. Platform backends wrap the JVM/iOS extractors
- * and map their results to the shared [EpubMetadata]/[LocalPdfMetadata]/[LocalCbzMetadata] types.
- */
+// Reads book metadata from a copied-in file; platform backends wrap the JVM/iOS extractors into the shared types.
 interface LocalBookMetadataReader {
     suspend fun epub(copiedPath: String): EpubMetadata
     suspend fun pdf(copiedPath: String): LocalPdfMetadata

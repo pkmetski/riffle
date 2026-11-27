@@ -5,13 +5,8 @@ import okio.ByteString.Companion.toByteString
 import okio.Source
 import okio.use
 
-/**
- * Content-based identity for an ingested file — SHA-1 of the first 64KB combined with the file
- * size. Cheap (single read of the prefix), stable across path changes and renames.
- *
- * The hash is a storage key for every ingested user library — changing it re-ingests everything,
- * so the digested bytes (prefix slice + ASCII-decimal size) must stay byte-identical.
- */
+// Content identity = SHA-1 of (first 64KB prefix + ASCII-decimal size). It is the storage key for every
+// ingested library, so the digested bytes MUST stay byte-identical — any change re-ingests everyone's files.
 object IdentityHasher {
 
     private const val PREFIX_BYTES = 64 * 1024
