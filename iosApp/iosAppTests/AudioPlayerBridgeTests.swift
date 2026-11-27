@@ -413,7 +413,8 @@ final class AudioPlayerBridgeTests: XCTestCase {
     }
 
     /// Spins the main run loop until `condition` holds (AVFoundation delivers its callbacks there).
-    private func waitUntil(timeout: TimeInterval = 8, _ condition: () -> Bool) -> Bool {
+    // 20s, not 8: AVQueuePlayer warm-up and track-boundary advance are wall-clock bound and stall on a loaded CI runner; the healthy path still returns in ~1s.
+    private func waitUntil(timeout: TimeInterval = 20, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() { return true }
