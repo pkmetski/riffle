@@ -439,7 +439,7 @@ class FormattingSessionTest {
 
             assertEquals(savesBefore, bookStore.savedSourceIds.size)
             val saved = bookStore.saved["item-1" to ScreenDimensionBucket.PhonePortrait]
-            assertTrue(saved?.autoScrollWpm == null || saved.autoScrollWpm == AutoScrollSpeed.MAX_WPM)
+            assertNull(saved?.autoScrollWpm)
         } finally {
             autoScrollController.release()
             scope.cancel()

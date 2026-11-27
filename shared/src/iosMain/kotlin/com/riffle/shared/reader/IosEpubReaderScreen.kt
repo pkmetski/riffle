@@ -138,8 +138,8 @@ import com.riffle.feature.reader.annotationToHighlightDecoration
 import com.riffle.feature.reader.annotationToNoteGlyphDecoration
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.nudgeAndPersistPace
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
-import com.riffle.feature.reader.autoscroll.nudgedPaceOverride
 import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.buildRailSegments
 import com.riffle.feature.reader.cadence.CadenceController
@@ -1201,9 +1201,17 @@ fun EpubReaderScreen(
             scope = scope,
             logger = logger,
             persistWpm = { wpm ->
-                val updated = bookOverrides.copy(cadenceWpm = wpm)
-                bookOverrides = updated
-                scope.launch { bookFormattingPreferencesStore.save(item.sourceId, item.id, screenDimensionBucket, updated) }
+                scope.launch {
+                    nudgeAndPersistPace(
+                        bookFormattingPreferencesStore,
+                        item.sourceId,
+                        item.id,
+                        screenDimensionBucket,
+                        bookOverrides,
+                        wpm,
+                    ) { o, w -> o.copy(cadenceWpm = w) }
+                        ?.let { bookOverrides = it }
+                }
             },
         )
     }
@@ -2198,17 +2206,31 @@ fun EpubReaderScreen(
             onSlower = {
                 val effectiveWpm = (resolvedPrefs ?: FormattingPreferences()).autoScrollWpm
                 val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(-AutoScrollSpeed.STEP_WPM, effectiveWpm)
-                nudgedPaceOverride(bookOverrides, effectiveWpm, newWpm) { o, w -> o.copy(autoScrollWpm = w) }?.let { updated ->
-                    bookOverrides = updated
-                    scope.launch { bookFormattingPreferencesStore.save(item.sourceId, item.id, screenDimensionBucket, updated) }
+                scope.launch {
+                    nudgeAndPersistPace(
+                        bookFormattingPreferencesStore,
+                        item.sourceId,
+                        item.id,
+                        screenDimensionBucket,
+                        bookOverrides,
+                        newWpm,
+                    ) { o, w -> o.copy(autoScrollWpm = w) }
+                        ?.let { bookOverrides = it }
                 }
             },
             onFaster = {
                 val effectiveWpm = (resolvedPrefs ?: FormattingPreferences()).autoScrollWpm
                 val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(AutoScrollSpeed.STEP_WPM, effectiveWpm)
-                nudgedPaceOverride(bookOverrides, effectiveWpm, newWpm) { o, w -> o.copy(autoScrollWpm = w) }?.let { updated ->
-                    bookOverrides = updated
-                    scope.launch { bookFormattingPreferencesStore.save(item.sourceId, item.id, screenDimensionBucket, updated) }
+                scope.launch {
+                    nudgeAndPersistPace(
+                        bookFormattingPreferencesStore,
+                        item.sourceId,
+                        item.id,
+                        screenDimensionBucket,
+                        bookOverrides,
+                        newWpm,
+                    ) { o, w -> o.copy(autoScrollWpm = w) }
+                        ?.let { bookOverrides = it }
                 }
             },
         )
