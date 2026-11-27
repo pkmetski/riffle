@@ -34,11 +34,12 @@ class HomeViewModel constructor(
     }
 
     suspend fun getStartDestination(): StartDestination = withContext(dispatchers.io) {
+        val servers = sourceRepository.observeAll().first()
+        reconcileLocalFilesVisibility(servers.firstOrNull { it.type == SourceType.LOCAL_FILES }, visibilityStore)
+
         if (lastOpenedLibraryStore.wasRiffleLastActive().first()) {
             return@withContext StartDestination.Riffle
         }
-        val servers = sourceRepository.observeAll().first()
-        reconcileLocalFilesVisibility(servers.firstOrNull { it.type == SourceType.LOCAL_FILES }, visibilityStore)
         if (servers.isEmpty()) return@withContext StartDestination.AddSource
 
         val activeServer = servers.firstOrNull { it.isActive } ?: servers.first()

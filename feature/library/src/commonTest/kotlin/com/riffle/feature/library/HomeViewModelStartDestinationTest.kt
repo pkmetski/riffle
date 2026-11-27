@@ -75,6 +75,7 @@ class HomeViewModelStartDestinationTest {
 
     private fun makeVm(
         refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
+        riffleLastActive: Boolean = false,
         visibilityStore: LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
             override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> = flowOf(emptySet())
             override suspend fun hideLibrary(sourceId: String, libraryId: String) {}
@@ -120,6 +121,7 @@ class HomeViewModelStartDestinationTest {
         lastOpenedLibraryStore = object : LastOpenedLibraryStore {
             override fun lastOpenedLibrary(sourceId: String): Flow<String?> = flowOf(null)
             override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {}
+            override fun wasRiffleLastActive(): Flow<Boolean> = flowOf(riffleLastActive)
         },
         dispatchers = object : DispatcherProvider {
             override val main: CoroutineDispatcher get() = Dispatchers.Main
@@ -156,6 +158,18 @@ class HomeViewModelStartDestinationTest {
 
         makeVm(visibilityStore = store).getStartDestination()
 
+        assertEquals(emptySet(), store.hidden.value["lf"].orEmpty())
+    }
+
+    @Test
+    fun `getStartDestination reconciles hidden Local Files even when Riffle is the start destination`() = runTest {
+        val store = MutableHiddenStore(mapOf("lf" to setOf("lib-1")))
+        serversFlow.value = listOf(localSource("lf", active = true))
+        librariesFlow.value = listOf(library("lib-1", name = "Books"))
+
+        val result = makeVm(riffleLastActive = true, visibilityStore = store).getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Riffle, result)
         assertEquals(emptySet(), store.hidden.value["lf"].orEmpty())
     }
 
