@@ -7,6 +7,7 @@ import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.autoscroll.LayoutContext
+import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.domain.autoscroll.ScrollDeltaAccumulator
 import com.riffle.core.domain.autoscroll.isActive
 import com.riffle.core.domain.autoscroll.pxPerSecond
@@ -133,4 +134,31 @@ fun AutoScrollController.nudgeSpeedAndPersistableWpm(by: Int, storedWpm: Int): I
     dispatch(AutoScrollEvent.NudgeSpeed(by))
     val newWpm = state.value.speedOrNull?.wpm ?: return null
     return newWpm.takeIf { it != storedWpm }
+}
+
+fun AutoScrollController.pauseFor(cause: PauseCause) {
+    dispatch(AutoScrollEvent.Pause(cause))
+}
+
+/**
+ * Pause only when actively Running. A lifecycle pause (backgrounding, screen-off) just needs to
+ * stop the ticker; if a longer-lived pause such as [PauseCause.PanelOpen] is already in effect the
+ * ticker is already stopped, so overwriting its cause would let the matching lifecycle resume
+ * un-pause it while the panel is still open.
+ */
+fun AutoScrollController.pauseIfRunning(cause: PauseCause) {
+    if (state.value is AutoScrollState.Running) dispatch(AutoScrollEvent.Pause(cause))
+}
+
+/**
+ * Lift a pause only when its [cause] matches the one being cleared. A user's explicit HUD-pill
+ * park ([PauseCause.UserPausedPill]) therefore survives a transient system pause/resume cycle —
+ * returning from the background must not silently un-park it. Both hosts call this so screen-off
+ * and backgrounding behave identically on Android and iOS.
+ */
+fun AutoScrollController.resumeIfPausedBy(cause: PauseCause) {
+    val current = state.value
+    if (current is AutoScrollState.Paused && current.cause == cause) {
+        dispatch(AutoScrollEvent.Resume)
+    }
 }

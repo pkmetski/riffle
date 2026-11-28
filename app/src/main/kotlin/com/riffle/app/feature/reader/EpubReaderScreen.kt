@@ -275,8 +275,15 @@ fun EpubReaderScreen(
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> viewModel.onReaderClosed()
-                Lifecycle.Event.ON_START -> viewModel.onReaderResumed()
+                Lifecycle.Event.ON_STOP -> {
+                    viewModel.onReaderClosed()
+                    // Else the ticker scrolls on off-screen, advancing the position unseen.
+                    viewModel.pauseAutoScrollIfRunning(com.riffle.core.domain.autoscroll.PauseCause.AppBackgrounded)
+                }
+                Lifecycle.Event.ON_START -> {
+                    viewModel.onReaderResumed()
+                    viewModel.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.AppBackgrounded)
+                }
                 else -> {}
             }
         }
@@ -292,7 +299,7 @@ fun EpubReaderScreen(
             override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
                 when (intent.action) {
                     android.content.Intent.ACTION_SCREEN_OFF ->
-                        viewModel.pauseAutoScroll(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
+                        viewModel.pauseAutoScrollIfRunning(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
                     android.content.Intent.ACTION_SCREEN_ON ->
                         viewModel.resumeAutoScrollIfPausedBy(com.riffle.core.domain.autoscroll.PauseCause.ScreenOff)
                 }

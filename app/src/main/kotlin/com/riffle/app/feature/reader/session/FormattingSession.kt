@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 import com.riffle.core.domain.autoscroll.PauseCause
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
+import com.riffle.feature.reader.autoscroll.pauseIfRunning
+import com.riffle.feature.reader.autoscroll.resumeIfPausedBy
 
 /**
  * Owns all formatting/typography/auto-scroll state for a single open book. Lifted from
@@ -293,12 +295,7 @@ class FormattingSession constructor(
         if (paused) {
             autoScrollController.dispatch(AutoScrollEvent.Pause(cause))
         } else {
-            // Scoped resume: only lift the pause if its cause matches the one we're clearing.
-            // Otherwise, a panel close would silently un-park a user's explicit HUD-pill pause.
-            val current = autoScrollController.state.value
-            if (current is AutoScrollState.Paused && current.cause == cause) {
-                autoScrollController.dispatch(AutoScrollEvent.Resume)
-            }
+            autoScrollController.resumeIfPausedBy(cause)
         }
     }
 
@@ -322,6 +319,10 @@ class FormattingSession constructor(
         autoScrollController.dispatch(AutoScrollEvent.Pause(cause))
     }
 
+    fun pauseAutoScrollIfRunning(cause: com.riffle.core.domain.autoscroll.PauseCause) {
+        autoScrollController.pauseIfRunning(cause)
+    }
+
     /**
      * Pause from the HUD pill and keep the pill on-screen so the user can resume or nudge speed.
      * If the user doesn't act within [PILL_AUTO_HIDE_MS], the session auto-stops so the pill
@@ -336,10 +337,7 @@ class FormattingSession constructor(
     }
 
     fun resumeAutoScrollIfPausedBy(cause: PauseCause) {
-        val s = autoScrollController.state.value
-        if (s is AutoScrollState.Paused && s.cause == cause) {
-            autoScrollController.dispatch(AutoScrollEvent.Resume)
-        }
+        autoScrollController.resumeIfPausedBy(cause)
     }
 
     fun reachedEndOfBookForAutoScroll() {
