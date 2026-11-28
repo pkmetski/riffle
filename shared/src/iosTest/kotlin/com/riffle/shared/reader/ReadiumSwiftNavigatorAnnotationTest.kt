@@ -278,4 +278,68 @@ class ReadiumSwiftNavigatorAnnotationTest {
 
         assertEquals(listOf("riffle://annotation-tap/abc123"), collected)
     }
+
+    // ── Emphasis clear+re-apply parity (Android: ReadiumHighlightRendererTest) ──────────────────
+
+    @Test
+    fun applyAnnotationDecorationsUsesClearApplyWhenEmphasisChanges() = runTest {
+        val bridge = OrderTrackingBridge()
+        val nav = ReadiumSwiftNavigator(bridge, RecordingLogger())
+        val lastEmphasisById = mutableMapOf<String, Set<EmphasisStyle>>()
+        val locatorJson = """{"href":"ch1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.1}}"""
+        val base = com.riffle.core.models.Annotation(
+            id = "h1", sourceId = "s", itemId = "i",
+            type = com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "/4/2", color = "yellow", note = null,
+            textSnippet = "word", textBefore = "", textAfter = "",
+            chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.1,
+            bookmarkTitle = "", createdAt = 0, updatedAt = 0,
+            emphasisStyles = emptySet(),
+        )
+        applyAnnotationDecorations(nav, emptyList(), listOf(base), lastEmphasisById)
+        bridge.highlightGroupCalls.clear()
+
+        val withBold = base.copy(emphasisStyles = setOf(EmphasisStyle.BOLD))
+        applyAnnotationDecorations(nav, emptyList(), listOf(withBold), lastEmphasisById)
+
+        assertEquals(
+            2,
+            bridge.highlightGroupCalls.size,
+            "emphasis change must produce clear+re-apply (2 calls) so Readium re-measures rects",
+        )
+        assertEquals("[]", bridge.highlightGroupCalls[0], "first call must clear the highlights group")
+    }
+
+    @Test
+    fun applyAnnotationDecorationsUsesDirectApplyWhenEmphasisUnchanged() = runTest {
+        val bridge = OrderTrackingBridge()
+        val nav = ReadiumSwiftNavigator(bridge, RecordingLogger())
+        val lastEmphasisById = mutableMapOf<String, Set<EmphasisStyle>>()
+        val withBold = com.riffle.core.models.Annotation(
+            id = "h1", sourceId = "s", itemId = "i",
+            type = com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "/4/2", color = "yellow", note = null,
+            textSnippet = "word", textBefore = "", textAfter = "",
+            chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.1,
+            bookmarkTitle = "", createdAt = 0, updatedAt = 0,
+            emphasisStyles = setOf(EmphasisStyle.BOLD),
+        )
+        applyAnnotationDecorations(nav, emptyList(), listOf(withBold), lastEmphasisById)
+        bridge.highlightGroupCalls.clear()
+
+        applyAnnotationDecorations(nav, emptyList(), listOf(withBold), lastEmphasisById)
+
+        assertEquals(
+            1,
+            bridge.highlightGroupCalls.size,
+            "same emphasis on second call must produce one direct apply (no clear flash)",
+        )
+    }
+
+    private class OrderTrackingBridge : IosEpubNavigatorBridge by FakeBridge() {
+        val highlightGroupCalls = mutableListOf<String>()
+        override fun applyDecorations(decorationsJson: String, group: String) {
+            if (group == ReaderDecorationGroups.highlights) highlightGroupCalls += decorationsJson
+        }
+    }
 }

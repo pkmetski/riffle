@@ -75,7 +75,15 @@ fun annotationDecorationLocatorJson(
     fragmentAnchor: String?,
 ): String {
     val cfiFragment = extractCfiFragment(cfi)
-    val useTextAnchor = fragmentAnchor.isNullOrEmpty() && textSnippet.isNotEmpty()
+    // Whitespace-normalize all three text-quote fields: annotations created in continuous mode
+    // capture literal \n between paragraphs via window.getSelection(), but Readium's DOM
+    // text-search concatenates adjacent block nodes without any separator. Un-normalised \n in
+    // highlight extends the matched range past the intended endpoint; in before/after it degrades
+    // the disambiguation score and may select the wrong occurrence.
+    val normalizedSnippet = textSnippet.replace(whitespaceRun, " ")
+    val normalizedBefore = textBefore.replace(whitespaceRun, " ")
+    val normalizedAfter = textAfter.replace(whitespaceRun, " ")
+    val useTextAnchor = fragmentAnchor.isNullOrEmpty() && normalizedSnippet.isNotEmpty()
     return buildString {
         append("""{"href":""")
         append('"')
@@ -85,18 +93,18 @@ fun annotationDecorationLocatorJson(
         if (useTextAnchor) {
             append(""","text":{"highlight":""")
             append('"')
-            append(textSnippet.escapeJson())
+            append(normalizedSnippet.escapeJson())
             append('"')
-            if (textBefore.isNotEmpty()) {
+            if (normalizedBefore.isNotEmpty()) {
                 append(""","before":""")
                 append('"')
-                append(textBefore.escapeJson())
+                append(normalizedBefore.escapeJson())
                 append('"')
             }
-            if (textAfter.isNotEmpty()) {
+            if (normalizedAfter.isNotEmpty()) {
                 append(""","after":""")
                 append('"')
-                append(textAfter.escapeJson())
+                append(normalizedAfter.escapeJson())
                 append('"')
             }
             append('}')
@@ -148,6 +156,8 @@ fun hrefLocatorJson(href: String): String {
     val escaped = href.replace("\\", "\\\\").replace("\"", "\\\"")
     return """{"href":"$escaped","type":"application/xhtml+xml","locations":{"progression":0.0}}"""
 }
+
+private val whitespaceRun = Regex("\\s+")
 
 /**
  * Extracts the intra-document CFI fragment (everything after `!` inside `epubcfi(…)`).

@@ -22,7 +22,14 @@ internal interface ChapterWebViewLike {
     var annotationsAvailable: Boolean
     var readaloudAvailable: Boolean
     var onSelectionActiveChanged: ((Boolean) -> Unit)?
-    var onHighlight: ((String, Double, Rect, String, String) -> Unit)?
+    /**
+     * Fired when the user confirms a text selection as a highlight. The last parameter is the
+     * screen-space anchor rect for the annotation popup, snapshotted synchronously from
+     * [android.view.ActionMode.Callback2.onGetContentRect] at the moment the menu item is tapped,
+     * before [android.webkit.WebView.evaluateJavascript] is posted asynchronously. Null when the
+     * action mode rect was not available (e.g. in tests that don't wire an action mode).
+     */
+    var onHighlight: ((String, Double, Rect, String, String, IntRect?) -> Unit)?
     var onAnnotationTap: ((String, Rect) -> Unit)?
     var onAnnotationNoteTap: ((String, Rect) -> Unit)?
     var onFootnoteContent: ((FootnoteContent) -> Unit)?
@@ -30,6 +37,23 @@ internal interface ChapterWebViewLike {
     var onFigureTap: ((String) -> Unit)?
     var onFigureLongPress: ((FigureLongPressPayload) -> Unit)?
 }
+
+/**
+ * Returns the screen-space rect to anchor the annotation popup to.
+ *
+ * Prefers [anchorHint] (the action-mode rect snapshotted synchronously at click time, before the
+ * async [android.webkit.WebView.evaluateJavascript] call that could race with action-mode teardown)
+ * over the CSS-derived [screenRectOf] fallback, which lags by one Chromium frame relative to the
+ * sliding-window [android.view.View.setTranslationY] in continuous mode (see
+ * ContinuousPositionTracker.chapterWebViewWindowOffset KDoc).
+ */
+internal fun resolveHighlightAnchor(
+    anchorHint: IntRect?,
+    wv: ChapterWebViewLike,
+    rect: Rect,
+    screenRectOf: (ChapterWebViewLike, Rect) -> Rect,
+): IntRect = anchorHint
+    ?: screenRectOf(wv, rect).let { s -> IntRect(s.left, s.top, s.right, s.bottom) }
 
 /**
  * Wires every event callback on a [ChapterWebViewLike] to the three sink interfaces, folding the
@@ -59,14 +83,7 @@ internal class ChapterWebViewBinder(
     private val onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
     private val onSelectionActiveChanged: (Boolean) -> Unit,
     private val onFigureTap: (payload: String) -> Unit = {},
-    // Default no-op is only exercised by callers that don't care (e.g. some test doubles);
-    // the real handler is ContinuousReaderView.onFigureLongPress → EpubReaderViewModel.onFigureLongPress.
-    // anchorRect is already translated to screen coordinates (see the wv.onFigureLongPress wiring
-    // below), mirroring wv.onHighlight / wv.onAnnotationTap's screenRectOf(wv, rect) pattern.
     private val onFigureLongPress: (payload: FigureLongPressPayload, anchorRect: IntRect) -> Unit = { _, _ -> },
-    // Density used to convert the payload's CSS-px rect to WebView-relative device px before
-    // handing it to screenRectOf. Defaults to reading the live WebView's DisplayMetrics; overridable
-    // so tests can drive a fake ChapterWebViewLike that isn't a real android.view.View.
     private val densityOf: (ChapterWebViewLike) -> Float = {
         (it as? android.view.View)?.resources?.displayMetrics?.density ?: 1f
     },
@@ -79,8 +96,8 @@ internal class ChapterWebViewBinder(
         wv.onExternalLink = { links.onExternalLink(it) }
         wv.annotationsAvailable = annotationsAvailable
         wv.onSelectionActiveChanged = onSelectionActiveChanged
-        wv.onHighlight = { text, prog, rect, before, after ->
-            val screen = screenRectOf(wv, rect)
+        wv.onHighlight = { text, prog, rect, before, after, anchorHint ->
+            val anchorIntRect = resolveHighlightAnchor(anchorHint, wv, rect, screenRectOf)
             val locator = Locator.fromJSON(
                 JSONObject()
                     .put("href", wv.chapterHref)
@@ -92,10 +109,7 @@ internal class ChapterWebViewBinder(
                         .put("after", after)),
             )
             if (locator != null) {
-                annotations.onHighlight(
-                    locator,
-                    IntRect(screen.left, screen.top, screen.right, screen.bottom),
-                )
+                annotations.onHighlight(locator, anchorIntRect)
             }
         }
         wv.onAnnotationTap = { id, rect ->

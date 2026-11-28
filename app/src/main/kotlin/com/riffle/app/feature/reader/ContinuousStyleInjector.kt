@@ -640,9 +640,13 @@ internal object ContinuousStyleInjector {
                     var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
                     var n;
                     while (n = w.nextNode()) {
-                        // Skip text inside existing annotation marks so the b/a context (which was
-                        // captured against the unmarked DOM at selection time) keeps matching.
-                        if (n.parentNode && n.parentNode.closest && n.parentNode.closest('[data-riffle-ann]')) continue;
+                        // Skip text inside COMMITTED annotation marks so the b/a context matches.
+                        // The draft mark ("${com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID}")
+                        // is intentionally NOT skipped: when the committed ann is emitted by Room before
+                        // consumeDraft() removes the draft mark, findIdx must still locate the word inside
+                        // the draft mark so __riffleSafeWrap can nest the committed mark inside it.
+                        // consumeDraft's cleanup (outerHTML = innerHTML) then promotes the committed mark.
+                        if (n.parentNode && n.parentNode.closest && n.parentNode.closest('[data-riffle-ann]:not([data-riffle-ann="${com.riffle.feature.reader.AnnotationSession.DRAFT_ANNOTATION_ID}"])')) continue;
                         nodes.push({ node: n, start: fullText.length, len: n.nodeValue.length });
                         fullText += n.nodeValue;
                     }

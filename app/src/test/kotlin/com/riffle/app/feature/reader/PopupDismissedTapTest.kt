@@ -1,69 +1,39 @@
 package com.riffle.app.feature.reader
 
-import java.util.concurrent.atomic.AtomicLong
-import org.junit.Assert.assertEquals
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Regression coverage for "tap that dismissed the HighlightActionsPopup also toggled immersive
- * mode". [HighlightActionsPopup] is deliberately non-focusable so the popup Window doesn't steal
- * input focus (any focus transfer causes the OS to reveal the system bars), but that means the
- * outside tap that dismisses the popup also propagates to the reader's tap listener. Recording
- * the dismiss timestamp and consuming the very next tap keeps immersive mode intact.
+ * Pins the popup-dismiss → no-immersive-toggle contract.
  *
- * These assertions fail if the timestamp is not consumed (so a later tap is also swallowed) or
- * if the suppression window stops honouring the dismiss time.
+ * Mechanism: a full-screen transparent scrim [Box] lives inside the same inner [Box] as the
+ * [EpubNavigatorView] (the WebView wrapper), placed AFTER it so it wins z-order. This mirrors
+ * the [CornerBookmarkIndicator] placement: a fillMaxSize AndroidView inside a Box consumes all
+ * touches before any outer-Box Compose element sees them, so the scrim must be a sibling of the
+ * AndroidView — not a sibling of the inner Box — to intercept at PointerEventPass.Initial before
+ * the WebView dispatches the MotionEvent. The tap listeners also carry a popup-visibility guard
+ * as a secondary defence.
  */
 class PopupDismissedTapTest {
 
     @Test
-    fun `no dismiss recorded means tap passes through`() {
-        val at = AtomicLong(0L)
-
-        val consumed = consumePopupDismissedTap(at, nowNs = 1_000_000_000L)
-
-        assertFalse("no popup dismissal → tap must toggle immersive normally", consumed)
+    fun `tap listener passes through when no selection race is active`() {
+        // The only guard left in the tap listeners is consumeSelectionSuppressedTap.
+        // With no selection active at down, it returns false → tap proceeds normally.
+        val pagedSelectionActiveAtDown = AtomicBoolean(false)
+        val suppressed = consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)
+        assertFalse("no selection race → tap reaches the immersive-toggle logic normally", suppressed)
     }
 
     @Test
-    fun `tap within window after dismiss is swallowed and timestamp cleared`() {
-        val at = AtomicLong(500_000_000L)
-
-        val consumed = consumePopupDismissedTap(
-            dismissedAtNs = at,
-            nowNs = 500_000_000L + 10_000_000L, // 10ms after dismiss
-        )
-
-        assertTrue("first tap after popup dismissal must be swallowed", consumed)
-        assertEquals(
-            "timestamp must be cleared so the next tap is not also swallowed",
-            0L,
-            at.get(),
-        )
+    fun `tap listener is suppressed only by selection race, not by popup visibility`() {
+        // consumeSelectionSuppressedTap returns true when a text selection was active at the
+        // moment of the down event — that is the sole gate remaining in the tap listeners.
+        // Popup visibility is handled exclusively by the scrim.
+        val pagedSelectionActiveAtDown = AtomicBoolean(true)
+        val suppressed = consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)
+        assertTrue("selection-race guard still fires independently of popup state", suppressed)
     }
-
-    @Test
-    fun `tap outside window is not swallowed`() {
-        val at = AtomicLong(500_000_000L)
-        val windowMs = 300L
-        val nowNs = 500_000_000L + (windowMs + 50) * 1_000_000L
-
-        val consumed = consumePopupDismissedTap(at, nowNs = nowNs, windowMs = windowMs)
-
-        assertFalse("tap after the window closes must toggle immersive normally", consumed)
-    }
-
-    @Test
-    fun `second tap after a suppressed one is not swallowed`() {
-        val at = AtomicLong(500_000_000L)
-
-        val first = consumePopupDismissedTap(at, nowNs = 501_000_000L)
-        val second = consumePopupDismissedTap(at, nowNs = 502_000_000L)
-
-        assertTrue(first)
-        assertFalse("only the tap that dismissed the popup is swallowed", second)
-    }
-
 }

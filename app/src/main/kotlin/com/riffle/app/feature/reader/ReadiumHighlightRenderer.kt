@@ -51,6 +51,10 @@ internal class ReadiumHighlightRenderer(
     private var hasEmphasisDecorations = false
     private var hasNoteGlyphDecorations = false
     private var hasSearchDecorations = false
+    // Map of annotation id → its emphasis styles as of the last applyAnnotations call.
+    // Compared against the current pool to detect emphasis changes that require a forced
+    // clear+re-apply so Readium re-measures tap-target rects after DOM reflow.
+    private var lastEmphasisById: Map<String, Set<EmphasisStyle>> = emptyMap()
 
     override suspend fun applySentenceHighlight(
         fragmentRef: String?,
@@ -90,6 +94,7 @@ internal class ReadiumHighlightRenderer(
             if (!hasAnnotationDecorations) return
             applyDecorationsBlock(emptyList(), "annotations")
             hasAnnotationDecorations = false
+            lastEmphasisById = emptyMap()
             return
         }
         // Highlights mode: accent-bar highlights emit NO Readium decoration — the visible bar and
@@ -132,16 +137,25 @@ internal class ReadiumHighlightRenderer(
         // runs — the measured tap-target rects reflect the already-reflowed layout.
         // Without this ordering, rects are baked from the pre-bold DOM, then the DOM reflows after,
         // leaving tap targets at stale coordinates (the annotation-not-tappable bug).
+        val currentEmphasisById = renders.associate { h -> h.id to h.emphasisStyles }
+        // True only when an annotation that was present before now has different emphasis —
+        // initial apply and newly-added annotations have no prior rects to be stale.
+        val emphasisChanged = lastEmphasisById.any { (id, prev) ->
+            val cur = currentEmphasisById[id]
+            cur != null && cur != prev
+        }
+        lastEmphasisById = currentEmphasisById
         injectEmphasisDom()
-        // Pass decorations as-is; Readium diffs the new list against its internal state and
-        // emits only Added/Removed/Updated changes in a single requestAnimationFrame — no flash.
-        // Layout repositioning after page load or CSS reflow is handled automatically by Readium's
-        // ResizeObserver-based requestLayout, which removes and re-creates all elements within a
-        // single rAF when the column layout changes. Forcing repositioning by stamping a generation
-        // marker into locator.title caused Readium to emit Updated (remove + add) for all 119+
-        // decorations on each of 4 re-applies, producing visible flashing even though each
-        // individual rAF was atomic.
-        applyDecorationsBlock(decorations, "annotations")
+        // When emphasis changed (user toggled bold/italic/underline/strike), force clear+re-apply
+        // so Readium re-measures tap-target rects from the reflowed DOM. For all other re-applies
+        // (page-load, theme change, etc.) the decoration list is identical and applyDecorationsBlock
+        // is a cheap no-op. The ResizeObserver handles column-level layout shifts, but cannot detect
+        // inline-only text width changes (e.g. bolding a single word that doesn't cause line wrap).
+        if (emphasisChanged) {
+            applyDecorationsWithClear(decorations, "annotations")
+        } else {
+            applyDecorationsBlock(decorations, "annotations")
+        }
         hasAnnotationDecorations = true
         // ADR 0056: layered emphasis paints via companion decorations. Underline uses Readium's
         // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic

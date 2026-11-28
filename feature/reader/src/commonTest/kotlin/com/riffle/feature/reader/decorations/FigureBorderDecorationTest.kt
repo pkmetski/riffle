@@ -396,6 +396,92 @@ class FigureBorderDecorationTest {
         assertTrue(rules.single().contains("56,189,248"))
     }
 
+    @Test
+    fun `TYPE_HIGHLIGHT with charOffset zero and blank caption suppresses CSS caption tint`() {
+        // Bug B regression: when the annotation starts at the figure (charOffset=0) and no caption
+        // text is stored, splitSnippetForFiguresAt produces ["", textSnippet] — Readium's
+        // text-quote decoration covers the full caption element via the second segment. Adding the
+        // CSS tintCaptionFor on top creates a double visual (Readium yellow + CSS background) that
+        // makes the entire figure look boxed in yellow. tintCaption must be false in this case
+        // so the caption highlight comes exclusively from Readium's decoration.
+        val captionOnlyHighlight = highlightAnnotation(
+            id = "hl-bug-b",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "aien_0302.png",
+                    svg = null,
+                    caption = "",
+                    order = 0,
+                    charOffset = 0L,
+                ),
+            ),
+            textSnippet = "Figure 3-2. Number of open source evaluation repositories.",
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(captionOnlyHighlight)).single()
+
+        assertFalse(
+            mark.tintCaption,
+            "charOffset=0 + blank caption means Readium already decorates the full caption element; " +
+                "CSS tint on top creates a double visual and must be suppressed",
+        )
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with charOffset zero and blank caption suppresses CSS caption tint for SVG`() {
+        val svgHighlight = highlightAnnotation(
+            id = "hl-bug-b-svg",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = null,
+                    svg = "<svg id=\"chart\"><rect/></svg>",
+                    caption = "",
+                    order = 0,
+                    charOffset = 0L,
+                ),
+            ),
+            textSnippet = "Figure 3-2. Some SVG chart.",
+        )
+
+        val match = FigureBorderDecoration.buildSvgMatches(listOf(svgHighlight)).single()
+
+        assertFalse(
+            match.tintCaption,
+            "charOffset=0 + blank caption on SVG figure must also suppress CSS caption tint",
+        )
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with charOffset zero and non-blank caption keeps CSS caption tint`() {
+        // When caption is non-empty and charOffset=0, the textSnippet starts mid-caption (the user
+        // selected the tail). The unselected head of the caption element is NOT decorated by
+        // Readium and must be styled by the CSS tintCaptionFor pass.
+        val partialCaptionHighlight = highlightAnnotation(
+            id = "hl-partial-head",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = "Figure 3.1: At the beginning, a tactical approach to programming.",
+                    order = 0,
+                    charOffset = 0L,
+                ),
+            ),
+            textSnippet = "tactical approach to programming. Following prose.",
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(partialCaptionHighlight)).single()
+
+        assertTrue(
+            mark.tintCaption,
+            "non-blank caption with charOffset=0 means the head of the caption is unselected; " +
+                "CSS tint is the only mechanism that styles the unselected portion",
+        )
+    }
+
     private fun imageAnnotation(
         id: String,
         imageHref: String? = null,

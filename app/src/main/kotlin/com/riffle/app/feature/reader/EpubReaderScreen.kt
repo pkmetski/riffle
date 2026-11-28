@@ -16,6 +16,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -171,7 +173,6 @@ import com.riffle.feature.reader.HighlightRender
 import com.riffle.feature.reader.EmphasisDomInjector
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.roundToInt
 
@@ -779,6 +780,30 @@ fun EpubReaderScreen(
                             .graphicsLayer { }
                             .testTag(TestTags.READER_BOOKMARK),
                     )
+                    // Dismiss-tap scrim: must live inside this inner Box (sibling of
+                    // EpubNavigatorView, placed AFTER it so it wins the z-order) for the same
+                    // reason CornerBookmarkIndicator does — a fillMaxSize AndroidView in a Box
+                    // consumes all touches before any outer-Box Compose element sees them.
+                    // Consuming every pointer at PointerEventPass.Initial blocks the WebView from
+                    // receiving the dismiss tap and calling onTap → onToggleImmersive(), which
+                    // would shift the layout and reposition the popup to the bottom of the screen.
+                    if (highlightToEdit != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                            event.changes.forEach { it.consume() }
+                                            if (event.changes.any { it.pressed && !it.previousPressed }) {
+                                                viewModel.dismissHighlightActions()
+                                            }
+                                        }
+                                    }
+                                },
+                        )
+                    }
                 }
                 is ReaderState.Error -> {
                     Text(
@@ -1530,12 +1555,6 @@ private fun EpubNavigatorView(
     // handler so a tap that only dismisses the text-selection popup does not also toggle
     // immersive mode. Written on the JS background thread; consumed on the main thread.
     val pagedSelectionActiveAtDown = remember { AtomicBoolean(false) }
-    // Timestamp (System.nanoTime()) of the most recent HighlightActionsPopup dismissal. The popup
-    // is non-focusable (see HighlightActionsSheet), so an outside tap that dismisses it also
-    // propagates to the reader and would otherwise flip immersive mode. Recording the dismiss time
-    // lets the paged/continuous tap listeners swallow that immediate follow-up tap only, without
-    // suppressing genuine taps that happen after the dismiss window closes.
-    val highlightPopupDismissedAtNs = remember { AtomicLong(0L) }
     val pagedSelectionRectBridge = remember {
         RiffleSelectionRectBridge(
             store = pagedSelectionRectCss,
@@ -1554,6 +1573,13 @@ private fun EpubNavigatorView(
     // rect and let Readium's native ActionMode callback populate outRect, then only clamp its
     // bottom into the visible band.
     val readiumIsScrollMode = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // The last onGetContentRect output converted to window/screen coordinates. Stored so the
+    // annotation popup can use the same correctly-positioned rect as the action-mode toolbar
+    // — the two coordinate paths (paginated: CSS rect × DPR; vertical: Readium's native scroll-
+    // aware callback) are already applied by the interceptor and produce a correct screen rect.
+    // Written on the main thread inside onGetContentRect; read on the main thread in the action
+    // item coroutine.
+    val lastActionModeWindowRect = remember { AtomicReference<IntRect?>(null) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -1613,6 +1639,11 @@ private fun EpubNavigatorView(
     // on readiumPresenter, so its closure would capture the null from launch time and silently
     // drop paginated TOC navigation after a continuous→paginated mode switch.
     val currentReadiumPresenter by rememberUpdatedState(readiumPresenter)
+    // Tracks popup visibility for tap-listener guards. Reading .value inside any remembered
+    // lambda gives the snapshot value from the last committed composition — stable across a
+    // single event dispatch cycle, so a dismiss tap that also fires onTap still sees the popup
+    // as visible and the guard fires before onTap can toggle immersive mode.
+    val currentHighlightPopupVisible = rememberUpdatedState(highlightToEdit != null)
 
     // Coordinator created once; lambdas close over rememberUpdatedState delegates so each
     // invocation always reads the latest value, not the value at remember time.
@@ -1627,7 +1658,7 @@ private fun EpubNavigatorView(
             ensureSentenceQuotesReady = { currentEnsureSentenceQuotesReady() },
             navigation = object : ContinuousNavigationSink {
                 override fun onTap() {
-                    if (consumePopupDismissedTap(highlightPopupDismissedAtNs)) return
+                    if (currentHighlightPopupVisible.value) return
                     currentOnTap()
                 }
                 override fun onLocator(locator: Locator) = onPositionChanged(locator)
@@ -1754,9 +1785,19 @@ private fun EpubNavigatorView(
                         coroutineScope.launch {
                             try {
                                 val selection = selectable.currentSelection() ?: return@launch
-                                val rawRect = selection.rect
-                                    ?: run { selectable.clearSelection(); return@launch }
-                                val rect = rawRect.toWindowIntRect(container)
+                                // Prefer the action-mode toolbar's screen rect: it was already
+                                // computed via the correct path (CSS × DPR for paginated, Readium's
+                                // native scroll-aware callback for vertical), so it is correct in
+                                // both modes. selection.rect.toWindowIntRect() is document-relative
+                                // in vertical/scroll mode (WebView native scroll is not reflected in
+                                // getBoundingClientRect), placing the popup at the screen bottom.
+                                val loc = IntArray(2)
+                                container.getLocationOnScreen(loc)
+                                val rect = resolveReadiumAnnotationAnchorRect(
+                                    lastActionModeWindowRect.get(),
+                                    selection.rect,
+                                    loc[0], loc[1],
+                                ) ?: run { selectable.clearSelection(); return@launch }
                                 currentOnHighlight(selection.locator, rect)
                                 selectable.clearSelection()
                             } finally {
@@ -1842,7 +1883,7 @@ private fun EpubNavigatorView(
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 if (consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)) return false
-                if (consumePopupDismissedTap(highlightPopupDismissedAtNs)) return false
+                if (currentHighlightPopupVisible.value) return false
                 if (currentEffectiveOrientation.value == ReaderOrientation.Horizontal) {
                     val container = containerRef.value
                     if (container != null) {
@@ -2795,6 +2836,19 @@ private fun EpubNavigatorView(
                                     // on edge-to-edge layouts). Preserves the framework's above-
                                     // placement anchor when the selection is already inside the band.
                                     clampReaderSelectionRectBottom(view, outRect)
+                                    // Store outRect in window/screen coordinates so the annotation
+                                    // popup can use the same correctly-positioned rect. The action-
+                                    // mode interceptor already chose the right path (CSS rect for
+                                    // paginated, Readium native for scroll); converting to screen
+                                    // coords here makes it usable by the Compose Popup.
+                                    val loc = IntArray(2)
+                                    view.getLocationOnScreen(loc)
+                                    lastActionModeWindowRect.set(
+                                        IntRect(
+                                            outRect.left + loc[0], outRect.top + loc[1],
+                                            outRect.right + loc[0], outRect.bottom + loc[1],
+                                        )
+                                    )
                                 }
                                 override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onCreateActionMode(mode, menu)
                                 override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onPrepareActionMode(mode, menu)
@@ -3266,13 +3320,7 @@ private fun EpubNavigatorView(
                 onToggleEmphasis = { style -> onToggleEmphasis(editTarget.id, style) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect.toIntRect()) },
-                onDismiss = {
-                    // Record the dismiss time so the tap that dismissed the popup (Compose fires
-                    // onDismissRequest at ACTION_OUTSIDE but the same touch still reaches the
-                    // reader) doesn't also toggle immersive mode. See [highlightPopupDismissedAtNs].
-                    highlightPopupDismissedAtNs.set(System.nanoTime())
-                    onDismissHighlightActions()
-                },
+                onDismiss = { onDismissHighlightActions() },
                 noteOnly = editTarget.noteOnly,
                 showOpenInBook = showOpenInBook,
                 onOpenInBook = { onOpenInBook(editTarget.id) },
@@ -3460,27 +3508,6 @@ internal fun clampReaderSelectionRectBottomYs(
 // Compose closure that can't be exercised without a live Readium fragment.
 internal fun consumeSelectionSuppressedTap(activeAtDown: AtomicBoolean): Boolean =
     activeAtDown.getAndSet(false)
-
-// Window (ms) after a HighlightActionsPopup dismissal during which the very next tap is treated
-// as the dismissing tap and swallowed. Sized generously enough to cover the gap between Compose's
-// ACTION_OUTSIDE-driven onDismissRequest and the follow-up tap fired from the WebView / continuous
-// gesture detector, but small enough that a genuine tap a moment later still toggles immersive.
-internal const val POPUP_DISMISS_TAP_WINDOW_MS: Long = 300L
-
-// Returns true if the tap that just fired should be swallowed because a HighlightActionsPopup
-// dismissed within the recent window. Consumes the timestamp so only the first follow-up tap is
-// suppressed. Extracted for JVM unit-testing — the paged/continuous callsites wrap Compose
-// closures that can't be exercised without a live Readium fragment.
-internal fun consumePopupDismissedTap(
-    dismissedAtNs: AtomicLong,
-    nowNs: Long = System.nanoTime(),
-    windowMs: Long = POPUP_DISMISS_TAP_WINDOW_MS,
-): Boolean {
-    val at = dismissedAtNs.getAndSet(0L)
-    if (at == 0L) return false
-    val elapsedNs = nowNs - at
-    return elapsedNs in 0..(windowMs * 1_000_000L)
-}
 
 // Builds the DirectionalNavigationAdapter Riffle attaches to paged/vertical mode. Extracted so a
 // JVM test can pin the tap-navigation config: tapEdges MUST stay empty so screen taps toggle

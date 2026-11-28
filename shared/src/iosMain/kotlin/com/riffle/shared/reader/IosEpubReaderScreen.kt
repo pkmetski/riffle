@@ -1118,6 +1118,7 @@ fun EpubReaderScreen(
     // to the navigator whenever annotations change or a page loads. Replaces the defunct
     // AnnotationDecorationCoordinator — the shared AnnotationSession now drives observation and the
     // three preference stores, so decoration-application is the only iOS-specific concern left.
+    val lastEmphasisById = remember(navigator) { mutableMapOf<String, Set<EmphasisStyle>>() }
     LaunchedEffect(navigator) {
         combine(
             annotationSession.annotations,
@@ -1125,7 +1126,7 @@ fun EpubReaderScreen(
             navigator.pageLoadEvents.onStart { emit(NavigatorPageLoad(0)) },
         ) { annotations, emphasis, _ -> annotations to emphasis }
             .collect { (annotations, emphasis) ->
-                applyAnnotationDecorations(navigator, annotations, emphasis)
+                applyAnnotationDecorations(navigator, annotations, emphasis, lastEmphasisById)
             }
     }
 
@@ -2698,16 +2699,49 @@ internal suspend fun applyAnnotationDecorations(
     navigator: ReadiumSwiftNavigator,
     annotations: List<com.riffle.core.models.Annotation>,
     emphasis: List<com.riffle.core.models.Annotation>,
+    lastEmphasisById: MutableMap<String, Set<EmphasisStyle>> = mutableMapOf(),
 ) {
     navigator.evaluateJavaScriptForDecorations(
         com.riffle.feature.reader.decorations.installHighlightLeadingObserverJs(),
     )
     val highlights = annotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT }
     val bookmarks = annotations.filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK }
-    navigator.applyDecorations(
-        ReaderDecorationGroups.highlights,
-        highlights.mapNotNull { annotationToHighlightDecoration(it) },
+    // Inject emphasis DOM before measuring decoration rects — same ordering as Android's
+    // ReadiumHighlightRenderer, so bold/italic spans exist when Readium measures tap targets.
+    navigator.evaluateJavaScriptForDecorations(
+        com.riffle.feature.reader.EmphasisDomInjector.script(
+            emphasis.mapNotNull { annotation ->
+                val styles = annotation.emphasisStyles?.filter {
+                    it == EmphasisStyle.BOLD || it == EmphasisStyle.ITALIC
+                }?.toSet().orEmpty()
+                if (styles.isEmpty()) {
+                    null
+                } else {
+                    com.riffle.feature.reader.EmphasisDomInjector.EmphasisRange(
+                        id = annotation.id,
+                        textSnippet = annotation.textSnippet,
+                        textBefore = annotation.textBefore,
+                        styles = styles,
+                    )
+                }
+            },
+        ),
     )
+    // When an existing annotation's emphasis changes, force clear+re-apply so Readium re-measures
+    // tap-target rects from the already-reflowed DOM. Without this, applyDecorations is a no-op
+    // diff (identical id/locator/style) and tapping a bold/italic annotation stops working.
+    val currentEmphasisById = emphasis.associate { it.id to (it.emphasisStyles?.toSet() ?: emptySet()) }
+    val emphasisChanged = lastEmphasisById.any { (id, prev) ->
+        val cur = currentEmphasisById[id]
+        cur != null && cur != prev
+    }
+    lastEmphasisById.clear()
+    lastEmphasisById.putAll(currentEmphasisById)
+    val highlightDecorations = highlights.mapNotNull { annotationToHighlightDecoration(it) }
+    if (emphasisChanged) {
+        navigator.applyDecorations(ReaderDecorationGroups.highlights, emptyList())
+    }
+    navigator.applyDecorations(ReaderDecorationGroups.highlights, highlightDecorations)
     navigator.applyDecorations(
         ReaderDecorationGroups.noteGlyphs,
         highlights.mapNotNull { annotationToNoteGlyphDecoration(it) },
@@ -2726,25 +2760,6 @@ internal suspend fun applyAnnotationDecorations(
             cssRules = com.riffle.feature.reader.decorations.FigureBorderDecoration.buildCssRules(annotations),
             svgMatches = com.riffle.feature.reader.decorations.FigureBorderDecoration.buildSvgMatches(annotations),
             rasterMarks = com.riffle.feature.reader.decorations.FigureBorderDecoration.buildRasterMarks(annotations),
-        ),
-    )
-    navigator.evaluateJavaScriptForDecorations(
-        com.riffle.feature.reader.EmphasisDomInjector.script(
-            emphasis.mapNotNull { annotation ->
-                val styles = annotation.emphasisStyles?.filter {
-                    it == EmphasisStyle.BOLD || it == EmphasisStyle.ITALIC
-                }?.toSet().orEmpty()
-                if (styles.isEmpty()) {
-                    null
-                } else {
-                    com.riffle.feature.reader.EmphasisDomInjector.EmphasisRange(
-                        id = annotation.id,
-                        textSnippet = annotation.textSnippet,
-                        textBefore = annotation.textBefore,
-                        styles = styles,
-                    )
-                }
-            },
         ),
     )
 }

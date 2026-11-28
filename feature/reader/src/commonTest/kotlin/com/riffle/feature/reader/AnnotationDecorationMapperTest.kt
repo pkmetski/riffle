@@ -164,16 +164,21 @@ class AnnotationDecorationMapperTest {
     }
 
     @Test
-    fun aSnippetSpanningAParagraphBreakStaysValidJson() {
-        // A raw newline inside a JSON string is a parse error; Swift's JSONValue(jsonString:)
-        // rejects the whole locator and the highlight vanishes — indistinguishable from "the
-        // range could not be found".
+    fun aSnippetSpanningAParagraphBreakIsNormalizedToSpaceForReadiumTextSearch() {
+        // window.getSelection().toString() captures literal \n when a selection spans a paragraph
+        // boundary. Readium's TextQuoteSelector concatenates adjacent block nodes without any
+        // separator, so a \n in the highlight extends the matched range past the intended endpoint.
+        // The fix normalizes whitespace runs to a single space in all three text-quote fields
+        // before building the JSON. This also prevents the Swift parse failure that raw \n caused
+        // (JSONValue(jsonString:) rejects locators with un-escaped control characters).
         val locator = annotationToHighlightDecoration(
             annotation(snippet = "first line\nsecond line", before = "a\tb"),
         )?.locatorJson ?: ""
         assertFalse(locator.contains('\n'), "raw newline in locator JSON: $locator")
         assertFalse(locator.contains('\t'), "raw tab in locator JSON: $locator")
-        assertTrue(locator.contains("""first line\nsecond line"""), locator)
+        // Whitespace runs normalised to a single space — not retained as JSON-escaped \n.
+        assertTrue(locator.contains("first line second line"), locator)
+        assertTrue(locator.contains("\"before\":\"a b\""), locator)
     }
 
     @Test

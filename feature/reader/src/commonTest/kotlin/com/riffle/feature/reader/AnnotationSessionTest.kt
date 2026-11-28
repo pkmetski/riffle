@@ -1441,6 +1441,65 @@ class AnnotationSessionTest {
     }
 
     @Test
+    fun draftRenderRemainsInHighlightRendersAfterForceCloseUntilConsumeDraftIsCalled() = runTest {
+        // Regression: commitDraft (dismiss path) must wait for Room to emit the committed
+        // annotation before calling consumeDraft(). Without the wait, consumeDraft() fires
+        // before Room emits, leaving the chapter with an empty decoration list for one frame —
+        // the highlight mark flashes away and then reappears.
+        //
+        // The invariant this test pins: forceCloseHighlightEditTarget() does NOT remove the
+        // draft render from highlightRenders. Only consumeDraft() removes it. This window
+        // is exactly what commitDraft exploits to wait for Room emission.
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        val locatorJson = buildLocator()
+        session.bind(
+            sourceId = "srv1", namespace = "ns1", itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        val draft = AnnotationSession.DraftAnnotation(
+            sourceId = "srv1",
+            itemId = "item1",
+            cfiRange = "epubcfi(/6/4!/4/2)",
+            textSnippet = "hello",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "chapter1.xhtml",
+            spineIndex = 0,
+            progression = 0.3,
+            embeddedFigures = null,
+            originFontFamily = "",
+            textSnippetHtml = null,
+            anchorRect = AnchorRect.Zero,
+            locatorJson = locatorJson,
+        )
+
+        session.beginAnnotationDraft(draft)
+        assertTrue(
+            session.highlightRenders.value.any { it.id == AnnotationSession.DRAFT_ANNOTATION_ID },
+            "draft render must appear in highlightRenders after beginAnnotationDraft",
+        )
+
+        session.forceCloseHighlightEditTarget()
+        assertTrue(
+            session.highlightRenders.value.any { it.id == AnnotationSession.DRAFT_ANNOTATION_ID },
+            "draft render must still be in highlightRenders after forceCloseHighlightEditTarget — " +
+                "only consumeDraft() removes it, so commitDraft can wait for Room before consuming",
+        )
+
+        session.consumeDraft()
+        assertFalse(
+            session.highlightRenders.value.any { it.id == AnnotationSession.DRAFT_ANNOTATION_ID },
+            "draft render must be gone from highlightRenders after consumeDraft",
+        )
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
     fun onBookClosedDelegatesToTheSyncCoordinator() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)

@@ -2389,6 +2389,12 @@ class EpubReaderViewModel constructor(
             // Dismiss path — close the sheet outright. The row is persisted with the preset
             // colour + emphasis; no follow-up edit target is needed.
             annotationSession.forceCloseHighlightEditTarget()
+            // Wait for Room to emit the committed annotation before consuming the draft.
+            // Without this, consumeDraft() clears _draftAnnotation before Room's Flow
+            // emits the new row, leaving the chapter with an empty decoration list for
+            // one frame — the highlight mark flashes away and then reappears.
+            annotationStore.observeAnnotations(draft.sourceId, draft.itemId)
+                .first { annotations -> annotations.any { it.id == created.id } }
         }
         // Clear the draft last — the [beginAnnotationDraft] path set both draft and edit target;
         // openHighlightActions above (or forceClose in the dismiss branch) already reset the
@@ -3476,23 +3482,24 @@ class EpubReaderViewModel constructor(
         } else {
             splitSnippetForFiguresAt(a.textSnippet, offsets)
         }
+        // textBefore/textAfter must attach to the first/last NON-BLANK segment, not raw index 0 /
+        // lastIndex — splitSnippetForFiguresAt yields a blank boundary segment when a figure sits at
+        // the start (["", caption]) or the end (["text", ""]) of the highlight. Keying on raw indices
+        // drops the context onto a skipped blank segment, degrading Readium's TextQuoteSelector
+        // disambiguation the same way on both ends.
+        val contexts = annotationSegmentContexts(segments, a.textBefore, a.textAfter)
         val renders = segments
             .mapIndexedNotNull { index, segmentText ->
                 if (segmentText.isBlank()) return@mapIndexedNotNull null
-                val locator = try {
-                    Locator.fromJSON(
-                        JSONObject()
-                            .put("href", href)
-                            .put("type", "application/xhtml+xml")
-                            .put("locations", JSONObject().put("progression", progression))
-                            .put("text", JSONObject()
-                                .put("before", if (index == 0) a.textBefore else "")
-                                .put("highlight", segmentText)
-                                .put("after", if (index == segments.lastIndex) a.textAfter else "")),
-                    )
-                } catch (_: Exception) {
-                    null
-                } ?: return@mapIndexedNotNull null
+                val (before, after) = contexts.getValue(index)
+                val locator = buildAnnotationRenderLocator(
+                    href = href,
+                    cfi = a.cfi,
+                    progression = progression,
+                    before = before,
+                    highlight = segmentText,
+                    after = after,
+                ) ?: return@mapIndexedNotNull null
                 val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
                 HighlightRender(decorationId, locator.toJSON().toString(), a.color, a.note, emphasisStyles = emphasisStyles)
             }
@@ -4244,4 +4251,76 @@ internal fun highlightsResumeChapterHref(
  */
 internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>, href: String): String? =
     com.riffle.feature.reader.highlights.highlightsResumeAnnotationIdForHref(chapters, href)
+
+/**
+ * Builds the Readium [Locator] for a persisted annotation's [HighlightRender].
+ *
+ * CFI is intentionally NOT in `locations.fragments`: the CFI is built by ksoup from the raw XHTML,
+ * but Readium serves a modified DOM (injected scripts/CSS) with different element indices, causing
+ * silent decoration failures. Readium falls back to text search, which works once whitespace is
+ * normalised.
+ *
+ * All three text fields — before, highlight, after — are whitespace-normalised (collapsing `\n`
+ * and other whitespace runs to a single space) so Readium's TextQuoteSelector can find them even
+ * when the annotation was created in continuous mode (where `window.getSelection().toString()`
+ * captures literal `\n` between paragraphs, but Readium's DOM text-search concatenates adjacent
+ * block nodes without any separator). Un-normalised `\n` in the highlight field extends the matched
+ * range past the intended endpoint.
+ *
+ * `internal` so the normalisation contract is unit-testable without constructing the ViewModel.
+ * [locatorFromJson] is injected so tests can bypass `android.net.Uri` (unavailable in JVM stubs).
+ */
+/**
+ * Maps each non-blank segment index to the (before, after) context it should carry.
+ *
+ * [textBefore] goes to the first non-blank segment and [textAfter] to the last non-blank segment;
+ * every segment in between gets empty context. Blank boundary segments (produced by
+ * [splitSnippetForFiguresAt] when a figure sits at the very start or end of a highlight) are
+ * excluded from the map so the context never lands on a segment that is skipped at render time.
+ */
+internal fun annotationSegmentContexts(
+    segments: List<String>,
+    textBefore: String,
+    textAfter: String,
+): Map<Int, Pair<String, String>> {
+    val nonBlank = segments.indices.filter { segments[it].isNotBlank() }
+    val first = nonBlank.firstOrNull()
+    val last = nonBlank.lastOrNull()
+    return nonBlank.associateWith { index ->
+        (if (index == first) textBefore else "") to (if (index == last) textAfter else "")
+    }
+}
+
+internal fun buildAnnotationRenderLocator(
+    href: String,
+    cfi: String,
+    progression: Double,
+    before: String,
+    highlight: String,
+    after: String,
+    locatorFromJson: (org.json.JSONObject) -> org.readium.r2.shared.publication.Locator? =
+        { json -> org.readium.r2.shared.publication.Locator.fromJSON(json) },
+): org.readium.r2.shared.publication.Locator? = try {
+    // Whitespace-normalize before/highlight/after so Readium's text-search can match them even
+    // when the annotation was created in continuous mode (where window.getSelection() captures
+    // literal \n between paragraphs, but Readium's DOM text-search concatenates adjacent block
+    // nodes without any separator). Normalizing only before/after while leaving \n in highlight
+    // caused the TextQuoteSelector to extend the matched range past the intended endpoint.
+    val normalizedBefore = before.replace(Regex("\\s+"), " ")
+    val normalizedHighlight = highlight.replace(Regex("\\s+"), " ")
+    val normalizedAfter = after.replace(Regex("\\s+"), " ")
+    locatorFromJson(
+        org.json.JSONObject()
+            .put("href", href)
+            .put("type", "application/xhtml+xml")
+            .put("locations", org.json.JSONObject()
+                .put("progression", progression))
+            .put("text", org.json.JSONObject()
+                .put("before", normalizedBefore)
+                .put("highlight", normalizedHighlight)
+                .put("after", normalizedAfter)),
+    )
+} catch (_: Exception) {
+    null
+}
 
