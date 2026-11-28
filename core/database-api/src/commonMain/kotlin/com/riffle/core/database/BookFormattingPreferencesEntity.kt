@@ -41,4 +41,7 @@ data class BookFormattingPreferencesEntity(
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
     val showReadingTimeEstimate: Boolean? = null,
+    val autoScrollWpm: Int? = null,
+    val cadenceWpm: Int? = null,
+    val forcePaginatedInLandscape: Boolean? = null,
 )

@@ -138,6 +138,7 @@ import com.riffle.feature.reader.annotationToHighlightDecoration
 import com.riffle.feature.reader.annotationToNoteGlyphDecoration
 import com.riffle.feature.reader.autoScrollStallAction
 import com.riffle.feature.reader.autoscroll.AutoScrollController
+import com.riffle.feature.reader.autoscroll.nudgeAndPersistPace
 import com.riffle.feature.reader.autoscroll.nudgeSpeedAndPersistableWpm
 import com.riffle.feature.reader.bookmarkRailPosition
 import com.riffle.feature.reader.buildRailSegments
@@ -202,6 +203,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -1192,16 +1194,24 @@ fun EpubReaderScreen(
     // Vertical/Continuous do too.
     val cadenceController = remember(item.id) { CadenceController(dispatchers) }
     // `persistWpm` is why a HUD nudge survives the reader, the same contract Android's
-    // FormattingSession gives Auto-Scroll. `storedPrefs`, not `resolvedPrefs`: writing back the
-    // resolved copy would silently collapse ReaderTheme.Auto.
+    // FormattingSession gives Auto-Scroll. The pace is a per-book override so it never leaks across
+    // books, mirroring the per-book settings save in this same screen.
     val cadence = remember(cadenceController) {
         CadenceSession(
             controller = cadenceController,
             scope = scope,
             logger = logger,
             persistWpm = { wpm ->
-                storedPrefs?.let { stored ->
-                    scope.launch { formattingPreferencesStore.update(stored.copy(cadenceWpm = wpm)) }
+                scope.launch {
+                    nudgeAndPersistPace(
+                        bookFormattingPreferencesStore,
+                        item.sourceId,
+                        item.id,
+                        screenDimensionBucket,
+                        bookOverrides,
+                        wpm,
+                    ) { o, w -> o.copy(cadenceWpm = w) }
+                        ?.let { bookOverrides = it }
                 }
             },
         )
@@ -1233,7 +1243,9 @@ fun EpubReaderScreen(
     LaunchedEffect(cadence) {
         // Defect fixed here and on Android in the same change: `cadenceWpm` never reached a
         // running session, so Cadence always ticked at AutoScrollSpeed.Default.
-        cadence.bindDefaultSpeed(formattingPreferencesStore.preferences.map { it.cadenceWpm })
+        cadence.bindDefaultSpeed(
+            snapshotFlow { resolvedPrefs?.cadenceWpm ?: FormattingPreferences().cadenceWpm }.distinctUntilChanged(),
+        )
     }
 
     // Per-chapter DOM tokenisation. Re-runs on every page-load event because Readium reports one
@@ -2193,17 +2205,33 @@ fun EpubReaderScreen(
             onPause = { autoScroll.dispatch(AutoScrollEvent.Pause(PauseCause.UserPausedPill)) },
             onResume = { autoScroll.dispatch(AutoScrollEvent.Resume) },
             onSlower = {
-                val stored = storedPrefs
-                val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(-AutoScrollSpeed.STEP_WPM, stored?.autoScrollWpm ?: 0)
-                if (stored != null && newWpm != null) {
-                    scope.launch { formattingPreferencesStore.update(stored.copy(autoScrollWpm = newWpm)) }
+                val effectiveWpm = (resolvedPrefs ?: FormattingPreferences()).autoScrollWpm
+                val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(-AutoScrollSpeed.STEP_WPM, effectiveWpm)
+                scope.launch {
+                    nudgeAndPersistPace(
+                        bookFormattingPreferencesStore,
+                        item.sourceId,
+                        item.id,
+                        screenDimensionBucket,
+                        bookOverrides,
+                        newWpm,
+                    ) { o, w -> o.copy(autoScrollWpm = w) }
+                        ?.let { bookOverrides = it }
                 }
             },
             onFaster = {
-                val stored = storedPrefs
-                val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(AutoScrollSpeed.STEP_WPM, stored?.autoScrollWpm ?: 0)
-                if (stored != null && newWpm != null) {
-                    scope.launch { formattingPreferencesStore.update(stored.copy(autoScrollWpm = newWpm)) }
+                val effectiveWpm = (resolvedPrefs ?: FormattingPreferences()).autoScrollWpm
+                val newWpm = autoScroll.nudgeSpeedAndPersistableWpm(AutoScrollSpeed.STEP_WPM, effectiveWpm)
+                scope.launch {
+                    nudgeAndPersistPace(
+                        bookFormattingPreferencesStore,
+                        item.sourceId,
+                        item.id,
+                        screenDimensionBucket,
+                        bookOverrides,
+                        newWpm,
+                    ) { o, w -> o.copy(autoScrollWpm = w) }
+                        ?.let { bookOverrides = it }
                 }
             },
         )
@@ -2216,8 +2244,8 @@ fun EpubReaderScreen(
             labels = cadenceHudLabels(),
             onPause = { cadence.pauseFor(CadencePauseCause.PanelOpen) },
             onResume = { cadence.resumeIfPaused() },
-            onSlower = { cadence.nudge(-AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
-            onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, storedPrefs?.cadenceWpm ?: 0) },
+            onSlower = { cadence.nudge(-AutoScrollSpeed.STEP_WPM, (resolvedPrefs ?: FormattingPreferences()).cadenceWpm) },
+            onFaster = { cadence.nudge(AutoScrollSpeed.STEP_WPM, (resolvedPrefs ?: FormattingPreferences()).cadenceWpm) },
         )
 
         // Readaloud download confirmation dialog — shown as a dialog above everything.

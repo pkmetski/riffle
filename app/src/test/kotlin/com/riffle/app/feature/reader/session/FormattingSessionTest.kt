@@ -18,6 +18,7 @@ import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
 import com.riffle.core.domain.appearance.ResolvedAppearance
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.models.ScreenDimensionBucket
 import com.riffle.core.models.ScreenDimensionBucket.SizeClass
@@ -26,6 +27,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -394,6 +396,50 @@ class FormattingSessionTest {
             autoScrollController.dispatch(AutoScrollEvent.Stop)
             autoScrollController.dispatch(AutoScrollEvent.Start)
             assertEquals(400, (autoScrollController.state.value as AutoScrollState.Running).speed.wpm)
+        } finally {
+            autoScrollController.release()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `nudgeAutoScroll persists the new pace as a per-book override`() = runTest {
+        val fakeGlobal = FakeFormattingPreferencesStore(FormattingPreferences(autoScrollWpm = AutoScrollSpeed.DEFAULT_WPM))
+        val (session, globalStore, bookStore, _, autoScrollController, scope) = makeEager(fakeGlobal = fakeGlobal)
+        try {
+            session.bindToBook("item-1", sourceId = "test-src")
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+
+            session.nudgeAutoScroll("item-1", AutoScrollSpeed.STEP_WPM)
+
+            val saved = bookStore.saved["item-1" to ScreenDimensionBucket.PhonePortrait]
+            assertEquals(AutoScrollSpeed.DEFAULT_WPM + AutoScrollSpeed.STEP_WPM, saved?.autoScrollWpm)
+            assertEquals("test-src", bookStore.savedSourceIds.last())
+            assertEquals(
+                "a nudge must not write the global pace",
+                AutoScrollSpeed.DEFAULT_WPM,
+                globalStore.preferences.first().autoScrollWpm,
+            )
+        } finally {
+            autoScrollController.release()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `nudgeAutoScroll at MAX_WPM does not write a new per-book override`() = runTest {
+        val fakeGlobal = FakeFormattingPreferencesStore(FormattingPreferences(autoScrollWpm = AutoScrollSpeed.MAX_WPM))
+        val (session, _, bookStore, _, autoScrollController, scope) = makeEager(fakeGlobal = fakeGlobal)
+        try {
+            session.bindToBook("item-1", sourceId = "test-src")
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            val savesBefore = bookStore.savedSourceIds.size
+
+            session.nudgeAutoScroll("item-1", AutoScrollSpeed.STEP_WPM)
+
+            assertEquals(savesBefore, bookStore.savedSourceIds.size)
+            val saved = bookStore.saved["item-1" to ScreenDimensionBucket.PhonePortrait]
+            assertNull(saved?.autoScrollWpm)
         } finally {
             autoScrollController.release()
             scope.cancel()
