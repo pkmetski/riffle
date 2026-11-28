@@ -43,7 +43,9 @@
     <string name="ui_language">Език: </string>
     <string name="ui_publisher">Издател: %1$s</string>
     <string name="ui_sections_count">%1$d глави</string>
+    <string name="ui_sections_count_one">1 глава</string>
     <string name="ui_chapters_count">%1$d глави</string>
+    <string name="ui_chapters_count_one">1 глава</string>
     <string name="ui_audiobook_duration_line">Аудиокнига · %1$s</string>
     <string name="ui_duration_total">%1$s общо</string>
     <string name="ui_duration_total_remaining">%1$s общо · %2$s остават</string>

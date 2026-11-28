@@ -2,6 +2,7 @@ package com.riffle.feature.library.ui
 
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import com.riffle.core.models.TocEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -157,4 +158,66 @@ class LibraryItemDetailHelpersTest {
     }
 
     // Lone-surrogate handling (&#xD800; etc.) is Ksoup-implementation-defined; not tested.
+
+    // topLevelTocCount ------------------------------------------------------------
+
+    @Test
+    fun topLevelTocCountCountsOnlyTopLevelEntries() {
+        val toc = listOf(
+            TocEntry(
+                title = "Chapter 1",
+                href = "c1",
+                children = listOf(
+                    TocEntry(title = "1.1", href = "c1-1"),
+                    TocEntry(title = "1.2", href = "c1-2", children = listOf(TocEntry(title = "1.2.1", href = "c1-2-1"))),
+                ),
+            ),
+            TocEntry(title = "Chapter 2", href = "c2", children = listOf(TocEntry(title = "2.1", href = "c2-1"))),
+            TocEntry(title = "Chapter 3", href = "c3"),
+        )
+
+        assertEquals(3, topLevelTocCount(toc))
+    }
+
+    @Test
+    fun topLevelTocCountIgnoresNestingDepth() {
+        val flat = listOf(TocEntry("A", "a"), TocEntry("B", "b"))
+        val nested = listOf(
+            TocEntry("A", "a", children = List(50) { TocEntry("A$it", "a$it") }),
+            TocEntry("B", "b", children = List(50) { TocEntry("B$it", "b$it") }),
+        )
+
+        assertEquals(topLevelTocCount(flat), topLevelTocCount(nested))
+    }
+
+    @Test
+    fun topLevelTocCountEmptyIsZero() {
+        assertEquals(0, topLevelTocCount(emptyList()))
+    }
+
+    @Test
+    fun topLevelTocCountUnwrapsBlankTitleWrapper() {
+        val wrapped = listOf(
+            TocEntry(
+                title = "",
+                href = "nav",
+                children = listOf(
+                    TocEntry("Chapter 1", "c1", children = listOf(TocEntry("1.1", "c1-1"))),
+                    TocEntry("Chapter 2", "c2"),
+                    TocEntry("Chapter 3", "c3"),
+                ),
+            ),
+        )
+
+        assertEquals(3, topLevelTocCount(wrapped))
+    }
+
+    @Test
+    fun topLevelTocCountTitledContainerCountsAsOne() {
+        val named = listOf(
+            TocEntry("Part I", "p1", children = listOf(TocEntry("Chapter 1", "c1"), TocEntry("Chapter 2", "c2"))),
+        )
+
+        assertEquals(1, topLevelTocCount(named))
+    }
 }
