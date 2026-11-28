@@ -117,7 +117,8 @@ jobs:
       # jvmTest -PintegrationTests runs only the MockWebServer suites (ProgressSyncCycleTest,
       # ProgressSyncIntegrationTest, ReadingSessionIntegrationTest) which use JVM-only APIs
       # and are filtered OUT of the Unit job's jvmTest run.
-      - run: ./gradlew :core:data:testAndroidHostTest :core:data:jvmTest -PintegrationTests
+      # --no-configuration-cache: core:data compileAndroidHostTest classpath snapshot isn't CC-serializable under gradle-actions read-only cache (non-deterministic store failure).
+      - run: ./gradlew :core:data:testAndroidHostTest :core:data:jvmTest -PintegrationTests --no-configuration-cache
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7

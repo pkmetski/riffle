@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.localfiles.LocalFilesFolderHealthCheckerInterface
 import com.riffle.core.domain.localfiles.LocalFilesFolderRepositoryInterface
 import com.riffle.core.domain.localfiles.LocalFilesScannerInterface
+import com.riffle.core.domain.localfiles.reconcileLocalFilesVisibility
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
@@ -328,6 +329,9 @@ class SettingsViewModel constructor(
                         _serverVersions.value = versionsCache.toMap()
                     }
                 }
+        }
+        viewModelScope.launch {
+            localFilesSource.collect { reconcileLocalFilesVisibility(it, visibilityStore) }
         }
     }
 

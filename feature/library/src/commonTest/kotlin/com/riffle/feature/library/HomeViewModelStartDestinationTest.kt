@@ -50,8 +50,37 @@ class HomeViewModelStartDestinationTest {
         isUnsupported = false,
     )
 
+    private class MutableHiddenStore(
+        initialHidden: Map<String, Set<String>> = emptyMap(),
+    ) : LibraryVisibilityPreferencesStore {
+        val hidden = MutableStateFlow(initialHidden)
+        override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> =
+            MutableStateFlow(hidden.value[sourceId].orEmpty())
+        override suspend fun hideLibrary(sourceId: String, libraryId: String) {
+            hidden.value = hidden.value + (sourceId to (hidden.value[sourceId].orEmpty() + libraryId))
+        }
+        override suspend fun showLibrary(sourceId: String, libraryId: String) {
+            hidden.value = hidden.value + (sourceId to (hidden.value[sourceId].orEmpty() - libraryId))
+        }
+    }
+
+    private fun localSource(id: String, active: Boolean = false) = Source(
+        id = id,
+        url = SourceUrl.parse("https://localfiles.invalid")!!,
+        isActive = active,
+        insecureConnectionAllowed = false,
+        username = "",
+        type = SourceType.LOCAL_FILES,
+    )
+
     private fun makeVm(
         refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
+        riffleLastActive: Boolean = false,
+        visibilityStore: LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
+            override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> = flowOf(emptySet())
+            override suspend fun hideLibrary(sourceId: String, libraryId: String) {}
+            override suspend fun showLibrary(sourceId: String, libraryId: String) {}
+        },
     ) = HomeViewModel(
         sourceRepository = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = serversFlow
@@ -88,14 +117,11 @@ class HomeViewModelStartDestinationTest {
             override suspend fun refreshCollections(libraryId: String) = refreshResult
             override suspend fun refreshItemProgress(sourceId: String, itemId: String) = refreshResult
         }) {},
-        visibilityStore = object : LibraryVisibilityPreferencesStore {
-            override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> = flowOf(emptySet())
-            override suspend fun hideLibrary(sourceId: String, libraryId: String) {}
-            override suspend fun showLibrary(sourceId: String, libraryId: String) {}
-        },
+        visibilityStore = visibilityStore,
         lastOpenedLibraryStore = object : LastOpenedLibraryStore {
             override fun lastOpenedLibrary(sourceId: String): Flow<String?> = flowOf(null)
             override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {}
+            override fun wasRiffleLastActive(): Flow<Boolean> = flowOf(riffleLastActive)
         },
         dispatchers = object : DispatcherProvider {
             override val main: CoroutineDispatcher get() = Dispatchers.Main
@@ -122,6 +148,29 @@ class HomeViewModelStartDestinationTest {
             HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "Fantasy"),
             result,
         )
+    }
+
+    @Test
+    fun `getStartDestination reconciles a hidden Local Files library to visible`() = runTest {
+        val store = MutableHiddenStore(mapOf("lf" to setOf("lib-1")))
+        serversFlow.value = listOf(localSource("lf", active = true))
+        librariesFlow.value = listOf(library("lib-1", name = "Books"))
+
+        makeVm(visibilityStore = store).getStartDestination()
+
+        assertEquals(emptySet(), store.hidden.value["lf"].orEmpty())
+    }
+
+    @Test
+    fun `getStartDestination reconciles hidden Local Files even when Riffle is the start destination`() = runTest {
+        val store = MutableHiddenStore(mapOf("lf" to setOf("lib-1")))
+        serversFlow.value = listOf(localSource("lf", active = true))
+        librariesFlow.value = listOf(library("lib-1", name = "Books"))
+
+        val result = makeVm(riffleLastActive = true, visibilityStore = store).getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Riffle, result)
+        assertEquals(emptySet(), store.hidden.value["lf"].orEmpty())
     }
 
     @Test
